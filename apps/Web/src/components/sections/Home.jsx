@@ -8,6 +8,7 @@ import { EventService } from '../../services/eventService';
 
 export const Home = () => {
   const [events, setEvents] = useState([]);
+  const [featuredEvent, setFeaturedEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -81,13 +82,49 @@ export const Home = () => {
     },
   ];
 
+  // Helper function to parse guest speakers data
+  const parseGuestSpeakers = (speakers) => {
+    if (!speakers) return [];
+    
+    // If it's already an array of objects, return as is
+    if (Array.isArray(speakers) && speakers.length > 0 && typeof speakers[0] === 'object') {
+      return speakers;
+    }
+    
+    // If it's an array of strings, convert to objects
+    if (Array.isArray(speakers) && speakers.length > 0 && typeof speakers[0] === 'string') {
+      return speakers.map(name => ({ name }));
+    }
+    
+    // If it's a string, try to parse it
+    if (typeof speakers === 'string') {
+      try {
+        const parsed = JSON.parse(speakers);
+        if (Array.isArray(parsed)) {
+          return parsed.map(item => typeof item === 'string' ? { name: item } : item);
+        }
+      } catch (e) {
+        // If JSON parsing fails, treat as comma-separated string
+        return speakers.split(',').map(name => ({ name: name.trim() }));
+      }
+    }
+    
+    return [];
+  };
+
+  // Use real events from database for carousel, fallback to sample events if none exist
+  const carouselEvents = events.length > 0 ? events.map(event => ({
+    ...event,
+    guest_speakers: parseGuestSpeakers(event.guest_speakers)
+  })) : sampleEvents;
+  
   // Create a truly infinite carousel by repeating the events multiple times
   const infiniteEvents = [
-    ...sampleEvents, // First set
-    ...sampleEvents, // Second set
-    ...sampleEvents, // Third set
-    ...sampleEvents, // Fourth set
-    ...sampleEvents, // Fifth set
+    ...carouselEvents, // First set
+    ...carouselEvents, // Second set
+    ...carouselEvents, // Third set
+    ...carouselEvents, // Fourth set
+    ...carouselEvents, // Fifth set
   ];
 
   // Start at the beginning (index 0)
@@ -103,6 +140,7 @@ export const Home = () => {
 
   useEffect(() => {
     loadEvents();
+    loadFeaturedEvent();
   }, []);
 
   const loadEvents = async () => {
@@ -132,8 +170,25 @@ export const Home = () => {
     }
   };
 
-  // Use the first event as the featured event, or fallback to default
-  const featuredEvent = events[0] || {
+  const loadFeaturedEvent = async () => {
+    try {
+      const result = await EventService.getFeaturedEvent();
+      if (result.event) {
+        setFeaturedEvent(result.event);
+      }
+    } catch (err) {
+      console.error('Failed to load featured event:', err);
+    }
+  };
+
+  // Use the featured event, or fallback to first event, or default
+  const displayFeaturedEvent = featuredEvent ? {
+    ...featuredEvent,
+    guest_speakers: parseGuestSpeakers(featuredEvent.guest_speakers)
+  } : events[0] ? {
+    ...events[0],
+    guest_speakers: parseGuestSpeakers(events[0].guest_speakers)
+  } : {
     title: "Tech Conference 2025",
     start_date: "2024-06-15",
     end_date: "2024-06-15",
@@ -313,10 +368,10 @@ export const Home = () => {
           {/* Banner Image */}
           <div className="w-full overflow-hidden h-48 sm:h-64 md:h-80 lg:h-96">
             <img
-              src={featuredEvent.banner_url}
-              alt={featuredEvent.title}
+              src={displayFeaturedEvent.banner_url}
+              alt={displayFeaturedEvent.title}
               className="w-full h-full object-cover"
-              onError={(e) => handleImageError(e, featuredEvent.banner_url)}
+              onError={(e) => handleImageError(e, displayFeaturedEvent.banner_url)}
             />
           </div>
           
@@ -325,12 +380,12 @@ export const Home = () => {
             {/* Event Title */}
             <div className="text-center mb-6">
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-3">
-                {featuredEvent.title}
+                {displayFeaturedEvent.title}
               </h2>
             </div>
 
             {/* Event Rationale */}
-            {featuredEvent.rationale && (
+            {displayFeaturedEvent.rationale && (
               <div className="mb-8">
                 <div className="flex items-center space-x-3 mb-4">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-600 to-blue-800 text-white flex items-center justify-center">
@@ -340,7 +395,7 @@ export const Home = () => {
                   </div>
                   <h4 className="text-xl font-semibold text-slate-800">Event Rationale</h4>
                 </div>
-                <p className="text-slate-600">{featuredEvent.rationale}</p>
+                <p className="text-slate-600">{displayFeaturedEvent.rationale}</p>
               </div>
             )}
 
@@ -415,13 +470,15 @@ export const Home = () => {
                    className="min-w-[300px] rounded-lg overflow-hidden cursor-pointer flex-shrink-0 bg-white shadow-sm hover:shadow-lg transition-shadow duration-200"
                  >
                    <img
-                     src={event.img}
+                     src={event.banner_url || event.img}
                      alt={event.title}
                      className="w-full h-48 object-cover"
                    />
                    <div className="p-4">
                      <h3 className="font-semibold text-lg text-gray-800">{event.title}</h3>
-                     <p className="text-gray-600 text-sm mt-2">Experience something amazing</p>
+                     <p className="text-gray-600 text-sm mt-2">
+                       {event.description || event.rationale || 'Experience something amazing'}
+                     </p>
                    </div>
                  </div>
                ))}
@@ -447,7 +504,7 @@ export const Home = () => {
         <EventModal 
           isOpen={isModalOpen} 
           onClose={() => setIsModalOpen(false)} 
-          event={featuredEvent} 
+          event={displayFeaturedEvent} 
         />
     </section>
   );

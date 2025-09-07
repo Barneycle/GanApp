@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EventService } from '../../services/eventService';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabaseClient';
 
 // Sample events data for placeholders
 const sampleEvents = [
@@ -129,6 +130,514 @@ const sampleEvents = [
   }
 ];
 
+// Complete FileDropzone component copied from CreateEvent.jsx
+const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onUpload, uploadType, maxSizeMB = 5, error, control, uploadedFiles = [], onRemoveFile }) => {
+  const fileInputRef = useRef(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const handleFiles = async (files) => {
+    const fileArray = Array.from(files);
+    
+    if (onUpload && uploadType) {
+      setUploading(true);
+      setUploadProgress(0);
+      
+      try {
+        // File validation
+        for (const file of fileArray) {
+          if (file.size > maxSizeMB * 1024 * 1024) {
+            alert(`File ${file.name} is too large. Max size: ${maxSizeMB}MB`);
+            setUploading(false);
+            return;
+          }
+        }
+
+        // Handle banner upload
+        if (uploadType === 'banner') {
+          try {
+            setUploadProgress(10);
+            
+            const file = fileArray[0];
+            if (!file.type.startsWith('image/')) {
+              throw new Error('Banner must be an image file');
+            }
+            
+            setUploadProgress(25);
+            
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+            const filePath = `banners/${fileName}`;
+            
+            const { data, error } = await supabase.storage
+              .from('event-banners')
+              .upload(filePath, file, {
+                cacheControl: '3600',
+                upsert: false
+              });
+            
+            if (error) {
+              throw new Error(`Upload failed: ${error.message}`);
+            }
+            
+            const { data: { publicUrl } } = supabase.storage
+              .from('event-banners')
+              .getPublicUrl(filePath);
+            
+            setUploadProgress(100);
+            
+            const fileResult = {
+              file: file,
+              filename: file.name,
+              size: file.size,
+              type: file.type,
+              id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              url: publicUrl,
+              path: filePath,
+              uploaded: true,
+              bucket: 'event-banners'
+            };
+            
+            onUpload([fileResult]);
+            setUploading(false);
+            setUploadProgress(0);
+            
+          } catch (error) {
+            console.error('Banner upload failed:', error.message);
+            
+            // Fallback to local storage
+            const file = fileArray[0];
+            const fileResult = {
+              file: file,
+              filename: file.name,
+              size: file.size,
+              type: file.type,
+              id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              url: null,
+              path: null,
+              uploaded: false,
+              bucket: null
+            };
+            
+            onUpload([fileResult]);
+            setUploading(false);
+            setUploadProgress(0);
+          }
+        } else if (uploadType === 'materials') {
+          // Handle materials upload
+          try {
+            setUploadProgress(25);
+            
+            const bucketName = 'event-kits';
+            const results = [];
+            
+            for (let index = 0; index < fileArray.length; index++) {
+              const file = fileArray[index];
+              try {
+                setUploadProgress(25 + (index / fileArray.length) * 25);
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+                const filePath = `kits/${fileName}`;
+                
+                const { data, error } = await supabase.storage
+                  .from(bucketName)
+                  .upload(filePath, file, {
+                    cacheControl: '3600',
+                    upsert: false
+                  });
+                
+                if (error) {
+                  throw error;
+                }
+                
+                const { data: { publicUrl } } = supabase.storage
+                  .from(bucketName)
+                  .getPublicUrl(filePath);
+                
+                setUploadProgress(50 + ((index + 1) / fileArray.length) * 25);
+                
+                results.push({
+                  file: file,
+                  filename: file.name,
+                  size: file.size,
+                  type: file.type,
+                  id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  url: publicUrl,
+                  path: filePath,
+                  uploaded: true,
+                  bucket: bucketName
+                });
+                
+                if (index < fileArray.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                
+              } catch (fileError) {
+                console.error(`Error uploading ${file.name}:`, fileError);
+                
+                setUploadProgress(50 + ((index + 1) / fileArray.length) * 25);
+                results.push({
+                  file: file,
+                  filename: file.name,
+                  size: file.size,
+                  type: file.type,
+                  id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  url: null,
+                  path: null,
+                  uploaded: false,
+                  bucket: null,
+                  error: fileError.message
+                });
+              }
+            }
+            
+            setUploadProgress(100);
+            onUpload(results);
+            setUploading(false);
+            setUploadProgress(0);
+            
+          } catch (error) {
+            console.error('Materials upload failed:', error);
+            
+            const fileResults = fileArray.map((file, index) => {
+              setUploadProgress(((index + 1) / fileArray.length) * 100);
+              return {
+                file: file,
+                filename: file.name,
+                size: file.size,
+                type: file.type,
+                id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                uploaded: false
+              };
+            });
+            onUpload(fileResults);
+            setUploading(false);
+            setUploadProgress(0);
+          }
+        } else if (uploadType === 'logo') {
+          // Handle sponsor logos upload
+          try {
+            setUploadProgress(10);
+            
+            // Validate image files
+            for (const file of fileArray) {
+              if (!file.type.startsWith('image/')) {
+                throw new Error('Sponsor logos must be image files');
+              }
+            }
+            
+            const bucketName = 'sponsor-logos';
+            const results = [];
+            
+            for (let index = 0; index < fileArray.length; index++) {
+              const file = fileArray[index];
+              try {
+                setUploadProgress(10 + (index / fileArray.length) * 30);
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+                const filePath = `logos/${fileName}`;
+                
+                const { data, error } = await supabase.storage
+                  .from(bucketName)
+                  .upload(filePath, file, {
+                    cacheControl: '3600',
+                    upsert: false
+                  });
+                
+                if (error) {
+                  throw error;
+                }
+                
+                const { data: { publicUrl } } = supabase.storage
+                  .from(bucketName)
+                  .getPublicUrl(filePath);
+                
+                setUploadProgress(40 + ((index + 1) / fileArray.length) * 30);
+                
+                results.push({
+                  file: file,
+                  filename: file.name,
+                  size: file.size,
+                  type: file.type,
+                  id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  url: publicUrl,
+                  path: filePath,
+                  uploaded: true,
+                  bucket: bucketName
+                });
+                
+                if (index < fileArray.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                
+              } catch (fileError) {
+                console.error(`Error uploading ${file.name}:`, fileError);
+                
+                setUploadProgress(40 + ((index + 1) / fileArray.length) * 30);
+                results.push({
+                  file: file,
+                  filename: file.name,
+                  size: file.size,
+                  type: file.type,
+                  id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  url: null,
+                  path: null,
+                  uploaded: false,
+                  bucket: null,
+                  error: fileError.message
+                });
+              }
+            }
+            
+            setUploadProgress(100);
+            onUpload(results);
+            setUploading(false);
+            setUploadProgress(0);
+            
+          } catch (error) {
+            console.error('Logo upload failed:', error);
+            
+            const fileResults = fileArray.map((file, index) => {
+              setUploadProgress(((index + 1) / fileArray.length) * 100);
+              return {
+                file: file,
+                filename: file.name,
+                size: file.size,
+                type: file.type,
+                id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                uploaded: false
+              };
+            });
+            onUpload(fileResults);
+            setUploading(false);
+            setUploadProgress(0);
+          }
+        } else if (uploadType === 'speaker') {
+          // Handle speaker photos upload
+          try {
+            setUploadProgress(10);
+            
+            // Validate image files
+            for (const file of fileArray) {
+              if (!file.type.startsWith('image/')) {
+                throw new Error('Speaker photos must be image files');
+              }
+            }
+            
+            const bucketName = 'speaker-photos';
+            const results = [];
+            
+            for (let index = 0; index < fileArray.length; index++) {
+              const file = fileArray[index];
+              try {
+                setUploadProgress(10 + (index / fileArray.length) * 30);
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+                const filePath = `photos/${fileName}`;
+                
+                const { data, error } = await supabase.storage
+                  .from(bucketName)
+                  .upload(filePath, file, {
+                    cacheControl: '3600',
+                    upsert: false
+                  });
+                
+                if (error) {
+                  throw error;
+                }
+                
+                const { data: { publicUrl } } = supabase.storage
+                  .from(bucketName)
+                  .getPublicUrl(filePath);
+                
+                setUploadProgress(40 + ((index + 1) / fileArray.length) * 30);
+                
+                results.push({
+                  file: file,
+                  filename: file.name,
+                  size: file.size,
+                  type: file.type,
+                  id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  url: publicUrl,
+                  path: filePath,
+                  uploaded: true,
+                  bucket: bucketName
+                });
+                
+                if (index < fileArray.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                
+              } catch (fileError) {
+                console.error(`Error uploading ${file.name}:`, fileError);
+                
+                setUploadProgress(40 + ((index + 1) / fileArray.length) * 30);
+                results.push({
+                  file: file,
+                  filename: file.name,
+                  size: file.size,
+                  type: file.type,
+                  id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  url: null,
+                  path: null,
+                  uploaded: false,
+                  bucket: null,
+                  error: fileError.message
+                });
+              }
+            }
+            
+            setUploadProgress(100);
+            onUpload(results);
+            setUploading(false);
+            setUploadProgress(0);
+            
+          } catch (error) {
+            console.error('Speaker photo upload failed:', error);
+            
+            const fileResults = fileArray.map((file, index) => {
+              setUploadProgress(((index + 1) / fileArray.length) * 100);
+              return {
+                file: file,
+                filename: file.name,
+                size: file.size,
+                type: file.type,
+                id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                uploaded: false
+              };
+            });
+            onUpload(fileResults);
+            setUploading(false);
+            setUploadProgress(0);
+          }
+        }
+        
+      } catch (error) {
+        console.error('File handling failed:', error);
+        setUploading(false);
+        setUploadProgress(0);
+      }
+    } else if (onFileChange) {
+      // Simple file handling without upload
+      const fileResults = fileArray.map(file => ({
+        file: file,
+        filename: file.name,
+        size: file.size,
+        type: file.type,
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        url: URL.createObjectURL(file),
+        uploaded: false
+      }));
+      
+      onFileChange(fileResults);
+    }
+  };
+
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFiles(e.dataTransfer.files);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <label className="block text-sm font-medium text-slate-700">{label}</label>
+      
+      <div
+        className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+          dragActive ? 'border-blue-400 bg-blue-50' : 'border-slate-300 hover:border-slate-400'
+        }`}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={accept}
+          multiple={multiple}
+          onChange={(e) => e.target.files && handleFiles(e.target.files)}
+          className="hidden"
+          id={`file-input-${name || label}`}
+        />
+        
+        <label htmlFor={`file-input-${name || label}`} className="cursor-pointer">
+          <div className="text-slate-600">
+            {uploading ? (
+              <div className="flex items-center justify-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <span>Uploading... {uploadProgress}%</span>
+              </div>
+            ) : (
+              <>
+                <svg className="mx-auto h-8 w-8 text-slate-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <p className="text-sm">Click to upload or drag and drop</p>
+                <p className="text-xs text-slate-500">PNG, JPG, PDF up to {maxSizeMB}MB</p>
+              </>
+            )}
+          </div>
+        </label>
+      </div>
+      
+      {uploadedFiles.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-slate-700">
+            Uploaded Files ({uploadedFiles.length}):
+          </p>
+          {uploadedFiles.map((file, idx) => (
+            <div key={file.id || idx} className="flex items-center justify-between bg-slate-50 rounded p-2">
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-slate-600">{file.filename}</span>
+                {file.url && (
+                  <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-xs">
+                    View
+                  </a>
+                )}
+                {file.uploaded && (
+                  <span className="text-green-600 text-xs">✓ Uploaded</span>
+                )}
+                {file.error && (
+                  <span className="text-red-600 text-xs">✗ {file.error}</span>
+                )}
+              </div>
+              {onRemoveFile && (
+                <button
+                  onClick={() => onRemoveFile(idx)}
+                  className="text-red-600 hover:text-red-800 text-sm"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      
+      {error && (
+        <p className="text-red-600 text-sm">{error}</p>
+      )}
+    </div>
+  );
+};
+
 export const Events = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -144,13 +653,26 @@ export const Events = () => {
   const [eventToCancel, setEventToCancel] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successModalMessage, setSuccessModalMessage] = useState('');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showManageModal, setShowManageModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [editFormData, setEditFormData] = useState({});
+  const [uploadedFiles, setUploadedFiles] = useState({
+    banner: null,
+    materials: [],
+    sponsorLogos: [],
+    speakerPhotos: [],
+    eventKits: [],
+    eventProgrammes: [],
+    certificateTemplates: []
+  });
 
   useEffect(() => {
     loadEvents();
     if (user) {
       loadUserRegistrations();
     }
-  }, [user]);
+  }, [user?.id, user?.role]); // Only depend on user ID and role, not the entire user object
 
   const loadEvents = async () => {
     try {
@@ -211,6 +733,48 @@ export const Events = () => {
     } catch (err) {
       console.error('Error publishing event:', err);
       setError('Failed to publish event. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSetFeatured = async (eventId) => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      const result = await EventService.setFeaturedEvent(eventId);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        await loadEvents();
+        setSuccessModalMessage('Event set as featured successfully!');
+        setShowSuccessModal(true);
+      }
+    } catch (error) {
+      console.error('Error setting featured event:', error);
+      setError('Failed to set featured event');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnfeatureEvent = async (eventId) => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      const result = await EventService.unfeatureEvent(eventId);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        await loadEvents();
+        setSuccessModalMessage('Event unfeatured successfully!');
+        setShowSuccessModal(true);
+      }
+    } catch (error) {
+      console.error('Error unfeaturing event:', error);
+      setError('Failed to unfeature event');
     } finally {
       setLoading(false);
     }
@@ -361,6 +925,265 @@ export const Events = () => {
     }
   };
 
+  const handleEditEvent = (eventId) => {
+    const event = events.find(e => e.id === eventId);
+    if (event) {
+      setSelectedEvent(event);
+      
+      // Initialize form data with current event data
+      setEditFormData({
+        title: event.title || '',
+        rationale: event.rationale || event.description || '',
+        startDate: event.start_date || '',
+        endDate: event.end_date || '',
+        startTime: event.start_time || '',
+        endTime: event.end_time || '',
+        venue: event.venue || '',
+        maxParticipants: event.max_participants || '',
+        registrationDeadline: event.registration_deadline ? event.registration_deadline.split('T')[0] : '',
+        sponsors: event.sponsors ? event.sponsors.map(s => s.name).join(', ') : '',
+        guestSpeakers: event.guest_speakers ? event.guest_speakers.map(s => s.name).join(', ') : ''
+      });
+      
+      // Helper function to extract file path from Supabase URL
+      const extractFilePath = (url) => {
+        if (!url) return null;
+        try {
+          const urlObj = new URL(url);
+          // Extract path from URL like: https://xxx.supabase.co/storage/v1/object/public/bucket-name/path/to/file.jpg
+          const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/[^\/]+\/(.+)/);
+          return pathMatch ? pathMatch[1] : null;
+        } catch (error) {
+          console.error('Error extracting file path from URL:', error);
+          return null;
+        }
+      };
+
+      // Helper function to extract bucket name from Supabase URL
+      const extractBucketName = (url) => {
+        if (!url) return null;
+        try {
+          const urlObj = new URL(url);
+          const bucketMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/([^\/]+)\//);
+          return bucketMatch ? bucketMatch[1] : null;
+        } catch (error) {
+          console.error('Error extracting bucket name from URL:', error);
+          return null;
+        }
+      };
+
+      // Initialize uploaded files with existing URLs and paths
+      setUploadedFiles({
+        banner: event.banner_url ? { 
+          url: event.banner_url, 
+          filename: 'Current Banner',
+          path: extractFilePath(event.banner_url),
+          bucket: extractBucketName(event.banner_url),
+          uploaded: true,
+          isOriginal: true // Mark as original file
+        } : null,
+        materials: event.materials_url ? event.materials_url.split(',').map(url => ({ 
+          url, 
+          filename: 'Material',
+          path: extractFilePath(url),
+          bucket: extractBucketName(url),
+          uploaded: true,
+          isOriginal: true
+        })) : [],
+        sponsorLogos: event.sponsor_logos_url ? event.sponsor_logos_url.split(',').map(url => ({ 
+          url, 
+          filename: 'Sponsor Logo',
+          path: extractFilePath(url),
+          bucket: extractBucketName(url),
+          uploaded: true,
+          isOriginal: true
+        })) : [],
+        speakerPhotos: event.speaker_photos_url ? event.speaker_photos_url.split(',').map(url => ({ 
+          url, 
+          filename: 'Speaker Photo',
+          path: extractFilePath(url),
+          bucket: extractBucketName(url),
+          uploaded: true,
+          isOriginal: true
+        })) : [],
+        eventKits: event.event_kits_url ? event.event_kits_url.split(',').map(url => ({ 
+          url, 
+          filename: 'Event Kit',
+          path: extractFilePath(url),
+          bucket: extractBucketName(url),
+          uploaded: true,
+          isOriginal: true
+        })) : [],
+        eventProgrammes: event.event_programmes_url ? event.event_programmes_url.split(',').map(url => ({ 
+          url, 
+          filename: 'Programme',
+          path: extractFilePath(url),
+          bucket: extractBucketName(url),
+          uploaded: true,
+          isOriginal: true
+        })) : [],
+        certificateTemplates: event.certificate_templates_url ? event.certificate_templates_url.split(',').map(url => ({ 
+          url, 
+          filename: 'Certificate',
+          path: extractFilePath(url),
+          bucket: extractBucketName(url),
+          uploaded: true,
+          isOriginal: true
+        })) : []
+      });
+      
+      setShowEditModal(true);
+    }
+  };
+
+  const handleManageEvent = (eventId) => {
+    const event = events.find(e => e.id === eventId);
+    if (event) {
+      setSelectedEvent(event);
+      setShowManageModal(true);
+    }
+  };
+
+  // Cleanup function for unsaved uploads (only new uploads, not original files)
+  const cleanupUnsavedUploads = () => {
+    console.log('🧹 Cleaning up unsaved uploads...');
+    
+    // Clean up banner (only if it's a new upload, not original)
+    if (uploadedFiles.banner && uploadedFiles.banner.path && uploadedFiles.banner.uploaded && !uploadedFiles.banner.isOriginal) {
+      deleteFileFromStorage(uploadedFiles.banner);
+    }
+    
+    // Clean up materials (only new uploads)
+    if (uploadedFiles.materials) {
+      uploadedFiles.materials.forEach(file => {
+        if (file.path && file.uploaded && !file.isOriginal) {
+          deleteFileFromStorage(file);
+        }
+      });
+    }
+    
+    // Clean up sponsor logos (only new uploads)
+    if (uploadedFiles.sponsorLogos) {
+      uploadedFiles.sponsorLogos.forEach(file => {
+        if (file.path && file.uploaded && !file.isOriginal) {
+          deleteFileFromStorage(file);
+        }
+      });
+    }
+    
+    // Clean up speaker photos (only new uploads)
+    if (uploadedFiles.speakerPhotos) {
+      uploadedFiles.speakerPhotos.forEach(file => {
+        if (file.path && file.uploaded && !file.isOriginal) {
+          deleteFileFromStorage(file);
+        }
+      });
+    }
+  };
+
+  // File deletion helper
+  const deleteFileFromStorage = async (file) => {
+    if (!file || !file.path || !file.bucket) {
+      console.log('No file to delete or missing path/bucket info');
+      return;
+    }
+
+    try {
+      console.log(`🗑️ Deleting file from storage: ${file.path} in bucket ${file.bucket}`);
+      const { error } = await supabase.storage
+        .from(file.bucket)
+        .remove([file.path]);
+      
+      if (error) {
+        console.error('Error deleting file:', error);
+      } else {
+        console.log('✅ File deleted successfully');
+      }
+    } catch (error) {
+      console.error('Error deleting file:', error);
+    }
+  };
+
+  // File upload handlers with replacement logic
+  const handleFileUpload = (uploadType, results) => {
+    console.log(`📁 File upload for ${uploadType}:`, results);
+    
+    switch (uploadType) {
+      case 'banner':
+        // Delete old banner before setting new one
+        if (uploadedFiles.banner && uploadedFiles.banner.path && uploadedFiles.banner.bucket) {
+          console.log('🗑️ Deleting old banner:', uploadedFiles.banner.path);
+          deleteFileFromStorage(uploadedFiles.banner);
+        }
+        setUploadedFiles(prev => ({ ...prev, banner: results[0] }));
+        break;
+      case 'materials':
+        setUploadedFiles(prev => ({ ...prev, materials: [...(prev.materials || []), ...results] }));
+        break;
+      case 'logo':
+        setUploadedFiles(prev => ({ ...prev, sponsorLogos: [...(prev.sponsorLogos || []), ...results] }));
+        break;
+      case 'speaker':
+        setUploadedFiles(prev => ({ ...prev, speakerPhotos: [...(prev.speakerPhotos || []), ...results] }));
+        break;
+      default:
+        console.warn('Unknown upload type:', uploadType);
+    }
+  };
+
+  const handleRemoveFile = (uploadType, index) => {
+    console.log(`🗑️ Removing file from ${uploadType} at index ${index}`);
+    
+    switch (uploadType) {
+      case 'banner':
+        // Delete from storage before removing from state
+        if (uploadedFiles.banner && uploadedFiles.banner.path && uploadedFiles.banner.bucket) {
+          console.log('🗑️ Deleting banner from storage:', uploadedFiles.banner.path);
+          deleteFileFromStorage(uploadedFiles.banner);
+        }
+        setUploadedFiles(prev => ({ ...prev, banner: null }));
+        break;
+      case 'materials':
+        // Delete from storage before removing from state
+        const materialToDelete = uploadedFiles.materials[index];
+        if (materialToDelete && materialToDelete.path && materialToDelete.bucket) {
+          console.log('🗑️ Deleting material from storage:', materialToDelete.path);
+          deleteFileFromStorage(materialToDelete);
+        }
+        setUploadedFiles(prev => ({ 
+          ...prev, 
+          materials: prev.materials.filter((_, i) => i !== index) 
+        }));
+        break;
+      case 'logo':
+        // Delete from storage before removing from state
+        const logoToDelete = uploadedFiles.sponsorLogos[index];
+        if (logoToDelete && logoToDelete.path && logoToDelete.bucket) {
+          console.log('🗑️ Deleting logo from storage:', logoToDelete.path);
+          deleteFileFromStorage(logoToDelete);
+        }
+        setUploadedFiles(prev => ({ 
+          ...prev, 
+          sponsorLogos: prev.sponsorLogos.filter((_, i) => i !== index) 
+        }));
+        break;
+      case 'speaker':
+        // Delete from storage before removing from state
+        const speakerToDelete = uploadedFiles.speakerPhotos[index];
+        if (speakerToDelete && speakerToDelete.path && speakerToDelete.bucket) {
+          console.log('🗑️ Deleting speaker photo from storage:', speakerToDelete.path);
+          deleteFileFromStorage(speakerToDelete);
+        }
+        setUploadedFiles(prev => ({ 
+          ...prev, 
+          speakerPhotos: prev.speakerPhotos.filter((_, i) => i !== index) 
+        }));
+        break;
+      default:
+        console.warn('Unknown upload type for removal:', uploadType);
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -370,7 +1193,17 @@ export const Events = () => {
   };
 
   const formatTime = (timeString) => {
-    return timeString;
+    if (!timeString) return '';
+    
+    // Handle both "HH:MM:SS" and "HH:MM" formats
+    const time = timeString.includes(':') ? timeString.split(':').slice(0, 2).join(':') : timeString;
+    const [hours, minutes] = time.split(':');
+    
+    const hour24 = parseInt(hours, 10);
+    const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+    const ampm = hour24 >= 12 ? 'PM' : 'AM';
+    
+    return `${hour12}:${minutes} ${ampm}`;
   };
 
   if (loading) {
@@ -546,7 +1379,38 @@ export const Events = () => {
                         )}
                         
                         {/* Action Buttons */}
-                        <div className="flex space-x-2 mt-4">
+                        <div className="flex flex-col space-y-2 mt-4">
+                          {/* Publish button for organizers/admins viewing their own events */}
+                          {(user?.role === 'organizer' || user?.role === 'admin') && event.status === 'draft' && (
+                            <button 
+                              onClick={() => handlePublishEvent(event.id)}
+                              disabled={registeringEvents.has(event.id)}
+                              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {registeringEvents.has(event.id) ? 'Publishing...' : 'Publish Event'}
+                            </button>
+                          )}
+                          
+                          {/* Feature Event button for organizers/admins */}
+                          {(user?.role === 'organizer' || user?.role === 'admin') && (
+                            <button 
+                              onClick={() => event.is_featured ? handleUnfeatureEvent(event.id) : handleSetFeatured(event.id)}
+                              disabled={loading}
+                              className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed mb-2"
+                            >
+                              {event.is_featured ? '⭐ Unfeature Event' : '⭐ Feature Event'}
+                            </button>
+                          )}
+                          
+                          {/* Debug: Always show feature button for testing */}
+                          <button 
+                            onClick={() => alert('Feature button clicked! Event: ' + event.title)}
+                            className="w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-bold border-2 border-red-800"
+                          >
+                            🔥 TEST FEATURE BUTTON - CLICK ME!
+                          </button>
+                          
+                          {/* Existing registration buttons */}
                           {!user ? (
                             <div className="w-full text-center">
                               <button 
@@ -587,8 +1451,19 @@ export const Events = () => {
               <div key={event.id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden">
                 {/* Event Banner */}
                 {event.banner_url && (
-                  <div className="h-48 bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                    <span className="text-white text-lg font-semibold">Event Banner</span>
+                  <div className="h-48 overflow-hidden">
+                    <img
+                      src={event.banner_url}
+                      alt={event.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
+                    />
+                    <div className="h-48 bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center" style={{display: 'none'}}>
+                      <span className="text-white text-lg font-semibold">Event Banner</span>
+                    </div>
                   </div>
                 )}
                 
@@ -671,18 +1546,30 @@ export const Events = () => {
                   )}
                   
                   {/* Action Buttons */}
-                  <div className="flex space-x-2 mt-4">
+                  <div className="flex flex-col space-y-3 mt-6">
                     {user?.role === 'organizer' || user?.role === 'admin' ? (
                       <>
-                        <button className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
-                          Edit
-                        </button>
+                        <div className="flex space-x-3">
+                          <button 
+                            onClick={() => handleEditEvent(event.id)}
+                            className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            onClick={() => event.status === 'draft' ? handlePublishEvent(event.id) : handleManageEvent(event.id)}
+                            disabled={loading}
+                            className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {loading ? 'Publishing...' : event.status === 'draft' ? 'Publish' : 'Manage'}
+                          </button>
+                        </div>
                         <button 
-                          onClick={() => event.status === 'draft' ? handlePublishEvent(event.id) : null}
+                          onClick={() => event.is_featured ? handleUnfeatureEvent(event.id) : handleSetFeatured(event.id)}
                           disabled={loading}
-                          className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {loading ? 'Publishing...' : event.status === 'draft' ? 'Publish' : 'Manage'}
+                          {event.is_featured ? 'Remove Featured' : 'Set as Featured'}
                         </button>
                       </>
                     ) : !user ? (
@@ -831,6 +1718,378 @@ export const Events = () => {
                 className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
               >
                 Got it!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Event Modal */}
+      {showEditModal && selectedEvent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="text-center mb-6">
+              <h3 className="text-2xl font-semibold text-slate-900 mb-2">
+                Edit Event
+              </h3>
+              <p className="text-slate-600">
+                Edit details for "{selectedEvent.title}"
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left Column - Basic Info */}
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-slate-800 border-b pb-2">Basic Information</h4>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Event Title</label>
+                  <input
+                    type="text"
+                    value={editFormData.title || ''}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, title: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
+                  <textarea
+                    value={editFormData.rationale || ''}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, rationale: e.target.value }))}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Start Date</label>
+                    <input
+                      type="date"
+                      value={editFormData.startDate || ''}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">End Date</label>
+                    <input
+                      type="date"
+                      value={editFormData.endDate || ''}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Start Time</label>
+                    <input
+                      type="time"
+                      value={editFormData.startTime || ''}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, startTime: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">End Time</label>
+                    <input
+                      type="time"
+                      value={editFormData.endTime || ''}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, endTime: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Venue</label>
+                  <input
+                    type="text"
+                    value={editFormData.venue || ''}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, venue: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Max Participants</label>
+                  <input
+                    type="number"
+                    value={editFormData.maxParticipants || ''}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, maxParticipants: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Registration Deadline</label>
+                  <input
+                    type="date"
+                    value={editFormData.registrationDeadline || ''}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, registrationDeadline: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              
+              {/* Right Column - Files and Media */}
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-slate-800 border-b pb-2">Files & Media</h4>
+                
+                {/* Banner Image */}
+                <FileDropzone
+                  label="Event Banner"
+                  name="banner"
+                  accept="image/*"
+                  uploadType="banner"
+                  onUpload={(results) => handleFileUpload('banner', results)}
+                  uploadedFiles={uploadedFiles.banner ? [uploadedFiles.banner] : []}
+                  onRemoveFile={() => handleRemoveFile('banner', 0)}
+                />
+                
+                {/* Event Materials */}
+                <FileDropzone
+                  label="Event Materials"
+                  name="materials"
+                  accept=".pdf,.doc,.docx,.ppt,.pptx"
+                  multiple={true}
+                  uploadType="materials"
+                  onUpload={(results) => handleFileUpload('materials', results)}
+                  uploadedFiles={uploadedFiles.materials || []}
+                  onRemoveFile={(index) => handleRemoveFile('materials', index)}
+                />
+                
+                {/* Sponsor Logos */}
+                <FileDropzone
+                  label="Sponsor Logos"
+                  name="sponsorLogos"
+                  accept="image/*"
+                  multiple={true}
+                  uploadType="logo"
+                  onUpload={(results) => handleFileUpload('logo', results)}
+                  uploadedFiles={uploadedFiles.sponsorLogos || []}
+                  onRemoveFile={(index) => handleRemoveFile('logo', index)}
+                />
+                
+                {/* Speaker Photos */}
+                <FileDropzone
+                  label="Speaker Photos"
+                  name="speakerPhotos"
+                  accept="image/*"
+                  multiple={true}
+                  uploadType="speaker"
+                  onUpload={(results) => handleFileUpload('speaker', results)}
+                  uploadedFiles={uploadedFiles.speakerPhotos || []}
+                  onRemoveFile={(index) => handleRemoveFile('speaker', index)}
+                />
+                
+                {/* Additional Info */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Sponsors (comma-separated)</label>
+                  <input
+                    type="text"
+                    value={editFormData.sponsors || ''}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, sponsors: e.target.value }))}
+                    placeholder="Company A, Company B, Company C"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Guest Speakers (comma-separated)</label>
+                  <input
+                    type="text"
+                    value={editFormData.guestSpeakers || ''}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, guestSpeakers: e.target.value }))}
+                    placeholder="John Doe, Jane Smith, Bob Johnson"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  // Clean up any unsaved uploads before closing
+                  cleanupUnsavedUploads();
+                  setShowEditModal(false);
+                  setSelectedEvent(null);
+                  setEditFormData({});
+                  setUploadedFiles({
+                    banner: null,
+                    materials: [],
+                    sponsorLogos: [],
+                    speakerPhotos: [],
+                    eventKits: [],
+                    eventProgrammes: [],
+                    certificateTemplates: []
+                  });
+                }}
+                className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    // Prepare update data
+                    const updateData = {
+                      title: editFormData.title,
+                      rationale: editFormData.rationale,
+                      start_date: editFormData.start_date,
+                      end_date: editFormData.end_date,
+                      start_time: editFormData.start_time,
+                      end_time: editFormData.end_time,
+                      venue: editFormData.venue,
+                      max_participants: parseInt(editFormData.max_participants) || null,
+                      registration_deadline: editFormData.registration_deadline,
+                      sponsors: editFormData.sponsors ? editFormData.sponsors.split(',').map(s => ({ name: s.trim() })) : [],
+                      guest_speakers: editFormData.guest_speakers ? editFormData.guest_speakers.split(',').map(s => ({ name: s.trim() })) : []
+                    };
+
+                    // Add file URLs if files were uploaded
+                    if (uploadedFiles.banner && uploadedFiles.banner.url) {
+                      updateData.banner_url = uploadedFiles.banner.url;
+                    }
+                    if (uploadedFiles.materials && uploadedFiles.materials.length > 0) {
+                      updateData.materials_url = uploadedFiles.materials.map(f => f.url).join(',');
+                    }
+                    if (uploadedFiles.sponsorLogos && uploadedFiles.sponsorLogos.length > 0) {
+                      updateData.sponsor_logos_url = uploadedFiles.sponsorLogos.map(f => f.url).join(',');
+                    }
+                    if (uploadedFiles.speakerPhotos && uploadedFiles.speakerPhotos.length > 0) {
+                      updateData.speaker_photos_url = uploadedFiles.speakerPhotos.map(f => f.url).join(',');
+                    }
+
+                    // Update the event in the database
+                    const { error } = await supabase
+                      .from('events')
+                      .update(updateData)
+                      .eq('id', selectedEvent.id);
+
+                    if (error) {
+                      console.error('Error updating event:', error);
+                      setError('Failed to update event. Please try again.');
+                      return;
+                    }
+
+                    // Refresh events list
+                    await loadEvents();
+                    
+                    setSuccessModalMessage('Event updated successfully!');
+                    setShowSuccessModal(true);
+                    setShowEditModal(false);
+                    setSelectedEvent(null);
+                    setEditFormData({});
+                    setUploadedFiles({
+                      banner: null,
+                      materials: [],
+                      sponsorLogos: [],
+                      speakerPhotos: [],
+                      eventKits: [],
+                      eventProgrammes: [],
+                      certificateTemplates: []
+                    });
+                  } catch (error) {
+                    console.error('Error updating event:', error);
+                    setError('Failed to update event. Please try again.');
+                  }
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Event Modal */}
+      {showManageModal && selectedEvent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="text-center mb-6">
+              <h3 className="text-2xl font-semibold text-slate-900 mb-2">
+                Manage Event
+              </h3>
+              <p className="text-slate-600">
+                Manage "{selectedEvent.title}"
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Event Stats */}
+              <div className="bg-blue-50 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-900 mb-2">Event Statistics</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Status:</span>
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      selectedEvent.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {selectedEvent.status}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Participants:</span>
+                    <span>{selectedEvent.current_participants || 0}/{selectedEvent.max_participants || '∞'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Created:</span>
+                    <span>{formatDate(selectedEvent.created_at)}</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Quick Actions */}
+              <div className="bg-green-50 rounded-lg p-4">
+                <h4 className="font-semibold text-green-900 mb-2">Quick Actions</h4>
+                <div className="space-y-2">
+                  <button className="w-full px-3 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors">
+                    View Registrations
+                  </button>
+                  <button className="w-full px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors">
+                    Generate QR Code
+                  </button>
+                  <button className="w-full px-3 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 transition-colors">
+                    View Analytics
+                  </button>
+                </div>
+              </div>
+              
+              {/* Event Details */}
+              <div className="bg-slate-50 rounded-lg p-4">
+                <h4 className="font-semibold text-slate-900 mb-2">Event Details</h4>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="font-medium">Date:</span>
+                    <div>{formatDate(selectedEvent.start_date)}</div>
+                  </div>
+                  <div>
+                    <span className="font-medium">Time:</span>
+                    <div>{selectedEvent.start_time} - {selectedEvent.end_time}</div>
+                  </div>
+                  <div>
+                    <span className="font-medium">Venue:</span>
+                    <div>{selectedEvent.venue}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowManageModal(false);
+                  setSelectedEvent(null);
+                }}
+                className="w-full px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>

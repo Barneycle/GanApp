@@ -10,6 +10,7 @@ export interface Event {
   end_time: string;
   venue: string;
   status: 'draft' | 'published' | 'cancelled';
+  is_featured?: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -187,6 +188,72 @@ export class EventService {
       const { data, error } = await supabase
         .from('events')
         .update({ status })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { event: data };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async getFeaturedEvent(): Promise<{ event?: Event; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('is_featured', true)
+        .eq('status', 'published')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { event: data };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async setFeaturedEvent(id: string): Promise<{ event?: Event; error?: string }> {
+    try {
+      // First, unfeature all other events
+      await supabase
+        .from('events')
+        .update({ is_featured: false })
+        .neq('id', id);
+
+      // Then set the selected event as featured
+      const { data, error } = await supabase
+        .from('events')
+        .update({ is_featured: true })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { event: data };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async unfeatureEvent(id: string): Promise<{ event?: Event; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .update({ is_featured: false })
         .eq('id', id)
         .select()
         .single();

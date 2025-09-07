@@ -1082,6 +1082,7 @@ export const CreateEvent = () => {
       venue: '',
       sponsors: '',
       guestSpeakers: '',
+      registrationDeadline: '',
       bannerFile: null,
       eventKitsFile: null,
       eventProgrammeFile: null,
@@ -1328,7 +1329,7 @@ export const CreateEvent = () => {
       venue: data.venue || 'TBD',
       max_participants: data.maxParticipants ? parseInt(data.maxParticipants) : null,
       registration_deadline: data.registrationDeadline ? new Date(data.registrationDeadline).toISOString() : null,
-      status: 'draft',
+      status: 'published',
       created_by: user.id,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()

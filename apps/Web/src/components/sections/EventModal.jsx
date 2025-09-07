@@ -159,8 +159,8 @@ const EventModal = ({ isOpen, onClose, event }) => {
                 {event.guest_speakers.map((speaker, index) => (
                   <div key={index} className="flex flex-col items-center p-4 bg-slate-50 rounded-lg hover:bg-slate-100 hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer group">
                     <div className="w-40 h-40 rounded-full overflow-hidden bg-slate-200 flex-shrink-0 relative mb-3 group-hover:shadow-xl transition-shadow duration-300">
-                      {event.speaker_photos_url ? (() => {
-                        const photoUrls = event.speaker_photos_url.split(',').map(url => url.trim());
+                      {event.speaker_photos_url && event.speaker_photos_url.trim() ? (() => {
+                        const photoUrls = event.speaker_photos_url.split(',').map(url => url.trim()).filter(url => url);
                         const speakerPhotoUrl = photoUrls[index];
                         return speakerPhotoUrl ? (
                           <img 
@@ -174,7 +174,7 @@ const EventModal = ({ isOpen, onClose, event }) => {
                           />
                         ) : null;
                       })() : null}
-                      <div className={`w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-lg ${event.speaker_photos_url ? 'hidden' : 'block'}`}>
+                      <div className={`w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-lg ${event.speaker_photos_url && event.speaker_photos_url.trim() ? 'hidden' : 'block'}`}>
                         {speaker.name ? speaker.name.charAt(0).toUpperCase() : 'S'}
                       </div>
                     </div>
