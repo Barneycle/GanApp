@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  SafeAreaView,
+  Keyboard,
+  Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 
@@ -18,7 +21,6 @@ interface RegistrationFormData {
   firstName: string;
   lastName: string;
   email: string;
-  username: string;
   password: string;
   confirmPassword: string;
   userType: 'psu-student' | 'psu-employee' | 'outside' | '';
@@ -29,7 +31,6 @@ export default function RegistrationScreen() {
     firstName: '',
     lastName: '',
     email: '',
-    username: '',
     password: '',
     confirmPassword: '',
     userType: '',
@@ -40,6 +41,7 @@ export default function RegistrationScreen() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const router = useRouter();
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const handleInputChange = (field: keyof RegistrationFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -67,13 +69,9 @@ export default function RegistrationScreen() {
     return true;
   };
 
-  const validateUsername = (username: string): boolean => {
-    return username.length >= 3 && /^[a-zA-Z0-9_]+$/.test(username);
-  };
-
   const handleRegistration = async () => {
     // Validation
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.username || !formData.password || !formData.confirmPassword) {
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.confirmPassword) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
@@ -89,11 +87,6 @@ export default function RegistrationScreen() {
       } else {
         Alert.alert('Error', 'Please enter a valid email address');
       }
-      return;
-    }
-
-    if (!validateUsername(formData.username)) {
-      Alert.alert('Error', 'Username must be at least 3 characters and contain only letters, numbers, and underscores');
       return;
     }
 
@@ -126,15 +119,23 @@ export default function RegistrationScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-blue-900">
-      <View className="flex-1 bg-blue-900">
+    <>
+      <StatusBar style="light" backgroundColor="transparent" translucent={false} />
+      <SafeAreaView className="flex-1 bg-blue-900">
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          className="flex-1"
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
           <ScrollView
-            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+            ref={scrollViewRef}
+            contentContainerStyle={{ 
+              flexGrow: 1,
+              paddingBottom: 100
+            }}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
             className="px-4 py-6"
           >
             {/* Header */}
@@ -145,71 +146,73 @@ export default function RegistrationScreen() {
 
             {!formData.userType ? (
               // User Type Selection Screen
-              <View className="bg-white rounded-2xl p-5 shadow-lg mx-2">
-                <Text className="text-lg font-semibold text-black mb-4 text-center">Are you from Partido State University?</Text>
-                <View>
-                  <TouchableOpacity
-                    className="w-full p-4 border border-gray-200 rounded-lg bg-white hover:border-gray-400 mb-4"
-                    onPress={() => handleUserTypeSelect('psu-student')}
-                  >
-                    <View className="flex-row items-center">
-                      <View className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
-                        <Ionicons name="school-outline" size={24} color="#1e3a8a" />
+              <View className="flex-1 justify-center">
+                <View className="bg-white rounded-2xl p-5 shadow-lg mx-2">
+                  <Text className="text-lg font-semibold text-black mb-4 text-center">Are you from Partido State University?</Text>
+                  <View>
+                    <TouchableOpacity
+                      className="w-full p-4 border border-gray-200 rounded-lg bg-white hover:border-gray-400 mb-4"
+                      onPress={() => handleUserTypeSelect('psu-student')}
+                    >
+                      <View className="flex-row items-center">
+                        <View className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
+                          <Ionicons name="school-outline" size={24} color="#1e3a8a" />
+                        </View>
+                        <View className="flex-1">
+                          <Text className="text-base font-medium text-black">PSU Student</Text>
+                          <Text className="text-sm text-gray-600">I'm currently enrolled as a student at Partido State University</Text>
+                        </View>
                       </View>
-                      <View className="flex-1">
-                        <Text className="text-base font-medium text-black">PSU Student</Text>
-                        <Text className="text-sm text-gray-600">I'm currently enrolled as a student at Partido State University</Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
+                    </TouchableOpacity>
 
-                  <TouchableOpacity
-                    className="w-full p-4 border border-gray-200 rounded-lg bg-white hover:border-gray-400 mb-4"
-                    onPress={() => handleUserTypeSelect('psu-employee')}
-                  >
-                    <View className="flex-row items-center">
-                      <View className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-                        <Ionicons name="briefcase-outline" size={24} color="#059669" />
+                    <TouchableOpacity
+                      className="w-full p-4 border border-gray-200 rounded-lg bg-white hover:border-gray-400 mb-4"
+                      onPress={() => handleUserTypeSelect('psu-employee')}
+                    >
+                      <View className="flex-row items-center">
+                        <View className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
+                          <Ionicons name="briefcase-outline" size={24} color="#059669" />
+                        </View>
+                        <View className="flex-1">
+                          <Text className="text-base font-medium text-black">PSU Employee</Text>
+                          <Text className="text-sm text-gray-600">I work at Partido State University as faculty or staff</Text>
+                        </View>
                       </View>
-                      <View className="flex-1">
-                        <Text className="text-base font-medium text-black">PSU Employee</Text>
-                        <Text className="text-sm text-gray-600">I work at Partido State University as faculty or staff</Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
+                    </TouchableOpacity>
 
-                  <TouchableOpacity
-                    className="w-full p-4 border border-gray-200 rounded-lg bg-white hover:border-gray-400 mb-6"
-                    onPress={() => handleUserTypeSelect('outside')}
-                  >
-                    <View className="flex-row items-center">
-                      <View className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
-                        <Ionicons name="people-outline" size={24} color="#7c3aed" />
+                    <TouchableOpacity
+                      className="w-full p-4 border border-gray-200 rounded-lg bg-white hover:border-gray-400 mb-6"
+                      onPress={() => handleUserTypeSelect('outside')}
+                    >
+                      <View className="flex-row items-center">
+                        <View className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
+                          <Ionicons name="people-outline" size={24} color="#7c3aed" />
+                        </View>
+                        <View className="flex-1">
+                          <Text className="text-base font-medium text-black">Outside PSU</Text>
+                          <Text className="text-sm text-gray-600">I'm not affiliated with Partido State University</Text>
+                        </View>
                       </View>
-                      <View className="flex-1">
-                        <Text className="text-base font-medium text-black">Outside PSU</Text>
-                        <Text className="text-sm text-gray-600">I'm not affiliated with Partido State University</Text>
-                      </View>
+                    </TouchableOpacity>
+                    
+                    <View className="flex-row items-center mb-6">
+                      <View className="flex-1 h-px bg-gray-300" />
+                      <Text className="px-3 text-gray-600 text-sm">or</Text>
+                      <View className="flex-1 h-px bg-gray-300" />
                     </View>
-                  </TouchableOpacity>
-                  
-                  <View className="flex-row items-center mb-6">
-                    <View className="flex-1 h-px bg-gray-300" />
-                    <Text className="px-3 text-gray-600 text-sm">or</Text>
-                    <View className="flex-1 h-px bg-gray-300" />
+                    
+                    <TouchableOpacity
+                      onPress={() => router.push('/login')}
+                      className="w-full py-3 px-4 bg-blue-800 text-white rounded-lg"
+                    >
+                      <Text className="text-white text-sm font-bold text-center">Already have an account? Log in</Text>
+                    </TouchableOpacity>
                   </View>
-                  
-                  <TouchableOpacity
-                    onPress={() => router.push('/login')}
-                    className="w-full py-3 px-4 bg-blue-800 text-white rounded-lg"
-                  >
-                    <Text className="text-white text-sm font-bold text-center">Already have an account? Log in</Text>
-                  </TouchableOpacity>
                 </View>
               </View>
             ) : (
               // Registration Form Screen
-              <>
+              <View className="flex-1 justify-center">
                 {/* User Type Display */}
                 <View className="bg-white rounded-2xl p-4 shadow-lg mx-2 mb-4">
                   <View className="flex-row items-center justify-between">
@@ -261,6 +264,13 @@ export default function RegistrationScreen() {
                         value={formData.firstName}
                         onChangeText={(text) => handleInputChange('firstName', text)}
                         autoCapitalize="words"
+                        returnKeyType="next"
+                        blurOnSubmit={false}
+                        onFocus={() => {
+                          setTimeout(() => {
+                            scrollViewRef.current?.scrollTo({ y: 200, animated: true });
+                          }, 100);
+                        }}
                       />
                     </View>
                   </View>
@@ -277,6 +287,13 @@ export default function RegistrationScreen() {
                         value={formData.lastName}
                         onChangeText={(text) => handleInputChange('lastName', text)}
                         autoCapitalize="words"
+                        returnKeyType="next"
+                        blurOnSubmit={false}
+                        onFocus={() => {
+                          setTimeout(() => {
+                            scrollViewRef.current?.scrollTo({ y: 250, animated: true });
+                          }, 100);
+                        }}
                       />
                     </View>
                   </View>
@@ -298,6 +315,13 @@ export default function RegistrationScreen() {
                         onChangeText={(text) => handleInputChange('email', text)}
                         keyboardType="email-address"
                         autoCapitalize="none"
+                        returnKeyType="next"
+                        blurOnSubmit={false}
+                        onFocus={() => {
+                          setTimeout(() => {
+                            scrollViewRef.current?.scrollTo({ y: 300, animated: true });
+                          }, 100);
+                        }}
                       />
                     </View>
                     {(formData.userType === 'psu-student' || formData.userType === 'psu-employee') && (
@@ -305,22 +329,6 @@ export default function RegistrationScreen() {
                         Must end in @parsu.edu.ph or .pbox@parsu.edu.ph
                       </Text>
                     )}
-                  </View>
-
-                  {/* Username Input */}
-                  <View className="mb-3">
-                    <Text className="text-sm font-semibold text-black mb-2">Username *</Text>
-                    <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
-                      <Ionicons name="at-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
-                      <TextInput
-                        className="flex-1 h-11 text-sm text-black"
-                        placeholder="Choose a username"
-                        placeholderTextColor="#666"
-                        value={formData.username}
-                        onChangeText={(text) => handleInputChange('username', text)}
-                        autoCapitalize="none"
-                      />
-                    </View>
                   </View>
 
                   {/* Password Input */}
@@ -335,6 +343,13 @@ export default function RegistrationScreen() {
                         value={formData.password}
                         onChangeText={(text) => handleInputChange('password', text)}
                         secureTextEntry={!showPassword}
+                        returnKeyType="next"
+                        blurOnSubmit={false}
+                        onFocus={() => {
+                          setTimeout(() => {
+                            scrollViewRef.current?.scrollTo({ y: 400, animated: true });
+                          }, 100);
+                        }}
                       />
                       <TouchableOpacity
                         onPress={() => setShowPassword(!showPassword)}
@@ -361,6 +376,13 @@ export default function RegistrationScreen() {
                         value={formData.confirmPassword}
                         onChangeText={(text) => handleInputChange('confirmPassword', text)}
                         secureTextEntry={!showConfirmPassword}
+                        returnKeyType="done"
+                        blurOnSubmit={true}
+                        onFocus={() => {
+                          setTimeout(() => {
+                            scrollViewRef.current?.scrollTo({ y: 450, animated: true });
+                          }, 100);
+                        }}
                       />
                       <TouchableOpacity
                         onPress={() => setShowConfirmPassword(!showConfirmPassword)}
@@ -416,14 +438,14 @@ export default function RegistrationScreen() {
                     </Text>
                   </TouchableOpacity>
                 </View>
-              </>
+              </View>
             )}
             
             {/* Bottom Spacing */}
             <View className="h-6" />
           </ScrollView>
         </KeyboardAvoidingView>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </>
   );
 }
