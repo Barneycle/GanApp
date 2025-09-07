@@ -1,21 +1,25 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../lib/authContext';
+import './global.css';
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <Stack>
-        <Stack.Screen name="index" options={{ title: 'Home' }} />
-        <Stack.Screen name="login" options={{ title: 'Login' }} />
-        <Stack.Screen name="registration" options={{ title: 'Registration' }} />
-        <Stack.Screen name="terms" options={{ title: 'Terms' }} />
-        <Stack.Screen name="events" options={{ title: 'Events' }} />
-        <Stack.Screen name="survey" options={{ title: 'Survey' }} />
-        <Stack.Screen name="certificate" options={{ title: 'Certificate' }} />
-        <Stack.Screen name="loadingscreen" options={{ title: 'Loading' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="registration" />
+          <Stack.Screen name="terms" />
+          <Stack.Screen name="events" />
+          <Stack.Screen name="survey" />
+          <Stack.Screen name="certificate" />
+          <Stack.Screen name="loadingscreen" />
+        </Stack>
+        <StatusBar style="dark" backgroundColor="rgba(0,0,0,0.1)" translucent={false} hidden={false} />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

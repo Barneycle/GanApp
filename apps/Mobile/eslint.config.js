@@ -1,19 +1,10 @@
-import { FlatCompat } from '@eslint/eslintrc';
-import js from '@eslint/js';
-import path from 'path';
-import { fileURLToPath } from 'url';
+// https://docs.expo.dev/guides/using-eslint/
+const { defineConfig } = require('eslint/config');
+const expoConfig = require('eslint-config-expo/flat');
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
-
-export default [
-  js.configs.recommended,
-  ...compat.extends('expo', 'prettier'),
+module.exports = defineConfig([
+  expoConfig,
   {
-    rules: {},
+    ignores: ['dist/*'],
   },
-];
+]);

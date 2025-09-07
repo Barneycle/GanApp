@@ -1,34 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Image, ScrollView, SafeAreaView, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Image, ScrollView, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LoadingScreen } from './loadingscreen';
 import { EventService, Event } from '../lib/eventService';
 import { useAuth } from '../lib/authContext';
 
-// Fallback event data if no events are found
-const fallbackEvent: Event = {
-  id: 'fallback',
+const latestEvent = {
   title: "Annual Tech Conference 2024",
-  start_date: "2024-06-15",
-  end_date: "2024-06-15",
-  start_time: "09:00",
-  end_time: "17:00",
+  date: "June 15, 2024",
+  time: "9:00 AM - 5:00 PM",
   venue: "Grand Convention Center, Cityville",
-  status: 'published',
-  rationale: "The Annual Tech Conference 2024 aims to foster collaboration and innovation among technology professionals by providing a platform for sharing knowledge, networking, and showcasing the latest advancements in the industry.",
   sponsors: [
-    { name: "TechCorp" },
-    { name: "InnovateX" },
-    { name: "Future Solutions" }
+    "TechCorp",
+    "InnovateX",
+    "Future Solutions"
   ],
-  guest_speakers: [
-    { name: "Dr. Jane Smith" },
-    { name: "Mr. John Doe" },
-    { name: "Prof. Emily Johnson" }
+  guestSpeakers: [
+    "Dr. Jane Smith",
+    "Mr. John Doe",
+    "Prof. Emily Johnson"
   ],
-  created_by: 'system',
-  created_at: '2024-01-01T00:00:00Z',
-  updated_at: '2024-01-01T00:00:00Z'
+  rationale: "The Annual Tech Conference 2024 aims to foster collaboration and innovation among technology professionals by providing a platform for sharing knowledge, networking, and showcasing the latest advancements in the industry.",
+  imageUrl: 'https://via.placeholder.com/400x250'
 };
 
 export default function Index() {
@@ -36,12 +30,27 @@ export default function Index() {
   const [events, setEvents] = useState<Event[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
-  const { user: currentUser, signOut } = useAuth();
+  const { user: currentUser, signOut, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    loadEvents();
-  }, []);
+    // Set minimum loading time regardless of auth state
+    const minLoadingTimer = setTimeout(() => {
+      setIsLoading(false);
+      loadEvents();
+    }, 3000); // 3 seconds minimum
+
+    return () => {
+      clearTimeout(minLoadingTimer);
+    };
+  }, []); // Empty dependency array - only run once on mount
+
+  useEffect(() => {
+    // Redirect to login if not authenticated, but only after loading screen completes
+    if (!authLoading && !currentUser && !isLoading) {
+      router.replace('/login');
+    }
+  }, [authLoading, currentUser, isLoading]);
 
   const handleSignOut = async () => {
     Alert.alert(
@@ -93,7 +102,7 @@ export default function Index() {
   };
 
   // Use the first event as the featured event, or fallback to default
-  const featuredEvent = events[0] || fallbackEvent;
+  const featuredEvent = events[0] || latestEvent;
   
   // Helper function to format date
   const formatDate = (dateString: string) => {
@@ -114,7 +123,15 @@ export default function Index() {
   };
 
   if (isLoading) {
-    return <LoadingScreen onComplete={() => setIsLoading(false)} />;
+    return <LoadingScreen onComplete={() => {
+      setIsLoading(false);
+      loadEvents();
+    }} />;
+  }
+
+  // Don't render if not authenticated
+  if (!currentUser) {
+    return null;
   }
 
   if (error && events.length === 0) {
@@ -142,16 +159,16 @@ export default function Index() {
   return (
     <SafeAreaView className="flex-1 bg-white">
       <View className="flex-1 mx-4 my-2 pt-12 mt-6">
-                 <ScrollView 
-           className="flex-1" 
-           contentContainerStyle={{ paddingBottom: 30 }}
-           showsVerticalScrollIndicator={false}
-         >
+        <ScrollView 
+          className="flex-1" 
+          contentContainerStyle={{ paddingBottom: 30 }}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Hero Image */}
           <View className="w-full overflow-hidden h-48 rounded-2xl mb-6">
             <Image 
               source={{ 
-                uri: featuredEvent.banner_url || 'https://via.placeholder.com/400x250' 
+                uri: featuredEvent.banner_url || featuredEvent.imageUrl || 'https://via.placeholder.com/400x250' 
               }} 
               className="w-full h-full"
               resizeMode="cover"
@@ -183,126 +200,126 @@ export default function Index() {
               </View>
             </View>
             
-            {/* Date, Time, Venue Grid */}
-            <View className="mb-8">
-              <View className="border border-gray-200 rounded-lg shadow-md p-6 bg-white mb-6">
-                <Text className="text-lg font-semibold text-blue-900 mb-3">Date:</Text>
-                <Text className="text-gray-700 text-base">
-                  {featuredEvent.start_date ? formatDate(featuredEvent.start_date) : 'TBA'}
-                </Text>
-              </View>
-              <View className="border border-gray-200 rounded-lg shadow-md p-6 bg-white mb-6">
-                <Text className="text-lg font-semibold text-blue-900 mb-3">Time:</Text>
-                <Text className="text-gray-700 text-base">
-                  {featuredEvent.start_time ? `${formatTime(featuredEvent.start_time)} - ${formatTime(featuredEvent.end_time)}` : 'TBA'}
-                </Text>
-              </View>
-              <View className="border border-gray-200 rounded-lg shadow-md p-6 bg-white">
-                <Text className="text-lg font-semibold text-blue-900 mb-3">Venue:</Text>
-                <Text className="text-gray-700 text-base">{featuredEvent.venue || 'TBA'}</Text>
-              </View>
-            </View>
-            
-            {/* Rationale */}
-            {featuredEvent.rationale && (
-              <View className="border border-gray-200 rounded-lg shadow-md p-6 bg-white mb-8">
-                <Text className="text-lg font-semibold text-blue-900 mb-3">Rationale:</Text>
-                <Text className="text-gray-700 text-base leading-6">{featuredEvent.rationale}</Text>
-              </View>
-            )}
-            
-            {/* Guest Speakers */}
-            {featuredEvent.guest_speakers && featuredEvent.guest_speakers.length > 0 && (
-              <View className="border border-gray-200 rounded-lg shadow-md p-6 bg-white mb-8">
-                <Text className="text-lg font-semibold text-blue-900 mb-3">Guest Speaker/s:</Text>
-                <View className="flex-row flex-wrap justify-start">
-                  {featuredEvent.guest_speakers.map((speaker, index) => (
-                    <View key={`speaker-${index}`} className="w-1/2 mb-4 px-2">
-                      <View className="items-center">
-                        <View className="w-16 h-16 rounded-full overflow-hidden bg-gray-200 mb-2">
-                          {featuredEvent.speaker_photos_url ? (() => {
-                            const photoUrls = featuredEvent.speaker_photos_url.split(',').map((url: string) => url.trim());
-                            const speakerPhotoUrl = photoUrls[index];
-                            return speakerPhotoUrl ? (
-                              <Image 
-                                source={{ uri: speakerPhotoUrl }} 
-                                className="w-full h-full"
-                                resizeMode="cover"
-                              />
-                            ) : null;
-                          })() : null}
-                          {(!featuredEvent.speaker_photos_url || !featuredEvent.speaker_photos_url.split(',')[index]) && (
-                            <View className="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 items-center justify-center">
-                              <Text className="text-white font-semibold text-lg">
-                                {speaker.name ? speaker.name.charAt(0).toUpperCase() : 'S'}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text className="text-gray-800 text-sm font-medium text-center">{speaker.name}</Text>
-                        {speaker.title && (
-                          <Text className="text-gray-500 text-xs text-center">{speaker.title}</Text>
-                        )}
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-            
-            {/* Sponsors */}
-            {featuredEvent.sponsors && featuredEvent.sponsors.length > 0 && (
-              <View className="border border-gray-200 rounded-lg shadow-md p-6 bg-white">
-                <Text className="text-lg font-semibold text-blue-900 mb-3">Sponsor/s:</Text>
-                <View className="flex-row flex-wrap justify-start">
-                  {featuredEvent.sponsors.map((sponsor, index) => (
-                    <View key={`sponsor-${index}`} className="w-1/2 mb-4 px-2">
-                      <View className="items-center">
-                        <View className="w-16 h-16 rounded-lg overflow-hidden bg-white border border-gray-200 mb-2 items-center justify-center">
-                          {featuredEvent.sponsor_logos_url ? (() => {
-                            const logoUrls = featuredEvent.sponsor_logos_url.split(',').map((url: string) => url.trim());
-                            const sponsorLogoUrl = logoUrls[index];
-                            return sponsorLogoUrl ? (
-                              <Image 
-                                source={{ uri: sponsorLogoUrl }} 
-                                className="w-full h-full"
-                                resizeMode="contain"
-                              />
-                            ) : null;
-                          })() : null}
-                          {(!featuredEvent.sponsor_logos_url || !featuredEvent.sponsor_logos_url.split(',')[index]) && (
-                            <View className="w-full h-full bg-gradient-to-br from-green-400 to-green-600 items-center justify-center">
-                              <Text className="text-white font-semibold text-lg">
-                                {sponsor.name ? sponsor.name.charAt(0).toUpperCase() : 'S'}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text className="text-gray-800 text-sm font-medium text-center">{sponsor.name}</Text>
-                        {sponsor.website && (
-                          <Text className="text-blue-600 text-xs text-center">Visit Website</Text>
-                        )}
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </View>
-                         )}
-           </View>
-           
-           {/* Sign Out Button */}
-           {currentUser && (
-             <View className="mt-8 mb-4">
-               <TouchableOpacity
-                 onPress={handleSignOut}
-                 className="bg-red-500 py-4 px-6 rounded-xl items-center"
-               >
-                 <Text className="text-white font-bold text-lg">Sign Out</Text>
-               </TouchableOpacity>
+             {/* Date, Time, Venue Grid */}
+             <View className="mb-8">
+               <View className="border border-gray-200 rounded-lg shadow-md p-6 bg-white mb-6">
+                 <Text className="text-lg font-semibold text-blue-900 mb-3">Date:</Text>
+                 <Text className="text-gray-700 text-base">
+                   {featuredEvent.start_date ? formatDate(featuredEvent.start_date) : featuredEvent.date || 'TBA'}
+                 </Text>
+               </View>
+               <View className="border border-gray-200 rounded-lg shadow-md p-6 bg-white mb-6">
+                 <Text className="text-lg font-semibold text-blue-900 mb-3">Time:</Text>
+                 <Text className="text-gray-700 text-base">
+                   {featuredEvent.start_time ? `${formatTime(featuredEvent.start_time)} - ${formatTime(featuredEvent.end_time)}` : featuredEvent.time || 'TBA'}
+                 </Text>
+               </View>
+               <View className="border border-gray-200 rounded-lg shadow-md p-6 bg-white">
+                 <Text className="text-lg font-semibold text-blue-900 mb-3">Venue:</Text>
+                 <Text className="text-gray-700 text-base">{featuredEvent.venue || 'TBA'}</Text>
+               </View>
              </View>
-           )}
-         </ScrollView>
-       </View>
-     </SafeAreaView>
-   );
- }
+            
+             {/* Rationale */}
+             {featuredEvent.rationale && (
+               <View className="border border-gray-200 rounded-lg shadow-md p-6 bg-white mb-8">
+                 <Text className="text-lg font-semibold text-blue-900 mb-3">Rationale:</Text>
+                 <Text className="text-gray-700 text-base leading-6">{featuredEvent.rationale}</Text>
+               </View>
+             )}
+             
+             {/* Guest Speakers */}
+             {featuredEvent.guest_speakers && featuredEvent.guest_speakers.length > 0 && (
+               <View className="border border-gray-200 rounded-lg shadow-md p-6 bg-white mb-8">
+                 <Text className="text-lg font-semibold text-blue-900 mb-3">Guest Speaker/s:</Text>
+                 <View className="flex-row flex-wrap justify-start">
+                   {featuredEvent.guest_speakers.map((speaker, index) => (
+                     <View key={`speaker-${index}`} className="w-1/2 mb-4 px-2">
+                       <View className="items-center">
+                         <View className="w-16 h-16 rounded-full overflow-hidden bg-gray-200 mb-2">
+                           {featuredEvent.speaker_photos_url ? (() => {
+                             const photoUrls = featuredEvent.speaker_photos_url.split(',').map((url: string) => url.trim());
+                             const speakerPhotoUrl = photoUrls[index];
+                             return speakerPhotoUrl ? (
+                               <Image 
+                                 source={{ uri: speakerPhotoUrl }} 
+                                 className="w-full h-full"
+                                 resizeMode="cover"
+                               />
+                             ) : null;
+                           })() : null}
+                           {(!featuredEvent.speaker_photos_url || !featuredEvent.speaker_photos_url.split(',')[index]) && (
+                             <View className="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 items-center justify-center">
+                               <Text className="text-white font-semibold text-lg">
+                                 {speaker.name ? speaker.name.charAt(0).toUpperCase() : 'S'}
+                               </Text>
+                             </View>
+                           )}
+                         </View>
+                         <Text className="text-gray-800 text-sm font-medium text-center">{speaker.name}</Text>
+                         {speaker.title && (
+                           <Text className="text-gray-500 text-xs text-center">{speaker.title}</Text>
+                         )}
+                       </View>
+                     </View>
+                   ))}
+                 </View>
+               </View>
+             )}
+             
+             {/* Sponsors */}
+             {featuredEvent.sponsors && featuredEvent.sponsors.length > 0 && (
+               <View className="border border-gray-200 rounded-lg shadow-md p-6 bg-white">
+                 <Text className="text-lg font-semibold text-blue-900 mb-3">Sponsor/s:</Text>
+                 <View className="flex-row flex-wrap justify-start">
+                   {featuredEvent.sponsors.map((sponsor, index) => (
+                     <View key={`sponsor-${index}`} className="w-1/2 mb-4 px-2">
+                       <View className="items-center">
+                         <View className="w-16 h-16 rounded-lg overflow-hidden bg-white border border-gray-200 mb-2 items-center justify-center">
+                           {featuredEvent.sponsor_logos_url ? (() => {
+                             const logoUrls = featuredEvent.sponsor_logos_url.split(',').map((url: string) => url.trim());
+                             const sponsorLogoUrl = logoUrls[index];
+                             return sponsorLogoUrl ? (
+                               <Image 
+                                 source={{ uri: sponsorLogoUrl }} 
+                                 className="w-full h-full"
+                                 resizeMode="contain"
+                               />
+                             ) : null;
+                           })() : null}
+                           {(!featuredEvent.sponsor_logos_url || !featuredEvent.sponsor_logos_url.split(',')[index]) && (
+                             <View className="w-full h-full bg-gradient-to-br from-green-400 to-green-600 items-center justify-center">
+                               <Text className="text-white font-semibold text-lg">
+                                 {sponsor.name ? sponsor.name.charAt(0).toUpperCase() : 'S'}
+                               </Text>
+                             </View>
+                           )}
+                         </View>
+                         <Text className="text-gray-800 text-sm font-medium text-center">{sponsor.name}</Text>
+                         {sponsor.website && (
+                           <Text className="text-blue-600 text-xs text-center">Visit Website</Text>
+                         )}
+                       </View>
+                     </View>
+                   ))}
+                 </View>
+               </View>
+             )}
+          </View>
+          
+          {/* Sign Out Button */}
+          {currentUser && (
+            <View className="mt-8 mb-4">
+              <TouchableOpacity
+                onPress={handleSignOut}
+                className="bg-red-500 py-4 px-6 rounded-xl items-center"
+              >
+                <Text className="text-white font-bold text-lg">Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    </SafeAreaView>
+  );
+}

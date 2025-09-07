@@ -1,33 +1,30 @@
 import { jwtDecode } from 'jwt-decode';
 
-export const createQRDataString = (user) => {
-  if (!user) return null;
-  
-  const payload = {
-    userId: user.id,
-    userEmail: user.email,
-    userName: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email,
-    userRole: user.role || 'participant',
-    timestamp: Date.now(),
-    type: 'user_qr'
-  };
-
-  // For demo purposes, we'll create a simple string representation
-  // In production, you'd want to use proper JWT signing
-  return JSON.stringify(payload);
+export const decodeJWT = (token) => {
+  try {
+    return jwtDecode(token);
+  } catch (error) {
+    console.error('Error decoding JWT:', error);
+    return null;
+  }
 };
 
-export const getQRTokenInfo = (tokenString) => {
+export const isTokenExpired = (token) => {
   try {
-    const tokenData = JSON.parse(tokenString);
-    return {
-      success: true,
-      data: tokenData
-    };
+    const decoded = jwtDecode(token);
+    const currentTime = Date.now() / 1000;
+    return decoded.exp < currentTime;
   } catch (error) {
-    return {
-      success: false,
-      error: 'Invalid token format'
-    };
+    console.error('Error checking token expiration:', error);
+    return true;
+  }
+};
+
+export const getTokenPayload = (token) => {
+  try {
+    return jwtDecode(token);
+  } catch (error) {
+    console.error('Error getting token payload:', error);
+    return null;
   }
 };

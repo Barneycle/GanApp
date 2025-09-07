@@ -151,7 +151,7 @@ export default function TermsScreen() {
     <SafeAreaView className="flex-1 bg-blue-900">
       <View className="flex-1 bg-blue-900">
         {/* Header */}
-        <View className="flex-row items-center justify-between p-4 pt-12 mt-6 border-b border-blue-800">
+        <View className="flex-row items-center justify-between p-4 border-b border-blue-800">
           <TouchableOpacity
             onPress={() => router.back()}
             className="p-2"
