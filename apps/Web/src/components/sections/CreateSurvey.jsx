@@ -510,10 +510,19 @@ export const CreateSurvey = () => {
       
       // Create the event (EventService handles its own timeouts)
       console.log('🚀 Starting event creation...');
-      console.log('🔍 User authentication status:', { userId: user?.id, userRole: user?.role });
+      console.log('🔍 User authentication status:', { 
+        userId: user?.id, 
+        userRole: user?.role,
+        userEmail: user?.email,
+        isAuthenticated: !!user
+      });
       
       console.log('⏱️ Waiting for event creation...');
-      const eventId = await EventService.createEvent(pendingEventData);
+      const eventResult = await EventService.createEvent(pendingEventData);
+      if (eventResult.error) {
+        throw new Error(`Event creation failed: ${eventResult.error}`);
+      }
+      const eventId = eventResult.event.id;
       console.log('✅ Event created successfully with ID:', eventId);
 
       // Step 2: Create the survey in the database
@@ -542,7 +551,21 @@ export const CreateSurvey = () => {
         created_by: user.id
       };
       
-      const surveyId = await SurveyService.createSurvey(surveyData);
+      console.log('🔍 Survey data being sent to service:', JSON.stringify(surveyData, null, 2));
+      const surveyResult = await SurveyService.createSurvey(surveyData);
+      console.log('🔍 Survey service response:', surveyResult);
+      
+      if (surveyResult.error) {
+        console.error('❌ Survey creation error details:', surveyResult.error);
+        throw new Error(`Survey creation failed: ${surveyResult.error}`);
+      }
+      
+      if (!surveyResult.survey) {
+        console.error('❌ Survey creation returned no survey data:', surveyResult);
+        throw new Error('Survey creation failed: No survey data returned');
+      }
+      
+      const surveyId = surveyResult.survey.id;
       console.log('✅ Survey created successfully with ID:', surveyId);
 
       // Clear all saved data

@@ -33,6 +33,15 @@ export interface EventWithDetails extends Event {
   };
 }
 
+export interface EventRegistration {
+  id: string;
+  event_id: string;
+  user_id: string;
+  registration_date: string;
+  status: 'registered' | 'cancelled' | 'attended';
+  created_at: string;
+}
+
 export class EventService {
   static async getAllEvents(): Promise<{ events?: Event[]; error?: string }> {
     try {
@@ -57,10 +66,14 @@ export class EventService {
         .from('events')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
       if (error) {
         return { error: error.message };
+      }
+
+      if (!data) {
+        return { error: 'Event not found' };
       }
 
       return { event: data };
@@ -165,6 +178,204 @@ export class EventService {
         return { events: [] };
       }
       
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async updateEventStatus(id: string, status: string): Promise<{ event?: Event; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .update({ status })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { event: data };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  // Event Registration Methods
+  static async registerForEvent(eventId: string, userId: string): Promise<{ registration?: EventRegistration; error?: string }> {
+    try {
+      // Check if user is already registered
+      const existingRegistration = await this.getUserRegistration(eventId, userId);
+      if (existingRegistration.registration) {
+        return { error: 'You are already registered for this event' };
+      }
+
+      // Check if event exists and is published
+      const eventResult = await this.getEventById(eventId);
+      if (eventResult.error) {
+        return { error: eventResult.error };
+      }
+
+      if (!eventResult.event) {
+        return { error: 'Event not found' };
+      }
+
+      if (eventResult.event.status !== 'published') {
+        return { error: 'This event is not available for registration' };
+      }
+
+      // Check if event has reached max participants
+      if (eventResult.event.max_participants && eventResult.event.current_participants >= eventResult.event.max_participants) {
+        return { error: 'This event has reached maximum capacity' };
+      }
+
+      // Create registration
+      const { data, error } = await supabase
+        .from('event_registrations')
+        .insert([{
+          event_id: eventId,
+          user_id: userId,
+          status: 'registered'
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      // Update event participant count
+      await supabase
+        .from('events')
+        .update({ 
+          current_participants: (eventResult.event.current_participants || 0) + 1 
+        })
+        .eq('id', eventId);
+
+      return { registration: data };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async cancelEventRegistration(eventId: string, userId: string): Promise<{ error?: string }> {
+    try {
+      // Get current registration
+      const registrationResult = await this.getUserRegistration(eventId, userId);
+      if (registrationResult.error) {
+        return { error: registrationResult.error };
+      }
+
+      if (!registrationResult.registration) {
+        return { error: 'You are not registered for this event' };
+      }
+
+      // Update registration status
+      const { error } = await supabase
+        .from('event_registrations')
+        .update({ status: 'cancelled' })
+        .eq('event_id', eventId)
+        .eq('user_id', userId);
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      // Update event participant count
+      const eventResult = await this.getEventById(eventId);
+      if (eventResult.event) {
+        await supabase
+          .from('events')
+          .update({ 
+            current_participants: Math.max((eventResult.event.current_participants || 0) - 1, 0)
+          })
+          .eq('id', eventId);
+      }
+
+      return {};
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async getUserRegistration(eventId: string, userId: string): Promise<{ registration?: EventRegistration; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('event_registrations')
+        .select('*')
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      if (!data) {
+        // No registration found
+        return {};
+      }
+
+      return { registration: data };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async getUserRegistrations(userId: string): Promise<{ registrations?: EventRegistration[]; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('event_registrations')
+        .select(`
+          *,
+          events (
+            id,
+            title,
+            start_date,
+            end_date,
+            venue,
+            status
+          )
+        `)
+        .eq('user_id', userId)
+        .eq('status', 'registered')
+        .order('registration_date', { ascending: false });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { registrations: data };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async getEventParticipants(eventId: string): Promise<{ participants?: any[]; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('event_registrations')
+        .select(`
+          *,
+          users (
+            id,
+            email,
+            first_name,
+            last_name,
+            user_type,
+            organization
+          )
+        `)
+        .eq('event_id', eventId)
+        .eq('status', 'registered')
+        .order('registration_date', { ascending: false });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { participants: data };
+    } catch (error) {
       return { error: 'An unexpected error occurred' };
     }
   }

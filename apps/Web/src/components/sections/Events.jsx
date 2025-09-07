@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 // Sample events data for placeholders
 const sampleEvents = [
   {
-    id: 1,
+    id: "550e8400-e29b-41d4-a716-446655440021",
     title: "Tech Conference 2025",
     rationale: "Join industry leaders and tech enthusiasts for a day of insightful talks, networking, and innovation showcases.",
     start_date: "2024-06-15",
@@ -28,7 +28,7 @@ const sampleEvents = [
     ]
   },
   {
-    id: 2,
+    id: "550e8400-e29b-41d4-a716-446655440022",
     title: "Music Festival",
     rationale: "Experience the best of live music with top artists from around the world in an unforgettable weekend celebration.",
     start_date: "2024-07-20",
@@ -48,7 +48,7 @@ const sampleEvents = [
     ]
   },
   {
-    id: 3,
+    id: "550e8400-e29b-41d4-a716-446655440023",
     title: "Startup Pitch Night",
     rationale: "Witness innovative startups present their groundbreaking ideas to investors and industry experts.",
     start_date: "2024-08-10",
@@ -68,7 +68,7 @@ const sampleEvents = [
     ]
   },
   {
-    id: 4,
+    id: "550e8400-e29b-41d4-a716-446655440024",
     title: "AI Summit",
     rationale: "Explore the future of artificial intelligence with leading researchers and industry pioneers.",
     start_date: "2024-09-05",
@@ -88,7 +88,7 @@ const sampleEvents = [
     ]
   },
   {
-    id: 5,
+    id: "550e8400-e29b-41d4-a716-446655440025",
     title: "Art & Design Expo",
     rationale: "Celebrate creativity and innovation in art and design with exhibitions from talented artists worldwide.",
     start_date: "2024-10-15",
@@ -108,7 +108,7 @@ const sampleEvents = [
     ]
   },
   {
-    id: 6,
+    id: "550e8400-e29b-41d4-a716-446655440026",
     title: "Business Networking",
     rationale: "Connect with industry professionals and expand your business network in a collaborative environment.",
     start_date: "2024-11-12",
@@ -136,10 +136,21 @@ export const Events = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [userRegistrations, setUserRegistrations] = useState(new Set());
+  const [registeringEvents, setRegisteringEvents] = useState(new Set());
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [eventToRegister, setEventToRegister] = useState(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [eventToCancel, setEventToCancel] = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successModalMessage, setSuccessModalMessage] = useState('');
 
   useEffect(() => {
     loadEvents();
-  }, []);
+    if (user) {
+      loadUserRegistrations();
+    }
+  }, [user]);
 
   const loadEvents = async () => {
     try {
@@ -205,6 +216,151 @@ export const Events = () => {
     }
   };
 
+  const loadUserRegistrations = async () => {
+    if (!user) return;
+    
+    try {
+      const result = await EventService.getUserRegistrations(user.id);
+      if (result.registrations) {
+        const registeredEventIds = new Set(result.registrations.map(reg => reg.event_id));
+        setUserRegistrations(registeredEventIds);
+      }
+    } catch (err) {
+      console.error('Error loading user registrations:', err);
+    }
+  };
+
+  const handleRegisterForEvent = async (eventId) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    // Find the event to register for
+    const event = events.find(e => e.id === eventId) || sampleEvents.find(e => e.id === eventId);
+    if (event) {
+      setEventToRegister(event);
+      setShowConfirmationModal(true);
+    }
+  };
+
+  const confirmRegistration = async () => {
+    if (!eventToRegister) return;
+
+    const eventId = eventToRegister.id;
+    
+    // Check if this is a sample event
+    const isSampleEvent = sampleEvents.some(event => event.id === eventId);
+    if (isSampleEvent) {
+      // For sample events, simulate registration without database call
+      setSuccessModalMessage('Successfully registered for the sample event! (This is a demo registration)');
+      setShowSuccessModal(true);
+      setUserRegistrations(prev => new Set(prev).add(eventId));
+      
+      setShowConfirmationModal(false);
+      setEventToRegister(null);
+      return;
+    }
+
+    try {
+      setRegisteringEvents(prev => new Set(prev).add(eventId));
+      setError('');
+      // Don't clear success message here - let it show after registration
+
+      const result = await EventService.registerForEvent(eventId, user.id);
+      
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setSuccessModalMessage('Successfully registered for the event!');
+        setShowSuccessModal(true);
+        // Add to user registrations
+        setUserRegistrations(prev => new Set(prev).add(eventId));
+        // Reload events to update participant count
+        await loadEvents();
+      }
+    } catch (err) {
+      console.error('Error registering for event:', err);
+      setError('Failed to register for event. Please try again.');
+    } finally {
+      setRegisteringEvents(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(eventId);
+        return newSet;
+      });
+      setShowConfirmationModal(false);
+      setEventToRegister(null);
+    }
+  };
+
+  const handleCancelRegistration = async (eventId) => {
+    if (!user) return;
+
+    // Find the event to cancel registration for
+    const event = events.find(e => e.id === eventId) || sampleEvents.find(e => e.id === eventId);
+    if (event) {
+      setEventToCancel(event);
+      setShowCancelModal(true);
+    }
+  };
+
+  const confirmCancellation = async () => {
+    if (!eventToCancel) return;
+
+    const eventId = eventToCancel.id;
+    
+    // Check if this is a sample event
+    const isSampleEvent = sampleEvents.some(event => event.id === eventId);
+    if (isSampleEvent) {
+      // For sample events, simulate cancellation without database call
+      setSuccessModalMessage('Registration cancelled for the sample event! (This is a demo cancellation)');
+      setShowSuccessModal(true);
+      setUserRegistrations(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(eventId);
+        return newSet;
+      });
+      
+      setShowCancelModal(false);
+      setEventToCancel(null);
+      return;
+    }
+
+    try {
+      setRegisteringEvents(prev => new Set(prev).add(eventId));
+      setError('');
+      // Don't clear success message here - let it show after cancellation
+
+      const result = await EventService.cancelEventRegistration(eventId, user.id);
+      
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setSuccessModalMessage('Registration cancelled successfully!');
+        setShowSuccessModal(true);
+        // Remove from user registrations
+        setUserRegistrations(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(eventId);
+          return newSet;
+        });
+        // Reload events to update participant count
+        await loadEvents();
+      }
+    } catch (err) {
+      console.error('Error cancelling registration:', err);
+      setError('Failed to cancel registration. Please try again.');
+    } finally {
+      setRegisteringEvents(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(eventId);
+        return newSet;
+      });
+      setShowCancelModal(false);
+      setEventToCancel(null);
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -250,30 +406,7 @@ export const Events = () => {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8 sm:mb-12">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-slate-800 to-blue-800 bg-clip-text text-transparent mb-4">
-            {!user ? 'Browse Events' : user?.role === 'organizer' || user?.role === 'admin' ? 'My Events' : 'Browse Events'}
-          </h1>
-          <p className="text-slate-600 text-xl sm:text-2xl max-w-3xl mx-auto">
-            {!user 
-              ? 'Discover exciting events and activities'
-              : user?.role === 'organizer' || user?.role === 'admin' 
-                ? 'Manage and track your created events' 
-                : 'Discover and join exciting events'
-            }
-          </p>
         </div>
-
-        {/* Success Message */}
-        {successMessage && (
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-            <div className="flex items-center justify-center space-x-2">
-              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-              </svg>
-              <span className="text-green-800 font-medium">{successMessage}</span>
-            </div>
-          </div>
-        )}
 
         {/* Call to Action for Unauthenticated Users */}
         {!user && (
@@ -374,6 +507,15 @@ export const Events = () => {
                               <span>{event.venue}</span>
                             </div>
                           )}
+                          <div className="flex items-center text-sm text-slate-600">
+                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            <span>
+                              {event.current_participants || 0} registered
+                              {event.max_participants && ` / ${event.max_participants} max`}
+                            </span>
+                          </div>
                         </div>
                         
                         {/* Sponsors and Speakers */}
@@ -414,9 +556,21 @@ export const Events = () => {
                                 Login to Register
                               </button>
                             </div>
+                          ) : userRegistrations.has(event.id) ? (
+                            <button 
+                              onClick={() => handleCancelRegistration(event.id)}
+                              disabled={registeringEvents.has(event.id)}
+                              className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {registeringEvents.has(event.id) ? 'Cancelling...' : 'Cancel Registration'}
+                            </button>
                           ) : (
-                            <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
-                              Register
+                            <button 
+                              onClick={() => handleRegisterForEvent(event.id)}
+                              disabled={registeringEvents.has(event.id)}
+                              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {registeringEvents.has(event.id) ? 'Registering...' : 'Register'}
                             </button>
                           )}
                         </div>
@@ -478,6 +632,15 @@ export const Events = () => {
                         <span>{event.venue}</span>
                       </div>
                     )}
+                    <div className="flex items-center text-sm text-slate-600">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      <span>
+                        {event.current_participants || 0} registered
+                        {event.max_participants && ` / ${event.max_participants} max`}
+                      </span>
+                    </div>
                   </div>
                   
                   {/* Sponsors and Speakers */}
@@ -531,9 +694,21 @@ export const Events = () => {
                           Login to Register
                         </button>
                       </div>
+                    ) : userRegistrations.has(event.id) ? (
+                      <button 
+                        onClick={() => handleCancelRegistration(event.id)}
+                        disabled={registeringEvents.has(event.id)}
+                        className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {registeringEvents.has(event.id) ? 'Cancelling...' : 'Cancel Registration'}
+                      </button>
                     ) : (
-                      <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
-                        Register
+                      <button 
+                        onClick={() => handleRegisterForEvent(event.id)}
+                        disabled={registeringEvents.has(event.id)}
+                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {registeringEvents.has(event.id) ? 'Registering...' : 'Register'}
                       </button>
                     )}
                   </div>
@@ -543,6 +718,124 @@ export const Events = () => {
           </div>
         )}
       </div>
+
+      {/* Registration Confirmation Modal */}
+      {showConfirmationModal && eventToRegister && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
+                <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                Confirm Event Registration
+              </h3>
+              <p className="text-slate-600 mb-6">
+                Are you sure you want to register for <strong>"{eventToRegister.title}"</strong>?
+                {sampleEvents.some(event => event.id === eventToRegister.id) && (
+                  <span className="block mt-2 text-sm text-blue-600">
+                    (This is a sample event - demo registration only)
+                  </span>
+                )}
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowConfirmationModal(false);
+                    setEventToRegister(null);
+                  }}
+                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmRegistration}
+                  disabled={registeringEvents.has(eventToRegister.id)}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {registeringEvents.has(eventToRegister.id) ? 'Registering...' : 'Confirm Registration'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Confirmation Modal */}
+      {showCancelModal && eventToCancel && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                Confirm Registration Cancellation
+              </h3>
+              <p className="text-slate-600 mb-6">
+                Are you sure you want to cancel your registration for <strong>"{eventToCancel.title}"</strong>?
+                {sampleEvents.some(event => event.id === eventToCancel.id) && (
+                  <span className="block mt-2 text-sm text-blue-600">
+                    (This is a sample event - demo cancellation only)
+                  </span>
+                )}
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowCancelModal(false);
+                    setEventToCancel(null);
+                  }}
+                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  Keep Registration
+                </button>
+                <button
+                  onClick={confirmCancellation}
+                  disabled={registeringEvents.has(eventToCancel.id)}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {registeringEvents.has(eventToCancel.id) ? 'Cancelling...' : 'Cancel Registration'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
+                <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-slate-900 mb-4">
+                Success!
+              </h3>
+              <p className="text-slate-600 mb-6 text-lg">
+                {successModalMessage}
+              </p>
+              <button
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  setSuccessModalMessage('');
+                }}
+                className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+              >
+                Got it!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };

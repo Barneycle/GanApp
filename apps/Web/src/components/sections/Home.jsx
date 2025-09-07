@@ -20,62 +20,62 @@ export const Home = () => {
   // Sample events data for carousel
   const sampleEvents = [
     {
-      id: 1,
+      id: "550e8400-e29b-41d4-a716-446655440031",
       title: "Tech Conference 2025",
       img: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center",
     },
     {
-      id: 2,
+      id: "550e8400-e29b-41d4-a716-446655440032",
       title: "Music Festival",
       img: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&h=400&fit=crop&crop=center",
     },
     {
-      id: 3,
+      id: "550e8400-e29b-41d4-a716-446655440033",
       title: "Startup Pitch Night",
       img: "https://images.unsplash.com/photo-1552664730-d307ca884978?w=600&h=400&fit=crop&crop=center",
     },
     {
-      id: 4,
+      id: "550e8400-e29b-41d4-a716-446655440034",
       title: "AI Summit",
       img: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=600&h=400&fit=crop&crop=center",
     },
     {
-      id: 5,
+      id: "550e8400-e29b-41d4-a716-446655440035",
       title: "Art & Design Expo",
       img: "https://images.unsplash.com/photo-1541961017774-22349e4a1262?w=600&h=400&fit=crop&crop=center",
     },
     {
-      id: 6,
+      id: "550e8400-e29b-41d4-a716-446655440036",
       title: "Business Networking",
       img: "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=600&h=400&fit=crop&crop=center",
     },
     {
-      id: 7,
+      id: "550e8400-e29b-41d4-a716-446655440037",
       title: "Sports Championship",
       img: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&h=400&fit=crop&crop=center",
     },
     {
-      id: 8,
+      id: "550e8400-e29b-41d4-a716-446655440038",
       title: "Food & Wine Festival",
       img: "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&h=400&fit=crop&crop=center",
     },
     {
-      id: 9,
+      id: "550e8400-e29b-41d4-a716-446655440039",
       title: "Gaming Convention",
       img: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&h=400&fit=crop&crop=center",
     },
     {
-      id: 10,
+      id: "550e8400-e29b-41d4-a716-446655440040",
       title: "Educational Workshop",
       img: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=600&h=400&fit=crop&crop=center",
     },
     {
-      id: 11,
+      id: "550e8400-e29b-41d4-a716-446655440041",
       title: "Health & Wellness Expo",
       img: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600&h=400&fit=crop&crop=center",
     },
     {
-      id: 12,
+      id: "550e8400-e29b-41d4-a716-446655440042",
       title: "Environmental Summit",
       img: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=600&h=400&fit=crop&crop=center",
     },

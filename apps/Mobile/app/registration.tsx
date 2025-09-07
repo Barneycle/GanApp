@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
+import { useAuth } from '../lib/authContext';
 
 interface RegistrationFormData {
   firstName: string;
@@ -39,9 +40,12 @@ export default function RegistrationScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [localError, setLocalError] = useState('');
 
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
+  const { signUp } = useAuth();
 
   const handleInputChange = (field: keyof RegistrationFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -49,6 +53,49 @@ export default function RegistrationScreen() {
 
   const handleUserTypeSelect = (userType: 'psu-student' | 'psu-employee' | 'outside') => {
     setFormData(prev => ({ ...prev, userType }));
+  };
+
+  const validateForm = () => {
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.userType) {
+      return 'All required fields must be filled';
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      return 'Passwords do not match';
+    }
+
+    if (formData.password.length < 6) {
+      return 'Password must be at least 6 characters long';
+    }
+
+    // Password complexity validation
+    const hasLowercase = /[a-z]/.test(formData.password);
+    const hasUppercase = /[A-Z]/.test(formData.password);
+    const hasNumber = /[0-9]/.test(formData.password);
+    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"|\\<>\?,./`~]/.test(formData.password);
+
+    if (!hasLowercase || !hasUppercase || !hasNumber || !hasSpecialChar) {
+      return 'Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character (!@#$%^&*()_+-=[]{};\':"\\|/<>,.?`~)';
+    }
+
+    if (!acceptedTerms) {
+      return 'You must agree to the terms and conditions';
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      return 'Please enter a valid email address';
+    }
+
+    // PSU email validation for students and employees only
+    if ((formData.userType === 'psu-student' || formData.userType === 'psu-employee') && 
+        !formData.email.endsWith('@parsu.edu.ph') && 
+        !formData.email.endsWith('.pbox@parsu.edu.ph')) {
+      return 'PSU students and employees must use @parsu.edu.ph or .pbox@parsu.edu.ph email addresses';
+    }
+
+    return null;
   };
 
   const validateEmail = (email: string): boolean => {
@@ -70,63 +117,93 @@ export default function RegistrationScreen() {
   };
 
   const handleRegistration = async () => {
-    // Validation
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.confirmPassword) {
-      Alert.alert('Error', 'Please fill in all required fields');
+    console.log('handleRegistration called');
+    // Clear any previous errors
+    setLocalError('');
+    
+    // Validate form
+    const validationError = validateForm();
+    if (validationError) {
+      console.log('Validation error:', validationError);
+      setLocalError(validationError);
       return;
     }
 
-    if (!formData.userType) {
-      Alert.alert('Error', 'Please select your user type');
-      return;
-    }
-
-    if (!validateEmail(formData.email)) {
-      if (formData.userType === 'psu-student' || formData.userType === 'psu-employee') {
-        Alert.alert('Error', 'PSU students and employees must use email addresses ending in @parsu.edu.ph or .pbox@parsu.edu.ph');
-      } else {
-        Alert.alert('Error', 'Please enter a valid email address');
-      }
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
-      return;
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
-
-    if (!acceptedTerms) {
-      Alert.alert('Error', 'You must accept the Terms of Use and Privacy Policy to continue');
-      return;
-    }
-
+    console.log('Form validation passed, starting signUp...');
     setIsLoading(true);
 
-    // Simulate registration process
-    setTimeout(() => {
+    try {
+      // Prepare user data for registration
+      const userData = {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        user_type: formData.userType,
+        role: 'participant' // Default role for new users
+      };
+
+      console.log('Calling signUp with:', { email: formData.email, firstName: formData.firstName, lastName: formData.lastName });
+      const result = await signUp(formData.email, formData.password, formData.firstName, formData.lastName, 'participant');
+      
+      console.log('SignUp result:', result);
+      
+      if (result.error) {
+        console.log('SignUp error:', result.error);
+        setLocalError(result.error);
+        return;
+      }
+
+      if (result.user) {
+        console.log('Registration successful, showing success screen');
+        // Registration successful - show success message and redirect to login
+        setSuccess(true);
+        // Redirect to login after 3 seconds to show success message
+        setTimeout(() => {
+          router.push('/login');
+        }, 3000);
+        return;
+      }
+
+      console.log('No user returned from signUp');
+      setLocalError('Registration failed. Please try again.');
+    } catch (error) {
+      console.error('Registration error:', error);
+      setLocalError('An unexpected error occurred. Please try again.');
+    } finally {
       setIsLoading(false);
-      Alert.alert(
-        'Success',
-        'Account created successfully!',
-        [{ text: 'OK', onPress: () => router.push('/login') }]
-      );
-    }, 2000);
+    }
   };
 
   return (
     <>
-      <StatusBar style="light" backgroundColor="transparent" translucent={false} />
+      <StatusBar style="light" />
       <SafeAreaView className="flex-1 bg-blue-900">
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-        >
+        {success ? (
+          // Success Screen
+          <View className="flex-1 justify-center items-center px-4">
+            <View className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+              <View className="w-16 h-16 bg-green-100 rounded-full mx-auto mb-4 flex items-center justify-center">
+                <Ionicons name="checkmark" size={32} color="#059669" />
+              </View>
+              <Text className="text-2xl font-bold text-slate-800 mb-2 text-center">Registration Successful!</Text>
+              <Text className="text-slate-600 mb-6 text-center">
+                Your account has been created successfully. You can now sign in using your email address.
+                {formData.userType === 'outside' && ' Outside users can use any valid email address.'}
+              </Text>
+              <View className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></View>
+              <TouchableOpacity
+                onPress={() => router.push('/login')}
+                className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3 rounded-xl items-center"
+              >
+                <Text className="text-white font-semibold">Go to Login Now</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          >
           <ScrollView
             ref={scrollViewRef}
             contentContainerStyle={{ 
@@ -252,6 +329,13 @@ export default function RegistrationScreen() {
 
                 {/* Registration Form */}
                 <View className="bg-white rounded-2xl p-5 shadow-lg mx-2">
+                  {/* Error Messages */}
+                  {localError && (
+                    <View className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+                      <Text className="text-red-700 text-sm">{localError}</Text>
+                    </View>
+                  )}
+
                   {/* First Name Input */}
                   <View className="mb-3">
                     <Text className="text-sm font-semibold text-black mb-2">First Name *</Text>
@@ -444,7 +528,8 @@ export default function RegistrationScreen() {
             {/* Bottom Spacing */}
             <View className="h-6" />
           </ScrollView>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        )}
       </SafeAreaView>
     </>
   );

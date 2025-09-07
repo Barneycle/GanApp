@@ -68,7 +68,7 @@ export class EventService {
         .from('events')
         .select('*')
         .eq('id', eventId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching event by ID:', error);

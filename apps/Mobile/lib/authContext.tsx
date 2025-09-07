@@ -1,21 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from './supabase';
-
-export interface User {
-  id: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: string;
-  created_at: string;
-  updated_at: string;
-}
+import { UserService, User } from './userService';
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ user: User | null; error: string | null }>;
-  signUp: (email: string, password: string, firstName: string, lastName: string, role?: string) => Promise<{ user: User | null; error: string | null }>;
+  signUp: (email: string, password: string, firstName: string, lastName: string, role?: 'admin' | 'organizer' | 'participant') => Promise<{ user: User | null; error: string | null }>;
   signOut: () => Promise<{ error: string | null }>;
   refreshUser: () => Promise<void>;
 }
@@ -110,32 +101,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signIn = async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const result = await UserService.signIn(email, password);
 
-      if (error) {
-        return { user: null, error: error.message };
+      if (result.error) {
+        return { user: null, error: result.error };
       }
 
-      if (!data.user) {
-        return { user: null, error: 'Failed to sign in' };
+      if (result.user) {
+        setUser(result.user);
+        return { user: result.user, error: null };
       }
 
-      // Create user profile from auth data
-      const userProfile: User = {
-        id: data.user.id,
-        email: data.user.email || '',
-        first_name: data.user.user_metadata?.first_name || 'User',
-        last_name: data.user.user_metadata?.last_name || '',
-        role: data.user.user_metadata?.role || 'participant',
-        created_at: data.user.created_at || new Date().toISOString(),
-        updated_at: data.user.updated_at || new Date().toISOString(),
-      };
-
-      setUser(userProfile);
-      return { user: userProfile, error: null };
+      return { user: null, error: 'Failed to sign in' };
     } catch (error) {
       console.error('Unexpected error in signIn:', error);
       return { user: null, error: 'An unexpected error occurred' };
@@ -144,42 +121,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const signUp = async (email: string, password: string, firstName: string, lastName: string, role: string = 'participant') => {
+  const signUp = async (email: string, password: string, firstName: string, lastName: string, role: 'admin' | 'organizer' | 'participant' = 'participant') => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-            role: role,
-          }
-        }
-      });
-
-      if (error) {
-        return { user: null, error: error.message };
-      }
-
-      if (!data.user) {
-        return { user: null, error: 'Failed to create user' };
-      }
-
-      // Create user profile from auth data
-      const userProfile: User = {
-        id: data.user.id,
-        email: data.user.email || '',
+      
+      // Prepare user data for registration (matching Web version)
+      const userData = {
         first_name: firstName,
         last_name: lastName,
         role: role,
-        created_at: data.user.created_at || new Date().toISOString(),
-        updated_at: data.user.updated_at || new Date().toISOString(),
       };
 
-      setUser(userProfile);
-      return { user: userProfile, error: null };
+      const result = await UserService.signUp(email, password, userData);
+
+      if (result.error) {
+        return { user: null, error: result.error };
+      }
+
+      if (result.user) {
+        setUser(result.user);
+        return { user: result.user, error: null };
+      }
+
+      return { user: null, error: 'Failed to create user' };
     } catch (error) {
       console.error('Unexpected error in signUp:', error);
       return { user: null, error: 'An unexpected error occurred' };

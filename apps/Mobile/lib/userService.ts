@@ -3,87 +3,55 @@ import { supabase } from './supabase';
 export interface User {
   id: string;
   email: string;
+  role: 'admin' | 'organizer' | 'participant';
   first_name: string;
   last_name: string;
-  role: string;
   created_at: string;
   updated_at: string;
 }
 
 export class UserService {
-  static async getCurrentUser() {
+  static async signUp(email: string, password: string, userData: Partial<User>): Promise<{ user?: User; error?: string; message?: string }> {
     try {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      
-      if (error) {
-        console.error('Error getting current user:', error);
-        return { user: null, error: error.message };
-      }
-
-      if (!user) {
-        return { user: null, error: 'No user found' };
-      }
-
-      // Create a basic user profile from auth data since profiles table doesn't exist
-      const userProfile: User = {
-        id: user.id,
-        email: user.email || '',
-        first_name: user.user_metadata?.first_name || 'User',
-        last_name: user.user_metadata?.last_name || '',
-        role: user.user_metadata?.role || 'participant',
-        created_at: user.created_at || new Date().toISOString(),
-        updated_at: user.updated_at || new Date().toISOString(),
-      };
-
-      return { user: userProfile, error: null };
-    } catch (error) {
-      console.error('Unexpected error in getCurrentUser:', error);
-      return { user: null, error: 'An unexpected error occurred' };
-    }
-  }
-
-  static async signUp(email: string, password: string, firstName: string, lastName: string, role: string = 'participant') {
-    try {
-      // Sign up user with metadata
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            first_name: firstName,
-            last_name: lastName,
-            role: role,
+            role: userData.role || 'participant',
+            first_name: userData.first_name || '',
+            last_name: userData.last_name || ''
           }
         }
       });
 
-      if (authError) {
-        return { user: null, error: authError.message };
+      if (error) {
+        return { error: error.message };
       }
 
-      if (!authData.user) {
-        return { user: null, error: 'Failed to create user' };
+      if (data.user) {
+        // Create user object from Supabase Auth data
+        const user: User = {
+          id: data.user.id,
+          email: data.user.email || '',
+          role: data.user.user_metadata?.role || 'participant',
+          first_name: data.user.user_metadata?.first_name || '',
+          last_name: data.user.user_metadata?.last_name || '',
+          created_at: data.user.created_at,
+          updated_at: data.user.updated_at || data.user.created_at
+        };
+        
+        return { user, message: 'User created successfully' };
       }
 
-      // Create user profile object from auth data
-      const userProfile: User = {
-        id: authData.user.id,
-        email,
-        first_name: firstName,
-        last_name: lastName,
-        role,
-        created_at: authData.user.created_at || new Date().toISOString(),
-        updated_at: authData.user.updated_at || new Date().toISOString(),
-      };
-
-      return { user: userProfile, error: null };
+      return { error: 'Failed to create user' };
     } catch (error) {
-      console.error('Unexpected error in signUp:', error);
-      return { user: null, error: 'An unexpected error occurred' };
+      console.error('Sign up error:', error);
+      return { error: 'An unexpected error occurred' };
     }
   }
 
-  static async signIn(email: string, password: string) {
+  static async signIn(email: string, password: string): Promise<{ user?: User; error?: string }> {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -91,33 +59,35 @@ export class UserService {
       });
 
       if (error) {
-        return { user: null, error: error.message };
+        return { error: error.message };
       }
 
-      if (!data.user) {
-        return { user: null, error: 'Failed to sign in' };
+      if (data.user) {
+        // Use Supabase Auth user metadata for role
+        const role = data.user.user_metadata?.role || 'participant';
+        
+        // Create user object from Supabase Auth data
+        const userData: User = {
+          id: data.user.id,
+          email: data.user.email || '',
+          role: role,
+          first_name: data.user.user_metadata?.first_name || '',
+          last_name: data.user.user_metadata?.last_name || '',
+          created_at: data.user.created_at,
+          updated_at: data.user.updated_at || data.user.created_at
+        };
+        
+        return { user: userData };
       }
 
-      // Get user profile
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single();
-
-      if (profileError) {
-        console.error('Error getting user profile:', profileError);
-        return { user: null, error: profileError.message };
-      }
-
-      return { user: profile, error: null };
+      return { error: 'Failed to sign in' };
     } catch (error) {
-      console.error('Unexpected error in signIn:', error);
-      return { user: null, error: 'An unexpected error occurred' };
+      console.error('Sign in error:', error);
+      return { error: 'An unexpected error occurred' };
     }
   }
 
-  static async signOut() {
+  static async signOut(): Promise<{ error?: string }> {
     try {
       const { error } = await supabase.auth.signOut();
       
@@ -125,30 +95,10 @@ export class UserService {
         return { error: error.message };
       }
 
-      return { error: null };
+      return {};
     } catch (error) {
-      console.error('Unexpected error in signOut:', error);
+      console.error('Sign out error:', error);
       return { error: 'An unexpected error occurred' };
-    }
-  }
-
-  static async updateProfile(userId: string, updates: Partial<User>) {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', userId)
-        .select()
-        .single();
-
-      if (error) {
-        return { user: null, error: error.message };
-      }
-
-      return { user: data, error: null };
-    } catch (error) {
-      console.error('Unexpected error in updateProfile:', error);
-      return { user: null, error: 'An unexpected error occurred' };
     }
   }
 }

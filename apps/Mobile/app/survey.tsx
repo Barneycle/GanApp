@@ -21,33 +21,33 @@ interface Question {
 
 const sampleQuestions: Question[] = [
   {
-    id: '1',
+    id: '550e8400-e29b-41d4-a716-446655440011',
     question: 'How would you rate your overall experience at this event?',
     type: 'rating',
     required: true,
   },
   {
-    id: '2',
+    id: '550e8400-e29b-41d4-a716-446655440012',
     question: 'Which session did you find most valuable?',
     type: 'multiple_choice',
     options: ['Keynote Speech', 'Panel Discussion', 'Workshop A', 'Workshop B', 'Networking Session'],
     required: true,
   },
   {
-    id: '3',
+    id: '550e8400-e29b-41d4-a716-446655440013',
     question: 'What aspects of the event could be improved?',
     type: 'text',
     required: false,
   },
   {
-    id: '4',
+    id: '550e8400-e29b-41d4-a716-446655440014',
     question: 'Would you recommend this event to others?',
     type: 'multiple_choice',
     options: ['Definitely', 'Probably', 'Maybe', 'Probably not', 'Definitely not'],
     required: true,
   },
   {
-    id: '5',
+    id: '550e8400-e29b-41d4-a716-446655440015',
     question: 'How did you hear about this event?',
     type: 'multiple_choice',
     options: ['Social Media', 'Email Newsletter', 'Word of Mouth', 'Website', 'Other'],

@@ -12,7 +12,7 @@ import { useRouter } from 'expo-router';
 
 const sampleEvents = [
   {
-    id: '1',
+    id: '550e8400-e29b-41d4-a716-446655440001',
     title: 'TechCon 2024: AI & Future Tech',
     date: 'March 15, 2024',
     time: '9:00 AM - 5:00 PM',
@@ -23,7 +23,7 @@ const sampleEvents = [
     attendees: 250,
   },
   {
-    id: '2',
+    id: '550e8400-e29b-41d4-a716-446655440002',
     title: 'Startup Networking Mixer',
     date: 'March 22, 2024',
     time: '6:00 PM - 9:00 PM',
@@ -34,7 +34,7 @@ const sampleEvents = [
     attendees: 80,
   },
   {
-    id: '3',
+    id: '550e8400-e29b-41d4-a716-446655440003',
     title: 'Web Development Workshop',
     date: 'March 30, 2024',
     time: '10:00 AM - 4:00 PM',

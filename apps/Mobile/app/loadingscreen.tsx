@@ -56,7 +56,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ onComplete }) => {
         }).start();
         
         charIndex++;
-        animationRef.current = setTimeout(animateText, 250);
+        animationRef.current = setTimeout(animateText, 100);
       } else {
         // Wait a bit before stopping cursor and completing the final 20%
         setTimeout(() => {
@@ -92,7 +92,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ onComplete }) => {
 
   return (
     <>
-      <StatusBar style="dark" backgroundColor="transparent" translucent={false} />
+      <StatusBar style="dark" />
       <SafeAreaView className="flex-1 bg-zinc-200 justify-center items-center">
       {/* Text with blinking cursor */}
       <View className="mb-4">

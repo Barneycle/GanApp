@@ -52,19 +52,25 @@ export class SurveyService {
 
   static async createSurvey(surveyData: Partial<Survey>): Promise<{ survey?: Survey; error?: string }> {
     try {
+      console.log('🔍 SurveyService.createSurvey called with:', JSON.stringify(surveyData, null, 2));
+      
       const { data, error } = await supabase
         .from('surveys')
         .insert([surveyData])
         .select()
         .single();
 
+      console.log('🔍 Supabase response - data:', data, 'error:', error);
+
       if (error) {
+        console.error('❌ Supabase error in createSurvey:', error);
         return { error: error.message };
       }
 
+      console.log('✅ Survey created successfully:', data);
       return { survey: data };
     } catch (error) {
-      console.error('Create survey error:', error);
+      console.error('❌ Create survey error:', error);
       return { error: 'An unexpected error occurred' };
     }
   }

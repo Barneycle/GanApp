@@ -80,7 +80,7 @@ export default function LoginDashboard() {
 
   return (
     <>
-      <StatusBar style="light" backgroundColor="transparent" translucent={false} />
+      <StatusBar style="light" />
       <SafeAreaView className="flex-1 bg-blue-900">
       <KeyboardAwareScrollView
         contentContainerStyle={{ 
