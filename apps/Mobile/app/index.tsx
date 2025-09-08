@@ -7,6 +7,7 @@ import { EventService, Event } from '../lib/eventService';
 import { useAuth } from '../lib/authContext';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, interpolate } from 'react-native-reanimated';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function Index() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -112,10 +113,8 @@ export default function Index() {
   }, []);
 
   useEffect(() => {
-    // Redirect to login if not authenticated, but only after loading screen completes
-    if (!authLoading && !currentUser && !loading) {
-      router.replace('/login');
-    }
+    // Don't redirect to login anymore - let tabs handle auth state
+    // The tabs will show login screen when not authenticated
   }, [authLoading, currentUser, loading]);
 
   const loadEvents = async () => {
@@ -315,9 +314,34 @@ export default function Index() {
     );
   }
 
-  // Don't render if not authenticated
+  // Show loading screen if auth is still loading
+  if (authLoading) {
+    return <LoadingScreen onComplete={() => {}} />;
+  }
+
+  // If not authenticated, show a welcome screen with login prompt
   if (!currentUser) {
-    return null;
+    return (
+      <SafeAreaView className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50">
+        <View className="flex-1 items-center justify-center px-6">
+          <View className="text-center">
+            <View className="w-24 h-24 bg-blue-500 rounded-full items-center justify-center mx-auto mb-6">
+              <Ionicons name="person" size={48} color="white" />
+            </View>
+            <Text className="text-3xl font-bold text-slate-800 mb-4">Welcome to GanApp</Text>
+            <Text className="text-lg text-slate-600 mb-8 text-center">
+              Please sign in to access your events and features
+            </Text>
+            <TouchableOpacity
+              onPress={() => router.push('/login')}
+              className="bg-blue-600 px-8 py-3 rounded-lg"
+            >
+              <Text className="text-white font-semibold text-lg">Sign In</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -329,14 +353,26 @@ export default function Index() {
       >
         <View className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
           
-          {/* Welcome Message */}
-          <View className="text-center mb-12">
-            <Text className="text-4xl sm:text-5xl md:text-6xl font-bold text-slate-800 mb-4">
-              Welcome to GanApp
-            </Text>
-            <Text className="text-xl sm:text-2xl text-slate-600 max-w-3xl mx-auto">
-              Manage your events and surveys with ease
-            </Text>
+          {/* Welcome Message with Sign Out */}
+          <View className="mb-12">
+            <View className="flex-row justify-between items-start mb-4">
+              <View className="flex-1" />
+              <TouchableOpacity
+                onPress={handleSignOut}
+                className="bg-red-500 px-4 py-2 rounded-lg flex-row items-center"
+              >
+                <Ionicons name="log-out" size={16} color="white" />
+                <Text className="text-white font-medium ml-2">Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+            <View className="text-center">
+              <Text className="text-4xl sm:text-5xl md:text-6xl font-bold text-slate-800 mb-4">
+                Welcome to GanApp
+              </Text>
+              <Text className="text-xl sm:text-2xl text-slate-600 max-w-3xl mx-auto">
+                Manage your events and surveys with ease
+              </Text>
+            </View>
           </View>
           
           {/* Single Event Card */}
