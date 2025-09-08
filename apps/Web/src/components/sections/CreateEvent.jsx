@@ -1377,6 +1377,11 @@ export const CreateEvent = () => {
     if (uploadedFiles.certificateTemplates && uploadedFiles.certificateTemplates.length > 0) {
       eventData.certificate_templates_url = uploadedFiles.certificateTemplates.map(f => f.url).join(',');
     }
+    
+    // Handle event kits
+    if (uploadedFiles.eventKits && uploadedFiles.eventKits.length > 0) {
+      eventData.event_kits_url = uploadedFiles.eventKits.map(f => f.url).join(',');
+    }
 
     // Store event data in session storage for the next step
     sessionStorage.setItem('pending-event-data', JSON.stringify(eventData));

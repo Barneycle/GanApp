@@ -649,8 +649,8 @@ export const Events = () => {
   const [registeringEvents, setRegisteringEvents] = useState(new Set());
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [eventToRegister, setEventToRegister] = useState(null);
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [eventToCancel, setEventToCancel] = useState(null);
+  const [showUnregisterModal, setShowUnregisterModal] = useState(false);
+  const [eventToUnregister, setEventToUnregister] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successModalMessage, setSuccessModalMessage] = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
@@ -693,6 +693,12 @@ export const Events = () => {
         if (result.error) {
           setError(result.error);
         } else {
+          console.log('📊 Loaded events with participant counts:', result.events?.map(e => ({ 
+            id: e.id, 
+            title: e.title, 
+            current_participants: e.current_participants,
+            max_participants: e.max_participants
+          })));
           setEvents(result.events || []);
         }
       } else {
@@ -857,27 +863,27 @@ export const Events = () => {
     }
   };
 
-  const handleCancelRegistration = async (eventId) => {
+  const handleUnregister = async (eventId) => {
     if (!user) return;
 
-    // Find the event to cancel registration for
+    // Find the event to unregister from
     const event = events.find(e => e.id === eventId) || sampleEvents.find(e => e.id === eventId);
     if (event) {
-      setEventToCancel(event);
-      setShowCancelModal(true);
+      setEventToUnregister(event);
+      setShowUnregisterModal(true);
     }
   };
 
-  const confirmCancellation = async () => {
-    if (!eventToCancel) return;
+  const confirmUnregistration = async () => {
+    if (!eventToUnregister) return;
 
-    const eventId = eventToCancel.id;
+    const eventId = eventToUnregister.id;
     
     // Check if this is a sample event
     const isSampleEvent = sampleEvents.some(event => event.id === eventId);
     if (isSampleEvent) {
       // For sample events, simulate cancellation without database call
-      setSuccessModalMessage('Registration cancelled for the sample event! (This is a demo cancellation)');
+      setSuccessModalMessage('Successfully unregistered from the sample event! (This is a demo unregistration)');
       setShowSuccessModal(true);
       setUserRegistrations(prev => {
         const newSet = new Set(prev);
@@ -885,22 +891,22 @@ export const Events = () => {
         return newSet;
       });
       
-      setShowCancelModal(false);
-      setEventToCancel(null);
+      setShowUnregisterModal(false);
+      setEventToUnregister(null);
       return;
     }
 
     try {
       setRegisteringEvents(prev => new Set(prev).add(eventId));
       setError('');
-      // Don't clear success message here - let it show after cancellation
+      // Don't clear success message here - let it show after unregistration
 
-      const result = await EventService.cancelEventRegistration(eventId, user.id);
+      const result = await EventService.unregisterFromEvent(eventId, user.id);
       
       if (result.error) {
         setError(result.error);
       } else {
-        setSuccessModalMessage('Registration cancelled successfully!');
+        setSuccessModalMessage('Successfully unregistered from the event!');
         setShowSuccessModal(true);
         // Remove from user registrations
         setUserRegistrations(prev => {
@@ -909,19 +915,21 @@ export const Events = () => {
           return newSet;
         });
         // Reload events to update participant count
+        console.log('🔄 Reloading events after unregistration...');
         await loadEvents();
+        console.log('✅ Events reloaded');
       }
     } catch (err) {
-      console.error('Error cancelling registration:', err);
-      setError('Failed to cancel registration. Please try again.');
+      console.error('Error unregistering from event:', err);
+      setError('Failed to unregister from event. Please try again.');
     } finally {
       setRegisteringEvents(prev => {
         const newSet = new Set(prev);
         newSet.delete(eventId);
         return newSet;
       });
-      setShowCancelModal(false);
-      setEventToCancel(null);
+      setShowUnregisterModal(false);
+      setEventToUnregister(null);
     }
   };
 
@@ -1422,11 +1430,11 @@ export const Events = () => {
                             </div>
                           ) : userRegistrations.has(event.id) ? (
                             <button 
-                              onClick={() => handleCancelRegistration(event.id)}
+                              onClick={() => handleUnregister(event.id)}
                               disabled={registeringEvents.has(event.id)}
                               className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              {registeringEvents.has(event.id) ? 'Cancelling...' : 'Cancel Registration'}
+                              {registeringEvents.has(event.id) ? 'Unregistering...' : 'Unregister'}
                             </button>
                           ) : (
                             <button 
@@ -1583,11 +1591,11 @@ export const Events = () => {
                       </div>
                     ) : userRegistrations.has(event.id) ? (
                       <button 
-                        onClick={() => handleCancelRegistration(event.id)}
+                        onClick={() => handleUnregister(event.id)}
                         disabled={registeringEvents.has(event.id)}
                         className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {registeringEvents.has(event.id) ? 'Cancelling...' : 'Cancel Registration'}
+                        {registeringEvents.has(event.id) ? 'Unregistering...' : 'Unregister'}
                       </button>
                     ) : (
                       <button 
@@ -1650,8 +1658,8 @@ export const Events = () => {
         </div>
       )}
 
-      {/* Cancellation Confirmation Modal */}
-      {showCancelModal && eventToCancel && (
+      {/* Unregistration Confirmation Modal */}
+      {showUnregisterModal && eventToUnregister && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
             <div className="text-center">
@@ -1661,32 +1669,32 @@ export const Events = () => {
                 </svg>
               </div>
               <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                Confirm Registration Cancellation
+                Confirm Unregistration
               </h3>
               <p className="text-slate-600 mb-6">
-                Are you sure you want to cancel your registration for <strong>"{eventToCancel.title}"</strong>?
-                {sampleEvents.some(event => event.id === eventToCancel.id) && (
+                Are you sure you want to unregister from <strong>"{eventToUnregister.title}"</strong>?
+                {sampleEvents.some(event => event.id === eventToUnregister.id) && (
                   <span className="block mt-2 text-sm text-blue-600">
-                    (This is a sample event - demo cancellation only)
+                    (This is a sample event - demo unregistration only)
                   </span>
                 )}
               </p>
               <div className="flex space-x-3">
                 <button
                   onClick={() => {
-                    setShowCancelModal(false);
-                    setEventToCancel(null);
+                    setShowUnregisterModal(false);
+                    setEventToUnregister(null);
                   }}
                   className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
                 >
                   Keep Registration
                 </button>
                 <button
-                  onClick={confirmCancellation}
-                  disabled={registeringEvents.has(eventToCancel.id)}
+                  onClick={confirmUnregistration}
+                  disabled={registeringEvents.has(eventToUnregister.id)}
                   className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {registeringEvents.has(eventToCancel.id) ? 'Cancelling...' : 'Cancel Registration'}
+                  {registeringEvents.has(eventToUnregister.id) ? 'Unregistering...' : 'Unregister'}
                 </button>
               </div>
             </div>

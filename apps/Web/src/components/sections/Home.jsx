@@ -117,15 +117,6 @@ export const Home = () => {
     ...event,
     guest_speakers: parseGuestSpeakers(event.guest_speakers)
   })) : sampleEvents;
-  
-  // Create a truly infinite carousel by repeating the events multiple times
-  const infiniteEvents = [
-    ...carouselEvents, // First set
-    ...carouselEvents, // Second set
-    ...carouselEvents, // Third set
-    ...carouselEvents, // Fourth set
-    ...carouselEvents, // Fifth set
-  ];
 
   // Start at the beginning (index 0)
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
@@ -232,11 +223,25 @@ export const Home = () => {
 
   // Navigation functions for carousel - truly infinite
   const scrollLeft = () => {
-    setCurrentEventIndex((prev) => prev - 1);
+    setCurrentEventIndex((prev) => {
+      const newIndex = prev - 1;
+      // If we go below 0, jump to the end of the first set
+      if (newIndex < 0) {
+        return carouselEvents.length - 1;
+      }
+      return newIndex;
+    });
   };
 
   const scrollRight = () => {
-    setCurrentEventIndex((prev) => prev + 1);
+    setCurrentEventIndex((prev) => {
+      const newIndex = prev + 1;
+      // If we go beyond the first set, reset to 0
+      if (newIndex >= carouselEvents.length) {
+        return 0;
+      }
+      return newIndex;
+    });
   };
 
   // Swipe functionality
@@ -450,38 +455,50 @@ export const Home = () => {
             <motion.div
               className="flex gap-6"
               animate={{ 
-                x: `-${currentEventIndex * (300 + 24)}px`,
-                ...(isDragging && { x: `-${currentEventIndex * (300 + 24) + dragOffset}px` })
+                x: `-${currentEventIndex * (300 + 24)}px`
               }}
               transition={{ 
                 type: "spring", 
                 stiffness: 100, 
-                damping: 20,
-                ...(isDragging && { duration: 0 })
+                damping: 20
               }}
               style={{ 
-                width: `${infiniteEvents.length * 300 + (infiniteEvents.length - 1) * 24}px`,
-                userSelect: isDragging ? 'none' : 'auto'
+                width: `${carouselEvents.length * 300 + (carouselEvents.length - 1) * 24}px`
               }}
             >
-                             {infiniteEvents.map((event, index) => (
-                 <div
-                   key={`${event.id}-${index}`}
-                   className="min-w-[300px] rounded-lg overflow-hidden cursor-pointer flex-shrink-0 bg-white shadow-sm hover:shadow-lg transition-shadow duration-200"
-                 >
-                   <img
-                     src={event.banner_url || event.img}
-                     alt={event.title}
-                     className="w-full h-48 object-cover"
-                   />
-                   <div className="p-4">
-                     <h3 className="font-semibold text-lg text-gray-800">{event.title}</h3>
-                     <p className="text-gray-600 text-sm mt-2">
-                       {event.description || event.rationale || 'Experience something amazing'}
-                     </p>
-                   </div>
-                 </div>
-               ))}
+              {carouselEvents.map((event, index) => (
+                <div
+                  key={`${event.id}-${index}`}
+                  className="min-w-[300px] rounded-lg overflow-hidden cursor-pointer hover:scale-110 transition-transform duration-300 flex-shrink-0 bg-white shadow-sm hover:shadow-lg"
+                >
+                  <img
+                    src={event.banner_url || event.img}
+                    alt={event.title}
+                    className="w-full h-48 object-cover"
+                    onError={(e) => handleImageError(e, event.img)}
+                  />
+                  <div className="p-4">
+                    <h3 className="font-semibold text-lg text-gray-800">{event.title}</h3>
+                    <p className="text-gray-600 text-sm mt-2">
+                      {event.description || event.rationale || 'Experience something amazing'}
+                    </p>
+                    <div className="mt-3 text-xs text-gray-500">
+                      <div className="flex items-center space-x-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>{formatDate(event.start_date)}</span>
+                      </div>
+                      <div className="flex items-center space-x-1 mt-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>{formatTime(event.start_time)} - {formatTime(event.end_time)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </motion.div>
           </div>
           
