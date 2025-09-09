@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Mobile",
-    "slug": "Mobile",
+    "slug": "ganapp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -53,8 +56,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "0670bd20-3eb0-42eb-8681-af5fe8ccc38c"
+        "projectId": "11b6cc14-065d-40e5-9753-6a40456d787b"
       }
-    }
+    },
+    "owner": "barneycle"
   }
 }
