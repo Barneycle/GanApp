@@ -11,11 +11,7 @@ export interface Event {
   venue: string;
   status: 'draft' | 'published' | 'cancelled';
   rationale?: string;
-  sponsors?: Array<{ name: string; website?: string }>;
-  guest_speakers?: Array<{ name: string; title?: string }>;
   banner_url?: string;
-  speaker_photos_url?: string;
-  sponsor_logos_url?: string;
   created_by: string;
   created_at: string;
   updated_at: string;

@@ -16,12 +16,8 @@ export interface Event {
   created_by: string;
   created_at: string;
   updated_at: string;
-  sponsors?: any[];
-  guest_speakers?: any[];
   banner_url?: string;
   materials_url?: string;
-  sponsor_logos_url?: string;
-  speaker_photos_url?: string;
   event_programmes_url?: string;
   certificate_templates_url?: string;
   event_kits_url?: string;

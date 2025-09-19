@@ -998,22 +998,10 @@ export const Events = () => {
           uploaded: true,
           isOriginal: true
         })) : [],
-        sponsorLogos: event.sponsor_logos_url ? event.sponsor_logos_url.split(',').map(url => ({ 
-          url, 
-          filename: 'Sponsor Logo',
-          path: extractFilePath(url),
-          bucket: extractBucketName(url),
-          uploaded: true,
-          isOriginal: true
-        })) : [],
-        speakerPhotos: event.speaker_photos_url ? event.speaker_photos_url.split(',').map(url => ({ 
-          url, 
-          filename: 'Speaker Photo',
-          path: extractFilePath(url),
-          bucket: extractBucketName(url),
-          uploaded: true,
-          isOriginal: true
-        })) : [],
+        // TODO: Load sponsor logos using SponsorService.getEventSponsors()
+        sponsorLogos: [],
+        // TODO: Load speaker photos using SpeakerService.getEventSpeakers()
+        speakerPhotos: [],
         eventKits: event.event_kits_url ? event.event_kits_url.split(',').map(url => ({ 
           url, 
           filename: 'Event Kit',
@@ -1967,10 +1955,12 @@ export const Events = () => {
                       updateData.materials_url = uploadedFiles.materials.map(f => f.url).join(',');
                     }
                     if (uploadedFiles.sponsorLogos && uploadedFiles.sponsorLogos.length > 0) {
-                      updateData.sponsor_logos_url = uploadedFiles.sponsorLogos.map(f => f.url).join(',');
+                      // TODO: Update sponsors using SponsorService
+                      // updateData.sponsor_logos_url = uploadedFiles.sponsorLogos.map(f => f.url).join(',');
                     }
                     if (uploadedFiles.speakerPhotos && uploadedFiles.speakerPhotos.length > 0) {
-                      updateData.speaker_photos_url = uploadedFiles.speakerPhotos.map(f => f.url).join(',');
+                      // TODO: Update speakers using SpeakerService
+                      // updateData.speaker_photos_url = uploadedFiles.speakerPhotos.map(f => f.url).join(',');
                     }
 
                     // Update the event in the database

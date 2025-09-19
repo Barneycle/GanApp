@@ -1,7 +1,45 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X } from "lucide-react";
+import { SpeakerService } from '../../services/speakerService';
+import { SponsorService } from '../../services/sponsorService';
+import { useAuth } from '../../contexts/AuthContext';
 
 const EventModal = ({ isOpen, onClose, event }) => {
+  const { user } = useAuth();
+  const [speakers, setSpeakers] = useState([]);
+  const [sponsors, setSponsors] = useState([]);
+  const [loadingSpeakers, setLoadingSpeakers] = useState(false);
+  const [loadingSponsors, setLoadingSponsors] = useState(false);
+
+  // Fetch speakers and sponsors when modal opens
+  useEffect(() => {
+    if (isOpen && event?.id) {
+      // Fetch speakers
+      setLoadingSpeakers(true);
+      SpeakerService.getEventSpeakers(event.id).then(result => {
+        if (result.speakers) {
+          setSpeakers(result.speakers);
+        } else {
+          console.error('Error fetching speakers:', result.error);
+          setSpeakers([]);
+        }
+        setLoadingSpeakers(false);
+      });
+
+      // Fetch sponsors
+      setLoadingSponsors(true);
+      SponsorService.getEventSponsors(event.id).then(result => {
+        if (result.sponsors) {
+          setSponsors(result.sponsors);
+        } else {
+          console.error('Error fetching sponsors:', result.error);
+          setSponsors([]);
+        }
+        setLoadingSponsors(false);
+      });
+    }
+  }, [isOpen, event?.id]);
+
   // Prevent body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
@@ -101,8 +139,132 @@ const EventModal = ({ isOpen, onClose, event }) => {
             </div>
           )}
 
-          {/* Event Details Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* Event Materials - Only show for participants */}
+          {user?.role === 'participant' && (event.event_kits_url || event.event_programmes_url) && (
+            <div className="mb-8">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-green-600 to-green-800 text-white flex items-center justify-center">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h4 className="text-xl font-semibold text-slate-800">Event Materials</h4>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Event Kits */}
+                {event.event_kits_url && (
+                  <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:shadow-lg transition-all duration-300">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-8V4a1 1 0 00-1-1H7a1 1 0 00-1 1v1m8 0V4.5" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h5 className="font-semibold text-slate-800">Event Kits</h5>
+                        <p className="text-sm text-slate-600">Materials and resources for this event</p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {event.event_kits_url.split(',').map((url, index) => (
+                        <div key={index} className="flex space-x-2">
+                          <a
+                            href={url.trim()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 px-3 py-2 bg-blue-600 text-white text-center rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm"
+                          >
+                            <div className="flex items-center justify-center space-x-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                              <span>View</span>
+                            </div>
+                          </a>
+                          <a
+                            href={url.trim()}
+                            download
+                            className="flex-1 px-3 py-2 bg-slate-600 text-white text-center rounded-lg hover:bg-slate-700 transition-colors duration-200 text-sm"
+                          >
+                            <div className="flex items-center justify-center space-x-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <span>Download</span>
+                            </div>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Event Programme */}
+                {event.event_programmes_url && (
+                  <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:shadow-lg transition-all duration-300">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h5 className="font-semibold text-slate-800">Event Programme</h5>
+                        <p className="text-sm text-slate-600">Schedule and agenda for this event</p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {event.event_programmes_url.split(',').map((url, index) => (
+                        <div key={index} className="flex space-x-2">
+                          <a
+                            href={url.trim()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 px-3 py-2 bg-green-600 text-white text-center rounded-lg hover:bg-green-700 transition-colors duration-200 text-sm"
+                          >
+                            <div className="flex items-center justify-center space-x-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                              <span>View</span>
+                            </div>
+                          </a>
+                          <a
+                            href={url.trim()}
+                            download
+                            className="flex-1 px-3 py-2 bg-slate-600 text-white text-center rounded-lg hover:bg-slate-700 transition-colors duration-200 text-sm"
+                          >
+                            <div className="flex items-center justify-center space-x-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <span>Download</span>
+                            </div>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Event Details */}
+          <div className="mb-8">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-slate-600 to-slate-800 text-white flex items-center justify-center">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h4 className="text-xl font-semibold text-slate-800">Event Details</h4>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="group relative overflow-hidden bg-slate-50 rounded-2xl hover:shadow-lg transition-all duration-300 border border-slate-200">
               <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-pink-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative p-6 text-center">
@@ -142,10 +304,11 @@ const EventModal = ({ isOpen, onClose, event }) => {
                 <p className="text-base text-slate-600 font-medium">{event.venue || 'TBA'}</p>
               </div>
             </div>
+            </div>
           </div>
 
           {/* Guest Speakers */}
-          {event.guest_speakers && event.guest_speakers.length > 0 && (
+          {(loadingSpeakers || speakers.length > 0) && (
             <div className="mb-8">
               <div className="flex items-center space-x-3 mb-4">
                 <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-600 to-blue-800 text-white flex items-center justify-center">
@@ -155,43 +318,59 @@ const EventModal = ({ isOpen, onClose, event }) => {
                 </div>
                 <h4 className="text-xl font-semibold text-slate-800">Guest Speakers</h4>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {event.guest_speakers.map((speaker, index) => (
-                  <div key={index} className="flex flex-col items-center p-4 bg-slate-50 rounded-lg hover:bg-slate-100 hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer group">
-                    <div className="w-40 h-40 rounded-full overflow-hidden bg-slate-200 flex-shrink-0 relative mb-3 group-hover:shadow-xl transition-shadow duration-300">
-                      {event.speaker_photos_url && event.speaker_photos_url.trim() ? (() => {
-                        const photoUrls = event.speaker_photos_url.split(',').map(url => url.trim()).filter(url => url);
-                        const speakerPhotoUrl = photoUrls[index];
-                        return speakerPhotoUrl ? (
-                          <img 
-                            src={speakerPhotoUrl} 
-                            alt={speaker.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                              e.target.nextSibling.style.display = 'flex';
-                            }}
-                          />
-                        ) : null;
-                      })() : null}
-                      <div className={`w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-lg ${event.speaker_photos_url && event.speaker_photos_url.trim() ? 'hidden' : 'block'}`}>
-                        {speaker.name ? speaker.name.charAt(0).toUpperCase() : 'S'}
+              
+              {loadingSpeakers ? (
+                <div className="flex justify-center items-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-2 text-slate-600">Loading speakers...</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {speakers.map((eventSpeaker, index) => {
+                    const speaker = eventSpeaker.speaker;
+                    const fullName = `${speaker.prefix || ''} ${speaker.first_name} ${speaker.last_name} ${speaker.affix || ''}`.trim();
+                    return (
+                      <div key={eventSpeaker.id} className="flex flex-col items-center p-4 bg-slate-50 rounded-lg hover:bg-slate-100 hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer group">
+                        <div className="w-40 h-40 rounded-full overflow-hidden bg-slate-200 flex-shrink-0 relative mb-3 group-hover:shadow-xl transition-shadow duration-300">
+                          {speaker.photo_url ? (
+                            <img 
+                              src={speaker.photo_url} 
+                              alt={fullName}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div className={`w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-lg ${speaker.photo_url ? 'hidden' : 'block'}`}>
+                            {fullName ? fullName.charAt(0).toUpperCase() : 'S'}
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-slate-800 font-medium text-sm">{fullName}</p>
+                          {speaker.designation && (
+                            <p className="text-slate-500 text-xs mt-1">{speaker.designation}</p>
+                          )}
+                          {speaker.organization && (
+                            <p className="text-slate-400 text-xs mt-1">{speaker.organization}</p>
+                          )}
+                          {eventSpeaker.is_keynote && (
+                            <span className="inline-block mt-2 px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
+                              Keynote
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-slate-800 font-medium text-sm">{speaker.name}</p>
-                      {speaker.title && (
-                        <p className="text-slate-500 text-xs mt-1">{speaker.title}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
           
           {/* Sponsors */}
-          {event.sponsors && event.sponsors.length > 0 && (
+          {(loadingSponsors || sponsors.length > 0) && (
             <div>
               <div className="flex items-center space-x-3 mb-4">
                 <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-600 to-blue-800 text-white flex items-center justify-center">
@@ -201,49 +380,54 @@ const EventModal = ({ isOpen, onClose, event }) => {
                 </div>
                 <h4 className="text-xl font-semibold text-slate-800">Sponsors</h4>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {event.sponsors.map((sponsor, index) => (
-                  <div key={index} className="flex flex-col items-center p-4 bg-slate-50 rounded-lg hover:bg-slate-100 hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer group">
-                    <div className="w-40 h-40 rounded-lg overflow-hidden bg-white border border-slate-200 flex-shrink-0 flex items-center justify-center relative mb-3 group-hover:shadow-xl transition-shadow duration-300">
-                      {event.sponsor_logos_url ? (() => {
-                        const logoUrls = event.sponsor_logos_url.split(',').map(url => url.trim());
-                        const sponsorLogoUrl = logoUrls[index];
-                        return sponsorLogoUrl ? (
-                          <img 
-                            src={sponsorLogoUrl} 
-                            alt={typeof sponsor === 'string' ? sponsor : sponsor.name}
-                            className="w-full h-full object-contain p-2"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                              e.target.nextSibling.style.display = 'flex';
-                            }}
-                          />
-                        ) : null;
-                      })() : null}
-                      <div className={`w-full h-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white font-semibold text-lg ${event.sponsor_logos_url ? 'hidden' : 'block'}`}>
-                        {typeof sponsor === 'string' ? sponsor.charAt(0).toUpperCase() : (sponsor.name ? sponsor.name.charAt(0).toUpperCase() : 'S')}
+              
+              {loadingSponsors ? (
+                <div className="flex justify-center items-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-2 text-slate-600">Loading sponsors...</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {sponsors.map((eventSponsor, index) => {
+                    const sponsor = eventSponsor.sponsor;
+                    return (
+                      <div key={eventSponsor.id} className="flex flex-col items-center p-4 bg-slate-50 rounded-lg hover:bg-slate-100 hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer group">
+                        <div className="w-40 h-40 rounded-lg overflow-hidden bg-white border border-slate-200 flex-shrink-0 flex items-center justify-center relative mb-3 group-hover:shadow-xl transition-shadow duration-300">
+                          {sponsor.logo_url ? (
+                            <img 
+                              src={sponsor.logo_url} 
+                              alt={sponsor.name}
+                              className="w-full h-full object-contain p-2"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div className={`w-full h-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white font-semibold text-lg ${sponsor.logo_url ? 'hidden' : 'block'}`}>
+                            {sponsor.name ? sponsor.name.charAt(0).toUpperCase() : 'S'}
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-slate-800 font-medium text-sm">{sponsor.name}</p>
+                          {sponsor.contact_person && (
+                            <p className="text-slate-500 text-xs mt-1">{sponsor.contact_person}</p>
+                          )}
+                          {sponsor.role && (
+                            <p className="text-slate-400 text-xs mt-1">{sponsor.role}</p>
+                          )}
+                          {sponsor.contribution && (
+                            <p className="text-slate-400 text-xs mt-1">{sponsor.contribution}</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-slate-800 font-medium text-sm">
-                        {typeof sponsor === 'string' ? sponsor : sponsor.name}
-                      </p>
-                      {sponsor.website && (
-                        <a 
-                          href={sponsor.website} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-blue-600 text-xs hover:underline mt-1 block"
-                        >
-                          Visit Website
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
+
         </div>
       </div>
     </div>

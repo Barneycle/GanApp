@@ -4,6 +4,8 @@ import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { EventService } from '../../services/eventService';
+import { SpeakerService } from '../../services/speakerService';
+import { SponsorService } from '../../services/sponsorService';
 import { SurveyService } from '../../services/surveyService';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -37,6 +39,8 @@ export const CreateSurvey = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [pendingEventData, setPendingEventData] = useState(null);
   const [pendingEventFiles, setPendingEventFiles] = useState(null);
+  const [pendingSpeakers, setPendingSpeakers] = useState([]);
+  const [pendingSponsors, setPendingSponsors] = useState([]);
 
   // Get saved form data from session storage
   const getSavedFormData = () => {
@@ -111,6 +115,8 @@ export const CreateSurvey = () => {
   useEffect(() => {
     const eventData = sessionStorage.getItem('pending-event-data');
     const eventFiles = sessionStorage.getItem('pending-event-files');
+    const eventSpeakers = sessionStorage.getItem('pending-event-speakers');
+    const eventSponsors = sessionStorage.getItem('pending-event-sponsors');
     
     if (!eventData) {
       // No pending event data, redirect back to event creation
@@ -123,6 +129,30 @@ export const CreateSurvey = () => {
       setPendingEventData(JSON.parse(eventData));
       if (eventFiles) {
         setPendingEventFiles(JSON.parse(eventFiles));
+      }
+      if (eventSpeakers) {
+        const speakers = JSON.parse(eventSpeakers);
+        console.log('🎤 Loaded pending speakers:', speakers);
+        speakers.forEach((speaker, index) => {
+          console.log(`🎤 Speaker ${index + 1}:`, {
+            name: `${speaker.first_name} ${speaker.last_name}`,
+            photo_url: speaker.photo_url,
+            has_photo_url: !!speaker.photo_url
+          });
+        });
+        setPendingSpeakers(speakers);
+      }
+      if (eventSponsors) {
+        const sponsors = JSON.parse(eventSponsors);
+        console.log('🏢 Loaded pending sponsors:', sponsors);
+        sponsors.forEach((sponsor, index) => {
+          console.log(`🏢 Sponsor ${index + 1}:`, {
+            name: sponsor.name,
+            logo_url: sponsor.logo_url,
+            has_logo_url: !!sponsor.logo_url
+          });
+        });
+        setPendingSponsors(sponsors);
       }
       console.log('✅ Pending event data loaded for survey creation');
     } catch (error) {
@@ -525,6 +555,126 @@ export const CreateSurvey = () => {
       const eventId = eventResult.event.id;
       console.log('✅ Event created successfully with ID:', eventId);
 
+      // Step 1.5: Create and link speakers to the event
+      if (pendingSpeakers && pendingSpeakers.length > 0) {
+        console.log('👥 Creating speakers for event:', pendingSpeakers.length);
+        
+        for (const speakerData of pendingSpeakers) {
+          try {
+            // Only create speaker if they have required fields
+            if (!speakerData.first_name || !speakerData.last_name) {
+              console.warn('⚠️ Skipping speaker with missing required fields:', speakerData);
+              continue;
+            }
+
+            // Create the speaker in the database
+            const speakerToCreate = {
+              prefix: speakerData.prefix || '',
+              first_name: speakerData.first_name,
+              last_name: speakerData.last_name,
+              middle_initial: speakerData.middle_initial || '',
+              affix: speakerData.affix || '',
+              designation: speakerData.designation || '',
+              organization: speakerData.organization || '',
+              bio: speakerData.bio || '',
+              email: speakerData.email || '',
+              phone: speakerData.phone || '',
+              photo_url: speakerData.photo_url || ''
+            };
+
+            console.log('👤 Creating speaker:', `${speakerData.first_name} ${speakerData.last_name}`);
+            console.log('👤 Speaker data being sent to database:', speakerToCreate);
+            const speakerResult = await SpeakerService.createSpeaker(speakerToCreate);
+            
+            if (speakerResult.error) {
+              console.error('❌ Failed to create speaker:', speakerResult.error);
+              continue; // Continue with other speakers even if one fails
+            }
+
+            // Link the speaker to the event
+            console.log('🔗 Linking speaker to event:', speakerResult.speaker.id);
+            const linkResult = await SpeakerService.addSpeakerToEvent(
+              eventId, 
+              speakerResult.speaker.id, 
+              {
+                order: speakerData.speaker_order || 0,
+                isKeynote: speakerData.is_keynote || false
+              }
+            );
+
+            if (linkResult.error) {
+              console.error('❌ Failed to link speaker to event:', linkResult.error);
+            } else {
+              console.log('✅ Speaker linked successfully:', `${speakerData.first_name} ${speakerData.last_name}`);
+            }
+
+          } catch (speakerError) {
+            console.error('❌ Error processing speaker:', speakerError);
+            // Continue with other speakers
+          }
+        }
+        
+        console.log('✅ Finished processing all speakers');
+      }
+
+      // Step 1.6: Create and link sponsors to the event
+      if (pendingSponsors && pendingSponsors.length > 0) {
+        console.log('🏢 Creating sponsors for event:', pendingSponsors.length);
+        
+        for (const sponsorData of pendingSponsors) {
+          try {
+            // Only create sponsor if they have required fields
+            if (!sponsorData.name) {
+              console.warn('⚠️ Skipping sponsor with missing required fields:', sponsorData);
+              continue;
+            }
+
+            // Create the sponsor in the database
+            const sponsorToCreate = {
+              name: sponsorData.name,
+              contact_person: sponsorData.contact_person || '',
+              email: sponsorData.email || '',
+              phone: sponsorData.phone || '',
+              address: sponsorData.address || '',
+              logo_url: sponsorData.logo_url || '',
+              role: sponsorData.role || '',
+              contribution: sponsorData.contribution || ''
+            };
+
+            console.log('🏢 Creating sponsor:', sponsorData.name);
+            console.log('🏢 Sponsor data being sent to database:', sponsorToCreate);
+            const sponsorResult = await SponsorService.createSponsor(sponsorToCreate);
+            
+            if (sponsorResult.error) {
+              console.error('❌ Failed to create sponsor:', sponsorResult.error);
+              continue; // Continue with other sponsors even if one fails
+            }
+
+            // Link the sponsor to the event
+            console.log('🔗 Linking sponsor to event:', sponsorResult.sponsor.id);
+            const linkResult = await SponsorService.addSponsorToEvent(
+              eventId, 
+              sponsorResult.sponsor.id, 
+              {
+                order: sponsorData.sponsor_order || 0
+              }
+            );
+
+            if (linkResult.error) {
+              console.error('❌ Failed to link sponsor to event:', linkResult.error);
+            } else {
+              console.log('✅ Sponsor linked successfully:', sponsorData.name);
+            }
+
+          } catch (sponsorError) {
+            console.error('❌ Error processing sponsor:', sponsorError);
+            // Continue with other sponsors
+          }
+        }
+        
+        console.log('✅ Finished processing all sponsors');
+      }
+
       // Step 2: Create the survey in the database
       console.log('📊 Survey data to be created:', data);
       
@@ -572,6 +722,8 @@ export const CreateSurvey = () => {
       clearSavedFormData();
       sessionStorage.removeItem('pending-event-data');
       sessionStorage.removeItem('pending-event-files');
+      sessionStorage.removeItem('pending-event-speakers');
+      sessionStorage.removeItem('pending-event-sponsors');
       
       // Show success message
       alert(`Event and Survey created successfully!\nEvent ID: ${eventId}\nSurvey ID: ${surveyId}\nQuestions: ${data.questions.length}`);
