@@ -47,21 +47,15 @@ export const Login = () => {
       const result = await signIn(formData.email, formData.password);
       
       if (result && result.success && result.user) {
-        console.log('Login successful, user:', result.user);
-        console.log('Redirect path:', result.redirectPath);
         
         // Navigate to role-specific page
         if (result.redirectPath) {
-          console.log('Navigating to:', result.redirectPath);
           navigate(result.redirectPath);
         } else {
-          console.log('No redirect path found, staying on current page');
         }
       } else {
-        console.error('Login failed:', result?.error || 'Unknown error');
       }
     } catch (err) {
-      console.error('Login error:', err);
     }
   };
 

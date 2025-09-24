@@ -83,7 +83,7 @@ export const AuthProvider = ({ children }) => {
       // Force a page reload to clear any remaining auth state
       window.location.reload();
     } catch (error) {
-      console.error('Error clearing auth data:', error);
+      // Error clearing auth data
     }
   };
 
@@ -94,7 +94,6 @@ export const AuthProvider = ({ children }) => {
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('Session error:', error);
           setError(error.message);
           setLoading(false);
           isInitializing.current = false;
@@ -118,7 +117,6 @@ export const AuthProvider = ({ children }) => {
           isInitializing.current = false;
         }
       } catch (err) {
-        console.error('Error in getInitialSession:', err);
         setError(err.message);
         setLoading(false);
         isInitializing.current = false;
@@ -127,7 +125,6 @@ export const AuthProvider = ({ children }) => {
 
     // Add a timeout to prevent infinite loading
     const timeoutId = setTimeout(() => {
-      console.warn('Auth loading timeout, forcing loading to false');
       setLoading(false);
       isInitializing.current = false;
     }, 10000); // 10 second timeout
@@ -158,7 +155,6 @@ export const AuthProvider = ({ children }) => {
               setError(null);
               hasFetchedUser.current = true;
             } catch (error) {
-              console.error('Error in auth state change:', error);
               setError('Failed to fetch user data');
             }
           } else if (event === 'SIGNED_OUT') {

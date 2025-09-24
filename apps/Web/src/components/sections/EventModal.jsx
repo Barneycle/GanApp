@@ -20,7 +20,6 @@ const EventModal = ({ isOpen, onClose, event }) => {
         if (result.speakers) {
           setSpeakers(result.speakers);
         } else {
-          console.error('Error fetching speakers:', result.error);
           setSpeakers([]);
         }
         setLoadingSpeakers(false);
@@ -32,7 +31,6 @@ const EventModal = ({ isOpen, onClose, event }) => {
         if (result.sponsors) {
           setSponsors(result.sponsors);
         } else {
-          console.error('Error fetching sponsors:', result.error);
           setSponsors([]);
         }
         setLoadingSponsors(false);
@@ -139,8 +137,8 @@ const EventModal = ({ isOpen, onClose, event }) => {
             </div>
           )}
 
-          {/* Event Materials - Only show for participants */}
-          {user?.role === 'participant' && (event.event_kits_url || event.event_programmes_url) && (
+          {/* Event Materials - Show for authenticated users */}
+          {user && (event.event_kits_url || event.event_programmes_url || event.materials_url || event.programme_url) && (
             <div className="mb-8">
               <div className="flex items-center space-x-3 mb-4">
                 <div className="w-12 h-12 rounded-full bg-gradient-to-r from-green-600 to-green-800 text-white flex items-center justify-center">
@@ -153,7 +151,7 @@ const EventModal = ({ isOpen, onClose, event }) => {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Event Kits */}
-                {event.event_kits_url && (
+                {(event.event_kits_url || event.materials_url) && (
                   <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:shadow-lg transition-all duration-300">
                     <div className="flex items-center space-x-3 mb-3">
                       <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
@@ -167,7 +165,7 @@ const EventModal = ({ isOpen, onClose, event }) => {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      {event.event_kits_url.split(',').map((url, index) => (
+                      {(event.event_kits_url || event.materials_url).split(',').map((url, index) => (
                         <div key={index} className="flex space-x-2">
                           <a
                             href={url.trim()}
@@ -202,7 +200,7 @@ const EventModal = ({ isOpen, onClose, event }) => {
                 )}
 
                 {/* Event Programme */}
-                {event.event_programmes_url && (
+                {(event.event_programmes_url || event.programme_url) && (
                   <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:shadow-lg transition-all duration-300">
                     <div className="flex items-center space-x-3 mb-3">
                       <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
@@ -216,7 +214,7 @@ const EventModal = ({ isOpen, onClose, event }) => {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      {event.event_programmes_url.split(',').map((url, index) => (
+                      {(event.event_programmes_url || event.programme_url).split(',').map((url, index) => (
                         <div key={index} className="flex space-x-2">
                           <a
                             href={url.trim()}

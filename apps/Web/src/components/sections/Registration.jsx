@@ -98,7 +98,6 @@ export const Registration = () => {
     if (validationError) {
       // Set the local error so it displays
       setLocalError(validationError);
-      console.error('Validation error:', validationError);
       return;
     }
 
@@ -130,7 +129,6 @@ export const Registration = () => {
 
       setLocalError('Registration failed. Please try again.');
     } catch (error) {
-      console.error('Registration error:', error);
       setLocalError('An unexpected error occurred. Please try again.');
     }
   };

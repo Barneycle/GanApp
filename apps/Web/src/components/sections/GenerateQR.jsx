@@ -1,8 +1,157 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { createQRDataString, getQRTokenInfo } from '../../lib/jwtUtils';
+import { X, Download, Calendar, MapPin, Clock } from 'lucide-react';
 
+// Modal version for event QR codes
+export const GenerateQRModal = ({ isOpen, onClose, event }) => {
+  const { user } = useAuth();
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (isOpen && event) {
+      generateEventQRCode();
+    }
+  }, [isOpen, event]);
+
+  const generateEventQRCode = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Create QR data for event registration
+      const qrData = JSON.stringify({
+        eventId: event.id,
+        title: event.title,
+        date: event.start_date,
+        time: event.start_time,
+        venue: event.venue,
+        userId: user?.id,
+        type: 'event_registration'
+      });
+
+      // Generate QR code URL
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrData)}`;
+      setQrCodeUrl(qrUrl);
+
+    } catch (err) {
+      setError('Failed to generate QR code');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadQRCode = () => {
+    if (!qrCodeUrl) return;
+
+    const link = document.createElement('a');
+    link.href = qrCodeUrl;
+    link.download = `${event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_qr_code.png`;
+    link.click();
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const formatTime = (timeString) => {
+    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">Event QR Code</h2>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+
+          {/* Loading State */}
+          {loading && (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Generating QR code...</p>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-red-600 mb-4">{error}</p>
+              <button
+                onClick={generateEventQRCode}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          )}
+
+          {/* QR Code */}
+          {qrCodeUrl && !loading && !error && (
+            <>
+              <div className="text-center mb-6">
+                <div className="inline-block p-4 bg-white border-2 border-gray-200 rounded-xl">
+                  <img
+                    src={qrCodeUrl}
+                    alt="Event QR Code"
+                    className="w-64 h-64 mx-auto"
+                  />
+                </div>
+                <p className="text-sm text-gray-500 mt-2">
+                  Scan this QR code for event details
+                </p>
+              </div>
+
+              {/* Action Button */}
+              <div className="flex justify-center">
+                <button
+                  onClick={downloadQRCode}
+                  className="flex items-center justify-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download QR Code</span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Original page component for user QR codes
 export default function GenerateQR() {
   const { user } = useAuth();
   const [qrCodeData, setQrCodeData] = useState(null);
@@ -91,7 +240,6 @@ export default function GenerateQR() {
       setQrCodeUrl(qrUrl);
 
     } catch (err) {
-      console.error('Error generating QR code:', err);
       setError('Failed to generate QR code');
     } finally {
       setLoading(false);
@@ -124,7 +272,6 @@ export default function GenerateQR() {
       setScanHistory([]);
 
     } catch (err) {
-      console.error('Error generating demo QR code:', err);
       setError('Failed to generate demo QR code');
     } finally {
       setLoading(false);
@@ -142,7 +289,7 @@ export default function GenerateQR() {
       if (error) throw error;
       setScanHistory(data || []);
     } catch (err) {
-      console.error('Error fetching scan history:', err);
+      // Error fetching scan history
     }
   };
 

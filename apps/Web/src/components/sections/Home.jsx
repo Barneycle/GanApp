@@ -168,7 +168,6 @@ export const Home = () => {
         setFeaturedEvent(result.event);
       }
     } catch (err) {
-      console.error('Failed to load featured event:', err);
     }
   };
 

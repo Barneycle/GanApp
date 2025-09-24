@@ -9,6 +9,7 @@ import { CreateSurvey } from "./sections/CreateSurvey";
 import { SurveyAnalytics } from "./sections/SurveyAnalytics";
 import { Registration } from "./sections/Registration";
 import { Events } from "./sections/Events";
+import { MyEvents } from "./sections/MyEvents";
 import GenerateQR from "./sections/GenerateQR";
 
 function AnimatedRoutes() {
@@ -26,6 +27,7 @@ function AnimatedRoutes() {
         <Route path="/create-survey" element={<CreateSurvey />} />
         <Route path="/survey-analytics" element={<SurveyAnalytics />} />
         <Route path="/participants" element={<Participants />} />
+        <Route path="/my-events" element={<MyEvents />} />
         <Route path="/registration" element={<Registration />} />
         <Route path="/generate-qr" element={<GenerateQR />} />
       </Routes>

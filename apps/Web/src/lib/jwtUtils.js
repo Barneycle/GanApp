@@ -25,7 +25,6 @@ export const createQRToken = (userData) => {
     
     return `${header}.${payloadEncoded}.${signature}`;
   } catch (error) {
-    console.error('Error creating QR token:', error);
     throw new Error('Failed to create QR token');
   }
 };
@@ -61,7 +60,6 @@ export const verifyQRToken = (token) => {
 
     return decodedPayload;
   } catch (error) {
-    console.error('Error verifying QR token:', error);
     throw new Error('Invalid QR token');
   }
 };
@@ -76,7 +74,6 @@ export const createQRDataString = (userData) => {
     // Format: userID | timestamp | signature
     return `${payload.userId}|${payload.timestamp}|${parts[2]}`;
   } catch (error) {
-    console.error('Error creating QR data string:', error);
     throw new Error('Failed to create QR data string');
   }
 };
@@ -104,7 +101,6 @@ export const parseAndVerifyQRData = (qrDataString) => {
     // Verify the token
     return verifyQRToken(token);
   } catch (error) {
-    console.error('Error parsing QR data:', error);
     throw new Error('Invalid QR data');
   }
 };
@@ -137,7 +133,6 @@ export const getQRTokenInfo = (token) => {
       type: payload.type
     };
   } catch (error) {
-    console.error('Error getting QR token info:', error);
     return null;
   }
 };

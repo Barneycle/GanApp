@@ -18,7 +18,6 @@ export const NotificationCenter = () => {
     // Cleanup subscription on unmount
     return () => {
       // Mock cleanup
-      console.log('Cleaning up notification subscriptions for:', mockUserId);
     };
   }, []);
 
@@ -62,7 +61,6 @@ export const NotificationCenter = () => {
       setNotifications(mockNotifications);
       setUnreadCount(mockNotifications.filter(n => !n.read).length);
     } catch (error) {
-      console.error('Error loading notifications:', error);
     } finally {
       setLoading(false);
     }
@@ -70,7 +68,6 @@ export const NotificationCenter = () => {
 
   const subscribeToNotifications = (userId) => {
     // Mock subscription since we removed the database
-    console.log('Subscribed to notifications for user:', userId);
   };
 
   const handleNotificationClick = async (notification) => {
@@ -97,7 +94,6 @@ export const NotificationCenter = () => {
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch (error) {
-      console.error('Error marking all as read:', error);
     }
   };
 

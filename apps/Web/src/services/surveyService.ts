@@ -26,7 +26,6 @@ export class SurveyService {
 
       return { surveys: data };
     } catch (error) {
-      console.error('Get all surveys error:', error);
       return { error: 'An unexpected error occurred' };
     }
   }
@@ -45,32 +44,24 @@ export class SurveyService {
 
       return { survey: data };
     } catch (error) {
-      console.error('Get survey by id error:', error);
       return { error: 'An unexpected error occurred' };
     }
   }
 
   static async createSurvey(surveyData: Partial<Survey>): Promise<{ survey?: Survey; error?: string }> {
     try {
-      console.log('🔍 SurveyService.createSurvey called with:', JSON.stringify(surveyData, null, 2));
-      
       const { data, error } = await supabase
         .from('surveys')
         .insert([surveyData])
         .select()
         .single();
 
-      console.log('🔍 Supabase response - data:', data, 'error:', error);
-
       if (error) {
-        console.error('❌ Supabase error in createSurvey:', error);
         return { error: error.message };
       }
 
-      console.log('✅ Survey created successfully:', data);
       return { survey: data };
     } catch (error) {
-      console.error('❌ Create survey error:', error);
       return { error: 'An unexpected error occurred' };
     }
   }
@@ -90,7 +81,6 @@ export class SurveyService {
 
       return { survey: data };
     } catch (error) {
-      console.error('Update survey error:', error);
       return { error: 'An unexpected error occurred' };
     }
   }
@@ -108,7 +98,6 @@ export class SurveyService {
 
       return {};
     } catch (error) {
-      console.error('Delete survey error:', error);
       return { error: 'An unexpected error occurred' };
     }
   }
@@ -127,7 +116,6 @@ export class SurveyService {
 
       return { surveys: data };
     } catch (error) {
-      console.error('Get surveys by event error:', error);
       return { error: 'An unexpected error occurred' };
     }
   }
@@ -146,7 +134,6 @@ export class SurveyService {
 
       return { surveys: data };
     } catch (error) {
-      console.error('Get surveys by creator error:', error);
       return { error: 'An unexpected error occurred' };
     }
   }

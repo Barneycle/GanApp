@@ -64,7 +64,7 @@ export class FileUploadService {
       return uploadedFile;
       
     } catch (error) {
-      console.error(`Upload error for ${file.name}:`, error);
+      // Upload error
       
       // Return fallback file object
       const fallbackFile: UploadedFile = {
@@ -109,7 +109,7 @@ export class FileUploadService {
         }
         
       } catch (error) {
-        console.error(`Failed to upload ${file.name}:`, error);
+        // Failed to upload
         
         // Add fallback file
         const fallbackFile: UploadedFile = {
@@ -139,14 +139,12 @@ export class FileUploadService {
         .remove([filePath]);
       
       if (error) {
-        console.error(`Delete failed:`, error);
         return { error: error.message };
       }
       
       return {};
       
     } catch (error) {
-      console.error(`Delete error:`, error);
       return { error: error instanceof Error ? error.message : 'Delete failed' };
     }
   }

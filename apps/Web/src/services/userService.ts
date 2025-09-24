@@ -16,7 +16,6 @@ export class UserService {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (authError) {
-        console.error('Auth error in getCurrentUser:', authError);
         return null;
       }
       
@@ -40,7 +39,6 @@ export class UserService {
       
       return userData;
     } catch (error) {
-      console.error('Error getting current user:', error);
       return null;
     }
   }
@@ -80,7 +78,6 @@ export class UserService {
 
       return { error: 'Failed to create user' };
     } catch (error) {
-      console.error('Sign up error:', error);
       return { error: 'An unexpected error occurred' };
     }
   }
@@ -116,7 +113,6 @@ export class UserService {
 
       return { error: 'Failed to sign in' };
     } catch (error) {
-      console.error('Sign in error:', error);
       return { error: 'An unexpected error occurred' };
     }
   }
@@ -131,7 +127,6 @@ export class UserService {
 
       return {};
     } catch (error) {
-      console.error('Sign out error:', error);
       return { error: 'An unexpected error occurred' };
     }
   }
@@ -167,7 +162,6 @@ export class UserService {
 
       return { error: 'Failed to update user' };
     } catch (error) {
-      console.error('Update profile error:', error);
       return { error: 'An unexpected error occurred' };
     }
   }
@@ -178,7 +172,6 @@ export class UserService {
       // This would require admin access to auth.users table
       return { error: 'Getting all users requires admin access to auth.users table' };
     } catch (error) {
-      console.error('Get all users error:', error);
       return { error: 'An unexpected error occurred' };
     }
   }
@@ -188,7 +181,6 @@ export class UserService {
       // This would require admin access to delete users from Supabase Auth
       return { error: 'Deleting users requires admin access to auth.users table' };
     } catch (error) {
-      console.error('Delete user error:', error);
       return { error: 'An unexpected error occurred' };
     }
   }

@@ -204,7 +204,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
             setUploadProgress(0);
             
           } catch (error) {
-            console.error('Banner upload failed:', error.message);
+            // Banner upload failed
             
             // Fallback to local storage
             const file = fileArray[0];
@@ -274,7 +274,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
                 }
                 
               } catch (fileError) {
-                console.error(`Error uploading ${file.name}:`, fileError);
+                // Error uploading file
                 
                 setUploadProgress(50 + ((index + 1) / fileArray.length) * 25);
                 results.push({
@@ -298,7 +298,6 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
             setUploadProgress(0);
             
           } catch (error) {
-            console.error('Materials upload failed:', error);
             
             const fileResults = fileArray.map((file, index) => {
               setUploadProgress(((index + 1) / fileArray.length) * 100);
@@ -372,7 +371,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
                 }
                 
               } catch (fileError) {
-                console.error(`Error uploading ${file.name}:`, fileError);
+                // Error uploading file
                 
                 setUploadProgress(40 + ((index + 1) / fileArray.length) * 30);
                 results.push({
@@ -396,7 +395,6 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
             setUploadProgress(0);
             
           } catch (error) {
-            console.error('Logo upload failed:', error);
             
             const fileResults = fileArray.map((file, index) => {
               setUploadProgress(((index + 1) / fileArray.length) * 100);
@@ -470,7 +468,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
                 }
                 
               } catch (fileError) {
-                console.error(`Error uploading ${file.name}:`, fileError);
+                // Error uploading file
                 
                 setUploadProgress(40 + ((index + 1) / fileArray.length) * 30);
                 results.push({
@@ -494,7 +492,6 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
             setUploadProgress(0);
             
           } catch (error) {
-            console.error('Speaker photo upload failed:', error);
             
             const fileResults = fileArray.map((file, index) => {
               setUploadProgress(((index + 1) / fileArray.length) * 100);
@@ -514,7 +511,6 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
         }
         
       } catch (error) {
-        console.error('File handling failed:', error);
         setUploading(false);
         setUploadProgress(0);
       }
@@ -646,11 +642,10 @@ export const Events = () => {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [userRegistrations, setUserRegistrations] = useState(new Set());
+  const [userRegistrationDetails, setUserRegistrationDetails] = useState(new Map());
   const [registeringEvents, setRegisteringEvents] = useState(new Set());
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [eventToRegister, setEventToRegister] = useState(null);
-  const [showUnregisterModal, setShowUnregisterModal] = useState(false);
-  const [eventToUnregister, setEventToUnregister] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successModalMessage, setSuccessModalMessage] = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
@@ -693,12 +688,6 @@ export const Events = () => {
         if (result.error) {
           setError(result.error);
         } else {
-          console.log('📊 Loaded events with participant counts:', result.events?.map(e => ({ 
-            id: e.id, 
-            title: e.title, 
-            current_participants: e.current_participants,
-            max_participants: e.max_participants
-          })));
           setEvents(result.events || []);
         }
       } else {
@@ -711,7 +700,6 @@ export const Events = () => {
         }
       }
     } catch (err) {
-      console.error('Error loading events:', err);
       setError('Failed to load events. Please try again.');
     } finally {
       setLoading(false);
@@ -737,7 +725,6 @@ export const Events = () => {
         setSuccessMessage('');
       }, 3000);
     } catch (err) {
-      console.error('Error publishing event:', err);
       setError('Failed to publish event. Please try again.');
     } finally {
       setLoading(false);
@@ -758,7 +745,6 @@ export const Events = () => {
         setShowSuccessModal(true);
       }
     } catch (error) {
-      console.error('Error setting featured event:', error);
       setError('Failed to set featured event');
     } finally {
       setLoading(false);
@@ -779,7 +765,6 @@ export const Events = () => {
         setShowSuccessModal(true);
       }
     } catch (error) {
-      console.error('Error unfeaturing event:', error);
       setError('Failed to unfeature event');
     } finally {
       setLoading(false);
@@ -793,11 +778,29 @@ export const Events = () => {
       const result = await EventService.getUserRegistrations(user.id);
       if (result.registrations) {
         const registeredEventIds = new Set(result.registrations.map(reg => reg.event_id));
+        const registrationDetailsMap = new Map(
+          result.registrations.map(reg => [
+            reg.event_id,
+            {
+              registration_date: reg.registration_date,
+              registration_id: reg.id,
+              status: reg.status
+            }
+          ])
+        );
         setUserRegistrations(registeredEventIds);
+        setUserRegistrationDetails(registrationDetailsMap);
       }
     } catch (err) {
-      console.error('Error loading user registrations:', err);
     }
+  };
+
+  const formatRegistrationDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
   };
 
   const handleRegisterForEvent = async (eventId) => {
@@ -846,11 +849,16 @@ export const Events = () => {
         setShowSuccessModal(true);
         // Add to user registrations
         setUserRegistrations(prev => new Set(prev).add(eventId));
+        // Add registration details
+        setUserRegistrationDetails(prev => new Map(prev).set(eventId, {
+          registration_date: new Date().toISOString(),
+          registration_id: result.registration?.id,
+          status: 'registered'
+        }));
         // Reload events to update participant count
         await loadEvents();
       }
     } catch (err) {
-      console.error('Error registering for event:', err);
       setError('Failed to register for event. Please try again.');
     } finally {
       setRegisteringEvents(prev => {
@@ -863,75 +871,7 @@ export const Events = () => {
     }
   };
 
-  const handleUnregister = async (eventId) => {
-    if (!user) return;
 
-    // Find the event to unregister from
-    const event = events.find(e => e.id === eventId) || sampleEvents.find(e => e.id === eventId);
-    if (event) {
-      setEventToUnregister(event);
-      setShowUnregisterModal(true);
-    }
-  };
-
-  const confirmUnregistration = async () => {
-    if (!eventToUnregister) return;
-
-    const eventId = eventToUnregister.id;
-    
-    // Check if this is a sample event
-    const isSampleEvent = sampleEvents.some(event => event.id === eventId);
-    if (isSampleEvent) {
-      // For sample events, simulate cancellation without database call
-      setSuccessModalMessage('Successfully unregistered from the sample event! (This is a demo unregistration)');
-      setShowSuccessModal(true);
-      setUserRegistrations(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(eventId);
-        return newSet;
-      });
-      
-      setShowUnregisterModal(false);
-      setEventToUnregister(null);
-      return;
-    }
-
-    try {
-      setRegisteringEvents(prev => new Set(prev).add(eventId));
-      setError('');
-      // Don't clear success message here - let it show after unregistration
-
-      const result = await EventService.unregisterFromEvent(eventId, user.id);
-      
-      if (result.error) {
-        setError(result.error);
-      } else {
-        setSuccessModalMessage('Successfully unregistered from the event!');
-        setShowSuccessModal(true);
-        // Remove from user registrations
-        setUserRegistrations(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(eventId);
-          return newSet;
-        });
-        // Reload events to update participant count
-        console.log('🔄 Reloading events after unregistration...');
-        await loadEvents();
-        console.log('✅ Events reloaded');
-      }
-    } catch (err) {
-      console.error('Error unregistering from event:', err);
-      setError('Failed to unregister from event. Please try again.');
-    } finally {
-      setRegisteringEvents(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(eventId);
-        return newSet;
-      });
-      setShowUnregisterModal(false);
-      setEventToUnregister(null);
-    }
-  };
 
   const handleEditEvent = (eventId) => {
     const event = events.find(e => e.id === eventId);
@@ -962,7 +902,6 @@ export const Events = () => {
           const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/[^\/]+\/(.+)/);
           return pathMatch ? pathMatch[1] : null;
         } catch (error) {
-          console.error('Error extracting file path from URL:', error);
           return null;
         }
       };
@@ -975,7 +914,6 @@ export const Events = () => {
           const bucketMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/([^\/]+)\//);
           return bucketMatch ? bucketMatch[1] : null;
         } catch (error) {
-          console.error('Error extracting bucket name from URL:', error);
           return null;
         }
       };
@@ -1042,7 +980,6 @@ export const Events = () => {
 
   // Cleanup function for unsaved uploads (only new uploads, not original files)
   const cleanupUnsavedUploads = () => {
-    console.log('🧹 Cleaning up unsaved uploads...');
     
     // Clean up banner (only if it's a new upload, not original)
     if (uploadedFiles.banner && uploadedFiles.banner.path && uploadedFiles.banner.uploaded && !uploadedFiles.banner.isOriginal) {
@@ -1080,35 +1017,28 @@ export const Events = () => {
   // File deletion helper
   const deleteFileFromStorage = async (file) => {
     if (!file || !file.path || !file.bucket) {
-      console.log('No file to delete or missing path/bucket info');
       return;
     }
 
     try {
-      console.log(`🗑️ Deleting file from storage: ${file.path} in bucket ${file.bucket}`);
       const { error } = await supabase.storage
         .from(file.bucket)
         .remove([file.path]);
       
       if (error) {
-        console.error('Error deleting file:', error);
       } else {
-        console.log('✅ File deleted successfully');
       }
     } catch (error) {
-      console.error('Error deleting file:', error);
     }
   };
 
   // File upload handlers with replacement logic
   const handleFileUpload = (uploadType, results) => {
-    console.log(`📁 File upload for ${uploadType}:`, results);
     
     switch (uploadType) {
       case 'banner':
         // Delete old banner before setting new one
         if (uploadedFiles.banner && uploadedFiles.banner.path && uploadedFiles.banner.bucket) {
-          console.log('🗑️ Deleting old banner:', uploadedFiles.banner.path);
           deleteFileFromStorage(uploadedFiles.banner);
         }
         setUploadedFiles(prev => ({ ...prev, banner: results[0] }));
@@ -1123,18 +1053,15 @@ export const Events = () => {
         setUploadedFiles(prev => ({ ...prev, speakerPhotos: [...(prev.speakerPhotos || []), ...results] }));
         break;
       default:
-        console.warn('Unknown upload type:', uploadType);
     }
   };
 
   const handleRemoveFile = (uploadType, index) => {
-    console.log(`🗑️ Removing file from ${uploadType} at index ${index}`);
     
     switch (uploadType) {
       case 'banner':
         // Delete from storage before removing from state
         if (uploadedFiles.banner && uploadedFiles.banner.path && uploadedFiles.banner.bucket) {
-          console.log('🗑️ Deleting banner from storage:', uploadedFiles.banner.path);
           deleteFileFromStorage(uploadedFiles.banner);
         }
         setUploadedFiles(prev => ({ ...prev, banner: null }));
@@ -1143,7 +1070,6 @@ export const Events = () => {
         // Delete from storage before removing from state
         const materialToDelete = uploadedFiles.materials[index];
         if (materialToDelete && materialToDelete.path && materialToDelete.bucket) {
-          console.log('🗑️ Deleting material from storage:', materialToDelete.path);
           deleteFileFromStorage(materialToDelete);
         }
         setUploadedFiles(prev => ({ 
@@ -1155,7 +1081,6 @@ export const Events = () => {
         // Delete from storage before removing from state
         const logoToDelete = uploadedFiles.sponsorLogos[index];
         if (logoToDelete && logoToDelete.path && logoToDelete.bucket) {
-          console.log('🗑️ Deleting logo from storage:', logoToDelete.path);
           deleteFileFromStorage(logoToDelete);
         }
         setUploadedFiles(prev => ({ 
@@ -1167,7 +1092,6 @@ export const Events = () => {
         // Delete from storage before removing from state
         const speakerToDelete = uploadedFiles.speakerPhotos[index];
         if (speakerToDelete && speakerToDelete.path && speakerToDelete.bucket) {
-          console.log('🗑️ Deleting speaker photo from storage:', speakerToDelete.path);
           deleteFileFromStorage(speakerToDelete);
         }
         setUploadedFiles(prev => ({ 
@@ -1176,7 +1100,6 @@ export const Events = () => {
         }));
         break;
       default:
-        console.warn('Unknown upload type for removal:', uploadType);
     }
   };
 
@@ -1200,6 +1123,32 @@ export const Events = () => {
     const ampm = hour24 >= 12 ? 'PM' : 'AM';
     
     return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  const formatCheckInTime = (event) => {
+    if (!event.check_in_before_minutes) return formatTime(event.start_time);
+    
+    const startTime = new Date(`${event.start_date}T${event.start_time}`);
+    const checkInTime = new Date(startTime.getTime() - (event.check_in_before_minutes * 60000));
+    
+    return checkInTime.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const formatCheckInEndTime = (event) => {
+    if (!event.check_in_during_minutes) return formatTime(event.start_time);
+    
+    const startTime = new Date(`${event.start_date}T${event.start_time}`);
+    const checkInEndTime = new Date(startTime.getTime() + (event.check_in_during_minutes * 60000));
+    
+    return checkInEndTime.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
   };
 
   if (loading) {
@@ -1327,6 +1276,17 @@ export const Events = () => {
                             </svg>
                             <span>{formatTime(event.start_time)} - {formatTime(event.end_time)}</span>
                           </div>
+                          {/* Check-in Window Info */}
+                          {(event.check_in_before_minutes || event.check_in_during_minutes) && (
+                            <div className="flex items-center text-sm text-blue-600">
+                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m0 0a2 2 0 012 2m-2-2a2 2 0 00-2 2m2-2V5a2 2 0 00-2-2M9 7a2 2 0 012 2m0 0a2 2 0 012 2m-2-2a2 2 0 00-2 2m2-2V5a2 2 0 00-2-2" />
+                              </svg>
+                              <span>
+                                Check-in: {formatCheckInTime(event)} - {formatCheckInEndTime(event)}
+                              </span>
+                            </div>
+                          )}
                           {event.venue && (
                             <div className="flex items-center text-sm text-slate-600">
                               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1417,13 +1377,23 @@ export const Events = () => {
                               </button>
                             </div>
                           ) : userRegistrations.has(event.id) ? (
-                            <button 
-                              onClick={() => handleUnregister(event.id)}
-                              disabled={registeringEvents.has(event.id)}
-                              className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {registeringEvents.has(event.id) ? 'Unregistering...' : 'Unregister'}
-                            </button>
+                            <div className="w-full bg-blue-50 rounded-lg p-3 border border-blue-200">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-medium text-blue-800 text-sm">You're registered for this event!</p>
+                                  {userRegistrationDetails.has(event.id) && (
+                                    <p className="text-xs text-blue-600">
+                                      Registered on {formatRegistrationDate(userRegistrationDetails.get(event.id).registration_date)}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           ) : (
                             <button 
                               onClick={() => handleRegisterForEvent(event.id)}
@@ -1578,13 +1548,23 @@ export const Events = () => {
                         </button>
                       </div>
                     ) : userRegistrations.has(event.id) ? (
-                      <button 
-                        onClick={() => handleUnregister(event.id)}
-                        disabled={registeringEvents.has(event.id)}
-                        className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {registeringEvents.has(event.id) ? 'Unregistering...' : 'Unregister'}
-                      </button>
+                      <div className="w-full bg-blue-50 rounded-lg p-3 border border-blue-200">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-blue-800 text-sm">You're registered for this event!</p>
+                            {userRegistrationDetails.has(event.id) && (
+                              <p className="text-xs text-blue-600">
+                                Registered on {formatRegistrationDate(userRegistrationDetails.get(event.id).registration_date)}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     ) : (
                       <button 
                         onClick={() => handleRegisterForEvent(event.id)}
@@ -1646,49 +1626,6 @@ export const Events = () => {
         </div>
       )}
 
-      {/* Unregistration Confirmation Modal */}
-      {showUnregisterModal && eventToUnregister && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
-                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                Confirm Unregistration
-              </h3>
-              <p className="text-slate-600 mb-6">
-                Are you sure you want to unregister from <strong>"{eventToUnregister.title}"</strong>?
-                {sampleEvents.some(event => event.id === eventToUnregister.id) && (
-                  <span className="block mt-2 text-sm text-blue-600">
-                    (This is a sample event - demo unregistration only)
-                  </span>
-                )}
-              </p>
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => {
-                    setShowUnregisterModal(false);
-                    setEventToUnregister(null);
-                  }}
-                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
-                >
-                  Keep Registration
-                </button>
-                <button
-                  onClick={confirmUnregistration}
-                  disabled={registeringEvents.has(eventToUnregister.id)}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {registeringEvents.has(eventToUnregister.id) ? 'Unregistering...' : 'Unregister'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Success Modal */}
       {showSuccessModal && (
@@ -1970,7 +1907,6 @@ export const Events = () => {
                       .eq('id', selectedEvent.id);
 
                     if (error) {
-                      console.error('Error updating event:', error);
                       setError('Failed to update event. Please try again.');
                       return;
                     }
@@ -1993,7 +1929,6 @@ export const Events = () => {
                       certificateTemplates: []
                     });
                   } catch (error) {
-                    console.error('Error updating event:', error);
                     setError('Failed to update event. Please try again.');
                   }
                 }}

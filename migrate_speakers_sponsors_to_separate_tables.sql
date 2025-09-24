@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS guest_speakers (
   organization VARCHAR(300),
   bio TEXT,
   email VARCHAR(255),
-  phone VARCHAR(50),
+  phone VARCHAR(11),
   photo_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS sponsors (
   name VARCHAR(300) NOT NULL,
   contact_person VARCHAR(200),
   email VARCHAR(255),
-  phone VARCHAR(50),
+  phone VARCHAR(11),
   address TEXT,
   logo_url TEXT,
   role VARCHAR(100), -- Main Sponsor, Gold Sponsor, Silver Sponsor, etc.
@@ -171,9 +171,9 @@ CREATE TRIGGER update_sponsors_updated_at
 -- =====================================================
 
 -- Check that columns were dropped
--- SELECT column_name FROM information_schema.columns 
--- WHERE table_name = 'events' AND column_name IN ('sponsors', 'guest_speakers', 'sponsor_logos_url', 'speaker_photos_url');
+SELECT column_name FROM information_schema.columns 
+WHERE table_name = 'events' AND column_name IN ('sponsors', 'guest_speakers', 'sponsor_logos_url', 'speaker_photos_url');
 
 -- Check new tables exist
--- SELECT table_name FROM information_schema.tables 
--- WHERE table_name IN ('guest_speakers', 'sponsors', 'event_speakers', 'event_sponsors');
+SELECT table_name FROM information_schema.tables 
+WHERE table_name IN ('guest_speakers', 'sponsors', 'event_speakers', 'event_sponsors');

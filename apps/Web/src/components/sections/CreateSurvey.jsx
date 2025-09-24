@@ -48,7 +48,6 @@ export const CreateSurvey = () => {
       const saved = sessionStorage.getItem('create-survey-draft');
       return saved ? JSON.parse(saved) : null;
     } catch (error) {
-      console.error('Error parsing saved form data:', error);
       return null;
     }
   };
@@ -64,7 +63,7 @@ export const CreateSurvey = () => {
       };
       sessionStorage.setItem('create-survey-draft', JSON.stringify(dataToSave));
     } catch (error) {
-      console.error('Error saving form data:', error);
+      // Error saving form data
     }
   };
 
@@ -73,7 +72,7 @@ export const CreateSurvey = () => {
     try {
       sessionStorage.removeItem('create-survey-draft');
     } catch (error) {
-      console.error('Error clearing saved form data:', error);
+      // Error clearing saved form data
     }
   };
 
@@ -132,31 +131,13 @@ export const CreateSurvey = () => {
       }
       if (eventSpeakers) {
         const speakers = JSON.parse(eventSpeakers);
-        console.log('🎤 Loaded pending speakers:', speakers);
-        speakers.forEach((speaker, index) => {
-          console.log(`🎤 Speaker ${index + 1}:`, {
-            name: `${speaker.first_name} ${speaker.last_name}`,
-            photo_url: speaker.photo_url,
-            has_photo_url: !!speaker.photo_url
-          });
-        });
         setPendingSpeakers(speakers);
       }
       if (eventSponsors) {
         const sponsors = JSON.parse(eventSponsors);
-        console.log('🏢 Loaded pending sponsors:', sponsors);
-        sponsors.forEach((sponsor, index) => {
-          console.log(`🏢 Sponsor ${index + 1}:`, {
-            name: sponsor.name,
-            logo_url: sponsor.logo_url,
-            has_logo_url: !!sponsor.logo_url
-          });
-        });
         setPendingSponsors(sponsors);
       }
-      console.log('✅ Pending event data loaded for survey creation');
     } catch (error) {
-      console.error('Error parsing pending event data:', error);
       alert('Error loading event data. Please try again.');
       navigate('/create-event');
     }
@@ -168,7 +149,6 @@ export const CreateSurvey = () => {
     if (savedData && savedData.questions && savedData.questions.length > 0) {
       // Set the saved questions directly using setValue
       setValue('questions', savedData.questions);
-      console.log('✅ Survey form data restored from session storage');
     }
   }, [setValue]); // Only depend on setValue
 
@@ -207,7 +187,6 @@ export const CreateSurvey = () => {
       rows: [''],
       columns: [''],
     }]);
-    console.log('✅ Survey draft cleared');
   };
 
   const handleQuestionTypeChange = (questionIndex, newType) => {
@@ -518,52 +497,24 @@ export const CreateSurvey = () => {
     }
 
     setLoading(true);
-    console.log('🚀 Starting event and survey creation...');
-    console.log('📊 Survey data:', data);
-    console.log('📝 Event data to be created:', pendingEventData);
 
     try {
       // Step 1: Create the event in the database
-      console.log('📝 Creating event with data:', pendingEventData);
-      console.log('🔍 Data type check:', typeof pendingEventData);
-      console.log('🔍 Data keys:', Object.keys(pendingEventData));
-      console.log('🔍 Required fields check:', {
-        title: !!pendingEventData.title,
-        rationale: !!pendingEventData.rationale,
-        start_date: !!pendingEventData.start_date,
-        end_date: !!pendingEventData.end_date,
-        start_time: !!pendingEventData.start_time,
-        end_time: !!pendingEventData.end_time,
-        venue: !!pendingEventData.venue,
-        created_by: !!pendingEventData.created_by
-      });
       
       // Create the event (EventService handles its own timeouts)
-      console.log('🚀 Starting event creation...');
-      console.log('🔍 User authentication status:', { 
-        userId: user?.id, 
-        userRole: user?.role,
-        userEmail: user?.email,
-        isAuthenticated: !!user
-      });
-      
-      console.log('⏱️ Waiting for event creation...');
       const eventResult = await EventService.createEvent(pendingEventData);
       if (eventResult.error) {
         throw new Error(`Event creation failed: ${eventResult.error}`);
       }
       const eventId = eventResult.event.id;
-      console.log('✅ Event created successfully with ID:', eventId);
 
       // Step 1.5: Create and link speakers to the event
       if (pendingSpeakers && pendingSpeakers.length > 0) {
-        console.log('👥 Creating speakers for event:', pendingSpeakers.length);
         
         for (const speakerData of pendingSpeakers) {
           try {
             // Only create speaker if they have required fields
             if (!speakerData.first_name || !speakerData.last_name) {
-              console.warn('⚠️ Skipping speaker with missing required fields:', speakerData);
               continue;
             }
 
@@ -578,21 +529,17 @@ export const CreateSurvey = () => {
               organization: speakerData.organization || '',
               bio: speakerData.bio || '',
               email: speakerData.email || '',
-              phone: speakerData.phone || '',
-              photo_url: speakerData.photo_url || ''
+              phone: speakerData.phone ? speakerData.phone.replace(/\D/g, '') : '', // Remove all non-digits
+              photo_url: speakerData.photo_url && speakerData.photo_url.trim() ? speakerData.photo_url.trim() : ''
             };
 
-            console.log('👤 Creating speaker:', `${speakerData.first_name} ${speakerData.last_name}`);
-            console.log('👤 Speaker data being sent to database:', speakerToCreate);
             const speakerResult = await SpeakerService.createSpeaker(speakerToCreate);
             
             if (speakerResult.error) {
-              console.error('❌ Failed to create speaker:', speakerResult.error);
               continue; // Continue with other speakers even if one fails
             }
 
             // Link the speaker to the event
-            console.log('🔗 Linking speaker to event:', speakerResult.speaker.id);
             const linkResult = await SpeakerService.addSpeakerToEvent(
               eventId, 
               speakerResult.speaker.id, 
@@ -602,30 +549,22 @@ export const CreateSurvey = () => {
               }
             );
 
-            if (linkResult.error) {
-              console.error('❌ Failed to link speaker to event:', linkResult.error);
-            } else {
-              console.log('✅ Speaker linked successfully:', `${speakerData.first_name} ${speakerData.last_name}`);
-            }
+            // Speaker linked (or failed silently)
 
           } catch (speakerError) {
-            console.error('❌ Error processing speaker:', speakerError);
             // Continue with other speakers
           }
         }
         
-        console.log('✅ Finished processing all speakers');
       }
 
       // Step 1.6: Create and link sponsors to the event
       if (pendingSponsors && pendingSponsors.length > 0) {
-        console.log('🏢 Creating sponsors for event:', pendingSponsors.length);
         
         for (const sponsorData of pendingSponsors) {
           try {
             // Only create sponsor if they have required fields
             if (!sponsorData.name) {
-              console.warn('⚠️ Skipping sponsor with missing required fields:', sponsorData);
               continue;
             }
 
@@ -634,24 +573,20 @@ export const CreateSurvey = () => {
               name: sponsorData.name,
               contact_person: sponsorData.contact_person || '',
               email: sponsorData.email || '',
-              phone: sponsorData.phone || '',
+              phone: sponsorData.phone ? sponsorData.phone.replace(/\D/g, '') : '', // Remove all non-digits
               address: sponsorData.address || '',
-              logo_url: sponsorData.logo_url || '',
+              logo_url: sponsorData.logo_url && sponsorData.logo_url.trim() ? sponsorData.logo_url.trim() : '',
               role: sponsorData.role || '',
               contribution: sponsorData.contribution || ''
             };
 
-            console.log('🏢 Creating sponsor:', sponsorData.name);
-            console.log('🏢 Sponsor data being sent to database:', sponsorToCreate);
             const sponsorResult = await SponsorService.createSponsor(sponsorToCreate);
             
             if (sponsorResult.error) {
-              console.error('❌ Failed to create sponsor:', sponsorResult.error);
               continue; // Continue with other sponsors even if one fails
             }
 
             // Link the sponsor to the event
-            console.log('🔗 Linking sponsor to event:', sponsorResult.sponsor.id);
             const linkResult = await SponsorService.addSponsorToEvent(
               eventId, 
               sponsorResult.sponsor.id, 
@@ -660,25 +595,16 @@ export const CreateSurvey = () => {
               }
             );
 
-            if (linkResult.error) {
-              console.error('❌ Failed to link sponsor to event:', linkResult.error);
-            } else {
-              console.log('✅ Sponsor linked successfully:', sponsorData.name);
-            }
+            // Sponsor linked (or failed silently)
 
           } catch (sponsorError) {
-            console.error('❌ Error processing sponsor:', sponsorError);
             // Continue with other sponsors
           }
         }
         
-        console.log('✅ Finished processing all sponsors');
       }
 
       // Step 2: Create the survey in the database
-      console.log('📊 Survey data to be created:', data);
-      
-      console.log('🔍 Creating survey for event:', eventId);
       
       // Transform questions to match the Survey interface
       const transformedQuestions = data.questions.map((q, index) => ({
@@ -701,22 +627,17 @@ export const CreateSurvey = () => {
         created_by: user.id
       };
       
-      console.log('🔍 Survey data being sent to service:', JSON.stringify(surveyData, null, 2));
       const surveyResult = await SurveyService.createSurvey(surveyData);
-      console.log('🔍 Survey service response:', surveyResult);
       
       if (surveyResult.error) {
-        console.error('❌ Survey creation error details:', surveyResult.error);
         throw new Error(`Survey creation failed: ${surveyResult.error}`);
       }
-      
+
       if (!surveyResult.survey) {
-        console.error('❌ Survey creation returned no survey data:', surveyResult);
         throw new Error('Survey creation failed: No survey data returned');
       }
-      
+
       const surveyId = surveyResult.survey.id;
-      console.log('✅ Survey created successfully with ID:', surveyId);
 
       // Clear all saved data
       clearSavedFormData();
@@ -732,7 +653,6 @@ export const CreateSurvey = () => {
       navigate('/organizer');
       
     } catch (err) {
-      console.error('❌ Event/Survey creation failed:', err);
       alert(`Failed to create event/survey: ${err.message}`);
     } finally {
       setLoading(false);

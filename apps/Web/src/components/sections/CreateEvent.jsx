@@ -39,11 +39,17 @@ const createEventSchema = z.object({
 
   maxParticipants: z.string().optional(),
 
-  registrationDeadline: z.string().optional(),
+  registrationDeadlineDate: z.string().optional(),
+  registrationDeadlineTime: z.string().optional(),
 
   sponsors: z.string().optional(),
 
   guestSpeakers: z.string().optional(),
+
+  // Check-in window settings
+  checkInBeforeMinutes: z.coerce.number().min(0).max(480).optional(), // Max 8 hours before
+  checkInDuringMinutes: z.coerce.number().min(0).max(240).optional(), // Max 4 hours during
+  
 
   bannerFile: z.any().optional(),
 
@@ -75,9 +81,31 @@ const createEventSchema = z.object({
 
 }).refine((data) => {
 
-  if (data.registrationDeadline && data.startDate) {
+  if (data.registrationDeadlineDate && data.startDate) {
 
-    return new Date(data.registrationDeadline) <= new Date(data.startDate);
+    const deadlineDate = new Date(data.registrationDeadlineDate);
+    const eventDate = new Date(data.startDate);
+
+    // If time is provided, combine date and time for deadline
+    if (data.registrationDeadlineTime) {
+      const [hours, minutes] = data.registrationDeadlineTime.split(':');
+      deadlineDate.setHours(parseInt(hours), parseInt(minutes));
+    } else {
+      // If no time provided, set to end of day
+      deadlineDate.setHours(23, 59, 59);
+    }
+
+    // If event start time is provided, combine with event date
+    if (data.startTime) {
+      const [eventHours, eventMinutes] = data.startTime.split(':');
+      eventDate.setHours(parseInt(eventHours), parseInt(eventMinutes));
+    }
+
+    // Allow deadline up to 1 hour before event start
+    const oneHourBeforeEvent = new Date(eventDate);
+    oneHourBeforeEvent.setHours(eventDate.getHours() - 1);
+
+    return deadlineDate <= oneHourBeforeEvent;
 
   }
 
@@ -85,13 +113,34 @@ const createEventSchema = z.object({
 
 }, {
 
-  message: "Registration deadline must be before or on the event start date",
+  message: "Registration deadline must be at least 1 hour before the event starts",
 
-  path: ["registrationDeadline"]
+  path: ["registrationDeadlineDate"]
 
 });
 
+// Philippine phone number formatting utilities
+const formatPhilippinePhone = (value) => {
+  // Remove all non-numeric characters
+  const cleaned = value.replace(/\D/g, '');
+  
+  // Limit to 11 digits (Philippine mobile numbers)
+  const limited = cleaned.slice(0, 11);
+  
+  // Format based on length: 0912 345 6789
+  if (limited.length <= 4) {
+    return limited;
+  } else if (limited.length <= 7) {
+    return `${limited.slice(0, 4)} ${limited.slice(4)}`;
+  } else {
+    return `${limited.slice(0, 4)} ${limited.slice(4, 7)} ${limited.slice(7)}`;
+  }
+};
 
+const validatePhilippinePhone = (phone) => {
+  const cleaned = phone.replace(/\D/g, '');
+  return cleaned.length === 11 && cleaned.startsWith('09');
+};
 
 const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onUpload, uploadType, maxSizeMB = 35, error, control, uploadedFiles = [], onRemoveFile }) => {
 
@@ -239,7 +288,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
           } catch (error) {
 
-            console.error('Banner upload failed:', error.message);
+            // Banner upload failed
 
             
 
@@ -379,7 +428,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
               } catch (fileError) {
 
-                console.error(`Error uploading ${file.name}:`, fileError);
+                // Error uploading file
 
                 
 
@@ -427,7 +476,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
           } catch (error) {
 
-            console.error('Materials upload failed:', error);
+            // Materials upload failed
 
             
 
@@ -571,7 +620,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
               } catch (fileError) {
 
-                console.error(`Error uploading ${file.name}:`, fileError);
+                // Error uploading file
 
                 
 
@@ -617,7 +666,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
           } catch (error) {
 
-            console.error('Sponsor logos upload failed:', error);
+            // Sponsor logos upload failed
 
             
 
@@ -749,7 +798,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
               } catch (fileError) {
 
-                console.error(`Error uploading ${file.name}:`, fileError);
+                // Error uploading file
 
                 
 
@@ -795,7 +844,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
           } catch (error) {
 
-            console.error('Speaker photos upload failed:', error);
+            // Speaker photos upload failed
 
             
 
@@ -927,7 +976,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
               } catch (fileError) {
 
-                console.error(`Error uploading ${file.name}:`, fileError);
+                // Error uploading file
 
                 
 
@@ -973,7 +1022,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
           } catch (error) {
 
-            console.error('Event kits upload failed:', error);
+            // Event kits upload failed
 
             
 
@@ -1105,7 +1154,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
               } catch (fileError) {
 
-                console.error(`Error uploading ${file.name}:`, fileError);
+                // Error uploading file
 
                 
 
@@ -1151,7 +1200,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
           } catch (error) {
 
-            console.error('Event programmes upload failed:', error);
+            // Event programmes upload failed
 
             
 
@@ -1249,7 +1298,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 if (error) {
 
-                  console.error(`❌ Upload failed for ${file.name}:`, error);
+                  // Upload failed for file
 
                   throw error;
 
@@ -1307,7 +1356,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
               } catch (fileError) {
 
-                console.error(`❌ Error uploading ${file.name}:`, fileError);
+                // Error uploading file
 
 
 
@@ -1351,7 +1400,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             } catch (error) {
 
-              console.error('❌ Certificate template upload failed:', error);
+              // Certificate template upload failed
 
 
 
@@ -1413,7 +1462,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
       } catch (error) {
 
-        console.error('Upload failed:', error);
+        // Upload failed
 
         alert(`Upload failed: ${error.message}`);
 
@@ -1597,7 +1646,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   } catch (error) {
 
-                    console.error('❌ handleFiles failed:', error);
+                    // handleFiles failed
 
                   }
 
@@ -1775,7 +1824,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                           } catch (error) {
 
-                            console.warn('Error creating file preview:', error);
+                            // Error creating file preview
 
                           }
 
@@ -1968,10 +2017,10 @@ export const CreateEvent = () => {
         if (result.venues) {
           setVenues(result.venues);
         } else {
-          console.error('Error fetching venues:', result.error);
+          // Error fetching venues
         }
       } catch (error) {
-        console.error('Error fetching venues:', error);
+        // Error fetching venues
       }
     };
 
@@ -2088,7 +2137,7 @@ export const CreateEvent = () => {
 
     } catch (error) {
 
-      console.error('Error parsing saved form data:', error);
+      // Error parsing saved form data
 
       return null;
 
@@ -2130,13 +2179,18 @@ export const CreateEvent = () => {
 
         guestSpeakers: data.guestSpeakers || '',
 
+        checkInBeforeMinutes: data.checkInBeforeMinutes || 60,
+
+        checkInDuringMinutes: data.checkInDuringMinutes || 30,
+
+
       };
 
       sessionStorage.setItem('create-event-draft', JSON.stringify(dataToSave));
 
     } catch (error) {
 
-      console.error('Error saving form data:', error);
+      // Error saving form data
 
     }
 
@@ -2154,7 +2208,7 @@ export const CreateEvent = () => {
 
     } catch (error) {
 
-      console.error('Error clearing saved form data:', error);
+      // Error clearing saved form data
 
     }
 
@@ -2200,7 +2254,13 @@ export const CreateEvent = () => {
 
       guestSpeakers: '',
 
-      registrationDeadline: '',
+      registrationDeadlineDate: '',
+      registrationDeadlineTime: '',
+
+      checkInBeforeMinutes: 60,
+
+      checkInDuringMinutes: 30,
+
 
       bannerFile: null,
 
@@ -2260,7 +2320,14 @@ export const CreateEvent = () => {
 
         setValue('maxParticipants', eventData.max_participants ? eventData.max_participants.toString() : '');
 
-        setValue('registrationDeadline', eventData.registration_deadline ? eventData.registration_deadline.slice(0, 16) : '');
+        if (eventData.registration_deadline) {
+          const deadlineDate = new Date(eventData.registration_deadline);
+          setValue('registrationDeadlineDate', deadlineDate.toISOString().split('T')[0]);
+          setValue('registrationDeadlineTime', deadlineDate.toTimeString().slice(0, 5));
+        } else {
+          setValue('registrationDeadlineDate', '');
+          setValue('registrationDeadlineTime', '');
+        }
 
         
 
@@ -2298,7 +2365,7 @@ export const CreateEvent = () => {
 
           } catch (error) {
 
-            console.warn('Could not restore files, continuing with form data');
+            // Could not restore files, continuing with form data
 
           }
 
@@ -2311,9 +2378,8 @@ export const CreateEvent = () => {
           try {
             const speakersData = JSON.parse(pendingEventSpeakers);
             setSpeakers(speakersData);
-            console.log('✅ Speakers data restored:', speakersData.length, 'speakers');
           } catch (error) {
-            console.warn('Could not restore speakers data:', error);
+            // Could not restore speakers data
           }
         }
 
@@ -2323,9 +2389,8 @@ export const CreateEvent = () => {
           try {
             const sponsorsData = JSON.parse(pendingEventSponsors);
             setSponsors(sponsorsData);
-            console.log('✅ Sponsors data restored:', sponsorsData.length, 'sponsors');
           } catch (error) {
-            console.warn('Could not restore sponsors data:', error);
+            // Could not restore sponsors data
           }
         }
         
@@ -2334,7 +2399,7 @@ export const CreateEvent = () => {
 
       } catch (error) {
 
-        console.warn('Pending data parse error, falling back to auto-save');
+        // Pending data parse error, falling back to auto-save
 
       }
 
@@ -2504,7 +2569,7 @@ export const CreateEvent = () => {
 
     } catch (error) {
 
-      console.error('❌ Error in handleFileUpload:', error);
+      // Error in handleFileUpload
 
     }
 
@@ -2647,58 +2712,22 @@ export const CreateEvent = () => {
       
 
       // Remove file from Supabase Storage if it was uploaded
-      console.log('🗑️ Attempting to remove file from storage:', {
-        uploadType,
-        fileToRemove: fileToRemove ? {
-          path: fileToRemove.path,
-          uploaded: fileToRemove.uploaded,
-          bucket: fileToRemove.bucket,
-          filename: fileToRemove.filename
-        } : null
-      });
-
       if (fileToRemove?.path && fileToRemove?.uploaded && fileToRemove?.bucket) {
-
         try {
-
           // Use the bucket name stored in the file object
-
           const bucketName = fileToRemove.bucket;
 
-          console.log('🗑️ Removing file from storage:', bucketName, fileToRemove.path);
-
           const { error } = await supabase.storage
-
             .from(bucketName)
-
             .remove([fileToRemove.path]);
 
-          if (error) {
-            console.error('❌ Storage deletion error:', error);
-          } else {
-            console.log('✅ Successfully removed file from storage:', fileToRemove.path);
-          }
-
         } catch (storageError) {
-
-          console.warn('⚠️ Could not remove file from storage:', storageError);
-
           // Continue with local removal even if storage removal fails
-
         }
-
-      } else {
-        console.log('ℹ️ File not removed from storage (missing path, not uploaded, or no bucket):', {
-          hasPath: !!fileToRemove?.path,
-          isUploaded: fileToRemove?.uploaded,
-          hasBucket: !!fileToRemove?.bucket
-        });
       }
 
     } catch (error) {
-
-      console.error('Error removing file:', error);
-
+      // Error removing file
     }
 
   };
@@ -2838,7 +2867,20 @@ export const CreateEvent = () => {
 
       max_participants: data.maxParticipants ? parseInt(data.maxParticipants) : null,
 
-      registration_deadline: data.registrationDeadline ? new Date(data.registrationDeadline).toISOString() : null,
+      registration_deadline: data.registrationDeadlineDate ? (() => {
+        const date = new Date(data.registrationDeadlineDate);
+        if (data.registrationDeadlineTime) {
+          const [hours, minutes] = data.registrationDeadlineTime.split(':');
+          date.setHours(parseInt(hours), parseInt(minutes));
+        }
+        return date.toISOString();
+      })() : null,
+
+      // Check-in window settings
+      check_in_before_minutes: data.checkInBeforeMinutes || 60,
+
+      check_in_during_minutes: data.checkInDuringMinutes || 30,
+
 
       status: 'published',
 
@@ -2859,23 +2901,18 @@ export const CreateEvent = () => {
         const existingVenue = await VenueService.getVenueByName(customVenueName.trim());
         if (!existingVenue.venue) {
           // Create new venue
-          console.log('🏢 Creating new venue:', customVenueName.trim());
           const venueResult = await VenueService.createVenue({
             name: customVenueName.trim(),
             created_by: user.id
           });
           
           if (venueResult.error) {
-            console.error('❌ Failed to create venue:', venueResult.error);
             // Continue with event creation even if venue creation fails
-          } else {
-            console.log('✅ New venue created successfully:', venueResult.venue.name);
           }
         }
         // Update eventData to use the custom venue name
         eventData.venue = customVenueName.trim();
       } catch (venueError) {
-        console.error('❌ Error handling venue creation:', venueError);
         // Continue with event creation
       }
     }
@@ -2914,53 +2951,36 @@ export const CreateEvent = () => {
     
 
     // Handle sponsor logos - match uploaded images with sponsor data
-    console.log('🔍 Processing sponsor logos:', uploadedFiles.sponsorLogos);
     if (uploadedFiles.sponsorLogos && uploadedFiles.sponsorLogos.length > 0) {
-      console.log('🏢 Found', uploadedFiles.sponsorLogos.length, 'sponsor logos to match with', sponsors.length, 'sponsors');
-      
       sponsors.forEach((sponsor, index) => {
-        console.log(`🔍 Looking for logo for sponsor ${index}: ${sponsor.name}`);
-        
         // Try multiple matching strategies
         let matchingLogo = null;
         
         // Strategy 1: Match by index (assuming same order)
         if (uploadedFiles.sponsorLogos[index]) {
           matchingLogo = uploadedFiles.sponsorLogos[index];
-          console.log('✅ Matched sponsor logo by index:', matchingLogo);
         }
         // Strategy 2: Match by filename containing index
         if (!matchingLogo) {
           matchingLogo = uploadedFiles.sponsorLogos.find(logo => 
             logo.name && logo.name.includes(`sponsor-logo-${index}`)
           );
-          if (matchingLogo) {
-            console.log('✅ Matched sponsor logo by filename:', matchingLogo);
-          }
         }
         // Strategy 3: Use first available logo if only one sponsor
         if (!matchingLogo && sponsors.length === 1 && uploadedFiles.sponsorLogos.length === 1) {
           matchingLogo = uploadedFiles.sponsorLogos[0];
-          console.log('✅ Matched single sponsor logo:', matchingLogo);
         }
         
         if (matchingLogo && matchingLogo.url) {
           sponsor.logo_url = matchingLogo.url;
-          console.log('✅ Set logo_url for sponsor:', sponsor.name, '=', matchingLogo.url);
-        } else {
-          console.log('❌ No logo found for sponsor:', sponsor.name);
         }
       });
     }
     
     // Handle speaker photos - match uploaded images with speaker data
-    console.log('🔍 Processing speaker photos:', uploadedFiles.speakerPhotos);
     if (uploadedFiles.speakerPhotos && uploadedFiles.speakerPhotos.length > 0) {
-      console.log('🎤 Found', uploadedFiles.speakerPhotos.length, 'speaker photos to match with', speakers.length, 'speakers');
-      
       speakers.forEach((speaker, index) => {
         const speakerName = `${speaker.first_name} ${speaker.last_name}`;
-        console.log(`🔍 Looking for photo for speaker ${index}: ${speakerName}`);
         
         // Try multiple matching strategies
         let matchingPhoto = null;
@@ -2968,28 +2988,20 @@ export const CreateEvent = () => {
         // Strategy 1: Match by index (assuming same order)
         if (uploadedFiles.speakerPhotos[index]) {
           matchingPhoto = uploadedFiles.speakerPhotos[index];
-          console.log('✅ Matched speaker photo by index:', matchingPhoto);
         }
         // Strategy 2: Match by filename containing index
         if (!matchingPhoto) {
           matchingPhoto = uploadedFiles.speakerPhotos.find(photo => 
             photo.name && photo.name.includes(`speaker-photo-${index}`)
           );
-          if (matchingPhoto) {
-            console.log('✅ Matched speaker photo by filename:', matchingPhoto);
-          }
         }
         // Strategy 3: Use first available photo if only one speaker
         if (!matchingPhoto && speakers.length === 1 && uploadedFiles.speakerPhotos.length === 1) {
           matchingPhoto = uploadedFiles.speakerPhotos[0];
-          console.log('✅ Matched single speaker photo:', matchingPhoto);
         }
         
         if (matchingPhoto && matchingPhoto.url) {
           speaker.photo_url = matchingPhoto.url;
-          console.log('✅ Set photo_url for speaker:', speakerName, '=', matchingPhoto.url);
-        } else {
-          console.log('❌ No photo found for speaker:', speakerName);
         }
       });
     }
@@ -3042,12 +3054,11 @@ export const CreateEvent = () => {
       logo_url: sponsor.logo_url || ''
     }));
     
+    
     sessionStorage.setItem('pending-event-speakers', JSON.stringify(speakersWithImages));
     sessionStorage.setItem('pending-event-sponsors', JSON.stringify(sponsorsWithImages));
     
-
     // Navigate to survey creation immediately
-
     navigate('/create-survey');
 
   };
@@ -3078,7 +3089,8 @@ export const CreateEvent = () => {
 
     setValue('maxParticipants', '');
 
-    setValue('registrationDeadline', '');
+    setValue('registrationDeadlineDate', '');
+    setValue('registrationDeadlineTime', '');
 
     setValue('sponsors', '');
 
@@ -3696,7 +3708,7 @@ export const CreateEvent = () => {
 
                {/* Registration Deadline */}
 
-               <div className="space-y-2">
+               <div className="space-y-4">
 
                  <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
 
@@ -3704,37 +3716,165 @@ export const CreateEvent = () => {
 
                  </label>
 
-                 <Controller
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-                   name="registrationDeadline"
+                   {/* Date Input */}
+                   <div className="space-y-2">
 
-                   control={control}
+                     <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide">
 
-                   render={({ field }) => (
+                       Date
 
-                     <input
+                     </label>
 
-                       {...field}
+                     <Controller
 
-                       type="datetime-local"
+                       name="registrationDeadlineDate"
 
-                       className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
+                       control={control}
 
-                         errors.registrationDeadline ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                       render={({ field }) => (
 
-                       }`}
+                         <input
+
+                           {...field}
+
+                           type="date"
+
+                           className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
+
+                             errors.registrationDeadlineDate ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+
+                           }`}
+
+                         />
+
+                       )}
 
                      />
 
-                   )}
+                   </div>
 
-                 />
+                   {/* Time Input */}
+                   <div className="space-y-2">
 
-                 {errors.registrationDeadline && (
+                     <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide">
 
-                   <p className="text-sm text-red-600">{errors.registrationDeadline.message}</p>
+                       Time
+
+                     </label>
+
+                     <Controller
+
+                       name="registrationDeadlineTime"
+
+                       control={control}
+
+                       render={({ field }) => (
+
+                         <input
+
+                           {...field}
+
+                           type="time"
+
+                           className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
+
+                             errors.registrationDeadlineTime ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+
+                           }`}
+
+                         />
+
+                       )}
+
+                     />
+
+                   </div>
+
+                 </div>
+
+                 {errors.registrationDeadlineDate && (
+
+                   <p className="text-sm text-red-600">{errors.registrationDeadlineDate.message}</p>
 
                  )}
+
+                 {errors.registrationDeadlineTime && (
+
+                   <p className="text-sm text-red-600">{errors.registrationDeadlineTime.message}</p>
+
+                 )}
+
+               </div>
+
+               {/* Check-in Window Settings */}
+               <div className="space-y-4">
+                 <h3 className="text-lg font-semibold text-slate-800 mb-4">Check-in Window Settings</h3>
+                 
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                   <div className="space-y-2">
+                     <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                       Check-in Before Event (minutes)
+                     </label>
+                     <Controller
+                       name="checkInBeforeMinutes"
+                       control={control}
+                       render={({ field }) => (
+                         <input
+                           {...field}
+                           type="number"
+                           min="0"
+                           max="480"
+                           placeholder="60"
+                           className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
+                             errors.checkInBeforeMinutes ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                           }`}
+                         />
+                       )}
+                     />
+                     {errors.checkInBeforeMinutes && (
+                       <p className="text-sm text-red-600">{errors.checkInBeforeMinutes.message}</p>
+                     )}
+                     <p className="text-xs text-slate-500">How many minutes before the event starts can users check in?</p>
+                   </div>
+
+                   <div className="space-y-2">
+                     <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                       Check-in During Event (minutes)
+                     </label>
+                     <Controller
+                       name="checkInDuringMinutes"
+                       control={control}
+                       render={({ field }) => (
+                         <input
+                           {...field}
+                           type="number"
+                           min="0"
+                           max="240"
+                           placeholder="30"
+                           className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
+                             errors.checkInDuringMinutes ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                           }`}
+                         />
+                       )}
+                     />
+                     {errors.checkInDuringMinutes && (
+                       <p className="text-sm text-red-600">{errors.checkInDuringMinutes.message}</p>
+                     )}
+                     <p className="text-xs text-slate-500">How many minutes after the event starts can users still check in?</p>
+                   </div>
+                 </div>
+
+                 {/* Check-in Window Preview */}
+                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                   <h4 className="font-semibold text-blue-800 mb-2">Check-in Window Preview</h4>
+                   <div className="text-sm text-blue-700 space-y-1">
+                     <p>Event: {watch('startDate')} at {watch('startTime')}</p>
+                     <p>Check-in opens: {watch('checkInBeforeMinutes') || 60} minutes before event</p>
+                     <p>Check-in closes: {watch('checkInDuringMinutes') || 30} minutes after event starts</p>
+                   </div>
+                 </div>
 
                </div>
 
@@ -3837,6 +3977,7 @@ export const CreateEvent = () => {
                  )}
 
                </div>
+
 
 
 
@@ -4033,11 +4174,19 @@ export const CreateEvent = () => {
                           <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
                           <input
                             type="tel"
-                            placeholder="+1 (555) 123-4567"
+                            placeholder="09123456789"
                             value={sponsor.phone}
-                            onChange={(e) => updateSponsor(index, 'phone', e.target.value)}
+                            onChange={(e) => {
+                              const formatted = formatPhilippinePhone(e.target.value);
+                              updateSponsor(index, 'phone', formatted);
+                            }}
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           />
+                          {sponsor.phone && !validatePhilippinePhone(sponsor.phone) && (
+                            <p className="text-xs text-red-500 mt-1">
+                              Please enter a valid Philippine mobile number (09123456789)
+                            </p>
+                          )}
                         </div>
 
                         {/* Logo Upload */}
@@ -4315,11 +4464,19 @@ export const CreateEvent = () => {
                           <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
                           <input
                             type="tel"
-                            placeholder="+1 (555) 123-4567"
+                            placeholder="09123456789"
                             value={speaker.phone}
-                            onChange={(e) => updateSpeaker(index, 'phone', e.target.value)}
+                            onChange={(e) => {
+                              const formatted = formatPhilippinePhone(e.target.value);
+                              updateSpeaker(index, 'phone', formatted);
+                            }}
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           />
+                          {speaker.phone && !validatePhilippinePhone(speaker.phone) && (
+                            <p className="text-xs text-red-500 mt-1">
+                              Please enter a valid Philippine mobile number (09123456789)
+                            </p>
+                          )}
                         </div>
 
                         {/* Photo Upload */}
