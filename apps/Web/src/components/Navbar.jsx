@@ -6,6 +6,7 @@ export const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isEventsDropdownOpen, setIsEventsDropdownOpen] = useState(false);
+  const [isSurveyDropdownOpen, setIsSurveyDropdownOpen] = useState(false);
   const { user, signOut, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -37,12 +38,20 @@ export const Navbar = () => {
     setIsEventsDropdownOpen(!isEventsDropdownOpen);
   };
 
+  const toggleSurveyDropdown = () => {
+    setIsSurveyDropdownOpen(!isSurveyDropdownOpen);
+  };
+
   const closeProfileDropdown = () => {
     setIsProfileDropdownOpen(false);
   };
 
   const closeEventsDropdown = () => {
     setIsEventsDropdownOpen(false);
+  };
+
+  const closeSurveyDropdown = () => {
+    setIsSurveyDropdownOpen(false);
   };
 
   // Get user initials for profile circle
@@ -87,27 +96,6 @@ export const Navbar = () => {
               </Link>
             )}
             
-            {/* Generate QR Link - Available for unauthenticated users */}
-            {!user && (
-              <Link
-                to="/generate-qr"
-                className="text-lg font-medium text-gray-300 hover:text-white transition-colors"
-              >
-                Generate QR
-              </Link>
-            )}
-            
-
-            
-            {/* Generate QR - Available for all authenticated users */}
-            {user && (
-              <Link
-                to="/generate-qr"
-                className="text-lg font-medium text-gray-300 hover:text-white transition-colors"
-              >
-                Generate QR
-              </Link>
-            )}
 
             {/* Role-specific Navigation */}
             {user?.role === 'admin' && (
@@ -167,12 +155,41 @@ export const Navbar = () => {
                   )}
                 </div>
 
-                <Link
-                  to="/survey-analytics"
-                  className="text-lg font-medium text-gray-300 hover:text-white transition-colors"
-                >
-                  Survey Analytics
-                </Link>
+                {/* Survey Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={toggleSurveyDropdown}
+                    onMouseEnter={() => setIsSurveyDropdownOpen(true)}
+                    className="text-lg font-medium text-gray-300 hover:text-white transition-colors flex items-center space-x-1"
+                  >
+                    <span>Survey</span>
+                    <svg className="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {isSurveyDropdownOpen && (
+                    <div 
+                      className="absolute top-full left-0 mt-2 w-48 bg-blue-950 rounded-xl shadow-xl border border-blue-800/50 py-2 z-50"
+                      onMouseLeave={() => setIsSurveyDropdownOpen(false)}
+                    >
+                      <Link
+                        to="/survey-management"
+                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-blue-900 hover:text-white transition-colors"
+                        onClick={closeSurveyDropdown}
+                      >
+                        Survey Management
+                      </Link>
+                      <Link
+                        to="/event-statistics"
+                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-blue-900 hover:text-white transition-colors"
+                        onClick={closeSurveyDropdown}
+                      >
+                        Event Statistics
+                      </Link>
+                    </div>
+                  )}
+                </div>
               </>
             )}
             
@@ -311,29 +328,6 @@ export const Navbar = () => {
                   </Link>
                 )}
                 
-                {/* Generate QR Link - Available for unauthenticated users */}
-                {!user && (
-                  <Link
-                    to="/generate-qr"
-                    className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Generate QR
-                  </Link>
-                )}
-                
-
-                
-                {/* Generate QR - Available for all authenticated users */}
-                {user && (
-                  <Link
-                    to="/generate-qr"
-                    className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Generate QR
-                  </Link>
-                )}
 
                 {/* Role-specific Mobile Navigation */}
                 {user?.role === 'admin' && (
@@ -378,13 +372,26 @@ export const Navbar = () => {
                       </div>
                     </div>
                     
-                    <Link
-                      to="/survey-analytics"
-                      className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      Survey Analytics
-                    </Link>
+                    {/* Mobile Survey Section */}
+                    <div className="px-3 py-2">
+                      <div className="text-lg font-medium text-gray-300 mb-2">Survey</div>
+                      <div className="ml-4 space-y-1">
+                        <Link
+                          to="/survey-management"
+                          className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
+                          onClick={() => setIsMobileMenuOpen(false)}
+                        >
+                          Survey Management
+                        </Link>
+                        <Link
+                          to="/event-statistics"
+                          className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
+                          onClick={() => setIsMobileMenuOpen(false)}
+                        >
+                          Event Statistics
+                        </Link>
+                      </div>
+                    </div>
                   </>
                 )}
                 
@@ -448,12 +455,13 @@ export const Navbar = () => {
       )}
 
       {/* Click outside to close dropdowns */}
-      {(isProfileDropdownOpen || isEventsDropdownOpen) && (
+      {(isProfileDropdownOpen || isEventsDropdownOpen || isSurveyDropdownOpen) && (
         <div 
           className="fixed inset-0 z-40" 
           onClick={() => {
             closeProfileDropdown();
             closeEventsDropdown();
+            closeSurveyDropdown();
           }}
         />
       )}

@@ -20,7 +20,7 @@ const pieData = [
 
 const COLORS = ['#10B981', '#3B82F6', '#F59E0B'];
 
-export const SurveyAnalytics = () => {
+export const EventStatistics = () => {
   const [exporting, setExporting] = useState(false);
 
   const exportData = (data, filename) => {

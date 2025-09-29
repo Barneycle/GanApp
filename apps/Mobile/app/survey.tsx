@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,12 @@ import {
   SafeAreaView,
   Alert,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { SurveyService, Survey } from '../lib/surveyService';
+import { useAuth } from '../lib/authContext';
 
 interface Question {
   id: string;
@@ -19,53 +22,66 @@ interface Question {
   required: boolean;
 }
 
-const sampleQuestions: Question[] = [
-  {
-    id: '550e8400-e29b-41d4-a716-446655440011',
-    question: 'How would you rate your overall experience at this event?',
-    type: 'rating',
-    required: true,
-  },
-  {
-    id: '550e8400-e29b-41d4-a716-446655440012',
-    question: 'Which session did you find most valuable?',
-    type: 'multiple_choice',
-    options: ['Keynote Speech', 'Panel Discussion', 'Workshop A', 'Workshop B', 'Networking Session'],
-    required: true,
-  },
-  {
-    id: '550e8400-e29b-41d4-a716-446655440013',
-    question: 'What aspects of the event could be improved?',
-    type: 'text',
-    required: false,
-  },
-  {
-    id: '550e8400-e29b-41d4-a716-446655440014',
-    question: 'Would you recommend this event to others?',
-    type: 'multiple_choice',
-    options: ['Definitely', 'Probably', 'Maybe', 'Probably not', 'Definitely not'],
-    required: true,
-  },
-  {
-    id: '550e8400-e29b-41d4-a716-446655440015',
-    question: 'How did you hear about this event?',
-    type: 'multiple_choice',
-    options: ['Social Media', 'Email Newsletter', 'Word of Mouth', 'Website', 'Other'],
-    required: true,
-  },
-];
 
 export default function Survey() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [textInputs, setTextInputs] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [survey, setSurvey] = useState<Survey | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [availabilityInfo, setAvailabilityInfo] = useState<any>(null);
+  const [validationInfo, setValidationInfo] = useState<any>(null);
   
   const router = useRouter();
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
+  const { user } = useAuth();
 
-  const currentQuestion = sampleQuestions[currentQuestionIndex];
-  const isLastQuestion = currentQuestionIndex === sampleQuestions.length - 1;
+  const currentQuestion = survey?.questions?.[currentQuestionIndex];
+  const isLastQuestion = currentQuestionIndex === (survey?.questions?.length || 0) - 1;
+
+  useEffect(() => {
+    if (eventId && user?.id) {
+      fetchSurvey();
+    } else if (!user?.id) {
+      setError('You must be logged in to access surveys');
+      setIsLoading(false);
+    } else {
+      setError('Event ID is required');
+      setIsLoading(false);
+    }
+  }, [eventId, user?.id]);
+
+  const fetchSurvey = async () => {
+    if (!eventId || !user?.id) {
+      setError('Event ID and user authentication are required');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      // Now pass both eventId and userId for comprehensive validation
+      const result = await SurveyService.getSurveyByEventId(eventId, user.id);
+      
+      if (result.error) {
+        setError(result.error);
+        setAvailabilityInfo(result.availabilityInfo);
+        setValidationInfo(result.validationInfo);
+      } else if (result.survey) {
+        setSurvey(result.survey);
+        setAvailabilityInfo(result.availabilityInfo);
+        setValidationInfo(result.validationInfo);
+      } else {
+        setError('No survey found for this event');
+      }
+    } catch (err) {
+      setError('Failed to load survey');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleAnswer = (questionId: string, answer: any) => {
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
@@ -100,11 +116,28 @@ export default function Survey() {
   };
 
   const submitSurvey = async () => {
+    if (!survey || !user) {
+      Alert.alert('Error', 'Survey or user data is missing');
+      return;
+    }
+
     setIsSubmitting(true);
     
-    // Simulate survey submission
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      // Combine all answers
+      const allResponses = { ...answers, ...textInputs };
+      
+      const result = await SurveyService.submitSurveyResponse(
+        survey.id,
+        user.id,
+        allResponses
+      );
+
+      if (result.error) {
+        Alert.alert('Error', result.error);
+        return;
+      }
+
       Alert.alert(
         'Survey Completed!',
         'Thank you for your feedback. Generating your certificate...',
@@ -121,7 +154,11 @@ export default function Survey() {
           }
         ]
       );
-    }, 2000);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to submit survey');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const renderQuestion = () => {
@@ -227,8 +264,197 @@ export default function Survey() {
   };
 
   const getProgressPercentage = () => {
-    return ((currentQuestionIndex + 1) / sampleQuestions.length) * 100;
+    if (!survey?.questions?.length) return 0;
+    return ((currentQuestionIndex + 1) / survey.questions.length) * 100;
   };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-50">
+        <View className="flex-1 justify-center items-center">
+          <ActivityIndicator size="large" color="#3b82f6" />
+          <Text className="text-gray-600 mt-4">Loading survey...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Enhanced error state with comprehensive validation information
+  if (error) {
+    const getValidationIcon = () => {
+      // Priority order: validation failures first, then availability issues
+      if (validationInfo?.step === 'event_validation') {
+        return 'calendar-outline';
+      } else if (validationInfo?.step === 'attendance_verification') {
+        if (validationInfo.reason === 'not_checked_in') {
+          return 'qr-code-outline';
+        }
+        return 'person-outline';
+      } else if (validationInfo?.step === 'survey_retrieval') {
+        return 'document-outline';
+      } else if (validationInfo?.step === 'cross_reference') {
+        return 'warning-outline';
+      } else if (validationInfo?.step === 'availability_check') {
+        if (availabilityInfo?.status === 'closed_by_organizer') {
+          return 'lock-closed';
+        } else if (availabilityInfo?.status === 'scheduled_to_open') {
+          return 'time';
+        } else if (availabilityInfo?.status === 'closed_by_schedule') {
+          return 'calendar';
+        } else if (availabilityInfo?.status === 'inactive') {
+          return 'power';
+        }
+      } else if (validationInfo?.step === 'exception') {
+        return 'bug-outline';
+      }
+      return 'alert-circle';
+    };
+
+    const getValidationColor = () => {
+      if (validationInfo?.step === 'event_validation') {
+        return '#ef4444'; // red - critical
+      } else if (validationInfo?.step === 'attendance_verification') {
+        return '#f59e0b'; // amber - user action needed
+      } else if (validationInfo?.step === 'survey_retrieval') {
+        return '#6b7280'; // gray - not found
+      } else if (validationInfo?.step === 'cross_reference') {
+        return '#ef4444'; // red - security issue
+      } else if (validationInfo?.step === 'availability_check') {
+        if (availabilityInfo?.status === 'closed_by_organizer') {
+          return '#f59e0b'; // amber
+        } else if (availabilityInfo?.status === 'scheduled_to_open') {
+          return '#3b82f6'; // blue
+        } else if (availabilityInfo?.status === 'closed_by_schedule') {
+          return '#ef4444'; // red
+        }
+      } else if (validationInfo?.step === 'exception') {
+        return '#ef4444'; // red - system error
+      }
+      return '#ef4444'; // red - default
+    };
+
+    const getValidationTitle = () => {
+      if (validationInfo?.step === 'event_validation') {
+        return 'Event Access Denied';
+      } else if (validationInfo?.step === 'attendance_verification') {
+        if (validationInfo.reason === 'not_checked_in') {
+          return 'Check-In Required';
+        }
+        return 'Attendance Verification Failed';
+      } else if (validationInfo?.step === 'survey_retrieval') {
+        return 'Survey Not Found';
+      } else if (validationInfo?.step === 'cross_reference') {
+        return 'Access Denied';
+      } else if (validationInfo?.step === 'availability_check') {
+        return 'Survey Not Available';
+      } else if (validationInfo?.step === 'exception') {
+        return 'System Error';
+      }
+      return 'Access Denied';
+    };
+
+    const getAdditionalInfo = () => {
+      // Validation-specific guidance
+      if (validationInfo?.step === 'event_validation') {
+        return 'The event may not be published yet or may have already ended.';
+      } else if (validationInfo?.step === 'attendance_verification') {
+        if (validationInfo.reason === 'not_checked_in') {
+          return 'Please scan the QR code at the event venue to check in first.';
+        }
+        return 'Please ensure you are registered and have checked in to this event.';
+      } else if (validationInfo?.step === 'survey_retrieval') {
+        return 'The event organizer hasn\'t created a survey for this event yet.';
+      } else if (validationInfo?.step === 'cross_reference') {
+        return 'There was a security validation error. Please contact support.';
+      } else if (validationInfo?.step === 'availability_check') {
+        if (availabilityInfo?.status === 'scheduled_to_open' && availabilityInfo.opensAt) {
+          return `The survey will open on ${new Date(availabilityInfo.opensAt).toLocaleString()}`;
+        } else if (availabilityInfo?.status === 'closed_by_schedule' && availabilityInfo.closesAt) {
+          return `The survey closed on ${new Date(availabilityInfo.closesAt).toLocaleString()}`;
+        } else if (availabilityInfo?.status === 'closed_by_organizer') {
+          return 'The event organizer will open the survey when they\'re ready. Please check back later.';
+        }
+      } else if (validationInfo?.step === 'exception') {
+        return 'An unexpected error occurred. Please try again or contact support.';
+      }
+      return null;
+    };
+
+    const getActionButton = () => {
+      if (validationInfo?.step === 'attendance_verification' && validationInfo.reason === 'not_checked_in') {
+        return (
+          <TouchableOpacity
+            onPress={() => router.push('/qrscanner')}
+            className="mt-4 bg-blue-600 px-6 py-3 rounded-md"
+          >
+            <Text className="text-white font-medium">Go to QR Scanner</Text>
+          </TouchableOpacity>
+        );
+      }
+      return (
+        <TouchableOpacity
+          onPress={() => router.back()}
+          className="mt-6 bg-blue-600 px-6 py-3 rounded-md"
+        >
+          <Text className="text-white font-medium">Go Back</Text>
+        </TouchableOpacity>
+      );
+    };
+
+    return (
+      <SafeAreaView className="flex-1 bg-gray-50">
+        <View className="flex-1 justify-center items-center px-4">
+          <Ionicons name={getValidationIcon()} size={48} color={getValidationColor()} />
+          <Text className="text-lg font-semibold text-gray-800 mt-4 text-center">
+            {getValidationTitle()}
+          </Text>
+          <Text className="text-gray-600 mt-2 text-center text-base">
+            {error}
+          </Text>
+          {getAdditionalInfo() && (
+            <Text className="text-gray-500 mt-3 text-center text-sm px-4">
+              {getAdditionalInfo()}
+            </Text>
+          )}
+          
+          {/* Validation Debug Info (only in development) */}
+          {__DEV__ && validationInfo && (
+            <View className="mt-4 p-3 bg-gray-100 rounded-lg">
+              <Text className="text-xs text-gray-600 font-mono">
+                Debug: {JSON.stringify(validationInfo, null, 2)}
+              </Text>
+            </View>
+          )}
+          
+          {getActionButton()}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // No survey found
+  if (!survey || !survey.questions?.length) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-50">
+        <View className="flex-1 justify-center items-center px-4">
+          <Ionicons name="clipboard-outline" size={48} color="#6b7280" />
+          <Text className="text-lg font-semibold text-gray-800 mt-4 text-center">
+            No Survey Available
+          </Text>
+          <Text className="text-gray-600 mt-2 text-center">
+            This event doesn't have a survey yet.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="mt-6 bg-blue-600 px-6 py-3 rounded-md"
+          >
+            <Text className="text-white font-medium">Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
@@ -244,7 +470,9 @@ export default function Survey() {
           
           <View className="flex-row items-center">
             <Ionicons name="clipboard" size={18} color="#374151" />
-            <Text className="text-lg font-bold text-gray-800 ml-2">Event Survey</Text>
+            <Text className="text-lg font-bold text-gray-800 ml-2">
+              {survey.title || 'Event Survey'}
+            </Text>
           </View>
           
           <View className="w-10" />
@@ -254,7 +482,7 @@ export default function Survey() {
         <View className="mt-4 mb-2">
           <View className="flex-row justify-between items-center mb-2">
             <Text className="text-sm text-gray-600 font-medium">
-              Question {currentQuestionIndex + 1} of {sampleQuestions.length}
+              Question {currentQuestionIndex + 1} of {survey.questions.length}
             </Text>
             <Text className="text-sm text-gray-600 font-medium">
               {Math.round(getProgressPercentage())}%
@@ -329,7 +557,7 @@ export default function Survey() {
           <View className="mt-6 mb-4">
             <View className="flex-row justify-between items-center mb-3">
               <Text className="text-sm text-gray-600 font-medium">
-                Question {currentQuestionIndex + 1} of {sampleQuestions.length}
+                Question {currentQuestionIndex + 1} of {survey.questions.length}
               </Text>
               <Text className="text-sm text-gray-600 font-medium">
                 {Math.round(getProgressPercentage())}%

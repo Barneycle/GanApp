@@ -6,11 +6,12 @@ import { Participants } from "./sections/Participants";
 import { Login } from "./sections/Login";
 import { CreateEvent } from "./sections/CreateEvent";
 import { CreateSurvey } from "./sections/CreateSurvey";
-import { SurveyAnalytics } from "./sections/SurveyAnalytics";
+import { EventStatistics } from "./sections/EventStatistics";
 import { Registration } from "./sections/Registration";
 import { Events } from "./sections/Events";
 import { MyEvents } from "./sections/MyEvents";
 import GenerateQR from "./sections/GenerateQR";
+import SurveyManagementPage from "./sections/SurveyManagementPage";
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -25,7 +26,8 @@ function AnimatedRoutes() {
         <Route path="/events" element={<Events />} />
         <Route path="/create-event" element={<CreateEvent />} />
         <Route path="/create-survey" element={<CreateSurvey />} />
-        <Route path="/survey-analytics" element={<SurveyAnalytics />} />
+        <Route path="/event-statistics" element={<EventStatistics />} />
+        <Route path="/survey-management" element={<SurveyManagementPage />} />
         <Route path="/participants" element={<Participants />} />
         <Route path="/my-events" element={<MyEvents />} />
         <Route path="/registration" element={<Registration />} />

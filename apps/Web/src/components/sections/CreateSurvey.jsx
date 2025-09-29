@@ -624,7 +624,11 @@ export const CreateSurvey = () => {
         title: `Survey for ${pendingEventData.title}`,
         description: `Survey for event: ${pendingEventData.title}`,
         questions: transformedQuestions,
-        created_by: user.id
+        created_by: user.id,
+        is_active: true,
+        is_open: true,
+        opens_at: null,
+        closes_at: null
       };
       
       const surveyResult = await SurveyService.createSurvey(surveyData);
