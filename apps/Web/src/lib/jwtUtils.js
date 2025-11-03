@@ -4,28 +4,47 @@ import { jwtDecode } from 'jwt-decode';
 // Secret key for JWT signing (in production, this should be in environment variables)
 const JWT_SECRET = 'ganapp-qr-secret-key-2024';
 
+// Function to safely encode string to base64 (handles Unicode)
+const safeBase64Encode = (str) => {
+  try {
+    // Use TextEncoder to handle Unicode characters properly
+    const encoder = new TextEncoder();
+    const data = encoder.encode(str);
+    // Convert to binary string
+    let binary = '';
+    data.forEach(byte => binary += String.fromCharCode(byte));
+    return btoa(binary);
+  } catch (error) {
+    console.error('Base64 encoding error:', error);
+    // Fallback: remove special characters and try again
+    const cleanStr = str.replace(/[^\x00-\x7F]/g, ''); // Remove non-ASCII
+    return btoa(cleanStr);
+  }
+};
+
 // Function to create a JWT token for QR code data
 export const createQRToken = (userData) => {
   try {
     const payload = {
       userId: userData.id,
       userEmail: userData.email,
-      userName: `${userData.first_name} ${userData.last_name}`.trim() || userData.email,
-      userRole: userData.role,
+      userName: `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || userData.email,
+      userRole: userData.role || 'participant',
       timestamp: new Date().toISOString(),
       type: 'user_qr'
     };
 
     // Create a simple JWT-like token (in production, use a proper JWT library)
-    const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-    const payloadEncoded = btoa(JSON.stringify(payload));
+    const header = safeBase64Encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+    const payloadEncoded = safeBase64Encode(JSON.stringify(payload));
     
     // Create a simple signature (in production, use proper HMAC)
-    const signature = btoa(JWT_SECRET + payloadEncoded);
+    const signature = safeBase64Encode(JWT_SECRET + payloadEncoded);
     
     return `${header}.${payloadEncoded}.${signature}`;
   } catch (error) {
-    throw new Error('Failed to create QR token');
+    console.error('Error creating QR token:', error);
+    throw new Error('Failed to create QR token: ' + error.message);
   }
 };
 

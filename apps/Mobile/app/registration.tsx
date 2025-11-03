@@ -12,7 +12,7 @@ import {
   Keyboard,
   Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
@@ -42,6 +42,7 @@ export default function RegistrationScreen() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [success, setSuccess] = useState(false);
   const [localError, setLocalError] = useState('');
+  const insets = useSafeAreaInsets();
 
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
@@ -192,7 +193,7 @@ export default function RegistrationScreen() {
               <View className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></View>
               <TouchableOpacity
                 onPress={() => router.push('/login')}
-                className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3 rounded-xl items-center"
+                className="bg-blue-600 text-white px-6 py-3 rounded-xl items-center"
               >
                 <Text className="text-white font-semibold">Go to Login Now</Text>
               </TouchableOpacity>
@@ -208,7 +209,8 @@ export default function RegistrationScreen() {
             ref={scrollViewRef}
             contentContainerStyle={{ 
               flexGrow: 1,
-              paddingBottom: 100
+              paddingTop: insets.top + 20,
+              paddingBottom: Math.max(insets.bottom, 20)
             }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"

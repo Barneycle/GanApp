@@ -24,22 +24,88 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
       setError(null);
 
       // Create QR data for event registration
-      const qrData = JSON.stringify({
+      const qrData = {
         eventId: event.id,
         title: event.title,
         date: event.start_date,
         time: event.start_time,
         venue: event.venue,
         userId: user?.id,
+        createdBy: user?.id,
+        createdAt: new Date().toISOString(),
         type: 'event_registration'
-      });
+      };
 
-      // Generate QR code URL
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrData)}`;
+      // Create a unique token for this user+event combination
+      const qrDataString = `EVENT_${event.id}_USER_${user?.id}_${Date.now()}`;
+
+      // Check if QR code already exists for this user+event combination
+      const { data: existingQRs, error: fetchError } = await supabase
+        .from('qr_codes')
+        .select('*')
+        .eq('event_id', event.id)
+        .eq('code_type', 'event_checkin')
+        .eq('created_by', user?.id)
+        .limit(1);
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      const existingQR = existingQRs && existingQRs.length > 0 ? existingQRs[0] : null;
+
+      let qrRecord;
+      if (existingQR) {
+        // Update existing QR code
+        const { data, error } = await supabase
+          .from('qr_codes')
+          .update({
+            qr_data: qrData,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingQR.id)
+          .select();
+
+        if (error) throw error;
+        qrRecord = data && data.length > 0 ? data[0] : null;
+      } else {
+        // Create new QR code
+        const { data, error } = await supabase
+          .from('qr_codes')
+          .insert({
+            code_type: 'event_checkin',
+            title: `${event.title} - Check-in QR Code`,
+            description: `QR code for event check-in: ${event.title}`,
+            created_by: user?.id,
+            owner_id: user?.id,
+            event_id: event.id,
+            qr_data: qrData,
+            qr_token: qrDataString,
+            is_active: true,
+            is_public: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select();
+
+        if (error) throw error;
+        qrRecord = data && data.length > 0 ? data[0] : null;
+      }
+
+      // Generate QR code URL with full qrData
+      const qrCodeData = JSON.stringify(qrData);
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData)}`;
       setQrCodeUrl(qrUrl);
 
     } catch (err) {
-      setError('Failed to generate QR code');
+      console.error('Error generating event QR code:', err);
+      console.error('Error details:', {
+        message: err.message,
+        code: err.code,
+        details: err.details,
+        hint: err.hint
+      });
+      setError(`Failed to generate QR code: ${err.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -180,26 +246,30 @@ export default function GenerateQR() {
       const qrDataString = createQRDataString(user);
       
       // Create QR data object for database storage
+      const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
       const qrData = {
         userId: user.id,
         userEmail: user.email,
-        userName: `${user.first_name} ${user.last_name}`.trim() || user.email,
-        userRole: user.role,
+        userName: userName,
+        userRole: user.role || 'participant',
         generatedAt: new Date().toISOString(),
         type: 'user_qr',
         qrDataString: qrDataString // Store the JWT-based QR string
       };
 
       // Check if QR code already exists for this user
-      const { data: existingQR, error: fetchError } = await supabase
+      const { data: existingQRs, error: fetchError } = await supabase
         .from('qr_codes')
         .select('*')
-        .eq('user_id', user.id)
-        .single();
+        .eq('created_by', user.id)
+        .eq('code_type', 'user_profile')
+        .limit(1);
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
+      if (fetchError) {
         throw fetchError;
       }
+
+      const existingQR = existingQRs && existingQRs.length > 0 ? existingQRs[0] : null;
 
       let qrRecord;
       if (existingQR) {
@@ -208,29 +278,36 @@ export default function GenerateQR() {
           .from('qr_codes')
           .update({
             qr_data: qrData,
+            qr_token: qrDataString,
             updated_at: new Date().toISOString()
           })
-          .eq('user_id', user.id)
-          .select()
-          .single();
+          .eq('id', existingQR.id)
+          .select();
 
         if (error) throw error;
-        qrRecord = data;
+        qrRecord = data && data.length > 0 ? data[0] : null;
       } else {
         // Create new QR code
+        const title = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
         const { data, error } = await supabase
           .from('qr_codes')
           .insert({
-            user_id: user.id,
+            code_type: 'user_profile',
+            title: title,
+            description: 'User profile QR code',
+            created_by: user.id,
+            owner_id: user.id,
             qr_data: qrData,
+            qr_token: qrDataString, // Use the JWT string as unique token
+            is_active: true,
+            is_public: false,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
-          .select()
-          .single();
+          .select();
 
         if (error) throw error;
-        qrRecord = data;
+        qrRecord = data && data.length > 0 ? data[0] : null;
       }
 
       setQrCodeData(qrRecord);
@@ -240,7 +317,15 @@ export default function GenerateQR() {
       setQrCodeUrl(qrUrl);
 
     } catch (err) {
-      setError('Failed to generate QR code');
+      console.error('Error generating user QR code:', err);
+      console.error('Error details:', {
+        message: err.message,
+        code: err.code,
+        details: err.details,
+        hint: err.hint,
+        user: user
+      });
+      setError(`Failed to generate QR code: ${err.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -281,10 +366,10 @@ export default function GenerateQR() {
   const fetchScanHistory = async () => {
     try {
       const { data, error } = await supabase
-        .from('qr_scans')
+        .from('qr_code_scans')
         .select('*')
-        .eq('user_id', user.id)
-        .order('scanned_at', { ascending: false });
+        .eq('scanned_by', user.id)
+        .order('scan_timestamp', { ascending: false });
 
       if (error) throw error;
       setScanHistory(data || []);

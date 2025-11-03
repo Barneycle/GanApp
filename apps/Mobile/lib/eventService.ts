@@ -137,4 +137,35 @@ export class EventService {
       return { error: 'An unexpected error occurred' };
     }
   }
+
+  static async getUserRegistrations(userId: string): Promise<{ registrations?: Array<{ events: Event; registration_date: string; registration_id: string }>; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('event_registrations')
+        .select(`
+          id,
+          created_at,
+          events (*)
+        `)
+        .eq('user_id', userId)
+        .eq('status', 'registered')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching user registrations:', error);
+        return { registrations: [], error: error.message };
+      }
+
+      const registrations = (data || []).map(registration => ({
+        events: registration.events as Event,
+        registration_date: registration.created_at,
+        registration_id: registration.id
+      }));
+
+      return { registrations, error: undefined };
+    } catch (error) {
+      console.error('Unexpected error in getUserRegistrations:', error);
+      return { registrations: [], error: 'An unexpected error occurred' };
+    }
+  }
 }

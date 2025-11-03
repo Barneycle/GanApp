@@ -11,8 +11,12 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera"
-      }
+        "NSCameraUsageDescription": "This app needs camera access to scan QR codes for event check-ins and attendance tracking.",
+        "NSPhotoLibraryAddUsageDescription": "This app needs access to save QR code images to your photo library.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to save QR code images to your photo library.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.anonymous.MobileDebug"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +26,10 @@
       "edgeToEdgeEnabled": true,
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES"
       ],
       "package": "com.anonymous.MobileDebug",
       "softwareKeyboardLayoutMode": "pan"
@@ -48,7 +55,9 @@
         {
           "enableCodeScanner": true
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-media-library"
     ],
     "experiments": {
       "typedRoutes": true

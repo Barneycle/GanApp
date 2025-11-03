@@ -12,6 +12,7 @@ import { Events } from "./sections/Events";
 import { MyEvents } from "./sections/MyEvents";
 import GenerateQR from "./sections/GenerateQR";
 import SurveyManagementPage from "./sections/SurveyManagementPage";
+import { Evaluation } from "./sections/Evaluation";
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -32,6 +33,7 @@ function AnimatedRoutes() {
         <Route path="/my-events" element={<MyEvents />} />
         <Route path="/registration" element={<Registration />} />
         <Route path="/generate-qr" element={<GenerateQR />} />
+        <Route path="/evaluation/:surveyId" element={<Evaluation />} />
       </Routes>
     </div>
   );

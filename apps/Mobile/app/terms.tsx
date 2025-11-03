@@ -7,12 +7,14 @@ import {
   SafeAreaView,
   Modal,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 
 export default function TermsScreen() {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
+  const insets = useSafeAreaInsets();
   const [modalContent, setModalContent] = useState('terms');
 
   const getContent = () => {
@@ -163,7 +165,13 @@ export default function TermsScreen() {
         </View>
 
         {/* Content */}
-        <ScrollView className="flex-1 p-4">
+        <ScrollView 
+          className="flex-1 p-4"
+          contentContainerStyle={{ 
+            paddingTop: insets.top + 16,
+            paddingBottom: Math.max(insets.bottom, 16)
+          }}
+        >
           <View className="bg-white rounded-lg p-4 mb-4">
             <Text className="text-lg font-semibold text-gray-900 mb-4 text-center">
               Terms and Conditions

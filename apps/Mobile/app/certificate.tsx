@@ -7,6 +7,7 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
@@ -23,6 +24,7 @@ export default function Certificate() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [certificateData, setCertificateData] = useState<CertificateData | null>(null);
   const [isGenerated, setIsGenerated] = useState(false);
+  const insets = useSafeAreaInsets();
   
   const router = useRouter();
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
@@ -70,26 +72,26 @@ export default function Certificate() {
 
   if (!certificateData) {
     return (
-      <SafeAreaView className="flex-1 bg-gray-50 items-center justify-center">
-        <Text className="text-gray-600">Loading certificate data...</Text>
+      <SafeAreaView className="flex-1 bg-blue-900 items-center justify-center">
+        <Text className="text-blue-100">Loading certificate data...</Text>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
-      <View className="bg-white border-b border-gray-200 px-3 pt-12 mt-6">
+    <SafeAreaView className="flex-1 bg-blue-900">
+      <View className="bg-blue-900 px-3 pt-12 mt-6">
         <View className="flex-row items-center justify-between">
           <TouchableOpacity
             onPress={() => router.back()}
-            className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center"
+            className="w-10 h-10 bg-blue-800 rounded-full items-center justify-center"
           >
-            <Ionicons name="arrow-back" size={20} color="#374151" />
+            <Ionicons name="arrow-back" size={20} color="#ffffff" />
           </TouchableOpacity>
           
           <View className="flex-row items-center">
-            <Ionicons name="ribbon" size={18} color="#374151" />
-            <Text className="text-lg font-bold text-gray-800 ml-2">Generate Certificate</Text>
+            <Ionicons name="ribbon" size={18} color="#ffffff" />
+            <Text className="text-lg font-bold text-white ml-2">Generate Certificate</Text>
           </View>
           
           <View className="w-10" />
@@ -99,14 +101,18 @@ export default function Certificate() {
       <View className="flex-1 mx-4 my-2">
         <ScrollView 
           className="flex-1" 
-          contentContainerStyle={{ paddingVertical: 20 }}
+          contentContainerStyle={{ 
+            paddingVertical: 20,
+            paddingTop: insets.top + 20,
+            paddingBottom: Math.max(insets.bottom, 20)
+          }}
           showsVerticalScrollIndicator={false}
         >
           <View className="bg-white rounded-xl shadow-md p-6 mb-8">
             <View className="items-center mb-6">
               <View className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-100 rounded-full items-center justify-center mb-4">
-                <Ionicons name="ribbon" size={24} color="#2563eb" className="sm:hidden" />
-                <Ionicons name="ribbon" size={32} color="#2563eb" className="hidden sm:block" />
+                <Ionicons name="ribbon" size={24} color="#1e3a8a" className="sm:hidden" />
+                <Ionicons name="ribbon" size={32} color="#1e3a8a" className="hidden sm:block" />
               </View>
               <Text className="text-lg sm:text-xl font-bold text-gray-800 text-center">Certificate of Participation</Text>
             </View>
@@ -144,7 +150,7 @@ export default function Certificate() {
               onPress={generateCertificate}
               disabled={isGenerating}
               className={`w-full py-4 rounded-lg items-center mb-6 ${
-                isGenerating ? 'bg-gray-400' : 'bg-blue-500'
+                isGenerating ? 'bg-blue-400' : 'bg-blue-700'
               }`}
             >
               <View className="flex-row items-center">
@@ -172,7 +178,7 @@ export default function Certificate() {
 
               <TouchableOpacity
                 onPress={shareCertificate}
-                className="w-full py-4 bg-blue-500 rounded-lg items-center"
+                className="w-full py-4 bg-blue-700 rounded-lg items-center"
               >
                 <View className="flex-row items-center">
                   <Ionicons name="share-social" size={20} color="white" className="mr-3" />
@@ -194,9 +200,9 @@ export default function Certificate() {
           <View className="space-y-4">
             <TouchableOpacity
               onPress={() => router.push('/')}
-              className="w-full py-4 bg-gray-200 rounded-lg items-center"
+              className="w-full py-4 bg-blue-800 rounded-lg items-center"
             >
-              <Text className="text-gray-700 font-semibold">Back to Home</Text>
+              <Text className="text-white font-semibold">Back to Home</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

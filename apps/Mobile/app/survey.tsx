@@ -9,9 +9,10 @@ import {
   TextInput,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { SurveyService, Survey } from '../lib/surveyService';
+import { SurveyService, Survey as SurveyType } from '../lib/surveyService';
 import { useAuth } from '../lib/authContext';
 
 interface Question {
@@ -28,11 +29,12 @@ export default function Survey() {
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [textInputs, setTextInputs] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [survey, setSurvey] = useState<Survey | null>(null);
+  const [survey, setSurvey] = useState<SurveyType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [availabilityInfo, setAvailabilityInfo] = useState<any>(null);
   const [validationInfo, setValidationInfo] = useState<any>(null);
+  const insets = useSafeAreaInsets();
   
   const router = useRouter();
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
@@ -271,10 +273,10 @@ export default function Survey() {
   // Loading state
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-gray-50">
+      <SafeAreaView className="flex-1 bg-blue-900">
         <View className="flex-1 justify-center items-center">
-          <ActivityIndicator size="large" color="#3b82f6" />
-          <Text className="text-gray-600 mt-4">Loading survey...</Text>
+          <ActivityIndicator size="large" color="#ffffff" />
+          <Text className="text-blue-100 mt-4">Loading survey...</Text>
         </View>
       </SafeAreaView>
     );
@@ -403,17 +405,17 @@ export default function Survey() {
     };
 
     return (
-      <SafeAreaView className="flex-1 bg-gray-50">
+      <SafeAreaView className="flex-1 bg-blue-900">
         <View className="flex-1 justify-center items-center px-4">
           <Ionicons name={getValidationIcon()} size={48} color={getValidationColor()} />
-          <Text className="text-lg font-semibold text-gray-800 mt-4 text-center">
+          <Text className="text-lg font-semibold text-white mt-4 text-center">
             {getValidationTitle()}
           </Text>
-          <Text className="text-gray-600 mt-2 text-center text-base">
+          <Text className="text-blue-100 mt-2 text-center text-base">
             {error}
           </Text>
           {getAdditionalInfo() && (
-            <Text className="text-gray-500 mt-3 text-center text-sm px-4">
+            <Text className="text-blue-100 mt-3 text-center text-sm px-4">
               {getAdditionalInfo()}
             </Text>
           )}
@@ -436,18 +438,18 @@ export default function Survey() {
   // No survey found
   if (!survey || !survey.questions?.length) {
     return (
-      <SafeAreaView className="flex-1 bg-gray-50">
+      <SafeAreaView className="flex-1 bg-blue-900">
         <View className="flex-1 justify-center items-center px-4">
-          <Ionicons name="clipboard-outline" size={48} color="#6b7280" />
-          <Text className="text-lg font-semibold text-gray-800 mt-4 text-center">
+          <Ionicons name="clipboard-outline" size={48} color="#ffffff" />
+          <Text className="text-lg font-semibold text-white mt-4 text-center">
             No Survey Available
           </Text>
-          <Text className="text-gray-600 mt-2 text-center">
+          <Text className="text-blue-100 mt-2 text-center">
             This event doesn't have a survey yet.
           </Text>
           <TouchableOpacity
             onPress={() => router.back()}
-            className="mt-6 bg-blue-600 px-6 py-3 rounded-md"
+            className="mt-6 bg-blue-700 px-6 py-3 rounded-md"
           >
             <Text className="text-white font-medium">Go Back</Text>
           </TouchableOpacity>
@@ -457,20 +459,20 @@ export default function Survey() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <SafeAreaView className="flex-1 bg-blue-900">
       {/* Header */}
-      <View className="bg-white border-b border-gray-200 px-3 pt-12 mt-6">
+      <View className="bg-blue-900 px-3 pt-12 mt-6">
         <View className="flex-row items-center justify-between">
           <TouchableOpacity
             onPress={() => router.back()}
-            className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center"
+            className="w-10 h-10 bg-blue-800 rounded-full items-center justify-center"
           >
-            <Ionicons name="arrow-back" size={20} color="#374151" />
+            <Ionicons name="arrow-back" size={20} color="#ffffff" />
           </TouchableOpacity>
           
           <View className="flex-row items-center">
-            <Ionicons name="clipboard" size={18} color="#374151" />
-            <Text className="text-lg font-bold text-gray-800 ml-2">
+            <Ionicons name="clipboard" size={18} color="#ffffff" />
+            <Text className="text-lg font-bold text-white ml-2">
               {survey.title || 'Event Survey'}
             </Text>
           </View>
@@ -481,16 +483,16 @@ export default function Survey() {
         {/* Progress Bar - Google Forms Style */}
         <View className="mt-4 mb-2">
           <View className="flex-row justify-between items-center mb-2">
-            <Text className="text-sm text-gray-600 font-medium">
+            <Text className="text-sm text-blue-100 font-medium">
               Question {currentQuestionIndex + 1} of {survey.questions.length}
             </Text>
-            <Text className="text-sm text-gray-600 font-medium">
+            <Text className="text-sm text-blue-100 font-medium">
               {Math.round(getProgressPercentage())}%
             </Text>
           </View>
-          <View className="w-full bg-gray-200 rounded-full h-1.5">
+          <View className="w-full bg-blue-800 rounded-full h-1.5">
             <View 
-              className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+              className="bg-white h-1.5 rounded-full transition-all duration-300"
               style={{ width: `${getProgressPercentage()}%` }}
             />
           </View>
@@ -500,11 +502,15 @@ export default function Survey() {
       <View className="flex-1 mx-4 my-2">
         <ScrollView 
           className="flex-1" 
-          contentContainerStyle={{ paddingVertical: 20 }}
+          contentContainerStyle={{ 
+            paddingVertical: 20,
+            paddingTop: insets.top + 20,
+            paddingBottom: Math.max(insets.bottom, 20)
+          }}
           showsVerticalScrollIndicator={false}
         >
           {/* Question Card - Google Forms Style */}
-          <View className="bg-white rounded-lg border border-gray-200 p-6 mb-8">
+          <View className="bg-white rounded-lg border border-blue-200 p-6 mb-8">
             <View className="mb-6">
               <Text className="text-lg sm:text-xl font-medium text-gray-900 mb-3">
                 {currentQuestion.question}
@@ -526,14 +532,14 @@ export default function Survey() {
                 disabled={currentQuestionIndex === 0}
                 className={`py-3 px-6 rounded-md border ${
                   currentQuestionIndex === 0
-                    ? 'border-gray-200 bg-gray-50'
-                    : 'border-gray-300 bg-white hover:bg-gray-50'
+                    ? 'border-blue-200 bg-blue-50'
+                    : 'border-blue-300 bg-white'
                 }`}
               >
                 <Text className={`font-medium text-sm sm:text-base ${
                   currentQuestionIndex === 0
-                    ? 'text-gray-400'
-                    : 'text-gray-700'
+                    ? 'text-blue-300'
+                    : 'text-blue-700'
                 }`}>
                   Previous
                 </Text>
@@ -543,7 +549,7 @@ export default function Survey() {
                 onPress={nextQuestion}
                 disabled={isSubmitting}
                 className={`py-3 px-6 rounded-md ${
-                  isSubmitting ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
+                  isSubmitting ? 'bg-blue-400' : 'bg-blue-700'
                 }`}
               >
                 <Text className="text-white font-medium text-sm sm:text-base">
@@ -556,16 +562,16 @@ export default function Survey() {
           {/* Progress Bar - Google Forms Style */}
           <View className="mt-6 mb-4">
             <View className="flex-row justify-between items-center mb-3">
-              <Text className="text-sm text-gray-600 font-medium">
+              <Text className="text-sm text-blue-100 font-medium">
                 Question {currentQuestionIndex + 1} of {survey.questions.length}
               </Text>
-              <Text className="text-sm text-gray-600 font-medium">
+              <Text className="text-sm text-blue-100 font-medium">
                 {Math.round(getProgressPercentage())}%
               </Text>
             </View>
-            <View className="w-full bg-gray-200 rounded-full h-1.5">
+            <View className="w-full bg-blue-800 rounded-full h-1.5">
               <View 
-                className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                className="bg-white h-1.5 rounded-full transition-all duration-300"
                 style={{ width: `${getProgressPercentage()}%` }}
               />
             </View>
@@ -589,7 +595,7 @@ export default function Survey() {
             }}
             className="mt-6 text-center"
           >
-            <Text className="text-blue-600 text-sm sm:text-base font-medium hover:underline">
+            <Text className="text-white text-sm sm:text-base font-medium underline">
               Skip this survey
             </Text>
           </TouchableOpacity>

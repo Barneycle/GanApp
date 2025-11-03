@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Calendar, MapPin, Clock, Users } from "lucid
 import EventModal from './EventModal';
 import { GenerateQRModal } from './GenerateQR';
 import { EventService } from '../../services/eventService';
+import { SurveyService } from '../../services/surveyService';
 import { useAuth } from '../../contexts/AuthContext';
 
 export const MyEvents = () => {
@@ -302,6 +303,26 @@ export const MyEvents = () => {
                       className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
                     >
                       Generate QR Code
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          // Get survey for this event
+                          const surveyResult = await SurveyService.getSurveysByEvent(event.id);
+                          if (surveyResult.surveys && surveyResult.surveys.length > 0) {
+                            // Get the first active survey
+                            const activeSurvey = surveyResult.surveys.find(s => s.is_active) || surveyResult.surveys[0];
+                            navigate(`/evaluation/${activeSurvey.id}`);
+                          } else {
+                            alert('No survey is available for this event yet.');
+                          }
+                        } catch (err) {
+                          alert('Failed to load survey. Please try again.');
+                        }
+                      }}
+                      className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+                    >
+                      Take Evaluation
                     </button>
                     <button
                       onClick={() => handleUnregister(event.id)}
