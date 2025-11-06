@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as FileSystem from 'expo-file-system';
 import QRCode from 'react-native-qrcode-svg';
+import ViewShot, { captureRef } from 'react-native-view-shot';
 let MediaLibrary: any = null;
 try {
   MediaLibrary = require('expo-media-library');
@@ -47,7 +48,7 @@ export default function MyEvents() {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
-  const qrCodeViewRef = React.useRef<View>(null);
+  const qrCodeViewRef = React.useRef<any>(null);
   const insets = useSafeAreaInsets();
   
   const router = useRouter();
@@ -196,7 +197,7 @@ export default function MyEvents() {
       if (surveyResult.error) {
         Alert.alert('Survey Not Available', surveyResult.error);
       } else if (surveyResult.survey) {
-        router.push(`/survey?id=${surveyResult.survey.id}`);
+        router.push(`/evaluation?id=${surveyResult.survey.id}`);
       } else {
         Alert.alert('Survey Not Available', 'No survey is available for this event yet.');
       }
@@ -322,7 +323,7 @@ export default function MyEvents() {
   };
 
   const downloadQRCode = async () => {
-    if (!qrCodeUrl || !qrEvent) {
+    if (!qrCodeViewRef.current || !qrEvent) {
       Alert.alert('Error', 'QR code not available');
       return;
     }
@@ -331,7 +332,7 @@ export default function MyEvents() {
       setDownloading(true);
 
       // Check if FileSystem is available
-      if (!FileSystem.downloadAsync) {
+      if (!FileSystem.cacheDirectory) {
         Alert.alert('Error', 'File system not available. Please rebuild the app.');
         return;
       }
@@ -341,11 +342,14 @@ export default function MyEvents() {
       const filename = `${sanitizedTitle}_qr_code.png`;
       const fileUri = `${FileSystem.cacheDirectory}${filename}`;
 
-      // Download the image
-      const downloadResult = await FileSystem.downloadAsync(qrCodeUrl, fileUri);
+      // Capture the styled QR code view as an image
+      const uri = await captureRef(qrCodeViewRef.current, {
+        format: 'png',
+        quality: 1.0,
+      });
 
-      if (downloadResult.status !== 200) {
-        throw new Error('Failed to download QR code');
+      if (!uri) {
+        throw new Error('Failed to capture QR code');
       }
 
       // Try to save directly to media library (Photos/Downloads)
@@ -371,7 +375,7 @@ export default function MyEvents() {
       }
 
       // Create asset in media library
-      const asset = await MediaLibrary.createAssetAsync(downloadResult.uri);
+      const asset = await MediaLibrary.createAssetAsync(uri);
       
       // On Android, try to save to Downloads/GanApp folder
       if (Platform.OS === 'android') {
@@ -430,9 +434,9 @@ export default function MyEvents() {
             <Text className="text-red-800 text-lg mb-6 text-center">{error}</Text>
             <TouchableOpacity
               onPress={loadRegisteredEvents}
-              className="bg-blue-600 px-6 py-3 rounded-xl"
+              className="bg-blue-600 px-6 py-4 rounded-xl"
             >
-              <Text className="text-white font-medium">Try Again</Text>
+              <Text className="text-white font-semibold text-base">Try Again</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -454,9 +458,9 @@ export default function MyEvents() {
             </Text>
             <TouchableOpacity
               onPress={() => router.push('/(tabs)/events')}
-              className="bg-blue-600 px-6 py-3 rounded-xl"
+              className="bg-blue-600 px-6 py-4 rounded-xl"
             >
-              <Text className="text-white font-medium">Browse Events</Text>
+              <Text className="text-white font-semibold text-base">Browse Events</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -565,33 +569,33 @@ export default function MyEvents() {
                   </View>
                   
                   {/* Action Buttons */}
-                  <View className="gap-2">
+                  <View className="gap-4">
                     <TouchableOpacity
                       onPress={() => router.push(`/event-details?eventId=${event.id}`)}
-                      className="w-full px-4 py-2 bg-blue-600 rounded-lg"
+                      className="w-full px-4 py-4 bg-blue-600 rounded-lg"
                     >
-                      <Text className="text-white text-sm text-center font-medium">View Details</Text>
+                      <Text className="text-white text-base text-center font-semibold">View Details</Text>
                     </TouchableOpacity>
                     
                     <TouchableOpacity
                       onPress={() => handleGenerateQR(event)}
-                      className="w-full px-4 py-2 bg-green-600 rounded-lg"
+                      className="w-full px-4 py-4 bg-green-600 rounded-lg"
                     >
-                      <Text className="text-white text-sm text-center font-medium">Generate QR Code</Text>
+                      <Text className="text-white text-base text-center font-semibold">Generate QR Code</Text>
                     </TouchableOpacity>
                     
                     <TouchableOpacity
                       onPress={() => handleTakeEvaluation(event)}
-                      className="w-full px-4 py-2 bg-purple-600 rounded-lg"
+                      className="w-full px-4 py-4 bg-purple-600 rounded-lg"
                     >
-                      <Text className="text-white text-sm text-center font-medium">Take Evaluation</Text>
+                      <Text className="text-white text-base text-center font-semibold">Take Evaluation</Text>
                     </TouchableOpacity>
                     
                     <TouchableOpacity
                       onPress={() => handleUnregister(event.id)}
-                      className="w-full px-4 py-2 bg-red-600 rounded-lg"
+                      className="w-full px-4 py-4 bg-red-600 rounded-lg"
                     >
-                      <Text className="text-white text-sm text-center font-medium">Unregister</Text>
+                      <Text className="text-white text-base text-center font-semibold">Unregister</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -664,8 +668,9 @@ export default function MyEvents() {
               {qrCodeData && !qrLoading && !qrError && qrEvent && (
                 <View>
                   {/* Modern QR Code Card */}
-                  <View 
+                  <ViewShot 
                     ref={qrCodeViewRef}
+                    options={{ format: 'png', quality: 1.0 }}
                     style={{
                       backgroundColor: '#0f172a', // Dark blue background
                       borderRadius: 24,
@@ -775,7 +780,7 @@ export default function MyEvents() {
                     >
                       Scan for event check-in
                     </Text>
-                  </View>
+                  </ViewShot>
 
                   {/* Event Info */}
                   <View className="bg-blue-50 rounded-xl p-4 mb-4">

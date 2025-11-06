@@ -155,14 +155,14 @@ export const Navbar = () => {
                   )}
                 </div>
 
-                {/* Survey Dropdown */}
+                {/* Evaluation Dropdown */}
                 <div className="relative">
                   <button
                     onClick={toggleSurveyDropdown}
                     onMouseEnter={() => setIsSurveyDropdownOpen(true)}
                     className="text-lg font-medium text-gray-300 hover:text-white transition-colors flex items-center space-x-1"
                   >
-                    <span>Survey</span>
+                    <span>Evaluation</span>
                     <svg className="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                     </svg>
@@ -178,7 +178,7 @@ export const Navbar = () => {
                         className="block px-4 py-2 text-sm text-gray-300 hover:bg-blue-900 hover:text-white transition-colors"
                         onClick={closeSurveyDropdown}
                       >
-                        Survey Management
+                        Evaluation Management
                       </Link>
                       <Link
                         to="/event-statistics"
@@ -243,9 +243,17 @@ export const Navbar = () => {
                   onClick={toggleProfileDropdown}
                   className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors focus:outline-none"
                 >
-                                   <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-lg shadow-md hover:shadow-lg transition-shadow border border-blue-400/50">
-                    {getUserInitials()}
-                  </div>
+                  {user?.avatar_url ? (
+                    <img
+                      src={user.avatar_url}
+                      alt={`${user.first_name} ${user.last_name}`}
+                      className="w-16 h-16 rounded-full object-cover border-2 border-blue-400/50 shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-2xl shadow-md hover:shadow-lg transition-shadow border-2 border-blue-400/50">
+                      {getUserInitials()}
+                    </div>
+                  )}
                 </button>
 
                 {/* Profile Dropdown */}
@@ -271,6 +279,13 @@ export const Navbar = () => {
                         </span>
                       </div>
                     </div>
+                    <Link
+                      to="/edit-profile"
+                      className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-blue-900 transition-colors"
+                      onClick={closeProfileDropdown}
+                    >
+                      Edit Profile
+                    </Link>
                     <button
                       onClick={handleSignOut}
                       className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-blue-900 transition-colors"
@@ -372,16 +387,16 @@ export const Navbar = () => {
                       </div>
                     </div>
                     
-                    {/* Mobile Survey Section */}
+                    {/* Mobile Evaluation Section */}
                     <div className="px-3 py-2">
-                      <div className="text-lg font-medium text-gray-300 mb-2">Survey</div>
+                      <div className="text-lg font-medium text-gray-300 mb-2">Evaluation</div>
                       <div className="ml-4 space-y-1">
                         <Link
                           to="/survey-management"
                           className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
                           onClick={() => setIsMobileMenuOpen(false)}
                         >
-                          Survey Management
+                          Evaluation Management
                         </Link>
                         <Link
                           to="/event-statistics"
@@ -424,14 +439,29 @@ export const Navbar = () => {
             {isAuthenticated ? (
               <div className="pt-4 border-t border-blue-800/50">
                 <div className="flex items-center px-3 py-2">
-                                   <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-lg mr-3 border border-blue-400/50">
-                    {getUserInitials()}
-                  </div>
+                  {user?.avatar_url ? (
+                    <img
+                      src={user.avatar_url}
+                      alt={`${user.first_name} ${user.last_name}`}
+                      className="w-16 h-16 rounded-full object-cover border-2 border-blue-400/50 shadow-md mr-3"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-2xl mr-3 border-2 border-blue-400/50">
+                      {getUserInitials()}
+                    </div>
+                  )}
                   <div className="flex-1">
                     <p className="text-sm font-medium text-white">{user?.first_name} {user?.last_name}</p>
                     <p className="text-xs text-gray-300">{user?.email}</p>
                   </div>
                 </div>
+                <Link
+                  to="/edit-profile"
+                  className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-blue-800 transition-colors rounded-md"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Edit Profile
+                </Link>
                 <button
                   onClick={handleSignOut}
                   className="w-full text-left px-3 py-2 text-sm text-red-300 hover:bg-blue-800 transition-colors rounded-md"

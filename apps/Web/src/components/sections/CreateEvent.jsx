@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, Suspense, lazy, Component } from 'react';
 
 import { useNavigate } from 'react-router-dom';
 
@@ -16,6 +16,47 @@ import { VenueService } from '../../services/venueService';
 import { supabase } from '../../lib/supabaseClient';
 
 import { useAuth } from '../../contexts/AuthContext';
+
+// Lazy load RichTextEditor to prevent app-wide crashes
+const RichTextEditor = lazy(() => import('../RichTextEditor'));
+
+// Error Boundary for RichTextEditor
+class RichTextEditorErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('RichTextEditor Error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <textarea
+          value={this.props.value || ''}
+          onChange={(e) => {
+            if (this.props.onChange) {
+              // Textarea always sends event, but RichTextEditor sends HTML string
+              // For error fallback, we'll use plain text
+              this.props.onChange(e.target.value);
+            }
+          }}
+          placeholder={this.props.placeholder || 'Describe your event and its purpose'}
+          className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400 min-h-[150px] resize-vertical ${this.props.errorClass || 'border-slate-200'}`}
+          rows={6}
+        />
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 
 
@@ -3456,21 +3497,31 @@ export const CreateEvent = () => {
 
                   render={({ field }) => (
 
-                    <textarea
-
-                      {...field}
-
-                      rows="4"
-
-                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400 ${
-
-                        errors.rationale ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-
-                      }`}
-
-                      placeholder="Describe your event and its purpose"
-
-                    />
+                    <div className={`${errors.rationale ? 'ring-2 ring-red-500 rounded-xl' : ''}`}>
+                      <RichTextEditorErrorBoundary
+                        value={field.value || ''}
+                        onChange={(html) => field.onChange(html)}
+                        placeholder="Describe your event and its purpose"
+                        errorClass={errors.rationale ? 'border-red-300' : 'border-slate-200'}
+                      >
+                        <Suspense fallback={
+                          <textarea
+                            value={field.value || ''}
+                            onChange={(e) => field.onChange(e.target.value)}
+                            placeholder="Describe your event and its purpose"
+                            className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400 min-h-[150px] resize-vertical ${errors.rationale ? 'border-red-300' : 'border-slate-200'}`}
+                            rows={6}
+                          />
+                        }>
+                          <RichTextEditor
+                            value={field.value || ''}
+                            onChange={(html) => field.onChange(html)}
+                            placeholder="Describe your event and its purpose"
+                            className={errors.rationale ? 'border-red-300' : ''}
+                          />
+                        </Suspense>
+                      </RichTextEditorErrorBoundary>
+                    </div>
 
                   )}
 
@@ -4128,6 +4179,22 @@ export const CreateEvent = () => {
                         </div>
                       </div>
 
+                      {/* Logo Upload - Moved to top */}
+                      <div className="mb-4">
+                        <FileDropzone
+                          label="Sponsor Logo"
+                          name={`sponsor-logo-${index}`}
+                          accept=".png,.jpg,.jpeg"
+                          onFileChange={() => {}}
+                          onUpload={(results) => handleFileUpload('logo', results)}
+                          uploadType="logo"
+                          maxSizeMB={35}
+                          control={control}
+                          uploadedFiles={uploadedFiles.sponsorLogos || []}
+                          onRemoveFile={(fileId) => handleRemoveFile('logo', fileId)}
+                        />
+                      </div>
+
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {/* Organization Name */}
                         <div className="md:col-span-3">
@@ -4187,22 +4254,6 @@ export const CreateEvent = () => {
                               Please enter a valid Philippine mobile number (09123456789)
                             </p>
                           )}
-                        </div>
-
-                        {/* Logo Upload */}
-                        <div className="md:col-span-3">
-                          <FileDropzone
-                            label="Sponsor Logo"
-                            name={`sponsor-logo-${index}`}
-                            accept=".png,.jpg,.jpeg"
-                            onFileChange={() => {}}
-                            onUpload={(results) => handleFileUpload('logo', results)}
-                            uploadType="logo"
-                            maxSizeMB={35}
-                            control={control}
-                            uploadedFiles={uploadedFiles.sponsorLogos || []}
-                            onRemoveFile={(fileId) => handleRemoveFile('logo', fileId)}
-                          />
                         </div>
 
                         {/* Address */}
@@ -4338,6 +4389,22 @@ export const CreateEvent = () => {
                             </svg>
                           </button>
                         </div>
+                      </div>
+
+                      {/* Photo Upload - Moved to top */}
+                      <div className="mb-4">
+                        <FileDropzone
+                          label="Speaker Photo"
+                          name={`speaker-photo-${index}`}
+                          accept=".png,.jpg,.jpeg"
+                          onFileChange={() => {}}
+                          onUpload={(results) => handleFileUpload('photo', results)}
+                          uploadType="photo"
+                          maxSizeMB={35}
+                          control={control}
+                          uploadedFiles={uploadedFiles.speakerPhotos || []}
+                          onRemoveFile={(fileId) => handleRemoveFile('photo', fileId)}
+                        />
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -4477,22 +4544,6 @@ export const CreateEvent = () => {
                               Please enter a valid Philippine mobile number (09123456789)
                             </p>
                           )}
-                        </div>
-
-                        {/* Photo Upload */}
-                        <div className="md:col-span-3">
-                          <FileDropzone
-                            label="Speaker Photo"
-                            name={`speaker-photo-${index}`}
-                            accept=".png,.jpg,.jpeg"
-                            onFileChange={() => {}}
-                            onUpload={(results) => handleFileUpload('photo', results)}
-                            uploadType="photo"
-                            maxSizeMB={35}
-                            control={control}
-                            uploadedFiles={uploadedFiles.speakerPhotos || []}
-                            onRemoveFile={(fileId) => handleRemoveFile('photo', fileId)}
-                          />
                         </div>
 
                         {/* Bio */}

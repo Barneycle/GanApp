@@ -186,29 +186,73 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
           {/* QR Code */}
           {qrCodeUrl && !loading && !error && (
             <>
-              <div className="text-center mb-6">
-                <div className="inline-block p-4 bg-white border-2 border-gray-200 rounded-xl">
-                  <img
-                    src={qrCodeUrl}
-                    alt="Event QR Code"
-                    className="w-64 h-64 mx-auto"
-                  />
+              {/* Modern QR Code Card - Matching Mobile Design */}
+              <div className="bg-slate-900 rounded-3xl p-6 mb-6 shadow-2xl relative overflow-hidden">
+                {/* Background Pattern Effect */}
+                <div className="absolute inset-0 bg-blue-900 opacity-10 rounded-3xl"></div>
+                
+                {/* White Card Container */}
+                <div className="bg-white rounded-2xl p-5 max-w-xs mx-auto relative z-10 shadow-lg">
+                  {/* QR Code */}
+                  <div className="bg-white rounded-2xl p-4 mb-4">
+                    <img
+                      src={qrCodeUrl}
+                      alt="Event QR Code"
+                      className="w-full h-auto mx-auto"
+                      style={{ maxWidth: '240px' }}
+                    />
+                  </div>
+
+                  {/* User Name */}
+                  {user && (
+                    <p className="text-lg font-bold text-blue-600 mt-2 mb-1 text-center">
+                      {user.first_name && user.last_name
+                        ? `${user.first_name} ${user.last_name}`
+                        : user.email?.split('@')[0] || 'User'}
+                    </p>
+                  )}
+
+                  {/* Event Title */}
+                  <p className="text-sm text-slate-500 text-center mb-3">
+                    {event.title}
+                  </p>
                 </div>
-                <p className="text-sm text-gray-500 mt-2">
-                  Scan this QR code for event details
+
+                {/* Scan Instruction */}
+                <p className="text-xs text-slate-400 mt-4 text-center relative z-10">
+                  Scan for event check-in
                 </p>
               </div>
 
-              {/* Action Button */}
-              <div className="flex justify-center">
-                <button
-                  onClick={downloadQRCode}
-                  className="flex items-center justify-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-colors"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Download QR Code</span>
-                </button>
+              {/* Event Info */}
+              <div className="bg-blue-50 rounded-xl p-4 mb-6">
+                <h3 className="font-semibold text-gray-800 mb-2">{event.title}</h3>
+                <div className="space-y-1">
+                  <div className="flex items-center text-sm text-gray-600">
+                    <Calendar className="w-4 h-4 mr-2" />
+                    <span>{formatDate(event.start_date)}</span>
+                  </div>
+                  <div className="flex items-center text-sm text-gray-600">
+                    <Clock className="w-4 h-4 mr-2" />
+                    <span>{formatTime(event.start_time)}</span>
+                  </div>
+                  {event.venue && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <MapPin className="w-4 h-4 mr-2" />
+                      <span>{event.venue}</span>
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Download Button */}
+              <button
+                onClick={downloadQRCode}
+                className="w-full flex items-center justify-center space-x-2 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-semibold"
+              >
+                <Download className="w-5 h-5" />
+                <span>Download PNG</span>
+              </button>
             </>
           )}
         </div>

@@ -6,6 +6,8 @@ export interface User {
   role: 'admin' | 'organizer' | 'participant';
   first_name?: string;
   last_name?: string;
+  avatar_url?: string;
+  affiliated_organization?: string;
   created_at: string;
   updated_at: string;
 }
@@ -29,10 +31,12 @@ export class UserService {
       // Create user object from Supabase Auth data
       const userData: User = {
         id: user.id,
-        email: user.email,
+        email: user.email || '',
         role: role,
         first_name: user.user_metadata?.first_name || '',
         last_name: user.user_metadata?.last_name || '',
+        avatar_url: user.user_metadata?.avatar_url || '',
+        affiliated_organization: user.user_metadata?.affiliated_organization || '',
         created_at: user.created_at,
         updated_at: user.updated_at || user.created_at
       };
@@ -52,7 +56,9 @@ export class UserService {
           data: {
             role: userData.role || 'participant',
             first_name: userData.first_name || '',
-            last_name: userData.last_name || ''
+            last_name: userData.last_name || '',
+            avatar_url: userData.avatar_url || '',
+            affiliated_organization: userData.affiliated_organization || ''
           }
         }
       });
@@ -65,10 +71,12 @@ export class UserService {
         // Create user object from Supabase Auth data
         const user: User = {
           id: data.user.id,
-          email: data.user.email,
+          email: data.user.email || '',
           role: data.user.user_metadata?.role || 'participant',
           first_name: data.user.user_metadata?.first_name || '',
           last_name: data.user.user_metadata?.last_name || '',
+          avatar_url: data.user.user_metadata?.avatar_url || '',
+          affiliated_organization: data.user.user_metadata?.affiliated_organization || '',
           created_at: data.user.created_at,
           updated_at: data.user.updated_at || data.user.created_at
         };
@@ -100,10 +108,12 @@ export class UserService {
         // Create user object from Supabase Auth data
         const userData: User = {
           id: data.user.id,
-          email: data.user.email,
+          email: data.user.email || '',
           role: role,
           first_name: data.user.user_metadata?.first_name || '',
           last_name: data.user.user_metadata?.last_name || '',
+          avatar_url: data.user.user_metadata?.avatar_url || '',
+          affiliated_organization: data.user.user_metadata?.affiliated_organization || '',
           created_at: data.user.created_at,
           updated_at: data.user.updated_at || data.user.created_at
         };
@@ -131,16 +141,39 @@ export class UserService {
     }
   }
 
-  static async updateProfile(userId: string, updates: Partial<User>): Promise<{ user?: User; error?: string }> {
+  static async updateProfile(userId: string, updates: Partial<User> & { originalEmail?: string }): Promise<{ user?: User; error?: string; needsEmailConfirmation?: boolean }> {
     try {
-      // Update user metadata in Supabase Auth
-      const { data, error } = await supabase.auth.updateUser({
-        data: {
-          role: updates.role,
-          first_name: updates.first_name,
-          last_name: updates.last_name
-        }
-      });
+      // Prepare update object for metadata
+      const updateData: any = {
+        role: updates.role,
+        first_name: updates.first_name,
+        last_name: updates.last_name
+      };
+
+      // Add optional fields if provided
+      if (updates.avatar_url !== undefined) {
+        updateData.avatar_url = updates.avatar_url;
+      }
+      if (updates.affiliated_organization !== undefined) {
+        updateData.affiliated_organization = updates.affiliated_organization;
+      }
+
+      // Check if email is being changed
+      const isEmailChanging = updates.email && updates.email !== updates.originalEmail;
+
+      // Update user metadata and email in Supabase Auth
+      const updateParams: any = {
+        data: updateData
+      };
+      
+      // Only add email if it's being changed
+      if (isEmailChanging) {
+        updateParams.email = updates.email;
+      }
+
+      // Update user metadata and email in Supabase Auth
+
+      const { data, error } = await supabase.auth.updateUser(updateParams);
 
       if (error) {
         return { error: error.message };
@@ -149,20 +182,99 @@ export class UserService {
       if (data.user) {
         const userData: User = {
           id: data.user.id,
-          email: data.user.email,
+          email: data.user.email || '', // This will be the new email if confirmation is disabled, or old email until confirmed
           role: data.user.user_metadata?.role || 'participant',
           first_name: data.user.user_metadata?.first_name || '',
           last_name: data.user.user_metadata?.last_name || '',
+          avatar_url: data.user.user_metadata?.avatar_url || '',
+          affiliated_organization: data.user.user_metadata?.affiliated_organization || '',
           created_at: data.user.created_at,
           updated_at: data.user.updated_at || data.user.created_at
         };
         
-        return { user: userData };
+        // Check if email confirmation is needed
+        // If email was changed and data.user.email matches the new email, confirmation was NOT needed (email updated immediately)
+        // If email was changed but data.user.email still shows old email, confirmation IS needed
+        const emailUpdatedImmediately = isEmailChanging && 
+          data.user.email && 
+          updates.email &&
+          data.user.email.toLowerCase() === updates.email.toLowerCase();
+        
+        const needsEmailConfirmation = Boolean(isEmailChanging && !emailUpdatedImmediately);
+        
+        return { 
+          user: userData,
+          needsEmailConfirmation: needsEmailConfirmation
+        };
       }
 
       return { error: 'Failed to update user' };
     } catch (error) {
       return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async updatePassword(currentPassword: string, newPassword: string): Promise<{ error?: string }> {
+    try {
+      // First verify the current password by attempting to sign in
+      const { data: { user }, error: verifyError } = await supabase.auth.getUser();
+      
+      if (verifyError || !user) {
+        return { error: 'Unable to verify current session. Please sign in again.' };
+      }
+
+      // Update the password using Supabase Auth
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) {
+        return { error: error.message || 'Failed to update password' };
+      }
+
+      return {};
+    } catch (error: any) {
+      return { error: error.message || 'An unexpected error occurred' };
+    }
+  }
+
+  static async uploadAvatar(userId: string, file: File): Promise<{ url?: string; error?: string }> {
+    try {
+      // Create a unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${userId}-${Date.now()}.${fileExt}`;
+
+      // Upload file to Supabase Storage with upsert enabled
+      // Store files in user-specific folders: userId/filename
+      const { data, error: uploadError } = await supabase.storage
+        .from('user-avatars')
+        .upload(`${userId}/${fileName}`, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        // Provide helpful error message for RLS issues
+        if (uploadError.message?.includes('row-level security') || uploadError.message?.includes('RLS')) {
+          return { 
+            error: 'Permission denied. Please ensure the storage bucket allows authenticated users to upload files. Contact your administrator.' 
+          };
+        }
+        return { 
+          error: uploadError.message || 'Failed to upload avatar. Please ensure you have permission to upload files.' 
+        };
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('user-avatars')
+        .getPublicUrl(`${userId}/${fileName}`);
+
+      return { url: urlData.publicUrl };
+    } catch (error: any) {
+      console.error('Upload catch error:', error);
+      return { error: error.message || 'Failed to upload avatar' };
     }
   }
 

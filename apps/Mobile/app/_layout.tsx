@@ -63,6 +63,13 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="evaluation"
+              options={{
+                title: 'Evaluation',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="certificate"
               options={{
                 title: 'Certificate',

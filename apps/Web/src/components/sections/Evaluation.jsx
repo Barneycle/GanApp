@@ -18,6 +18,7 @@ export const Evaluation = () => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
+  const [hasCheckedSubmission, setHasCheckedSubmission] = useState(false);
   const [responses, setResponses] = useState({});
 
   useEffect(() => {
@@ -64,35 +65,20 @@ export const Evaluation = () => {
     try {
       setLoading(true);
       setError(null);
+      setAlreadySubmitted(false); // Reset this state
+      setHasCheckedSubmission(false); // Reset check flag
       
       console.log('Loading survey:', surveyId);
       
-      // Check if user has already submitted a response
-      if (user?.id) {
-        const { data: existingResponse, error: responseCheckError } = await supabase
-          .from('survey_responses')
-          .select('id')
-          .eq('survey_id', surveyId)
-          .eq('user_id', user.id)
-          .single();
-
-        if (existingResponse) {
-          setAlreadySubmitted(true);
-          setLoading(false);
-          return;
-        }
-        // If error is not "not found", log it but continue
-        if (responseCheckError && responseCheckError.code !== 'PGRST116') {
-          console.error('Error checking existing response:', responseCheckError);
-        }
-      }
-
-      // Load survey by ID
+      // Load survey by ID first (needed even if already submitted for certificate generation)
       const surveyResult = await SurveyService.getSurveyById(surveyId);
       console.log('Survey result:', surveyResult);
       if (surveyResult.error) {
         console.error('Error loading survey:', surveyResult.error);
         setError(surveyResult.error || 'Survey not found');
+        setLoading(false);
+        setHasCheckedSubmission(true);
+        return;
       } else if (surveyResult.survey) {
         const loadedSurvey = surveyResult.survey;
         setSurvey(loadedSurvey);
@@ -108,23 +94,49 @@ export const Evaluation = () => {
             setEvent(eventResult.event);
           }
         }
-        
-        // Initialize responses object
-        const initialResponses = {};
-        if (loadedSurvey.questions && Array.isArray(loadedSurvey.questions)) {
-          loadedSurvey.questions.forEach((question, index) => {
-            const qId = question.id || question.question || `q_${index}`;
-            initialResponses[qId] = '';
-          });
-        }
-        console.log('Initial responses:', initialResponses);
-        setResponses(initialResponses);
       } else {
         setError('Survey not found.');
+        setHasCheckedSubmission(true);
       }
+      
+      // Check if user has already submitted a response (after loading survey)
+      if (user?.id) {
+        const { data: existingResponse, error: responseCheckError } = await supabase
+          .from('survey_responses')
+          .select('id')
+          .eq('survey_id', surveyId)
+          .eq('user_id', user.id)
+          .single();
+
+        if (existingResponse) {
+          setAlreadySubmitted(true);
+          setHasCheckedSubmission(true);
+          setLoading(false);
+          return;
+        }
+        // If error is not "not found", log it but continue
+        if (responseCheckError && responseCheckError.code !== 'PGRST116') {
+          console.error('Error checking existing response:', responseCheckError);
+        }
+      }
+      
+      // Mark that we've checked submission status
+      setHasCheckedSubmission(true);
+
+      // Initialize responses object (only if not already submitted)
+      const initialResponses = {};
+      if (surveyResult.survey?.questions && Array.isArray(surveyResult.survey.questions)) {
+        surveyResult.survey.questions.forEach((question, index) => {
+          const qId = question.id || question.question || `q_${index}`;
+          initialResponses[qId] = '';
+        });
+      }
+      console.log('Initial responses:', initialResponses);
+      setResponses(initialResponses);
     } catch (err) {
       console.error('Error loading data:', err);
       setError(err.message || 'Failed to load survey details');
+      setHasCheckedSubmission(true);
     } finally {
       setLoading(false);
       console.log('Loading complete. Survey:', survey, 'Error:', error);
@@ -517,8 +529,9 @@ export const Evaluation = () => {
     );
   }
 
-  // Show loading only briefly - then show form even if event hasn't loaded
-  if (loading && !survey && !error) {
+  // Show loading while checking auth, loading data, or checking if already submitted
+  // Also show loading if we haven't checked submission status yet
+  if (loading || !hasCheckedSubmission) {
     return (
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center">
         <div className="text-center">
@@ -561,15 +574,25 @@ export const Evaluation = () => {
               </svg>
             </div>
             <h3 className="text-xl font-semibold text-slate-800 mb-2">Evaluation Already Taken</h3>
-            <p className="text-slate-600 mb-6">
+            <p className="text-slate-600 mb-8">
               You have already submitted an evaluation for this survey. Thank you for your feedback!
             </p>
-            <button 
-              onClick={() => navigate('/my-events')} 
-              className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 transition-all duration-200 font-medium shadow-md hover:shadow-lg"
-            >
-              Back to My Events
-            </button>
+            <div className="flex flex-col gap-4 items-center">
+              {survey?.event_id && (
+                <button 
+                  onClick={() => navigate(`/certificate?eventId=${survey.event_id}`)} 
+                  className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-4 rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-200 font-semibold text-base shadow-md hover:shadow-lg"
+                >
+                  Generate Certificate
+                </button>
+              )}
+              <button 
+                onClick={() => navigate('/my-events')} 
+                className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-4 rounded-xl hover:from-blue-700 hover:to-blue-900 transition-all duration-200 font-semibold text-base shadow-md hover:shadow-lg"
+              >
+                Back to My Events
+              </button>
+            </div>
           </div>
         </div>
       </section>

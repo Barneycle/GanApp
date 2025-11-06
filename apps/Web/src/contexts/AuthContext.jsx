@@ -105,6 +105,8 @@ export const AuthProvider = ({ children }) => {
             role: session.user.user_metadata?.role || 'participant',
             first_name: session.user.user_metadata?.first_name || '',
             last_name: session.user.user_metadata?.last_name || '',
+            avatar_url: session.user.user_metadata?.avatar_url || '',
+            affiliated_organization: session.user.user_metadata?.affiliated_organization || '',
             created_at: session.user.created_at,
             updated_at: session.user.updated_at || session.user.created_at
           };
@@ -148,6 +150,8 @@ export const AuthProvider = ({ children }) => {
                 role: session.user.user_metadata?.role || 'participant',
                 first_name: session.user.user_metadata?.first_name || '',
                 last_name: session.user.user_metadata?.last_name || '',
+                avatar_url: session.user.user_metadata?.avatar_url || '',
+                affiliated_organization: session.user.user_metadata?.affiliated_organization || '',
                 created_at: session.user.created_at,
                 updated_at: session.user.updated_at || session.user.created_at
               };

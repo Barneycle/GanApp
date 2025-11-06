@@ -6,10 +6,13 @@ import {
   SafeAreaView,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { EventService, Event } from '../lib/eventService';
+import { useAuth } from '../lib/authContext';
 
 interface CertificateData {
   eventId: string;
@@ -24,27 +27,97 @@ export default function Certificate() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [certificateData, setCertificateData] = useState<CertificateData | null>(null);
   const [isGenerated, setIsGenerated] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [event, setEvent] = useState<Event | null>(null);
   const insets = useSafeAreaInsets();
   
   const router = useRouter();
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
+  const { user } = useAuth();
+
+  // Safe navigation helpers
+  const safeNavigate = (navigationFn: () => void) => {
+    try {
+      if (isMounted) {
+        navigationFn();
+      }
+    } catch (err) {
+      console.error('Navigation error:', err);
+    }
+  };
+
+  const handleBack = () => {
+    safeNavigate(() => router.back());
+  };
+
+  const handleNavigateToHome = () => {
+    safeNavigate(() => router.push('/'));
+  };
 
   useEffect(() => {
-    const mockData: CertificateData = {
-      eventId: eventId || 'EVT-001',
-      eventName: 'TechCon 2024: AI & Future Tech',
-      participantName: 'John Doe',
-      date: new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      }),
-      certificateId: `CERT-${Date.now()}`,
-      organizer: 'GanApp Events'
-    };
-    
-    setCertificateData(mockData);
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (eventId) {
+      loadEventData();
+    }
   }, [eventId]);
+
+  const loadEventData = async () => {
+    if (!eventId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const eventResult = await EventService.getEventById(eventId);
+      
+      if (eventResult.error) {
+        Alert.alert('Error', eventResult.error || 'Failed to load event data');
+        setLoading(false);
+        return;
+      }
+
+      if (eventResult.event) {
+        setEvent(eventResult.event);
+        
+        // Get participant name from user data
+        const participantName = user?.first_name && user?.last_name
+          ? `${user.first_name} ${user.last_name}`
+          : user?.email?.split('@')[0] || 'Participant';
+
+        // Format event date
+        const eventDate = new Date(eventResult.event.start_date).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+
+        // Get organizer name (you might need to fetch this from the creator)
+        // For now, using a default or trying to get from user
+        const organizer = 'GanApp Events'; // You can fetch this from the event creator if needed
+
+        const certificateData: CertificateData = {
+          eventId: eventResult.event.id,
+          eventName: eventResult.event.title,
+          participantName: participantName,
+          date: eventDate,
+          certificateId: `CERT-${Date.now()}`,
+          organizer: organizer
+        };
+        
+        setCertificateData(certificateData);
+      }
+    } catch (err: any) {
+      console.error('Error loading event data:', err);
+      Alert.alert('Error', 'Failed to load event data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const generateCertificate = async () => {
     if (!certificateData) return;
@@ -70,34 +143,17 @@ export default function Certificate() {
     Alert.alert('Share', 'Certificate sharing functionality would be implemented here.');
   };
 
-  if (!certificateData) {
+  if (!certificateData || loading) {
     return (
       <SafeAreaView className="flex-1 bg-blue-900 items-center justify-center">
-        <Text className="text-blue-100">Loading certificate data...</Text>
+        <ActivityIndicator size="large" color="#ffffff" />
+        <Text className="text-blue-100 mt-4">Loading certificate data...</Text>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView className="flex-1 bg-blue-900">
-      <View className="bg-blue-900 px-3 pt-12 mt-6">
-        <View className="flex-row items-center justify-between">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-10 h-10 bg-blue-800 rounded-full items-center justify-center"
-          >
-            <Ionicons name="arrow-back" size={20} color="#ffffff" />
-          </TouchableOpacity>
-          
-          <View className="flex-row items-center">
-            <Ionicons name="ribbon" size={18} color="#ffffff" />
-            <Text className="text-lg font-bold text-white ml-2">Generate Certificate</Text>
-          </View>
-          
-          <View className="w-10" />
-        </View>
-      </View>
-
       <View className="flex-1 mx-4 my-2">
         <ScrollView 
           className="flex-1" 
@@ -110,37 +166,33 @@ export default function Certificate() {
         >
           <View className="bg-white rounded-xl shadow-md p-6 mb-8">
             <View className="items-center mb-6">
-              <View className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-100 rounded-full items-center justify-center mb-4">
-                <Ionicons name="ribbon" size={24} color="#1e3a8a" className="sm:hidden" />
-                <Ionicons name="ribbon" size={32} color="#1e3a8a" className="hidden sm:block" />
-              </View>
-              <Text className="text-lg sm:text-xl font-bold text-gray-800 text-center">Certificate of Participation</Text>
+              <Text className="text-xl sm:text-2xl font-bold text-gray-800 text-center">Certificate of Participation</Text>
             </View>
 
             <View className="space-y-4 sm:space-y-5">
               <View className="border-b border-gray-200 pb-4">
-                <Text className="text-sm text-gray-600 mb-2">Event Name</Text>
-                <Text className="text-base sm:text-lg font-semibold text-gray-800">{certificateData.eventName}</Text>
+                <Text className="text-base text-gray-600 mb-2">Event Name</Text>
+                <Text className="text-lg sm:text-xl font-semibold text-gray-800">{certificateData.eventName}</Text>
               </View>
 
               <View className="border-b border-gray-200 pb-4">
-                <Text className="text-sm text-gray-600 mb-2">Participant</Text>
-                <Text className="text-base sm:text-lg font-semibold text-gray-800">{certificateData.participantName}</Text>
+                <Text className="text-base text-gray-600 mb-2">Participant</Text>
+                <Text className="text-lg sm:text-xl font-semibold text-gray-800">{certificateData.participantName}</Text>
               </View>
 
               <View className="border-b border-gray-200 pb-4">
-                <Text className="text-sm text-gray-600 mb-2">Date</Text>
-                <Text className="text-base sm:text-lg font-semibold text-gray-800">{certificateData.date}</Text>
+                <Text className="text-base text-gray-600 mb-2">Date</Text>
+                <Text className="text-lg sm:text-xl font-semibold text-gray-800">{certificateData.date}</Text>
               </View>
 
               <View className="border-b border-gray-200 pb-4">
-                <Text className="text-sm text-gray-600 mb-2">Organizer</Text>
-                <Text className="text-base sm:text-lg font-semibold text-gray-800">{certificateData.organizer}</Text>
+                <Text className="text-base text-gray-600 mb-2">Organizer</Text>
+                <Text className="text-lg sm:text-xl font-semibold text-gray-800">{certificateData.organizer}</Text>
               </View>
 
               <View>
-                <Text className="text-sm text-gray-600 mb-2">Certificate ID</Text>
-                <Text className="text-sm font-mono text-gray-500">{certificateData.certificateId}</Text>
+                <Text className="text-base text-gray-600 mb-2">Certificate ID</Text>
+                <Text className="text-base font-mono text-gray-500">{certificateData.certificateId}</Text>
               </View>
             </View>
           </View>
@@ -149,17 +201,17 @@ export default function Certificate() {
             <TouchableOpacity
               onPress={generateCertificate}
               disabled={isGenerating}
-              className={`w-full py-4 rounded-lg items-center mb-6 ${
+              className={`w-full py-5 rounded-lg items-center justify-center mb-6 ${
                 isGenerating ? 'bg-blue-400' : 'bg-blue-700'
               }`}
             >
-              <View className="flex-row items-center">
+              <View className="flex-row items-center justify-center">
                 {isGenerating && (
                   <View className="mr-3">
-                    <Ionicons name="refresh" size={20} color="white" />
+                    <Ionicons name="refresh" size={24} color="white" />
                   </View>
                 )}
-                <Text className="text-white text-base sm:text-lg font-semibold">
+                <Text className="text-white text-lg font-semibold">
                   {isGenerating ? 'Generating Certificate...' : 'Generate Certificate'}
                 </Text>
               </View>
@@ -168,21 +220,23 @@ export default function Certificate() {
             <View className="space-y-4">
               <TouchableOpacity
                 onPress={downloadCertificate}
-                className="w-full py-4 bg-green-500 rounded-lg items-center"
+                className="w-full py-5 bg-green-500 rounded-lg items-center justify-center"
+                style={{ minHeight: 56 }}
               >
-                <View className="flex-row items-center">
-                  <Ionicons name="download" size={20} color="white" className="mr-3" />
-                  <Text className="text-white text-base sm:text-lg font-semibold">Download PDF</Text>
+                <View className="flex-row items-center justify-center">
+                  <Ionicons name="download" size={24} color="white" style={{ marginRight: 12 }} />
+                  <Text className="text-white text-lg font-semibold">Download PDF</Text>
                 </View>
               </TouchableOpacity>
 
               <TouchableOpacity
                 onPress={shareCertificate}
-                className="w-full py-4 bg-blue-700 rounded-lg items-center"
+                className="w-full py-5 bg-blue-700 rounded-lg items-center justify-center"
+                style={{ minHeight: 56 }}
               >
-                <View className="flex-row items-center">
-                  <Ionicons name="share-social" size={20} color="white" className="mr-3" />
-                  <Text className="text-white text-base sm:text-lg font-semibold">Share Certificate</Text>
+                <View className="flex-row items-center justify-center">
+                  <Ionicons name="share-social" size={24} color="white" style={{ marginRight: 12 }} />
+                  <Text className="text-white text-lg font-semibold">Share Certificate</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -199,10 +253,10 @@ export default function Certificate() {
 
           <View className="space-y-4">
             <TouchableOpacity
-              onPress={() => router.push('/')}
-              className="w-full py-4 bg-blue-800 rounded-lg items-center"
+              onPress={handleNavigateToHome}
+              className="w-full py-5 bg-blue-800 rounded-lg items-center justify-center"
             >
-              <Text className="text-white font-semibold">Back to Home</Text>
+              <Text className="text-white text-lg font-semibold">Back to Home</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
