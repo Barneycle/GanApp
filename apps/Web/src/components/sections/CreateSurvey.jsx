@@ -7,6 +7,7 @@ import { EventService } from '../../services/eventService';
 import { SpeakerService } from '../../services/speakerService';
 import { SponsorService } from '../../services/sponsorService';
 import { SurveyService } from '../../services/surveyService';
+import { CertificateService } from '../../services/certificateService';
 import { useAuth } from '../../contexts/AuthContext';
 
 // Zod validation schema for survey questions
@@ -602,6 +603,28 @@ export const CreateSurvey = () => {
           }
         }
         
+      }
+
+      // Step 1.7: Create certificate template record if template URL exists
+      if (pendingEventData.certificate_templates_url && pendingEventData.certificate_templates_url.trim()) {
+        try {
+          const templateUrl = pendingEventData.certificate_templates_url.split(',')[0].trim();
+          const templateResult = await CertificateService.createOrUpdateTemplate(
+            eventId,
+            templateUrl,
+            user.id,
+            `Certificate Template for ${pendingEventData.title}`,
+            `Certificate template for event: ${pendingEventData.title}`
+          );
+          
+          if (templateResult.error) {
+            console.warn('Failed to create certificate template record:', templateResult.error);
+            // Continue without failing - template URL is still stored in event
+          }
+        } catch (templateError) {
+          console.warn('Error creating certificate template record:', templateError);
+          // Continue without failing - template URL is still stored in event
+        }
       }
 
       // Step 2: Create the survey in the database

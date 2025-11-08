@@ -105,13 +105,7 @@ export const Navbar = () => {
                   to="/admin"
                   className="text-lg font-medium text-gray-300 hover:text-white transition-colors"
                 >
-                  Dashboard
-                </Link>
-                <Link
-                  to="/users"
-                  className="text-lg font-medium text-gray-300 hover:text-white transition-colors"
-                >
-                  Manage Users
+                  Admin Dashboard
                 </Link>
               </>
             )}
@@ -352,14 +346,7 @@ export const Navbar = () => {
                       className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
-                      Dashboard
-                    </Link>
-                    <Link
-                      to="/users"
-                      className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      Manage Users
+                      Admin Dashboard
                     </Link>
                   </>
                 )}

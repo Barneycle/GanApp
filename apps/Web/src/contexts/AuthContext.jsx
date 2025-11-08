@@ -18,6 +18,31 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const hasFetchedUser = useRef(false);
   const isInitializing = useRef(true);
+  const banMessageRef = useRef(null);
+
+  const checkBannedStatus = async (authUser) => {
+    if (!authUser) return null;
+
+    const metadata = authUser.user_metadata || {};
+    const bannedUntilRaw = metadata?.banned_until;
+    const isActiveMeta = metadata?.is_active;
+    const now = new Date();
+    const bannedUntil = bannedUntilRaw ? new Date(bannedUntilRaw) : null;
+
+    if ((bannedUntil && bannedUntil > now) || isActiveMeta === false) {
+      await supabase.auth.signOut();
+      const message = bannedUntil && bannedUntil > now
+        ? `Your account is banned until ${bannedUntil.toLocaleString()}. Please contact support.`
+        : 'Your account is currently inactive. Please contact support.';
+      banMessageRef.current = message;
+      setUser(null);
+      setError(message);
+      return message;
+    }
+
+    banMessageRef.current = null;
+    return null;
+  };
 
   // Function to check and clear Supabase storage
   const clearSupabaseStorage = () => {
@@ -98,6 +123,12 @@ export const AuthProvider = ({ children }) => {
           setLoading(false);
           isInitializing.current = false;
         } else if (session) {
+          const bannedMessage = await checkBannedStatus(session.user);
+          if (bannedMessage) {
+            setLoading(false);
+            isInitializing.current = false;
+            return;
+          }
           // Use Supabase Auth user directly (like before migration)
           const userData = {
             id: session.user.id,
@@ -143,6 +174,10 @@ export const AuthProvider = ({ children }) => {
         if (!isInitializing.current) {
           if (event === 'SIGNED_IN' && session) {
             try {
+              const bannedMessage = await checkBannedStatus(session.user);
+              if (bannedMessage) {
+                return;
+              }
               // Use Supabase Auth user directly (like before migration)
               const userData = {
                 id: session.user.id,
@@ -200,13 +235,15 @@ export const AuthProvider = ({ children }) => {
     
     try {
       const result = await UserService.signIn(email, password);
-      
       if (result.user) {
         setUser(result.user);
         setLoading(false);
         const redirectPath = getRedirectPath(result.user);
         return { success: true, user: result.user, redirectPath };
       } else {
+        if (result.error) {
+          banMessageRef.current = result.error;
+        }
         setError(result.error);
         setLoading(false);
         return { success: false, error: result.error };
@@ -285,6 +322,7 @@ export const AuthProvider = ({ children }) => {
   // Clear error function
   const clearError = () => {
     setError(null);
+    banMessageRef.current = null;
   };
 
   // Get current user function

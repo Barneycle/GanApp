@@ -312,29 +312,29 @@ export const EditProfile = () => {
                   <img
                     src={avatarPreview}
                     alt="Profile"
-                    className="w-32 h-32 rounded-full object-cover border-4 border-blue-600 shadow-lg"
+                    className="w-48 h-48 rounded-full object-cover border-[6px] border-blue-600 shadow-2xl"
                   />
                   <button
                     type="button"
                     onClick={handleRemoveAvatar}
-                    className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
+                    className="absolute -top-3 -right-3 w-12 h-12 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-xl"
                     disabled={loading}
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-6 h-6" />
                   </button>
                 </div>
               ) : (
-                <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center border-4 border-blue-600 shadow-lg">
-                  <span className="text-white text-4xl font-bold">
+                <div className="w-48 h-48 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center border-[6px] border-blue-600 shadow-2xl">
+                  <span className="text-white text-6xl font-bold">
                     {user?.first_name?.[0] || user?.email?.[0] || 'U'}
                   </span>
                 </div>
               )}
               <label
                 htmlFor="avatar-upload"
-                className="absolute bottom-0 right-0 w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-700 transition-colors shadow-lg"
+                className="absolute bottom-2 right-2 w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-700 transition-colors shadow-xl"
               >
-                <Camera className="w-5 h-5" />
+                <Camera className="w-7 h-7" />
                 <input
                   id="avatar-upload"
                   type="file"

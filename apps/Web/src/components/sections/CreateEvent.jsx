@@ -1883,7 +1883,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
 
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 002 2z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
 
                                   </svg>
 
@@ -2005,31 +2005,40 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
 
 
-export const CreateEvent = () => {
+export const CreateEvent = ({ mode = 'create', eventId = null } = {}) => {
 
   const navigate = useNavigate();
 
   const { user, isAuthenticated } = useAuth();
 
-  const [uploadedFiles, setUploadedFiles] = useState({
+  const isEditMode = mode === 'edit';
+
+  const [initializing, setInitializing] = useState(isEditMode);
+  const [submitMessage, setSubmitMessage] = useState('');
+  const [submitError, setSubmitError] = useState('');
+  const [currentEvent, setCurrentEvent] = useState(null);
+
+  const [uploadedFiles, setUploadedFiles] = useState(() => ({
 
     banner: null,
 
-    materials: null,
+    materials: [],
 
     sponsorLogos: [],
 
-    speakerPhotos: []
+    speakerPhotos: [],
 
-  });
+    eventKits: [],
+
+    eventProgrammes: [],
+
+    certificateTemplates: []
+
+  }));
 
 
 
-
-
-
-
-  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(!isEditMode);
 
 
 
@@ -2048,7 +2057,7 @@ export const CreateEvent = () => {
 
 
 
-  const canCreateEvents = isAuthenticated && user && (user.role === 'admin' || user.role === 'organizer');
+  const canManageEvents = isAuthenticated && user && (user.role === 'admin' || user.role === 'organizer');
 
   // Fetch venues on component mount
   useEffect(() => {
@@ -2080,7 +2089,7 @@ export const CreateEvent = () => {
 
     
 
-    if (!canCreateEvents) {
+    if (!canManageEvents) {
 
       navigate('/');
 
@@ -2088,7 +2097,7 @@ export const CreateEvent = () => {
 
     }
 
-  }, [isAuthenticated, canCreateEvents, navigate]);
+  }, [isAuthenticated, canManageEvents, navigate]);
 
 
 
@@ -2132,7 +2141,7 @@ export const CreateEvent = () => {
 
 
 
-  if (!canCreateEvents) {
+  if (!canManageEvents) {
 
     return (
 
@@ -2331,6 +2340,10 @@ export const CreateEvent = () => {
 
   useEffect(() => {
 
+    if (isEditMode) {
+      return;
+    }
+
     // Check for pending event data (from survey creation) - instant restore
 
     const pendingEventData = sessionStorage.getItem('pending-event-data');
@@ -2462,13 +2475,17 @@ export const CreateEvent = () => {
 
     }
 
-  }, [setValue]);
+  }, [setValue, isEditMode]);
 
 
 
   // Instant auto-save like Google Forms
 
   useEffect(() => {
+
+    if (isEditMode) {
+      return () => {};
+    }
 
     const subscription = watch((data) => {
 
@@ -2878,7 +2895,7 @@ export const CreateEvent = () => {
 
   const onSubmit = async (data) => {
 
-    if (!canCreateEvents) {
+    if (!canManageEvents) {
 
       alert('Access denied. Only administrators and organizers can create events.');
 
@@ -2887,8 +2904,105 @@ export const CreateEvent = () => {
     }
 
 
+    if (isEditMode) {
+      if (!currentEvent) {
+        setSubmitError('Event details are still loading.');
+        return;
+      }
+
+      try {
+        setSubmitError('');
+        setSubmitMessage('');
+        setInitializing(true);
+
+        const normalizeTime = (value, fallback) => {
+          if (!value) return fallback || null;
+          return value.length === 5 ? `${value}:00` : value;
+        };
+
+        const parseNumber = (value) => {
+          if (value === '' || value === null || value === undefined) return null;
+          const parsed = Number(value);
+          return Number.isNaN(parsed) ? null : parsed;
+        };
+
+        const buildDeadline = () => {
+          if (!data.registrationDeadlineDate) return currentEvent.registration_deadline || null;
+          const deadline = new Date(data.registrationDeadlineDate);
+          if (data.registrationDeadlineTime) {
+            const [hours, minutes] = data.registrationDeadlineTime.split(':');
+            deadline.setHours(parseInt(hours || '0', 10), parseInt(minutes || '0', 10), 0, 0);
+          } else {
+            deadline.setHours(23, 59, 59, 999);
+          }
+          return deadline.toISOString();
+        };
+
+        const materialsCsv = uploadedFiles.materials && uploadedFiles.materials.length > 0
+          ? uploadedFiles.materials.map((file) => file.url).filter(Boolean).join(',')
+          : null;
+
+        const updatePayload = {
+          title: data.title || currentEvent.title,
+          rationale: data.rationale || '',
+          start_date: data.startDate || currentEvent.start_date,
+          end_date: data.endDate || currentEvent.end_date || data.startDate,
+          start_time: normalizeTime(data.startTime, currentEvent.start_time),
+          end_time: normalizeTime(data.endTime, currentEvent.end_time),
+          venue: data.venue || currentEvent.venue,
+          max_participants: parseNumber(data.maxParticipants),
+          check_in_before_minutes: parseNumber(data.checkInBeforeMinutes),
+          check_in_during_minutes: parseNumber(data.checkInDuringMinutes),
+          registration_deadline: buildDeadline(),
+          banner_url: uploadedFiles.banner?.url || currentEvent.banner_url || null,
+          materials_url: materialsCsv !== null ? materialsCsv : currentEvent.materials_url || null,
+          event_kits_url: uploadedFiles.eventKits?.length ? uploadedFiles.eventKits.map((file) => file.url).filter(Boolean).join(',') : currentEvent.event_kits_url || null,
+          event_programmes_url: uploadedFiles.eventProgrammes?.length ? uploadedFiles.eventProgrammes.map((file) => file.url).filter(Boolean).join(',') : currentEvent.event_programmes_url || null,
+          certificate_templates_url: uploadedFiles.certificateTemplates?.length ? uploadedFiles.certificateTemplates.map((file) => file.url).filter(Boolean).join(',') : currentEvent.certificate_templates_url || null,
+          updated_at: new Date().toISOString(),
+        };
+
+        const sponsorsList = data.sponsors
+          ? data.sponsors
+              .split(',')
+              .map((name) => name.trim())
+              .filter(Boolean)
+              .map((name) => ({ name }))
+          : currentEvent.sponsors || [];
+
+        const speakersList = data.guestSpeakers
+          ? data.guestSpeakers
+              .split(',')
+              .map((name) => name.trim())
+              .filter(Boolean)
+              .map((name) => ({ name }))
+          : currentEvent.guest_speakers || [];
+
+        updatePayload.sponsors = sponsorsList;
+        updatePayload.guest_speakers = speakersList;
+
+        const { error: updateError } = await EventService.updateEvent(eventId, updatePayload);
+
+        if (updateError) {
+          throw new Error(updateError);
+        }
+
+        setSubmitMessage('Event updated successfully!');
+        navigate('/organizer');
+      } catch (error) {
+        setSubmitError(error.message || 'Unable to update event.');
+      } finally {
+        setInitializing(false);
+      }
+
+      return;
+    }
+
+
 
     // Prepare event data (don't save to database yet)
+
+
 
     const eventData = {
 
@@ -3147,6 +3261,14 @@ export const CreateEvent = () => {
 
 
 
+  const pageTitle = isEditMode ? 'Edit Event' : 'Create Event';
+  const pageSubtitle = isEditMode
+    ? 'Update your event details and uploaded resources.'
+    : 'Set up your event details and upload necessary materials to get started';
+  const submitButtonLabel = isEditMode ? 'Save Changes' : 'Create Event';
+
+
+
   return (
 
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
@@ -3189,7 +3311,7 @@ export const CreateEvent = () => {
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-slate-800 to-blue-800 bg-clip-text text-transparent">
 
-              Create Event
+              {pageTitle}
 
             </h1>
 
@@ -3197,7 +3319,7 @@ export const CreateEvent = () => {
 
           <p className="text-slate-600 text-xl sm:text-2xl max-w-3xl mx-auto">
 
-            Set up your event details and upload necessary materials to get started
+            {pageSubtitle}
 
           </p>
 
@@ -3207,85 +3329,93 @@ export const CreateEvent = () => {
 
           {/* Draft Management Info */}
 
-          <div className="mt-6 flex items-center justify-center space-x-6">
+          {!isEditMode && (
 
-            {/* Auto-save Toggle */}
+            <div className="mt-6 flex items-center justify-center space-x-6">
 
-            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-3">
 
-              <span className="text-base font-medium text-slate-600">Auto-save</span>
+                <span className="text-base font-medium text-slate-600">Auto-save</span>
 
-              <button
+                <button
 
-                onClick={toggleAutoSave}
+                  onClick={toggleAutoSave}
 
-                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
 
-                  autoSaveEnabled ? 'bg-green-500' : 'bg-gray-400'
+                    autoSaveEnabled ? 'bg-green-500' : 'bg-gray-400'
 
-                }`}
+                  }`}
 
-              >
+                >
 
-                <div className={`inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white transition-transform ${
+                  <div
 
-                  autoSaveEnabled ? 'translate-x-6' : 'translate-x-1'
+                    className={`inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white transition-transform ${
 
-                }`}>
+                      autoSaveEnabled ? 'translate-x-6' : 'translate-x-1'
 
-                  {autoSaveEnabled && (
+                    }`}
 
-                    <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  >
 
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    {autoSaveEnabled && (
 
-                    </svg>
+                      <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 
-                  )}
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 
-                </div>
+                      </svg>
+
+                    )}
+
+                  </div>
+
+                </button>
+
+                <span className={`text-base font-medium ${autoSaveEnabled ? 'text-green-600' : 'text-gray-500'}`}>
+
+                  {autoSaveEnabled ? 'Enabled' : 'Disabled'}
+
+                </span>
+
+              </div>
+
+              
+
+              
+
+                          {/* Clear Draft Button */}
+
+               <button
+
+                 onClick={handleClearDraft}
+
+                 className="inline-flex items-center space-x-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-lg border border-red-200 hover:border-red-300 transition-all duration-200 font-medium text-base shadow-sm hover:shadow-md"
+
+                 title="Clear saved draft"
+
+               >
+
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+
+                </svg>
+
+                <span>Clear Draft</span>
 
               </button>
 
-              <span className={`text-base font-medium ${autoSaveEnabled ? 'text-green-600' : 'text-gray-500'}`}>
 
-                {autoSaveEnabled ? 'Enabled' : 'Disabled'}
 
-              </span>
+              {/* Policy Tester Button */}
+
+
 
             </div>
 
-            
-
-                         {/* Clear Draft Button */}
-
-             <button
-
-               onClick={handleClearDraft}
-
-               className="inline-flex items-center space-x-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-lg border border-red-200 hover:border-red-300 transition-all duration-200 font-medium text-base shadow-sm hover:shadow-md"
-
-               title="Clear saved draft"
-
-             >
-
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-
-              </svg>
-
-              <span>Clear Draft</span>
-
-            </button>
-
-
-
-            {/* Policy Tester Button */}
-
-
-
-          </div>
+          )}
 
         </div>
 
@@ -4704,21 +4834,19 @@ export const CreateEvent = () => {
 
               disabled={!isValid}
 
-              className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-blue-800 text-white py-4 px-12 rounded-xl hover:from-blue-700 hover:to-blue-900 transition-all duration-200 font-semibold text-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              className={`w-full px-6 py-3 rounded-xl text-lg font-semibold shadow-md transition-all duration-200 flex items-center justify-center space-x-2 ${
+
+                isValid
+
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+
+                  : 'bg-slate-200 text-slate-500 cursor-not-allowed'
+
+              }`}
 
             >
 
-              <span className="flex items-center justify-center space-x-2">
-
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-
-                </svg>
-
-                <span>Continue to Survey</span>
-
-              </span>
+              {submitButtonLabel}
 
             </button>
 
@@ -4733,3 +4861,188 @@ export const CreateEvent = () => {
   );
 
 };
+
+useEffect(() => {
+ 
+     if (!isEditMode) {
+       return () => {};
+     }
+ 
+     if (!eventId) {
+       setSubmitError('Missing event identifier.');
+       setInitializing(false);
+       navigate('/organizer');
+       return;
+     }
+ 
+     let isMounted = true;
+ 
+     const extractFilePath = (url) => {
+       if (!url) return null;
+       try {
+         const urlObj = new URL(url);
+         const match = urlObj.pathname.match(/\/storage\/v1\/object\/public\/[^\/]+\/(.+)/);
+         return match ? match[1] : null;
+       } catch (error) {
+         return null;
+       }
+     };
+ 
+     const extractBucketName = (url) => {
+       if (!url) return null;
+       try {
+         const urlObj = new URL(url);
+         const match = urlObj.pathname.match(/\/storage\/v1\/object\/public\/([^\/]+)\//);
+         return match ? match[1] : null;
+       } catch (error) {
+         return null;
+       }
+     };
+ 
+     const loadEventData = async () => {
+       try {
+         setInitializing(true);
+         setSubmitError('');
+ 
+         const { event, error } = await EventService.getEventById(eventId);
+ 
+         if (!isMounted) return;
+ 
+         if (error || !event) {
+           setSubmitError(error || 'Unable to load event details.');
+           setInitializing(false);
+           return;
+         }
+ 
+         setValue('title', event.title || '');
+         setValue('rationale', event.rationale || '');
+         setValue('startDate', event.start_date || new Date().toISOString().split('T')[0]);
+         setValue('endDate', event.end_date || event.start_date || new Date().toISOString().split('T')[0]);
+         setValue('startTime', event.start_time ? event.start_time.slice(0, 5) : '09:00');
+         setValue('endTime', event.end_time ? event.end_time.slice(0, 5) : '17:00');
+         setValue('venue', event.venue || '');
+         setValue('maxParticipants', event.max_participants ? String(event.max_participants) : '');
+         setValue('checkInBeforeMinutes', event.check_in_before_minutes ?? 60);
+         setValue('checkInDuringMinutes', event.check_in_during_minutes ?? 30);
+ 
+         if (event.registration_deadline) {
+           const deadline = new Date(event.registration_deadline);
+           if (!Number.isNaN(deadline.getTime())) {
+             setValue('registrationDeadlineDate', deadline.toISOString().split('T')[0]);
+             setValue('registrationDeadlineTime', deadline.toTimeString().slice(0, 5));
+           }
+         } else {
+           setValue('registrationDeadlineDate', '');
+           setValue('registrationDeadlineTime', '');
+         }
+ 
+         setValue('sponsors', event.sponsors ? event.sponsors.map((s) => s.name).join(', ') : '');
+         setValue('guestSpeakers', event.guest_speakers ? event.guest_speakers.map((s) => s.name).join(', ') : '');
+ 
+         const existingBanner = event.banner_url
+           ? {
+               url: event.banner_url,
+               filename: 'Current Banner',
+               path: extractFilePath(event.banner_url),
+               bucket: extractBucketName(event.banner_url),
+               uploaded: true,
+               isOriginal: true,
+             }
+           : null;
+ 
+         const buildFileList = (csv, labelPrefix) => {
+           if (!csv) return [];
+           return csv
+             .split(',')
+             .map((url, index) => url.trim())
+             .filter(Boolean)
+             .map((url, index) => ({
+               url,
+               filename: `${labelPrefix} ${index + 1}`,
+               path: extractFilePath(url),
+               bucket: extractBucketName(url),
+               uploaded: true,
+               isOriginal: true,
+             }));
+         };
+ 
+         const materialsList = buildFileList(event.materials_url, 'Material');
+         const kitsList = buildFileList(event.event_kits_url, 'Event Kit');
+         const programmesList = buildFileList(event.event_programmes_url, 'Programme');
+         const certificatesList = buildFileList(event.certificate_templates_url, 'Certificate');
+ 
+         setUploadedFiles((prev) => ({
+           ...prev,
+           banner: existingBanner,
+           materials: materialsList,
+           eventKits: kitsList,
+           eventProgrammes: programmesList,
+           certificateTemplates: certificatesList,
+         }));
+ 
+         const speakerResult = await SpeakerService.getEventSpeakers(eventId);
+         if (isMounted && speakerResult.speakers) {
+           setSpeakers(speakerResult.speakers);
+         }
+ 
+         const sponsorResult = await SponsorService.getEventSponsors(eventId);
+         if (isMounted && sponsorResult.sponsors) {
+           setSponsors(sponsorResult.sponsors);
+         }
+ 
+         setCurrentEvent(event);
+
+       } catch (error) {
+         if (isMounted) {
+           setSubmitError('Failed to load event details.');
+         }
+       } finally {
+         if (isMounted) {
+           setInitializing(false);
+         }
+       }
+     };
+ 
+     loadEventData();
+ 
+     return () => {
+       isMounted = false;
+     };
+   }, [isEditMode, eventId, setValue, navigate]);
+
++
++  if (isEditMode && initializing) {
++    return (
++      <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
++        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center max-w-md">
++          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4" />
++          <h2 className="text-2xl font-bold text-slate-800 mb-2">Loading Event</h2>
++          <p className="text-slate-600">Please wait while we fetch the event details.</p>
++        </div>
++      </section>
++    );
++  }
+
++  if (submitError && (
++    <div className="mt-6 max-w-3xl mx-auto w-full bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
++      {submitError}
++    </div>
++  )) {
++    return (
++      <div className="mt-6 max-w-3xl mx-auto w-full bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
++        {submitError}
++      </div>
++    );
++  }
++
++  if (submitMessage && (
++    <div className="mt-6 max-w-3xl mx-auto w-full bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl">
++      {submitMessage}
++    </div>
++  )) {
++    return (
++      <div className="mt-6 max-w-3xl mx-auto w-full bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl">
++        {submitMessage}
++      </div>
++    );
++  }

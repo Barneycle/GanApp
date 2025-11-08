@@ -25,6 +25,16 @@ export class UserService {
         return null;
       }
 
+      const bannedUntilRaw = user.user_metadata?.banned_until;
+      const isActiveMeta = user.user_metadata?.is_active;
+      const now = new Date();
+      const bannedUntil = bannedUntilRaw ? new Date(bannedUntilRaw) : null;
+
+      if ((bannedUntil && bannedUntil > now) || isActiveMeta === false) {
+        await supabase.auth.signOut();
+        return null;
+      }
+
       // Use Supabase Auth user metadata for role
       const role = user.user_metadata?.role || 'participant';
       
@@ -102,6 +112,20 @@ export class UserService {
       }
 
       if (data.user) {
+        const metadata = data.user.user_metadata || {};
+        const bannedUntilRaw = metadata?.banned_until;
+        const isActiveMeta = metadata?.is_active;
+        const now = new Date();
+        const bannedUntil = bannedUntilRaw ? new Date(bannedUntilRaw) : null;
+
+        if ((bannedUntil && bannedUntil > now) || isActiveMeta === false) {
+          await supabase.auth.signOut();
+          if (bannedUntil && bannedUntil > now) {
+            return { error: `Your account is banned until ${bannedUntil.toLocaleString()}. Please contact support.` };
+          }
+          return { error: 'Your account is currently inactive. Please contact support.' };
+        }
+
         // Use Supabase Auth user metadata for role
         const role = data.user.user_metadata?.role || 'participant';
         

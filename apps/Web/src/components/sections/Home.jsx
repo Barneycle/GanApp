@@ -118,6 +118,16 @@ export const Home = () => {
     guest_speakers: parseGuestSpeakers(event.guest_speakers)
   })) : sampleEvents;
 
+  const decodeHtml = (value) => {
+    if (!value) return '';
+    return value
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+  };
+
   // Start at the beginning (index 0)
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
   const [isCardFolded, setIsCardFolded] = useState(false);
@@ -401,7 +411,7 @@ export const Home = () => {
                 </div>
                 <div 
                   className="text-slate-600 rich-text-content"
-                  dangerouslySetInnerHTML={{ __html: displayFeaturedEvent.rationale }}
+            dangerouslySetInnerHTML={{ __html: decodeHtml(displayFeaturedEvent.rationale) }}
                   style={{
                     wordWrap: 'break-word'
                   }}
@@ -553,9 +563,12 @@ export const Home = () => {
                   />
                   <div className="p-4">
                     <h3 className="font-semibold text-lg text-gray-800">{event.title}</h3>
-                    <p className="text-gray-600 text-sm mt-2">
-                      {event.description || event.rationale || 'Experience something amazing'}
-                    </p>
+                    <div
+                      className="text-gray-600 text-sm mt-2 rich-text-content"
+                      dangerouslySetInnerHTML={{
+                        __html: decodeHtml(event.description || event.rationale || 'Experience something amazing')
+                      }}
+                    />
                     <div className="mt-3 text-xs text-gray-500">
                       <div className="flex items-center space-x-1">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

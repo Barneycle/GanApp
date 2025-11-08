@@ -6,6 +6,7 @@ import EventModal from './EventModal';
 import { GenerateQRModal } from './GenerateQR';
 import { EventService } from '../../services/eventService';
 import { SurveyService } from '../../services/surveyService';
+import { CertificateService } from '../../services/certificateService';
 import { useAuth } from '../../contexts/AuthContext';
 
 export const MyEvents = () => {
@@ -18,6 +19,7 @@ export const MyEvents = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [qrEvent, setQrEvent] = useState(null);
+  const [eligibilityMap, setEligibilityMap] = useState({}); // Map of eventId -> eligibility status
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -53,6 +55,31 @@ export const MyEvents = () => {
         })) || [];
         
         setRegisteredEvents(events);
+        
+        // Check eligibility for each event
+        const eligibilityPromises = events.map(async (event) => {
+          try {
+            const eligibilityCheck = await CertificateService.checkEligibility(user.id, event.id);
+            return {
+              eventId: event.id,
+              eligible: eligibilityCheck.eligibility?.eligible || false,
+              hasTemplate: eligibilityCheck.eligibility?.template_available || false
+            };
+          } catch (err) {
+            return {
+              eventId: event.id,
+              eligible: false,
+              hasTemplate: false
+            };
+          }
+        });
+        
+        const eligibilityResults = await Promise.all(eligibilityPromises);
+        const eligibilityMapObj = {};
+        eligibilityResults.forEach(result => {
+          eligibilityMapObj[result.eventId] = result;
+        });
+        setEligibilityMap(eligibilityMapObj);
       }
     } catch (err) {
       setError('Failed to load your registered events');
@@ -401,6 +428,22 @@ export const MyEvents = () => {
                       className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
                     >
                       Take Evaluation
+                    </button>
+                    <button
+                      onClick={() => navigate(`/certificate?eventId=${event.id}`)}
+                      disabled={!eligibilityMap[event.id]?.eligible}
+                      className={`w-full px-4 py-2 rounded-lg transition-colors text-sm ${
+                        eligibilityMap[event.id]?.eligible
+                          ? 'bg-green-600 text-white hover:bg-green-700'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                      title={
+                        !eligibilityMap[event.id]?.eligible
+                          ? 'Complete attendance and evaluation to generate certificate'
+                          : 'Generate Certificate'
+                      }
+                    >
+                      Generate Certificate
                     </button>
                     <button
                       onClick={() => handleUnregister(event.id)}
