@@ -313,35 +313,60 @@ export class AdminService {
    */
   static async getCancellationRequests(): Promise<{ requests?: CancellationRequest[]; error?: string }> {
     try {
-      const { data, error } = await supabase
+      // First, get all cancellation requests (including pending ones)
+      const { data: requestsData, error: requestsError } = await supabase
         .from('event_cancellation_requests')
-        .select(`
-          *,
-          events:event_id (
-            title
-          )
-        `)
-        .eq('status', 'pending')
+        .select('*')
         .order('requested_at', { ascending: false });
 
-      if (error) {
-        return { error: error.message };
+      if (requestsError) {
+        console.error('Error fetching cancellation requests:', requestsError);
+        return { error: requestsError.message };
       }
 
-      // Transform data to include event title
-      const requests = (data || []).map(req => ({
-        ...req,
-        event_title: req.events?.title || 'Unknown Event'
-      }));
+      if (!requestsData || requestsData.length === 0) {
+        return { requests: [] };
+      }
+
+      // Get event IDs to fetch event titles
+      const eventIds = [...new Set(requestsData.map(req => req.event_id))];
+      
+      // Fetch event titles
+      const { data: eventsData, error: eventsError } = await supabase
+        .from('events')
+        .select('id, title')
+        .in('id', eventIds);
+
+      if (eventsError) {
+        console.error('Error fetching events:', eventsError);
+        // Continue even if events fetch fails - we'll use 'Unknown Event'
+      }
+
+      // Create a map of event_id to event_title
+      const eventTitleMap = new Map();
+      if (eventsData) {
+        eventsData.forEach(event => {
+          eventTitleMap.set(event.id, event.title);
+        });
+      }
+
+      // Transform data to include event title and filter for pending requests
+      const requests = requestsData
+        .filter(req => req.status === 'pending')
+        .map(req => ({
+          ...req,
+          event_title: eventTitleMap.get(req.event_id) || 'Unknown Event'
+        }));
 
       return { requests };
     } catch (error) {
+      console.error('Exception in getCancellationRequests:', error);
       return { error: 'An unexpected error occurred' };
     }
   }
 
   /**
-   * Review cancellation request (approve/decline)
+   * Review cancellation request (approve/decline) - Admin only
    */
   static async reviewCancellationRequest(
     requestId: string,
@@ -352,6 +377,23 @@ export class AdminService {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         return { error: 'Not authenticated' };
+      }
+
+      // Verify user is an admin before proceeding
+      const userRole = user.user_metadata?.role;
+      if (userRole !== 'admin') {
+        return { error: 'Only administrators can review cancellation requests' };
+      }
+
+      // Additional check: verify admin role in users table
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      if (!userError && userData && userData.role !== 'admin') {
+        return { error: 'Only administrators can review cancellation requests' };
       }
 
       const { error } = await supabase.rpc('review_cancellation_request', {

@@ -609,12 +609,25 @@ export const CreateSurvey = () => {
       if (pendingEventData.certificate_templates_url && pendingEventData.certificate_templates_url.trim()) {
         try {
           const templateUrl = pendingEventData.certificate_templates_url.split(',')[0].trim();
+          
+          // Get name placement from sessionStorage if available
+          let namePlacement = null;
+          try {
+            const storedPlacement = sessionStorage.getItem('certificate-name-placement');
+            if (storedPlacement) {
+              namePlacement = JSON.parse(storedPlacement);
+            }
+          } catch (e) {
+            console.warn('Failed to parse certificate name placement from sessionStorage:', e);
+          }
+          
           const templateResult = await CertificateService.createOrUpdateTemplate(
             eventId,
             templateUrl,
             user.id,
             `Certificate Template for ${pendingEventData.title}`,
-            `Certificate template for event: ${pendingEventData.title}`
+            `Certificate template for event: ${pendingEventData.title}`,
+            namePlacement
           );
           
           if (templateResult.error) {

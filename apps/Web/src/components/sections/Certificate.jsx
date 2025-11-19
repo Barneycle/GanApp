@@ -151,11 +151,72 @@ export const Certificate = () => {
     }
   };
 
+  // Helper function to get name placement from certificate template
+  const getNamePlacement = (template) => {
+    // Default placement (center, 50% from bottom)
+    const defaultPlacement = {
+      x: 0.5, // 50% from left (center horizontally)
+      y: 0.5, // 50% from bottom
+      fontSize: 36,
+      color: '#000000', // Black
+      fontFamily: 'Arial, sans-serif',
+      fontWeight: 'bold',
+      textAlign: 'center' // 'center', 'left', 'right'
+    };
+
+    if (!template || !template.content_fields) {
+      return defaultPlacement;
+    }
+
+    // Check if name_position exists in content_fields
+    const namePosition = template.content_fields.name_position;
+    if (namePosition && typeof namePosition === 'object') {
+      return {
+        x: namePosition.x !== undefined ? namePosition.x : defaultPlacement.x,
+        y: namePosition.y !== undefined ? namePosition.y : defaultPlacement.y,
+        fontSize: namePosition.fontSize || defaultPlacement.fontSize,
+        color: namePosition.color || defaultPlacement.color,
+        fontFamily: namePosition.fontFamily || defaultPlacement.fontFamily,
+        fontWeight: namePosition.fontWeight || defaultPlacement.fontWeight,
+        textAlign: namePosition.textAlign || defaultPlacement.textAlign
+      };
+    }
+
+    // If name_position is a string, try to parse it
+    if (typeof namePosition === 'string') {
+      try {
+        const parsed = JSON.parse(namePosition);
+        return {
+          x: parsed.x !== undefined ? parsed.x : defaultPlacement.x,
+          y: parsed.y !== undefined ? parsed.y : defaultPlacement.y,
+          fontSize: parsed.fontSize || defaultPlacement.fontSize,
+          color: parsed.color || defaultPlacement.color,
+          fontFamily: parsed.fontFamily || defaultPlacement.fontFamily,
+          fontWeight: parsed.fontWeight || defaultPlacement.fontWeight,
+          textAlign: parsed.textAlign || defaultPlacement.textAlign
+        };
+      } catch (e) {
+        console.warn('Failed to parse name_position:', e);
+      }
+    }
+
+    return defaultPlacement;
+  };
+
   // Helper function: Generate certificate (retrieves template, overlays name, saves to DB, uploads to bucket)
   const generateCertificateHelper = async (userId, eventId, participantName, templateUrl) => {
-    // Step 1: Download template from storage using Storage API (server-side proxy)
-    // The URL is already in the database (certificate_templates_url), but we need the actual PDF bytes to fill it
-    
+    // Step 0: Get certificate template metadata for name placement
+    const templateResult = await CertificateService.getCertificateTemplate(eventId);
+    const certificateTemplate = templateResult.template;
+    const namePlacement = getNamePlacement(certificateTemplate);
+
+    // Step 1: Detect template type (PDF or image)
+    const isImageTemplate = templateUrl.match(/\.(jpg|jpeg|png|gif)$/i) || 
+                            (certificateTemplate && certificateTemplate.template_type === 'image');
+    const isPdfTemplate = templateUrl.match(/\.pdf$/i) || 
+                          (certificateTemplate && certificateTemplate.template_type === 'pdf');
+
+    // Step 2: Download template from storage
     let bucket, path;
     let templateBytes;
     
@@ -194,7 +255,7 @@ export const Certificate = () => {
           const response = await fetch(templateUrl, {
             method: 'GET',
             headers: {
-              'Accept': 'application/pdf',
+              'Accept': isImageTemplate ? 'image/*' : 'application/pdf',
             },
           });
           
@@ -213,7 +274,7 @@ export const Certificate = () => {
         const response = await fetch(templateUrl, {
           method: 'GET',
           headers: {
-            'Accept': 'application/pdf',
+            'Accept': isImageTemplate ? 'image/*' : 'application/pdf',
           },
         });
         
@@ -226,68 +287,162 @@ export const Certificate = () => {
         throw new Error(`Failed to download template: ${fetchErr.message}. URL: ${templateUrl}`);
       }
     }
-    
-    // Step 2: Fill PDF with participant name (overlay on underlined area)
-    const pdfDoc = await PDFDocument.load(templateBytes);
-    const pages = pdfDoc.getPages();
-    const firstPage = pages[0];
-    const { width, height } = firstPage.getSize();
-    
-    // Try to fill form fields first
-    const form = pdfDoc.getForm();
-    const formFields = form.getFields();
-    let nameFilled = false;
-    
-    if (formFields.length > 0) {
-      for (const field of formFields) {
-        try {
-          const fieldName = field.getName().toLowerCase();
-          if (fieldName.includes('name') || fieldName.includes('participant')) {
-            if (field.constructor.name === 'PDFTextField') {
-              field.setText(participantName);
-              nameFilled = true;
-              break;
+
+    let filledBytes;
+    let fileExtension = 'pdf';
+    let contentType = 'application/pdf';
+
+    // Step 3: Process template based on type
+    if (isImageTemplate) {
+      // Handle PNG/JPG templates with Canvas API
+      const imageBlob = new Blob([templateBytes], { type: 'image/png' });
+      const imageUrl = URL.createObjectURL(imageBlob);
+      
+      // Create canvas to draw on image
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = imageUrl;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+
+      // Draw the template image
+      ctx.drawImage(img, 0, 0);
+
+      // Calculate text position based on dynamic placement
+      const textX = namePlacement.textAlign === 'center' 
+        ? canvas.width * namePlacement.x
+        : namePlacement.textAlign === 'right'
+        ? canvas.width * namePlacement.x
+        : canvas.width * namePlacement.x; // left alignment
+      
+      const textY = canvas.height * (1 - namePlacement.y); // y is from bottom, canvas y is from top
+
+      // Set text style
+      ctx.font = `${namePlacement.fontWeight} ${namePlacement.fontSize}px ${namePlacement.fontFamily}`;
+      ctx.fillStyle = namePlacement.color;
+      ctx.textAlign = namePlacement.textAlign;
+      ctx.textBaseline = 'middle'; // Center vertically on the y position
+
+      // Calculate text width for centering if needed
+      const textMetrics = ctx.measureText(participantName);
+      let finalX = textX;
+      if (namePlacement.textAlign === 'center') {
+        finalX = textX - (textMetrics.width / 2);
+      } else if (namePlacement.textAlign === 'right') {
+        finalX = textX - textMetrics.width;
+      }
+
+      // Draw the participant name
+      ctx.fillText(participantName, finalX, textY);
+
+      console.log('Drawing name on image:', {
+        participantName,
+        fontSize: namePlacement.fontSize,
+        x: finalX,
+        y: textY,
+        width: canvas.width,
+        height: canvas.height,
+        textWidth: textMetrics.width,
+        placement: namePlacement
+      });
+
+      // Convert canvas to blob
+      const blob = await new Promise((resolve) => {
+        canvas.toBlob((blob) => {
+          resolve(blob);
+        }, 'image/png', 1.0);
+      });
+
+      filledBytes = await blob.arrayBuffer();
+      fileExtension = 'png';
+      contentType = 'image/png';
+
+      // Clean up
+      URL.revokeObjectURL(imageUrl);
+    } else if (isPdfTemplate) {
+      // Handle PDF templates (existing logic)
+      const pdfDoc = await PDFDocument.load(templateBytes);
+      const pages = pdfDoc.getPages();
+      const firstPage = pages[0];
+      const { width, height } = firstPage.getSize();
+      
+      // Try to fill form fields first
+      const form = pdfDoc.getForm();
+      const formFields = form.getFields();
+      let nameFilled = false;
+      
+      if (formFields.length > 0) {
+        for (const field of formFields) {
+          try {
+            const fieldName = field.getName().toLowerCase();
+            if (fieldName.includes('name') || fieldName.includes('participant')) {
+              if (field.constructor.name === 'PDFTextField') {
+                field.setText(participantName);
+                nameFilled = true;
+                break;
+              }
             }
+          } catch (err) {
+            // Continue if field can't be filled
           }
-        } catch (err) {
-          // Continue if field can't be filled
         }
       }
+      
+      // If no form fields, overlay text using dynamic placement
+      if (!nameFilled) {
+        const helveticaFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+        const fontSize = namePlacement.fontSize;
+        const textWidth = helveticaFont.widthOfTextAtSize(participantName, fontSize);
+        
+        // Calculate x position based on textAlign
+        let x;
+        if (namePlacement.textAlign === 'center') {
+          x = (width * namePlacement.x) - (textWidth / 2);
+        } else if (namePlacement.textAlign === 'right') {
+          x = (width * namePlacement.x) - textWidth;
+        } else {
+          x = width * namePlacement.x; // left
+        }
+        
+        // y is from bottom in PDF
+        const y = height * namePlacement.y;
+        
+        console.log('Drawing name on PDF:', {
+          participantName,
+          fontSize,
+          x,
+          y,
+          width,
+          height,
+          textWidth,
+          placement: namePlacement
+        });
+        
+        // Parse color
+        const colorMatch = namePlacement.color.match(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
+        const pdfColor = colorMatch 
+          ? rgb(parseInt(colorMatch[1], 16) / 255, parseInt(colorMatch[2], 16) / 255, parseInt(colorMatch[3], 16) / 255)
+          : rgb(0, 0, 0);
+        
+        firstPage.drawText(participantName, {
+          x: x,
+          y: y,
+          size: fontSize,
+          font: helveticaFont,
+          color: pdfColor,
+        });
+      }
+      
+      filledBytes = await pdfDoc.save();
+    } else {
+      throw new Error('Unsupported template format. Please use PDF or image (PNG/JPG) templates.');
     }
-    
-    // If no form fields, overlay text on underlined area
-    if (!nameFilled) {
-      const helveticaFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-      const fontSize = 36; // Increased font size for better visibility
-      const textWidth = helveticaFont.widthOfTextAtSize(participantName, fontSize);
-      const x = (width - textWidth) / 2; // Center horizontally
-      
-      // Try different y positions - adjust based on where the underline is
-      // Common positions: 0.45-0.55 (45-55% from bottom)
-      // For a standard certificate, the name line is usually around 50-55% from bottom
-      // Adjust this value based on your template - you may need to try different values
-      const y = height * 0.50; // 50% from bottom - adjust this value to match your template's underline
-      
-      console.log('Drawing name on PDF:', {
-        participantName,
-        fontSize,
-        x,
-        y,
-        width,
-        height,
-        textWidth
-      });
-      
-      firstPage.drawText(participantName, {
-        x: x,
-        y: y,
-        size: fontSize,
-        font: helveticaFont,
-        color: rgb(0, 0, 0),
-      });
-    }
-    
-    const filledPdfBytes = await pdfDoc.save();
     
     // Step 3: Check if certificate already exists, if not create one
     let existingCert = await CertificateService.getUserCertificate(userId, eventId);
@@ -324,27 +479,28 @@ export const Certificate = () => {
       }
     }
 
-    // Step 4: Upload filled PDF to generated-certificates bucket
+    // Step 4: Upload filled certificate to generated-certificates bucket
     const certificateNumber = certificateRecord.certificate_number || `CERT-${Date.now()}`;
-    const fileName = `${certificateNumber}.pdf`;
+    const fileName = `${certificateNumber}.${fileExtension}`;
     // Path format: certificates/{eventId}/{userId}/{fileName}
     // This matches the RLS policy which checks (storage.foldername(name))[3] = auth.uid()::text
     const filePath = `certificates/${eventId}/${userId}/${fileName}`;
 
     console.log('Uploading certificate to path:', filePath);
     console.log('User ID:', userId);
-    console.log('File size:', filledPdfBytes.byteLength, 'bytes');
+    console.log('File size:', filledBytes.byteLength, 'bytes');
+    console.log('File type:', contentType);
 
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('generated-certificates')
-      .upload(filePath, filledPdfBytes, {
-        contentType: 'application/pdf',
+      .upload(filePath, filledBytes, {
+        contentType: contentType,
         upsert: true
       });
 
     if (uploadError) {
       console.error('Upload error details:', uploadError);
-      throw new Error(`Certificate ${isExistingCertificate ? 'updated' : 'created'} but PDF upload failed: ${uploadError.message}. Please ensure RLS policies are configured correctly.`);
+      throw new Error(`Certificate ${isExistingCertificate ? 'updated' : 'created'} but upload failed: ${uploadError.message}. Please ensure RLS policies are configured correctly.`);
     }
     
     console.log('Certificate uploaded successfully:', uploadData);
@@ -357,9 +513,11 @@ export const Certificate = () => {
     console.log('Public URL generated:', publicUrl);
     console.log('Updating certificate record ID:', certificateRecord.id);
 
+    // Update the appropriate URL field based on file type
+    const updateField = isImageTemplate ? 'certificate_png_url' : 'certificate_pdf_url';
     const { data: updateData, error: updateError } = await supabase
       .from('certificates')
-      .update({ certificate_pdf_url: publicUrl })
+      .update({ [updateField]: publicUrl })
       .eq('id', certificateRecord.id)
       .select();
 
@@ -384,10 +542,10 @@ export const Certificate = () => {
     // Return certificate with the public URL we just generated (don't rely on fetch which might return cached/old data)
     const updatedCertificate = {
       ...certificateRecord,
-      certificate_pdf_url: publicUrl
+      [updateField]: publicUrl
     };
     
-    console.log('Returning certificate with PDF URL:', updatedCertificate.certificate_pdf_url);
+    console.log(`Returning certificate with ${updateField}:`, updatedCertificate[updateField]);
     return updatedCertificate;
   };
 
@@ -488,7 +646,7 @@ export const Certificate = () => {
     }
   }, [eventId, user?.id, event, certificateData]);
 
-  // Download Certificate: Just download the already-generated PDF (no generation)
+  // Download Certificate: Just download the already-generated certificate (no generation)
   const downloadCertificate = useCallback(async (e) => {
     // Prevent event bubbling
     if (e) {
@@ -506,12 +664,15 @@ export const Certificate = () => {
       return;
     }
     
-    const pdfUrl = certificate.certificate_pdf_url;
+    // Check for PNG first, then fallback to PDF
+    const certificateUrl = certificate.certificate_png_url || certificate.certificate_pdf_url;
+    const fileExtension = certificate.certificate_png_url ? 'png' : 'pdf';
+    const contentType = certificate.certificate_png_url ? 'image/png' : 'application/pdf';
     
-    if (!pdfUrl || pdfUrl.includes('example.com') || pdfUrl.includes('placeholder')) {
-      // Certificate exists but PDF URL is invalid/missing
+    if (!certificateUrl || certificateUrl.includes('example.com') || certificateUrl.includes('placeholder')) {
+      // Certificate exists but URL is invalid/missing
       // Users can only generate once, so just show an error
-      alert('Certificate PDF is not available. The certificate was generated but the PDF file is missing. Please contact support.');
+      alert(`Certificate ${fileExtension.toUpperCase()} is not available. The certificate was generated but the file is missing. Please contact support.`);
       return;
     }
     
@@ -523,8 +684,8 @@ export const Certificate = () => {
       // Download using Storage API (server-side proxy)
       let blob;
       
-      if (pdfUrl.includes('/storage/v1/object/public/')) {
-        const urlParts = pdfUrl.split('/storage/v1/object/public/');
+      if (certificateUrl.includes('/storage/v1/object/public/')) {
+        const urlParts = certificateUrl.split('/storage/v1/object/public/');
         if (urlParts.length === 2) {
           const parts = urlParts[1].split('/');
           const bucket = parts[0];
@@ -545,13 +706,13 @@ export const Certificate = () => {
             blob = await data.blob();
           } else {
             // Fallback: convert to blob if it's an ArrayBuffer
-            blob = new Blob([data], { type: 'application/pdf' });
+            blob = new Blob([data], { type: contentType });
           }
         } else {
           throw new Error('Could not parse certificate URL');
         }
       } else {
-        const response = await fetch(pdfUrl);
+        const response = await fetch(certificateUrl);
         if (!response.ok) {
           throw new Error(`Failed to fetch certificate: ${response.statusText}`);
         }
@@ -562,7 +723,7 @@ export const Certificate = () => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `certificate-${certificate.certificate_number || 'certificate'}.pdf`;
+      link.download = `certificate-${certificate.certificate_number || 'certificate'}.${fileExtension}`;
       link.style.display = 'none';
       
       document.body.appendChild(link);
@@ -701,7 +862,7 @@ export const Certificate = () => {
               }`}
               style={{ minHeight: '56px' }}
             >
-              {isDownloading ? 'Downloading...' : 'Download PDF'}
+              {isDownloading ? 'Downloading...' : 'Download Certificate'}
             </button>
           </div>
         )}

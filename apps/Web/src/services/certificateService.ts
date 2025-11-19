@@ -125,7 +125,16 @@ export class CertificateService {
     templateUrl: string,
     createdBy: string,
     title?: string,
-    description?: string
+    description?: string,
+    namePlacement?: {
+      x?: number;
+      y?: number;
+      fontSize?: number;
+      color?: string;
+      fontFamily?: string;
+      fontWeight?: string;
+      textAlign?: string;
+    }
   ): Promise<{ template?: CertificateTemplate; error?: string }> {
     try {
       // Check if template already exists
@@ -135,18 +144,33 @@ export class CertificateService {
         .eq('event_id', eventId)
         .maybeSingle();
 
+      const contentFields: any = {
+        participant_name: '{{name}}',
+        event_title: '{{event}}',
+        date: '{{date}}',
+        organizer: '{{organizer}}',
+      };
+
+      // Add name_position if provided
+      if (namePlacement) {
+        contentFields.name_position = {
+          x: namePlacement.x ?? 0.5,
+          y: namePlacement.y ?? 0.5,
+          fontSize: namePlacement.fontSize ?? 36,
+          color: namePlacement.color ?? '#000000',
+          fontFamily: namePlacement.fontFamily ?? 'Arial, sans-serif',
+          fontWeight: namePlacement.fontWeight ?? 'bold',
+          textAlign: namePlacement.textAlign ?? 'center',
+        };
+      }
+
       const templateData = {
         event_id: eventId,
         title: title || `Certificate Template for Event`,
         description: description || '',
         template_url: templateUrl,
         template_type: templateUrl.endsWith('.pdf') ? 'pdf' : templateUrl.match(/\.(jpg|jpeg|png|gif)$/i) ? 'image' : 'document',
-        content_fields: {
-          participant_name: '{{name}}',
-          event_title: '{{event}}',
-          date: '{{date}}',
-          organizer: '{{organizer}}',
-        },
+        content_fields: contentFields,
         requires_attendance: true,
         requires_survey_completion: true,
         minimum_survey_score: 0,

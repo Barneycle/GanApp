@@ -145,6 +145,12 @@ export const Events = () => {
   const [successModalMessage, setSuccessModalMessage] = useState('');
   const [showManageModal, setShowManageModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [showCancellationModal, setShowCancellationModal] = useState(false);
+  const [eventToCancel, setEventToCancel] = useState(null);
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [cancellationDate, setCancellationDate] = useState('');
+  const [cancellationNotes, setCancellationNotes] = useState('');
+  const [submittingCancellation, setSubmittingCancellation] = useState(false);
 
   useEffect(() => {
     loadEvents();
@@ -364,6 +370,61 @@ export const Events = () => {
     if (event) {
       setSelectedEvent(event);
       setShowManageModal(true);
+    }
+  };
+
+  const handleRequestCancellation = (eventId) => {
+    const event = events.find(e => e.id === eventId);
+    if (event) {
+      setEventToCancel(event);
+      setCancellationReason('');
+      setCancellationDate('');
+      setCancellationNotes('');
+      setShowCancellationModal(true);
+    }
+  };
+
+  const submitCancellationRequest = async () => {
+    if (!eventToCancel || !user) return;
+
+    if (!cancellationReason.trim()) {
+      setError('Please provide a reason for cancellation');
+      return;
+    }
+
+    if (!cancellationDate) {
+      setError('Please select a cancellation date');
+      return;
+    }
+
+    try {
+      setSubmittingCancellation(true);
+      setError('');
+      
+      const result = await EventService.requestEventCancellation(
+        eventToCancel.id,
+        user.id,
+        cancellationReason.trim(),
+        cancellationDate,
+        cancellationNotes.trim() || undefined
+      );
+
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setSuccessModalMessage('Cancellation request submitted successfully! An admin will review your request.');
+        setShowSuccessModal(true);
+        setShowCancellationModal(false);
+        setEventToCancel(null);
+        setCancellationReason('');
+        setCancellationDate('');
+        setCancellationNotes('');
+        await loadEvents();
+      }
+    } catch (err) {
+      setError('Failed to submit cancellation request. Please try again.');
+    } finally {
+      setSubmittingCancellation(false);
     }
   };
 
@@ -885,6 +946,16 @@ export const Events = () => {
                         >
                           {event.is_featured ? 'Remove Featured' : 'Set as Featured'}
                         </button>
+                        {/* Request Cancellation button - only for organizers, not for cancelled events */}
+                        {user?.role === 'organizer' && event.status !== 'cancelled' && (
+                          <button 
+                            onClick={() => handleRequestCancellation(event.id)}
+                            disabled={loading}
+                            className="w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Request Cancellation
+                          </button>
+                        )}
                       </>
                     ) : !user ? (
                       <div className="w-full text-center">
@@ -1087,6 +1158,102 @@ export const Events = () => {
                 className="w-full px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Request Modal */}
+      {showCancellationModal && eventToCancel && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="mb-6">
+              <h3 className="text-xl font-semibold text-slate-900 mb-2">
+                Request Event Cancellation
+              </h3>
+              <p className="text-slate-600 text-sm">
+                Request to cancel "{eventToCancel.title}". An admin will review your request.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Cancellation Reason */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Reason for Cancellation <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={cancellationReason}
+                  onChange={(e) => setCancellationReason(e.target.value)}
+                  placeholder="Please provide a reason for cancelling this event..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                  rows={4}
+                  required
+                />
+              </div>
+
+              {/* Cancellation Date */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Cancellation Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={cancellationDate}
+                  onChange={(e) => setCancellationDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  required
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Select when you want the event to be cancelled
+                </p>
+              </div>
+
+              {/* Additional Notes */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Additional Notes (Optional)
+                </label>
+                <textarea
+                  value={cancellationNotes}
+                  onChange={(e) => setCancellationNotes(e.target.value)}
+                  placeholder="Any additional information for the admin..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                  rows={3}
+                />
+              </div>
+
+              {/* Error Message */}
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-sm text-red-600">{error}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowCancellationModal(false);
+                  setEventToCancel(null);
+                  setCancellationReason('');
+                  setCancellationDate('');
+                  setCancellationNotes('');
+                  setError('');
+                }}
+                disabled={submittingCancellation}
+                className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitCancellationRequest}
+                disabled={submittingCancellation || !cancellationReason.trim() || !cancellationDate}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submittingCancellation ? 'Submitting...' : 'Submit Request'}
               </button>
             </div>
           </div>

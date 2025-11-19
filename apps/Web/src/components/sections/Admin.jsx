@@ -792,7 +792,6 @@ const EventsTab = () => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [actionType, setActionType] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [pendingCancellationIds, setPendingCancellationIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState('date');
   const [sortDirection, setSortDirection] = useState('desc');
@@ -808,35 +807,13 @@ const EventsTab = () => {
     if (result.error) {
       setError(result.error);
       setEvents([]);
-      setPendingCancellationIds([]);
       setLoading(false);
       return;
     }
 
     setEvents(result.events || []);
 
-    const cancellationResult = await AdminService.getCancellationRequests();
-    if (cancellationResult.error) {
-      console.error('Failed to fetch cancellation requests:', cancellationResult.error);
-      setPendingCancellationIds([]);
-    } else {
-      setPendingCancellationIds((cancellationResult.requests || []).map(request => request.event_id));
-    }
-
     setLoading(false);
-  };
-
-  const handleApproveCancellation = async (eventId) => {
-    setActionLoading(true);
-    const result = await AdminService.cancelEvent(eventId);
-    if (result.error) {
-      setError(result.error);
-    } else {
-      await loadEvents();
-      setSelectedEvent(null);
-      setActionType(null);
-    }
-    setActionLoading(false);
   };
 
   const handleArchiveEvent = async (eventId, reason) => {
@@ -1035,24 +1012,6 @@ const EventsTab = () => {
                     >
                       View Stats
                     </button>
-                {event.status !== 'cancelled' && (
-                  <button
-                    onClick={() => {
-                      if (!pendingCancellationIds.includes(event.id)) return;
-                      setSelectedEvent(event);
-                      setActionType('approve');
-                    }}
-                    className={`px-3 py-1 rounded text-xs ${pendingCancellationIds.includes(event.id)
-                      ? 'bg-green-600 text-white hover:bg-green-700'
-                      : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}
-                    disabled={!pendingCancellationIds.includes(event.id)}
-                    title={pendingCancellationIds.includes(event.id)
-                      ? 'Approve this cancellation request'
-                      : 'No cancellation request pending'}
-                  >
-                    Approve Cancellation
-                  </button>
-                )}
                     {(event.status === 'completed' || event.status === 'cancelled') && (
                       <button
                         onClick={() => {
@@ -1073,18 +1032,6 @@ const EventsTab = () => {
       </div>
 
       {/* Action Modals */}
-      {selectedEvent && actionType === 'approve' && (
-        <ApproveCancellationModal
-          event={selectedEvent}
-          onApprove={() => handleApproveCancellation(selectedEvent.id)}
-          onClose={() => {
-            setSelectedEvent(null);
-            setActionType(null);
-          }}
-          loading={actionLoading}
-        />
-      )}
-
       {selectedEvent && actionType === 'archive' && (
         <ArchiveEventModal
           event={selectedEvent}
@@ -1106,36 +1053,6 @@ const EventsTab = () => {
           }}
         />
       )}
-    </div>
-  );
-};
-
-// Approve Cancellation Modal
-const ApproveCancellationModal = ({ event, onApprove, onClose, loading }) => {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
-        <h3 className="text-lg font-semibold text-slate-800 mb-4">Approve Cancellation</h3>
-        <p className="text-slate-600 mb-4">
-          Approve the cancellation request for "{event.title}"?
-        </p>
-        <div className="flex space-x-3">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
-            disabled={loading}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onApprove}
-            disabled={loading}
-            className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-          >
-            {loading ? 'Approving...' : 'Approve Cancellation'}
-          </button>
-        </div>
-      </div>
     </div>
   );
 };
@@ -1339,7 +1256,10 @@ const CancellationsTab = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-semibold text-slate-800">Cancellation Requests</h2>
+        <div>
+          <h2 className="text-2xl font-semibold text-slate-800">Cancellation Requests</h2>
+          <p className="text-sm text-slate-600 mt-1">Review and approve or decline event cancellation requests (Admin only)</p>
+        </div>
         <button
           onClick={loadRequests}
           disabled={loading}
@@ -1451,7 +1371,8 @@ const ReviewCancellationModal = ({ request, onApprove, onDecline, onClose, loadi
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
-        <h3 className="text-lg font-semibold text-slate-800 mb-4">Review Cancellation Request</h3>
+        <h3 className="text-lg font-semibold text-slate-800 mb-2">Review Cancellation Request</h3>
+        <p className="text-xs text-slate-500 mb-4">Only administrators can approve or decline cancellation requests</p>
         <div className="mb-4">
           <p className="text-slate-600 mb-2"><strong>Event:</strong> {request.event_title}</p>
           <p className="text-slate-600 mb-2"><strong>Reason:</strong> {request.request_reason}</p>

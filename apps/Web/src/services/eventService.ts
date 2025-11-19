@@ -580,4 +580,71 @@ export class EventService {
       return { error: 'An unexpected error occurred' };
     }
   }
+
+  /**
+   * Request cancellation of an event (organizers only)
+   */
+  static async requestEventCancellation(
+    eventId: string,
+    userId: string,
+    requestReason: string,
+    cancellationDate: string,
+    additionalNotes?: string
+  ): Promise<{ request?: any; error?: string }> {
+    try {
+      // Verify user is the event creator (organizer)
+      const eventResult = await this.getEventById(eventId);
+      if (eventResult.error || !eventResult.event) {
+        return { error: 'Event not found' };
+      }
+
+      if (eventResult.event.created_by !== userId) {
+        return { error: 'Only the event organizer can request cancellation' };
+      }
+
+      // Check if event is already cancelled
+      if (eventResult.event.status === 'cancelled') {
+        return { error: 'Event is already cancelled' };
+      }
+
+      // Check if there's already a pending request
+      const { data: existingRequests, error: checkError } = await supabase
+        .from('event_cancellation_requests')
+        .select('id, status')
+        .eq('event_id', eventId)
+        .eq('requested_by', userId)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+        return { error: checkError.message };
+      }
+
+      if (existingRequests) {
+        return { error: 'You already have a pending cancellation request for this event' };
+      }
+
+      // Create cancellation request
+      const { data, error } = await supabase
+        .from('event_cancellation_requests')
+        .insert({
+          event_id: eventId,
+          requested_by: userId,
+          request_reason: requestReason,
+          cancellation_date: cancellationDate,
+          additional_notes: additionalNotes || null,
+          status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { request: data };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
 }
