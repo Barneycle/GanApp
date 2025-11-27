@@ -3,16 +3,12 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   SafeAreaView,
   Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from "expo-router";
 
 export default function TermsScreen() {
-  const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const [modalContent, setModalContent] = useState('terms');
@@ -152,24 +148,12 @@ export default function TermsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-blue-900">
       <View className="flex-1 bg-blue-900">
-        {/* Header */}
-        <View className="flex-row items-center justify-between p-4 border-b border-blue-800">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="p-2"
-          >
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          <Text className="text-white text-lg font-semibold">Terms & Privacy</Text>
-          <View className="w-10" />
-        </View>
-
         {/* Content */}
         <ScrollView 
           className="flex-1 p-4"
           contentContainerStyle={{ 
-            paddingTop: insets.top + 16,
-            paddingBottom: Math.max(insets.bottom, 16)
+            paddingTop: 8,
+            paddingBottom: insets.bottom + 32
           }}
         >
           <View className="bg-white rounded-lg p-4 mb-4">

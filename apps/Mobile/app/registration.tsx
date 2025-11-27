@@ -47,6 +47,13 @@ export default function RegistrationScreen() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
   const { signUp } = useAuth();
+  
+  // Refs for form inputs
+  const firstNameRef = useRef<TextInput>(null);
+  const lastNameRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const confirmPasswordRef = useRef<TextInput>(null);
 
   const handleInputChange = (field: keyof RegistrationFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -209,7 +216,7 @@ export default function RegistrationScreen() {
             ref={scrollViewRef}
             contentContainerStyle={{ 
               flexGrow: 1,
-              paddingTop: insets.top + 20,
+              paddingTop: 0,
               paddingBottom: Math.max(insets.bottom, 20)
             }}
             showsVerticalScrollIndicator={false}
@@ -217,11 +224,6 @@ export default function RegistrationScreen() {
             automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
             className="px-4 py-6"
           >
-            {/* Header */}
-            <View className="items-center mb-6 mt-4">
-              <Text className="text-4xl font-bold text-white mb-4 text-center">GanApp</Text>
-              <Text className="text-lg text-white mb-2 text-center">Create Account</Text>
-            </View>
 
             {!formData.userType ? (
               // User Type Selection Screen
@@ -344,6 +346,7 @@ export default function RegistrationScreen() {
                     <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
                       <Ionicons name="person-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
                       <TextInput
+                        ref={firstNameRef}
                         className="flex-1 h-11 text-sm text-black"
                         placeholder="Enter your first name"
                         placeholderTextColor="#666"
@@ -352,6 +355,7 @@ export default function RegistrationScreen() {
                         autoCapitalize="words"
                         returnKeyType="next"
                         blurOnSubmit={false}
+                        onSubmitEditing={() => lastNameRef.current?.focus()}
                         onFocus={() => {
                           setTimeout(() => {
                             scrollViewRef.current?.scrollTo({ y: 200, animated: true });
@@ -367,6 +371,7 @@ export default function RegistrationScreen() {
                     <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
                       <Ionicons name="person-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
                       <TextInput
+                        ref={lastNameRef}
                         className="flex-1 h-11 text-sm text-black"
                         placeholder="Enter your last name"
                         placeholderTextColor="#666"
@@ -375,6 +380,7 @@ export default function RegistrationScreen() {
                         autoCapitalize="words"
                         returnKeyType="next"
                         blurOnSubmit={false}
+                        onSubmitEditing={() => emailRef.current?.focus()}
                         onFocus={() => {
                           setTimeout(() => {
                             scrollViewRef.current?.scrollTo({ y: 250, animated: true });
@@ -390,6 +396,7 @@ export default function RegistrationScreen() {
                     <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
                       <Ionicons name="mail-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
                       <TextInput
+                        ref={emailRef}
                         className="flex-1 h-11 text-sm text-black"
                         placeholder={
                           formData.userType === 'psu-student' || formData.userType === 'psu-employee'
@@ -403,6 +410,30 @@ export default function RegistrationScreen() {
                         autoCapitalize="none"
                         returnKeyType="next"
                         blurOnSubmit={false}
+                        onSubmitEditing={() => {
+                          emailRef.current?.blur();
+                          setTimeout(() => {
+                            scrollViewRef.current?.scrollTo({ y: 400, animated: true });
+                            setTimeout(() => {
+                              if (passwordRef.current) {
+                                passwordRef.current.focus();
+                              }
+                            }, 50);
+                          }, 50);
+                        }}
+                        onKeyPress={({ nativeEvent }) => {
+                          if (nativeEvent.key === 'Enter' || nativeEvent.key === 'enter') {
+                            emailRef.current?.blur();
+                            setTimeout(() => {
+                              scrollViewRef.current?.scrollTo({ y: 400, animated: true });
+                              setTimeout(() => {
+                                if (passwordRef.current) {
+                                  passwordRef.current.focus();
+                                }
+                              }, 50);
+                            }, 50);
+                          }
+                        }}
                         onFocus={() => {
                           setTimeout(() => {
                             scrollViewRef.current?.scrollTo({ y: 300, animated: true });
@@ -423,6 +454,7 @@ export default function RegistrationScreen() {
                     <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
                       <Ionicons name="lock-closed-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
                       <TextInput
+                        ref={passwordRef}
                         className="flex-1 h-11 text-sm text-black"
                         placeholder="Create a password"
                         placeholderTextColor="#666"
@@ -431,6 +463,12 @@ export default function RegistrationScreen() {
                         secureTextEntry={!showPassword}
                         returnKeyType="next"
                         blurOnSubmit={false}
+                        onSubmitEditing={() => {
+                          setTimeout(() => {
+                            scrollViewRef.current?.scrollTo({ y: 450, animated: true });
+                            confirmPasswordRef.current?.focus();
+                          }, 100);
+                        }}
                         onFocus={() => {
                           setTimeout(() => {
                             scrollViewRef.current?.scrollTo({ y: 400, animated: true });
@@ -456,6 +494,7 @@ export default function RegistrationScreen() {
                     <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
                       <Ionicons name="lock-closed-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
                       <TextInput
+                        ref={confirmPasswordRef}
                         className="flex-1 h-11 text-sm text-black"
                         placeholder="Confirm your password"
                         placeholderTextColor="#666"
@@ -464,6 +503,10 @@ export default function RegistrationScreen() {
                         secureTextEntry={!showConfirmPassword}
                         returnKeyType="done"
                         blurOnSubmit={true}
+                        onSubmitEditing={() => {
+                          confirmPasswordRef.current?.blur();
+                          Keyboard.dismiss();
+                        }}
                         onFocus={() => {
                           setTimeout(() => {
                             scrollViewRef.current?.scrollTo({ y: 450, animated: true });
@@ -489,12 +532,12 @@ export default function RegistrationScreen() {
                       className="flex-row items-center"
                       onPress={() => setAcceptedTerms(!acceptedTerms)}
                     >
-                      <View className={`w-4 h-4 border-2 rounded mr-3 items-center justify-center ${acceptedTerms ? 'bg-blue-800 border-blue-800' : 'border-gray-400'}`}>
+                      <View className={`w-6 h-6 border-2 rounded mr-3 items-center justify-center ${acceptedTerms ? 'bg-blue-800 border-blue-800' : 'border-gray-400'}`}>
                         {acceptedTerms && (
-                          <Ionicons name="checkmark" size={12} color="white" />
+                          <Ionicons name="checkmark" size={18} color="white" />
                         )}
                       </View>
-                      <Text className="text-xs text-black flex-1 leading-4">
+                      <Text className="text-base text-black flex-1 leading-5">
                         I agree to the{' '}
                         <Text 
                           className="text-blue-800 underline font-semibold"
