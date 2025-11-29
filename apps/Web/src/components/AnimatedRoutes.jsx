@@ -8,6 +8,7 @@ import { CreateEvent } from "./sections/CreateEvent";
 import { EditEvent } from "./sections/EditEvent";
 import { CreateSurvey } from "./sections/CreateSurvey";
 import { EventStatistics } from "./sections/EventStatistics";
+import { EventStatisticsDetail } from "./sections/EventStatisticsDetail";
 import { Registration } from "./sections/Registration";
 import { Events } from "./sections/Events";
 import { MyEvents } from "./sections/MyEvents";
@@ -32,6 +33,7 @@ function AnimatedRoutes() {
         <Route path="/edit-event/:eventId" element={<EditEvent />} />
         <Route path="/create-survey" element={<CreateSurvey />} />
         <Route path="/event-statistics" element={<EventStatistics />} />
+        <Route path="/event-statistics/:eventId" element={<EventStatisticsDetail />} />
         <Route path="/survey-management" element={<SurveyManagementPage />} />
         <Route path="/participants" element={<Participants />} />
         <Route path="/my-events" element={<MyEvents />} />

@@ -637,7 +637,7 @@ export const Evaluation = () => {
           </button>
           
           <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 mb-2">
-            {survey.title || 'Event Evaluation'}
+            {survey.title}
           </h1>
           {survey.description && (
             <p className="text-slate-600 text-lg">

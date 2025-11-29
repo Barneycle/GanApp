@@ -58,7 +58,9 @@ export default function LoginDashboard() {
         const savedEmail = await storage.getItem('remembered_email');
         const shouldRemember = await storage.getItem('remember_me');
         if (savedEmail && shouldRemember === 'true') {
-          setFormData(prev => ({ ...prev, email: savedEmail }));
+          // Trim saved email when loading
+          const trimmedEmail = savedEmail.trim();
+          setFormData(prev => ({ ...prev, email: trimmedEmail }));
           setRememberMe(true);
         }
       } catch (error) {
@@ -77,6 +79,11 @@ export default function LoginDashboard() {
 
   const handleInputChange = (field: keyof LoginFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleInputBlur = (field: keyof LoginFormData) => {
+    // Trim values when field loses focus
+    setFormData(prev => ({ ...prev, [field]: prev[field].trim() }));
   };
 
   const handleLogin = async () => {
@@ -190,6 +197,7 @@ export default function LoginDashboard() {
                     placeholderTextColor="#9ca3af"
                     value={formData.email}
                     onChangeText={(text) => handleInputChange('email', text)}
+                    onBlur={() => handleInputBlur('email')}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     returnKeyType="next"
@@ -209,6 +217,7 @@ export default function LoginDashboard() {
                     placeholderTextColor="#9ca3af"
                     value={formData.password}
                     onChangeText={(text) => handleInputChange('password', text)}
+                    onBlur={() => handleInputBlur('password')}
                     secureTextEntry={!showPassword}
                     returnKeyType="done"
                     blurOnSubmit={true}

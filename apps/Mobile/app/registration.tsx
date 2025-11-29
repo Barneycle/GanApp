@@ -59,6 +59,13 @@ export default function RegistrationScreen() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleInputBlur = (field: keyof RegistrationFormData) => {
+    // Trim values when field loses focus (except userType which is not a string input)
+    if (field !== 'userType') {
+      setFormData(prev => ({ ...prev, [field]: String(prev[field]).trim() }));
+    }
+  };
+
   const handleUserTypeSelect = (userType: 'psu-student' | 'psu-employee' | 'outside') => {
     setFormData(prev => ({ ...prev, userType }));
   };
@@ -369,6 +376,7 @@ export default function RegistrationScreen() {
                         placeholderTextColor="#666"
                         value={formData.firstName}
                         onChangeText={(text) => handleInputChange('firstName', text)}
+                        onBlur={() => handleInputBlur('firstName')}
                         autoCapitalize="words"
                         returnKeyType="next"
                         blurOnSubmit={false}
@@ -394,6 +402,7 @@ export default function RegistrationScreen() {
                         placeholderTextColor="#666"
                         value={formData.lastName}
                         onChangeText={(text) => handleInputChange('lastName', text)}
+                        onBlur={() => handleInputBlur('lastName')}
                         autoCapitalize="words"
                         returnKeyType="next"
                         blurOnSubmit={false}
@@ -423,6 +432,7 @@ export default function RegistrationScreen() {
                         placeholderTextColor="#666"
                         value={formData.email}
                         onChangeText={(text) => handleInputChange('email', text)}
+                        onBlur={() => handleInputBlur('email')}
                         keyboardType="email-address"
                         autoCapitalize="none"
                         returnKeyType="next"
@@ -477,6 +487,7 @@ export default function RegistrationScreen() {
                         placeholderTextColor="#666"
                         value={formData.password}
                         onChangeText={(text) => handleInputChange('password', text)}
+                        onBlur={() => handleInputBlur('password')}
                         secureTextEntry={!showPassword}
                         returnKeyType="next"
                         blurOnSubmit={false}
@@ -517,6 +528,7 @@ export default function RegistrationScreen() {
                         placeholderTextColor="#666"
                         value={formData.confirmPassword}
                         onChangeText={(text) => handleInputChange('confirmPassword', text)}
+                        onBlur={() => handleInputBlur('confirmPassword')}
                         secureTextEntry={!showConfirmPassword}
                         returnKeyType="done"
                         blurOnSubmit={true}
