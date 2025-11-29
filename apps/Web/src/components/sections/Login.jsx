@@ -43,8 +43,12 @@ export const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Trim email and password before submitting
+    const trimmedEmail = formData.email.trim();
+    const trimmedPassword = formData.password.trim();
+    
     try {
-      const result = await signIn(formData.email, formData.password);
+      const result = await signIn(trimmedEmail, trimmedPassword);
       
       if (result && result.success && result.user) {
         

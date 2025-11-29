@@ -34,16 +34,19 @@ export default function Index() {
       setLoading(true);
       setError(null);
       
-      // Always load published events for the home page carousel
+      // Fetch published events for the home page (same as participants page)
       const result = await EventService.getPublishedEvents();
       
       if (result.error) {
         setError(result.error);
+        setEvents([]);
       } else {
+        // Use events directly from database, no placeholders
         setEvents(result.events || []);
       }
     } catch (err) {
       setError('Failed to load events from database');
+      setEvents([]);
     } finally {
       setLoading(false);
     }
@@ -161,7 +164,7 @@ export default function Index() {
           )}
 
           {/* Events Carousel */}
-          {events.length > 0 && (
+          {events.length > 0 ? (
             <View className="bg-white rounded-3xl shadow-2xl border border-slate-100 p-8 mb-12">
               {/* Section Header */}
               <View className="mb-8">
@@ -183,7 +186,7 @@ export default function Index() {
                   <TouchableOpacity
                     key={event.id}
                     className="w-80 rounded-2xl overflow-hidden bg-white shadow-xl mr-6 border border-slate-100"
-                    onPress={() => router.push('/events')}
+                    onPress={() => router.push(`/event-details?eventId=${event.id}`)}
                   >
                     <Image
                       source={{ uri: event.banner_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center' }}
@@ -229,7 +232,7 @@ export default function Index() {
               {/* Subtle More Events Link */}
               <View className="flex-row justify-center mt-6">
                 <TouchableOpacity
-                  onPress={() => router.push('/events')}
+                  onPress={() => router.push('/(tabs)/events')}
                   className="flex-row items-center"
                 >
                   <Text className="text-slate-600 text-base font-medium mr-2">View all events</Text>
@@ -237,6 +240,20 @@ export default function Index() {
                 </TouchableOpacity>
               </View>
             </View>
+          ) : (
+            !loading && (
+              <View className="bg-white rounded-3xl shadow-2xl border border-slate-100 p-8 mb-12">
+                <View className="items-center">
+                  <View className="w-16 h-16 rounded-full bg-blue-100 mb-4 items-center justify-center">
+                    <Ionicons name="calendar-outline" size={32} color="#2563eb" />
+                  </View>
+                  <Text className="text-xl font-semibold text-gray-800 mb-2 text-center">No Upcoming Events</Text>
+                  <Text className="text-gray-600 mb-6 text-center">
+                    There are no upcoming events at the moment. Check back later for new events!
+                  </Text>
+                </View>
+              </View>
+            )
           )}
         </View>
       </ScrollView>

@@ -5,89 +5,18 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import EventModal from './EventModal';
 import { EventService } from '../../services/eventService';
 
-// Sample events data for carousel
-const sampleEvents = [
-  {
-    id: 1,
-    title: "Tech Conference 2025",
-    img: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center",
-  },
-  {
-    id: 2,
-    title: "Music Festival",
-    img: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&h=400&fit=crop&crop=center",
-  },
-  {
-    id: 3,
-    title: "Startup Pitch Night",
-    img: "https://images.unsplash.com/photo-1552664730-d307ca884978?w=600&h=400&fit=crop&crop=center",
-  },
-  {
-    id: 4,
-    title: "AI Summit",
-    img: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=600&h=400&fit=crop&crop=center",
-  },
-  {
-    id: 5,
-    title: "Art & Design Expo",
-    img: "https://images.unsplash.com/photo-1541961017774-22349e4a1262?w=600&h=400&fit=crop&crop=center",
-  },
-  {
-    id: 6,
-    title: "Business Networking",
-    img: "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=600&h=400&fit=crop&crop=center",
-  },
-  {
-    id: 7,
-    title: "Sports Championship",
-    img: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&h=400&fit=crop&crop=center",
-  },
-  {
-    id: 8,
-    title: "Food & Wine Festival",
-    img: "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&h=400&fit=crop&crop=center",
-  },
-  {
-    id: 9,
-    title: "Gaming Convention",
-    img: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&h=400&fit=crop&crop=center",
-  },
-  {
-    id: 10,
-    title: "Educational Workshop",
-    img: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=600&h=400&fit=crop&crop=center",
-  },
-  {
-    id: 11,
-    title: "Health & Wellness Expo",
-    img: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600&h=400&fit=crop&crop=center",
-  },
-  {
-    id: 12,
-    title: "Environmental Summit",
-    img: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=600&h=400&fit=crop&crop=center",
-  },
-];
-
-// Create a truly infinite carousel by repeating the events multiple times
-const infiniteEvents = [
-  ...sampleEvents, // First set
-  ...sampleEvents, // Second set
-  ...sampleEvents, // Third set
-  ...sampleEvents, // Fourth set
-  ...sampleEvents, // Fifth set
-];
-
 export const Participants = () => {
   const [events, setEvents] = useState([]);
+  const [featuredEvent, setFeaturedEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [currentEventIndex, setCurrentEventIndex] = useState(12);
+  const [currentEventIndex, setCurrentEventIndex] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     loadEvents();
+    loadFeaturedEvent();
   }, []);
 
   const loadEvents = async () => {
@@ -121,35 +50,96 @@ export const Participants = () => {
     }
   };
 
-  // Use the selected event or first event as the featured event, or fallback to default
-  const featuredEvent = selectedEvent || events[0] || {
-    title: "Tech Conference 2025",
-    rationale: "The Tech Conference 2025 aims to foster collaboration and innovation among technology professionals by providing a platform for sharing knowledge, networking, and showcasing the latest advancements in the industry.",
-    start_date: "2024-06-15",
-    end_date: "2024-06-15",
-    start_time: "09:00:00",
-    end_time: "17:00:00",
-    venue: "Grand Convention Center, Cityville",
-    sponsors: [
-      { name: "TechCorp" },
-      { name: "InnovateX" },
-      { name: "Future Solutions" }
-    ],
-    guest_speakers: [
-      { name: "Dr. Jane Smith" },
-      { name: "Mr. John Doe" },
-      { name: "Prof. Emily Johnson" }
-    ],
-    banner_url: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center"
+  const loadFeaturedEvent = async () => {
+    try {
+      const result = await EventService.getFeaturedEvent();
+      if (result.event) {
+        setFeaturedEvent(result.event);
+      }
+    } catch (err) {
+    }
   };
 
-  // Navigation functions for carousel - truly infinite
+  // Helper function to parse guest speakers data
+  const parseGuestSpeakers = (speakers) => {
+    if (!speakers) return [];
+    
+    // If it's already an array of objects, return as is
+    if (Array.isArray(speakers) && speakers.length > 0 && typeof speakers[0] === 'object') {
+      return speakers;
+    }
+    
+    // If it's an array of strings, convert to objects
+    if (Array.isArray(speakers) && speakers.length > 0 && typeof speakers[0] === 'string') {
+      return speakers.map(name => ({ name }));
+    }
+    
+    // If it's a string, try to parse it
+    if (typeof speakers === 'string') {
+      try {
+        const parsed = JSON.parse(speakers);
+        if (Array.isArray(parsed)) {
+          return parsed.map(item => typeof item === 'string' ? { name: item } : item);
+        }
+      } catch (e) {
+        // If JSON parsing fails, treat as comma-separated string
+        return speakers.split(',').map(name => ({ name: name.trim() }));
+      }
+    }
+    
+    return [];
+  };
+
+  // Use the featured event, or fallback to first event (no placeholder)
+  const displayFeaturedEvent = featuredEvent ? {
+    ...featuredEvent,
+    guest_speakers: parseGuestSpeakers(featuredEvent.guest_speakers)
+  } : events[0] ? {
+    ...events[0],
+    guest_speakers: parseGuestSpeakers(events[0].guest_speakers)
+  } : null;
+
+  // Use real events from database for carousel, no placeholders
+  const carouselEvents = events.map(event => ({
+    ...event
+  }));
+
+  const decodeHtml = (value) => {
+    if (!value) return '';
+    return value
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+  };
+
+  // Helper function to handle image loading with fallback
+  const handleImageError = (e, fallbackSrc) => {
+    e.target.src = fallbackSrc;
+  };
+
+  // Navigation functions for carousel
   const scrollLeft = () => {
-    setCurrentEventIndex((prev) => prev - 1);
+    setCurrentEventIndex((prev) => {
+      const newIndex = prev - 1;
+      // If we go below 0, jump to the end
+      if (newIndex < 0) {
+        return carouselEvents.length - 1;
+      }
+      return newIndex;
+    });
   };
 
   const scrollRight = () => {
-    setCurrentEventIndex((prev) => prev + 1);
+    setCurrentEventIndex((prev) => {
+      const newIndex = prev + 1;
+      // If we go beyond the end, reset to 0
+      if (newIndex >= carouselEvents.length) {
+        return 0;
+      }
+      return newIndex;
+    });
   };
 
   const formatDate = (dateString) => {
@@ -232,29 +222,31 @@ export const Participants = () => {
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50" key={`loading-${loading}`}>
       <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         
-        {/* Single Event Card */}
+        {/* Single Event Card - Only show when there's a featured event */}
+        {displayFeaturedEvent && (
         <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden mb-12">
           
           {/* Banner Image */}
           <div className="w-full overflow-hidden h-48 sm:h-64 md:h-80 lg:h-96">
             <img
-              src={featuredEvent.banner_url}
-              alt={featuredEvent.title}
+              src={displayFeaturedEvent.banner_url}
+              alt={displayFeaturedEvent.title}
               className="w-full h-full object-cover"
+              onError={(e) => handleImageError(e, displayFeaturedEvent.banner_url)}
             />
           </div>
           
           {/* Event Content */}
           <div className="p-8">
-            {/* Event Title and Description */}
-            <div className="text-center mb-8">
+            {/* Event Title */}
+            <div className="text-center mb-6">
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-3">
-                {featuredEvent.title}
+                {displayFeaturedEvent.title}
               </h2>
             </div>
 
             {/* Event Rationale */}
-            {featuredEvent.rationale && (
+            {displayFeaturedEvent.rationale && (
               <div className="mb-8">
                 <div className="flex items-center space-x-3 mb-4">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-600 to-blue-800 text-white flex items-center justify-center">
@@ -266,7 +258,7 @@ export const Participants = () => {
                 </div>
                 <div 
                   className="text-slate-600 rich-text-content"
-                  dangerouslySetInnerHTML={{ __html: featuredEvent.rationale }}
+                  dangerouslySetInnerHTML={{ __html: decodeHtml(displayFeaturedEvent.rationale) }}
                   style={{
                     wordWrap: 'break-word'
                   }}
@@ -354,68 +346,119 @@ export const Participants = () => {
             </div>
           </div>
         </div>
+        )}
         
-        {/* Events Carousel Card */}
-        <div className="mb-12">
-          {/* Section Header with Title and Navigation */}
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-1">Upcoming Events</h3>
-              <p className="text-slate-600 text-base">Discover and explore our upcoming events</p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={scrollLeft}
-                className="flex items-center justify-center w-10 h-10 rounded-full bg-black/50 text-white hover:bg-black/70 transition-all duration-200 backdrop-blur-sm"
-              >
-                <ChevronLeft size={20} />
-              </button>
-              <button
-                onClick={scrollRight}
-                className="flex items-center justify-center w-10 h-10 rounded-full bg-black/50 text-white hover:bg-black/70 transition-all duration-200 backdrop-blur-sm"
-              >
-                <ChevronRight size={20} />
-              </button>
-            </div>
-          </div>
-          
-          {/* Carousel Container */}
-          <div className="relative overflow-hidden">
-            <motion.div
-              className="flex gap-6"
-              animate={{ x: `-${currentEventIndex * (300 + 24)}px` }}
-              transition={{ type: "spring", stiffness: 100, damping: 20 }}
-              style={{ 
-                width: `${infiniteEvents.length * 300 + (infiniteEvents.length - 1) * 24}px` 
-              }}
-            >
-              {infiniteEvents.map((event, index) => (
-                <div
-                  key={`${event.id}-${index}`}
-                  className="min-w-[300px] rounded-lg overflow-hidden cursor-pointer hover:scale-110 transition-transform duration-300 flex-shrink-0 bg-white shadow-sm hover:shadow-lg"
+        {/* Events Carousel Card - Only show when there are events */}
+        {carouselEvents.length > 0 ? (
+          <div className="mb-12">
+            {/* Section Header with Title and Navigation */}
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-2xl font-bold text-slate-800 mb-1">Upcoming Events</h3>
+                <p className="text-slate-600 text-base">Discover and explore our upcoming events</p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={scrollLeft}
+                  className="flex items-center justify-center w-10 h-10 rounded-full bg-black/50 text-white hover:bg-black/70 transition-all duration-200 backdrop-blur-sm"
                 >
-                  <img
-                    src={event.img}
-                    alt={event.title}
-                    className="w-full h-48 object-cover"
-                  />
-                  <div className="p-4">
-                    <h3 className="font-semibold text-lg text-gray-800">{event.title}</h3>
-                    <p className="text-gray-600 text-sm mt-2">Experience something amazing</p>
+                  <ChevronLeft size={20} />
+                </button>
+                <button
+                  onClick={scrollRight}
+                  className="flex items-center justify-center w-10 h-10 rounded-full bg-black/50 text-white hover:bg-black/70 transition-all duration-200 backdrop-blur-sm"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+            </div>
+            
+            {/* Carousel Container */}
+            <div className="relative overflow-hidden">
+              <motion.div
+                className="flex gap-6"
+                animate={{ 
+                  x: `-${currentEventIndex * (300 + 24)}px`
+                }}
+                transition={{ 
+                  type: "spring", 
+                  stiffness: 100, 
+                  damping: 20
+                }}
+                style={{ 
+                  width: `${carouselEvents.length * 300 + (carouselEvents.length - 1) * 24}px`
+                }}
+              >
+                {carouselEvents.map((event, index) => (
+                  <div
+                    key={`${event.id}-${index}`}
+                    onClick={() => {
+                      setSelectedEvent(event);
+                      setIsModalOpen(true);
+                    }}
+                    className="min-w-[300px] rounded-lg overflow-hidden cursor-pointer hover:scale-110 transition-transform duration-300 flex-shrink-0 bg-white shadow-sm hover:shadow-lg"
+                  >
+                    <img
+                      src={event.banner_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center'}
+                      alt={event.title}
+                      className="w-full h-48 object-cover"
+                      onError={(e) => handleImageError(e, 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center')}
+                    />
+                    <div className="p-4">
+                      <h3 className="font-semibold text-lg text-gray-800">{event.title}</h3>
+                      <div
+                        className="text-gray-600 text-sm mt-2 rich-text-content"
+                        dangerouslySetInnerHTML={{
+                          __html: decodeHtml(event.description || event.rationale || 'Experience something amazing')
+                        }}
+                      />
+                      <div className="mt-3 text-xs text-gray-500">
+                        <div className="flex items-center space-x-1">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <span>{formatDate(event.start_date)}</span>
+                        </div>
+                        <div className="flex items-center space-x-1 mt-1">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>{formatTime(event.start_time)} - {formatTime(event.end_time)}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </motion.div>
+                ))}
+              </motion.div>
+            </div>
           </div>
-        </div>
+        ) : (
+          !loading && (
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 mb-12">
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-full bg-blue-100 mx-auto mb-4 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold text-gray-800 mb-2">No Upcoming Events</h3>
+                <p className="text-gray-600">
+                  There are no upcoming events at the moment. Check back later for new events!
+                </p>
+              </div>
+            </div>
+          )
+        )}
       </div>
       
       {/* Event Modal */}
-      <EventModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        event={featuredEvent} 
-      />
+      {displayFeaturedEvent && (
+        <EventModal 
+          isOpen={isModalOpen} 
+          onClose={() => setIsModalOpen(false)} 
+          event={displayFeaturedEvent} 
+        />
+      )}
     </section>
   );
 };

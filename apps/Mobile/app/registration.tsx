@@ -64,23 +64,30 @@ export default function RegistrationScreen() {
   };
 
   const validateForm = () => {
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.userType) {
+    // Trim values for validation
+    const trimmedFirstName = formData.firstName.trim();
+    const trimmedLastName = formData.lastName.trim();
+    const trimmedEmail = formData.email.trim();
+    const trimmedPassword = formData.password.trim();
+    const trimmedConfirmPassword = formData.confirmPassword.trim();
+    
+    if (!trimmedFirstName || !trimmedLastName || !trimmedEmail || !trimmedPassword || !formData.userType) {
       return 'All required fields must be filled';
     }
 
-    if (formData.password !== formData.confirmPassword) {
+    if (trimmedPassword !== trimmedConfirmPassword) {
       return 'Passwords do not match';
     }
 
-    if (formData.password.length < 6) {
+    if (trimmedPassword.length < 6) {
       return 'Password must be at least 6 characters long';
     }
 
     // Password complexity validation
-    const hasLowercase = /[a-z]/.test(formData.password);
-    const hasUppercase = /[A-Z]/.test(formData.password);
-    const hasNumber = /[0-9]/.test(formData.password);
-    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"|\\<>\?,./`~]/.test(formData.password);
+    const hasLowercase = /[a-z]/.test(trimmedPassword);
+    const hasUppercase = /[A-Z]/.test(trimmedPassword);
+    const hasNumber = /[0-9]/.test(trimmedPassword);
+    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"|\\<>\?,./`~]/.test(trimmedPassword);
 
     if (!hasLowercase || !hasUppercase || !hasNumber || !hasSpecialChar) {
       return 'Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character (!@#$%^&*()_+-=[]{};\':"\\|/<>,.?`~)';
@@ -92,14 +99,14 @@ export default function RegistrationScreen() {
 
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
+    if (!emailRegex.test(trimmedEmail)) {
       return 'Please enter a valid email address';
     }
 
     // PSU email validation for students and employees only
     if ((formData.userType === 'psu-student' || formData.userType === 'psu-employee') && 
-        !formData.email.endsWith('@parsu.edu.ph') && 
-        !formData.email.endsWith('.pbox@parsu.edu.ph')) {
+        !trimmedEmail.endsWith('@parsu.edu.ph') && 
+        !trimmedEmail.endsWith('.pbox@parsu.edu.ph')) {
       return 'PSU students and employees must use @parsu.edu.ph or .pbox@parsu.edu.ph email addresses';
     }
 
@@ -129,6 +136,16 @@ export default function RegistrationScreen() {
     // Clear any previous errors
     setLocalError('');
     
+    // Trim all string values
+    const trimmedData = {
+      firstName: formData.firstName.trim(),
+      lastName: formData.lastName.trim(),
+      email: formData.email.trim(),
+      password: formData.password.trim(),
+      confirmPassword: formData.confirmPassword.trim(),
+      userType: formData.userType
+    };
+    
     // Validate form
     const validationError = validateForm();
     if (validationError) {
@@ -141,16 +158,16 @@ export default function RegistrationScreen() {
     setIsLoading(true);
 
     try {
-      // Prepare user data for registration
+      // Prepare user data for registration with trimmed values
       const userData = {
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        user_type: formData.userType,
+        first_name: trimmedData.firstName,
+        last_name: trimmedData.lastName,
+        user_type: trimmedData.userType,
         role: 'participant' // Default role for new users
       };
 
-      console.log('Calling signUp with:', { email: formData.email, firstName: formData.firstName, lastName: formData.lastName });
-      const result = await signUp(formData.email, formData.password, formData.firstName, formData.lastName, 'participant');
+      console.log('Calling signUp with:', { email: trimmedData.email, firstName: trimmedData.firstName, lastName: trimmedData.lastName });
+      const result = await signUp(trimmedData.email, trimmedData.password, trimmedData.firstName, trimmedData.lastName, 'participant');
       
       console.log('SignUp result:', result);
       

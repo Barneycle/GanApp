@@ -80,7 +80,11 @@ export default function LoginDashboard() {
   };
 
   const handleLogin = async () => {
-    if (!formData.email || !formData.password) {
+    // Trim email and password before validation and submission
+    const trimmedEmail = formData.email.trim();
+    const trimmedPassword = formData.password.trim();
+    
+    if (!trimmedEmail || !trimmedPassword) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
@@ -88,7 +92,7 @@ export default function LoginDashboard() {
     setIsLoading(true);
     
     try {
-      const result = await signIn(formData.email, formData.password);
+      const result = await signIn(trimmedEmail, trimmedPassword);
       
       if (result.error) {
         Alert.alert('Error', result.error);
@@ -96,7 +100,7 @@ export default function LoginDashboard() {
         // Save email if remember me is checked (non-blocking)
         try {
           if (rememberMe) {
-            await storage.setItem('remembered_email', formData.email);
+            await storage.setItem('remembered_email', trimmedEmail);
             await storage.setItem('remember_me', 'true');
           } else {
             // Clear saved email if remember me is unchecked
