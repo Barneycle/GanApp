@@ -18,10 +18,10 @@ export default function Index() {
     }
   }, [user, isLoading, router]);
 
-  // Show loading indicator while checking auth state
+  // Show loading indicator while checking auth state - match splash screen background
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFAFA' }} className="items-center justify-center">
-      <ActivityIndicator size="large" color="#1e40af" />
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#212121' }} className="items-center justify-center">
+      <ActivityIndicator size="large" color="#ffffff" />
     </SafeAreaView>
   );
 }

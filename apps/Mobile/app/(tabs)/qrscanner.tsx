@@ -453,14 +453,6 @@ export default function QRScanner() {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => router.back()}
-              className="bg-slate-800 px-6 py-3 rounded-lg"
-            >
-              <Text className="text-white font-semibold text-center">
-                Go Back
-              </Text>
-            </TouchableOpacity>
           </View>
         </View>
       </SafeAreaView>
@@ -528,14 +520,6 @@ export default function QRScanner() {
               </TouchableOpacity>
             )}
 
-            <TouchableOpacity
-              onPress={() => router.back()}
-              className={`px-6 py-3 rounded-lg ${isRestricted ? 'bg-blue-700' : 'bg-blue-800'}`}
-            >
-              <Text className="text-white font-semibold text-center">
-                Go Back
-              </Text>
-            </TouchableOpacity>
           </View>
         </View>
       </SafeAreaView>
@@ -548,12 +532,7 @@ export default function QRScanner() {
       <SafeAreaView className="flex-1 bg-black">
         {/* Camera Header */}
         <View className="flex-row items-center justify-between p-6 pt-12 bg-black rounded-2xl mb-6 mx-4 z-10 absolute top-0 left-0 right-0">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-10 h-10 bg-white bg-opacity-90 rounded-full items-center justify-center shadow-lg"
-          >
-            <Ionicons name="arrow-back" size={20} color="#1e3a8a" />
-          </TouchableOpacity>
+          <View className="w-10" />
 
           <View className="flex-row items-center">
             <Ionicons name="camera" size={18} color="white" />
@@ -783,12 +762,7 @@ export default function QRScanner() {
       <SafeAreaView className="flex-1 bg-black">
         {/* Header */}
         <View className="flex-row items-center justify-between p-6 pt-12 bg-black rounded-2xl mb-6 mx-4 z-10">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-10 h-10 bg-white bg-opacity-90 rounded-full items-center justify-center shadow-lg"
-          >
-            <Ionicons name="arrow-back" size={20} color="#1e3a8a" />
-          </TouchableOpacity>
+          <View className="w-10" />
 
           <View className="flex-row items-center">
             <Ionicons name="qr-code" size={18} color="white" />

@@ -17,6 +17,11 @@ import { EventService, Event } from '../lib/eventService';
 import { SpeakerService } from '../lib/speakerService';
 import { SponsorService } from '../lib/sponsorService';
 import { useAuth } from '../lib/authContext';
+import RenderHTML from 'react-native-render-html';
+import { Dimensions } from 'react-native';
+import { decodeHtml, getHtmlContentWidth, defaultHtmlStyles } from '../lib/htmlUtils';
+
+const { width: screenWidth } = Dimensions.get('window');
 
 interface EventSpeaker {
   id: string;
@@ -215,9 +220,15 @@ export default function EventDetails() {
                   {event.title}
                 </Text>
                 {event.description && (
-                  <Text className="text-gray-600 text-center leading-6">
-                    {event.description}
-                  </Text>
+                  <View className="mt-2">
+                    <RenderHTML
+                      contentWidth={getHtmlContentWidth(48)}
+                      source={{ html: decodeHtml(event.description) }}
+                      baseStyle={{ ...defaultHtmlStyles.baseStyle, textAlign: 'center' }}
+                      tagsStyles={defaultHtmlStyles.tagsStyles}
+                      enableExperimentalMarginCollapsing={true}
+                    />
+                  </View>
                 )}
               </View>
 
@@ -230,7 +241,15 @@ export default function EventDetails() {
                     </View>
                     <Text className="text-lg font-semibold text-gray-800">Event Rationale</Text>
                   </View>
-                  <Text className="text-gray-600 bg-blue-50 p-4 rounded-xl">{event.rationale}</Text>
+                  <View className="bg-blue-50 p-4 rounded-xl">
+                    <RenderHTML
+                      contentWidth={getHtmlContentWidth(80)}
+                      source={{ html: decodeHtml(event.rationale) }}
+                      baseStyle={defaultHtmlStyles.baseStyle}
+                      tagsStyles={defaultHtmlStyles.tagsStyles}
+                      enableExperimentalMarginCollapsing={true}
+                    />
+                  </View>
                 </View>
               )}
 

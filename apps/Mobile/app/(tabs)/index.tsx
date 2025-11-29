@@ -6,6 +6,7 @@ import { EventService, Event } from '../../lib/eventService';
 import { useAuth } from '../../lib/authContext';
 import { Ionicons } from '@expo/vector-icons';
 import RenderHTML from 'react-native-render-html';
+import { decodeHtml, getHtmlContentWidth, defaultHtmlStyles, stripHtmlTags } from '../../lib/htmlUtils';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -96,16 +97,6 @@ export default function Index() {
     });
   };
 
-  // Helper function to decode HTML entities
-  const decodeHtml = (value: string) => {
-    if (!value) return '';
-    return value
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&amp;/g, '&')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'");
-  };
 
   // Navigation functions for carousel
   const scrollLeft = () => {
@@ -239,9 +230,11 @@ export default function Index() {
                       <Text className="text-xl font-semibold text-slate-800">Event Rationale</Text>
                     </View>
                     <RenderHTML
-                      contentWidth={screenWidth - 64}
+                      contentWidth={getHtmlContentWidth(64)}
                       source={{ html: decodeHtml(displayFeaturedEvent.rationale) }}
-                      baseStyle={{ color: '#475569', lineHeight: 24 }}
+                      baseStyle={defaultHtmlStyles.baseStyle}
+                      tagsStyles={defaultHtmlStyles.tagsStyles}
+                      enableExperimentalMarginCollapsing={true}
                     />
                   </View>
                 )}
@@ -320,8 +313,10 @@ export default function Index() {
                       <View className="p-4">
                         <Text className="font-semibold text-lg text-gray-800 mb-2">{event.title}</Text>
                         <Text className="text-gray-600 text-sm mt-2 mb-3" numberOfLines={3}>
-                          {decodeHtml(event.description || event.rationale || 'Experience something amazing').replace(/<[^>]*>/g, '').substring(0, 150)}
-                          {decodeHtml(event.description || event.rationale || '').replace(/<[^>]*>/g, '').length > 150 ? '...' : ''}
+                          {(() => {
+                            const text = stripHtmlTags(event.description || event.rationale || 'Experience something amazing');
+                            return text.length > 150 ? text.substring(0, 150) + '...' : text;
+                          })()}
                         </Text>
                         <View className="mt-3">
                           <View className="flex-row items-center mb-1">

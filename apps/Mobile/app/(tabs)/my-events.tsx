@@ -29,6 +29,7 @@ import { EventService, Event } from '../../lib/eventService';
 import { SurveyService } from '../../lib/surveyService';
 import { useAuth } from '../../lib/authContext';
 import { supabase } from '../../lib/supabase';
+import { stripHtmlTags } from '../../lib/htmlUtils';
 
 interface RegisteredEvent extends Event {
   registration_date: string;
@@ -528,7 +529,7 @@ export default function MyEvents() {
                   
                   {event.rationale && (
                     <Text className="text-sm text-slate-600 mb-4" numberOfLines={3}>
-                      {event.rationale}
+                      {stripHtmlTags(event.rationale)}
                     </Text>
                   )}
                   
