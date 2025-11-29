@@ -168,4 +168,25 @@ export class EventService {
       return { registrations: [], error: 'An unexpected error occurred' };
     }
   }
+
+  static async getFeaturedEvent(): Promise<{ event?: Event; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('is_featured', true)
+        .eq('status', 'published')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { event: data };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
 }

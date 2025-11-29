@@ -81,6 +81,15 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="participant-details"
+        options={{
+          title: 'Participant',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people" size={size} color={color} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

@@ -410,14 +410,14 @@ export default function Profile() {
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 justify-center items-center">
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFAFA' }} className="justify-center items-center">
         <ActivityIndicator size="large" color="#1e40af" />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
       <ScrollView 
         className="flex-1" 
         contentContainerStyle={{ 
@@ -436,7 +436,7 @@ export default function Profile() {
           </View>
 
           {/* Profile Card */}
-          <View className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 mb-6">
+          <View className="rounded-2xl shadow-xl border border-slate-200 p-8 mb-6" style={{ backgroundColor: '#FAFAFA' }}>
             {!isEditMode ? (
               <>
             <View className="items-center mb-6">
@@ -511,6 +511,14 @@ export default function Profile() {
               >
                 <Ionicons name="document-text-outline" size={20} color="white" style={{ marginRight: 8 }} />
                 <Text className="text-white font-semibold">Terms & Conditions</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => router.push('/terms?type=privacy')}
+                className="bg-slate-600 py-3 px-6 rounded-xl items-center flex-row justify-center"
+              >
+                <Ionicons name="shield-checkmark-outline" size={20} color="white" style={{ marginRight: 8 }} />
+                <Text className="text-white font-semibold">Privacy Policy</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -659,7 +667,7 @@ export default function Profile() {
                   {userProfile?.role && (
                     <View>
                       <Text className="text-sm font-medium text-slate-700 mb-2">Role</Text>
-                      <View className="px-4 py-3 border border-slate-300 rounded-xl bg-slate-50">
+                      <View className="px-4 py-3 border border-slate-300 rounded-xl" style={{ backgroundColor: '#FAFAFA' }}>
                         <Text className="text-slate-700 capitalize">{userProfile.role}</Text>
                       </View>
                       <Text className="mt-1 text-xs text-slate-500">

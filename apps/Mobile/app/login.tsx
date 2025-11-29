@@ -185,7 +185,7 @@ export default function LoginDashboard() {
               </View>
 
               {/* Login Form Container */}
-              <View className="bg-white rounded-3xl p-8 shadow-2xl mx-2 border border-slate-100">
+              <View className="rounded-3xl p-8 shadow-2xl mx-2 border border-slate-100" style={{ backgroundColor: '#FAFAFA' }}>
               {/* Email Input */}
               <View className="mb-6">
                 <Text className="text-lg font-bold text-slate-900 mb-3">Email Address</Text>

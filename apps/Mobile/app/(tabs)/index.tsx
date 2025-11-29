@@ -1,25 +1,33 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, Image, Dimensions } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, Alert, Image, Dimensions, ActivityIndicator, Animated } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { LoadingScreen } from '../loadingscreen';
 import { EventService, Event } from '../../lib/eventService';
 import { useAuth } from '../../lib/authContext';
 import { Ionicons } from '@expo/vector-icons';
+import RenderHTML from 'react-native-render-html';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 export default function Index() {
   const [events, setEvents] = useState<Event[]>([]);
+  const [featuredEvent, setFeaturedEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentEventIndex, setCurrentEventIndex] = useState(0);
   const insets = useSafeAreaInsets();
 
-  const { user: currentUser, signOut, isLoading: authLoading } = useAuth();
+  const { user: currentUser, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  
+  // Swipe functionality state
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const scrollX = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadEvents();
+    loadFeaturedEvent();
   }, []);
 
   useEffect(() => {
@@ -34,14 +42,20 @@ export default function Index() {
       setLoading(true);
       setError(null);
       
-      // Fetch published events for the home page (same as participants page)
-      const result = await EventService.getPublishedEvents();
+      // Add timeout to prevent infinite loading
+      const timeoutPromise = new Promise<{ events: Event[]; error?: string }>((_, reject) => 
+        setTimeout(() => reject(new Error('Loading timeout after 10 seconds')), 10000)
+      );
+      
+      // Fetch published events for the home page
+      const eventsPromise = EventService.getPublishedEvents();
+      
+      const result = await Promise.race([eventsPromise, timeoutPromise]);
       
       if (result.error) {
         setError(result.error);
         setEvents([]);
       } else {
-        // Use events directly from database, no placeholders
         setEvents(result.events || []);
       }
     } catch (err) {
@@ -52,10 +66,22 @@ export default function Index() {
     }
   };
 
+  const loadFeaturedEvent = async () => {
+    try {
+      const result = await EventService.getFeaturedEvent();
+      if (result.event) {
+        setFeaturedEvent(result.event);
+      }
+    } catch (err) {
+      // Silently fail - will fallback to first event
+    }
+  };
+
+  // Use the featured event, or fallback to first event
+  const displayFeaturedEvent = featuredEvent || events[0];
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric'
@@ -70,47 +96,125 @@ export default function Index() {
     });
   };
 
+  // Helper function to decode HTML entities
+  const decodeHtml = (value: string) => {
+    if (!value) return '';
+    return value
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+  };
+
+  // Navigation functions for carousel
+  const scrollLeft = () => {
+    setCurrentEventIndex((prev) => {
+      const newIndex = prev - 1;
+      if (newIndex < 0) {
+        return events.length - 1;
+      }
+      return newIndex;
+    });
+  };
+
+  const scrollRight = () => {
+    setCurrentEventIndex((prev) => {
+      const newIndex = prev + 1;
+      if (newIndex >= events.length) {
+        return 0;
+      }
+      return newIndex;
+    });
+  };
+
+  // Swipe functionality
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: any) => {
+    setTouchEnd(null);
+    setTouchStart(e.nativeEvent.pageX);
+  };
+
+  const onTouchMove = (e: any) => {
+    setTouchEnd(e.nativeEvent.pageX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe) {
+      scrollRight();
+    }
+    if (isRightSwipe) {
+      scrollLeft();
+    }
+
+    setTouchStart(null);
+    setTouchEnd(null);
+  };
+
   if (loading || authLoading) {
-    return <LoadingScreen onComplete={() => {}} />;
+    return (
+      <SafeAreaView className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50 items-center justify-center">
+        <ActivityIndicator size="large" color="#2563eb" />
+        <Text className="text-slate-600 text-lg mt-4">Loading events...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50 items-center justify-center px-4">
+        <View className="bg-white rounded-2xl shadow-lg border border-red-200 p-8 max-w-md">
+          <View className="w-16 h-16 rounded-full bg-red-100 mx-auto mb-4 items-center justify-center">
+            <Ionicons name="alert-circle" size={32} color="#dc2626" />
+          </View>
+          <Text className="text-lg font-semibold text-slate-800 mb-2 text-center">Error Loading Events</Text>
+          <Text className="text-slate-600 mb-4 text-center">{error}</Text>
+          <TouchableOpacity
+            onPress={loadEvents}
+            className="bg-blue-600 py-3 px-4 rounded-lg items-center"
+          >
+            <Text className="text-white font-medium">Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   // If not authenticated, show loading while redirecting
   if (!currentUser) {
-    return <LoadingScreen onComplete={() => {}} />;
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFAFA' }} className="items-center justify-center">
+        <ActivityIndicator size="large" color="#1e40af" />
+      </SafeAreaView>
+    );
   }
 
-  // Get the featured event (first event)
-  const displayEvent = events[0];
-
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
       <ScrollView 
         className="flex-1" 
         contentContainerStyle={{ 
-          padding: 20, 
-          paddingTop: insets.top + 20,
+          padding: 16,
+          paddingTop: insets.top + 8,
           paddingBottom: Math.max(insets.bottom, 20)
         }}
         showsVerticalScrollIndicator={false}
       >
-        <View className="w-full max-w-md mx-auto">
-          {/* Welcome Message */}
-          <View className="text-center mb-16">
-            <Text className="text-5xl font-black text-slate-900 mb-6 tracking-tight">
-              GanApp
-            </Text>
-            <Text className="text-lg text-slate-600 font-medium">
-              Your gateway to seamless event management
-            </Text>
-          </View>
-          
+        <View className="w-full max-w-6xl mx-auto">
           {/* Single Featured Event Card */}
-          {displayEvent && (
-            <View className="bg-white rounded-3xl shadow-2xl overflow-hidden mb-16 border border-slate-100">
+          {displayFeaturedEvent && (
+            <View className="rounded-2xl shadow-lg border border-slate-100 overflow-hidden mb-12" style={{ backgroundColor: '#FAFAFA' }}>
               {/* Banner Image */}
-              <View className="h-56 overflow-hidden">
+              <View className="w-full h-64 overflow-hidden">
                 <Image
-                  source={{ uri: displayEvent.banner_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center' }}
+                  source={{ uri: displayFeaturedEvent.banner_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center' }}
                   className="w-full h-full"
                   resizeMode="cover"
                 />
@@ -119,136 +223,144 @@ export default function Index() {
               {/* Event Content */}
               <View className="p-8">
                 {/* Event Title */}
-                <Text className="text-2xl font-bold text-slate-900 mb-4 leading-tight">{displayEvent.title}</Text>
-                
-                {/* Event Description */}
-                <Text className="text-slate-600 mb-6 leading-relaxed">
-                  {displayEvent.rationale || 'No rationale available'}
-                </Text>
-                
-                {/* Event Details */}
-                <View className="mb-8 space-y-3">
-                  <View className="flex-row items-center">
-                    <View className="w-8 h-8 bg-blue-100 rounded-full items-center justify-center mr-3">
-                      <Ionicons name="calendar" size={16} color="#3b82f6" />
-                    </View>
-                    <Text className="text-gray-700 font-medium">
-                      {formatDate(displayEvent.start_date)}
-                    </Text>
-                  </View>
-                  <View className="flex-row items-center">
-                    <View className="w-8 h-8 bg-green-100 rounded-full items-center justify-center mr-3">
-                      <Ionicons name="time" size={16} color="#10b981" />
-                    </View>
-                    <Text className="text-gray-700 font-medium">
-                      {formatTime(displayEvent.start_time)} - {formatTime(displayEvent.end_time)}
-                    </Text>
-                  </View>
-                  <View className="flex-row items-center">
-                    <View className="w-8 h-8 bg-purple-100 rounded-full items-center justify-center mr-3">
-                      <Ionicons name="location" size={16} color="#8b5cf6" />
-                    </View>
-                    <Text className="text-gray-700 font-medium">{displayEvent.venue}</Text>
-                  </View>
+                <View className="items-center mb-6">
+                  <Text className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-3 text-center">
+                    {displayFeaturedEvent.title}
+                  </Text>
                 </View>
-                
-                {/* Action Button */}
-                <TouchableOpacity
-                  onPress={() => router.push(`/event-details?eventId=${displayEvent.id}`)}
-                  className="bg-slate-900 py-4 px-8 rounded-2xl items-center shadow-lg"
-                >
-                  <Text className="text-white font-bold text-lg">View Details</Text>
-                </TouchableOpacity>
+
+                {/* Event Rationale */}
+                {displayFeaturedEvent.rationale && (
+                  <View className="mb-8">
+                    <View className="flex-row items-center mb-4">
+                      <View className="w-12 h-12 rounded-full bg-blue-600 items-center justify-center mr-3">
+                        <Ionicons name="bulb" size={24} color="white" />
+                      </View>
+                      <Text className="text-xl font-semibold text-slate-800">Event Rationale</Text>
+                    </View>
+                    <RenderHTML
+                      contentWidth={screenWidth - 64}
+                      source={{ html: decodeHtml(displayFeaturedEvent.rationale) }}
+                      baseStyle={{ color: '#475569', lineHeight: 24 }}
+                    />
+                  </View>
+                )}
+
+                {/* View Details Button */}
+                <View className="items-center">
+                  <TouchableOpacity
+                    onPress={() => router.push(`/event-details?eventId=${displayFeaturedEvent.id}`)}
+                    className="bg-blue-600 px-8 py-3 rounded-xl items-center"
+                  >
+                    <Text className="text-white font-medium text-base">View Details</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           )}
-
-          {/* Events Carousel */}
+          
+          {/* Events Carousel Card */}
           {events.length > 0 ? (
-            <View className="bg-white rounded-3xl shadow-2xl border border-slate-100 p-8 mb-12">
-              {/* Section Header */}
-              <View className="mb-8">
-                <Text className="text-3xl font-bold text-slate-900 mb-2">Upcoming Events</Text>
-                <Text className="text-slate-600 text-lg font-medium">Discover and explore our upcoming events</Text>
+            <View className="mb-12">
+              {/* Section Header with Title and Navigation */}
+              <View className="flex-row items-center justify-between mb-6">
+                <View className="flex-1">
+                  <Text className="text-2xl font-bold text-slate-800 mb-1">Upcoming Events</Text>
+                  <Text className="text-slate-600 text-base">Discover and explore our upcoming events</Text>
+                </View>
+                <View className="flex-row items-center space-x-2">
+                  <TouchableOpacity
+                    onPress={scrollLeft}
+                    className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
+                  >
+                    <Ionicons name="chevron-back" size={20} color="white" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={scrollRight}
+                    className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
+                  >
+                    <Ionicons name="chevron-forward" size={20} color="white" />
+                  </TouchableOpacity>
+                </View>
               </View>
               
               {/* Carousel Container */}
-              <View className="relative">
+              <View 
+                className="relative overflow-hidden"
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+              >
                 <ScrollView
                   horizontal
+                  pagingEnabled
                   showsHorizontalScrollIndicator={false}
+                  onScroll={Animated.event(
+                    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+                    { useNativeDriver: false }
+                  )}
+                  scrollEventThrottle={16}
                   contentContainerStyle={{ paddingHorizontal: 0 }}
                   decelerationRate="fast"
                   snapToInterval={screenWidth - 32}
                   snapToAlignment="start"
                 >
-                {events.map((event, index) => (
-                  <TouchableOpacity
-                    key={event.id}
-                    className="w-80 rounded-2xl overflow-hidden bg-white shadow-xl mr-6 border border-slate-100"
-                    onPress={() => router.push(`/event-details?eventId=${event.id}`)}
-                  >
-                    <Image
-                      source={{ uri: event.banner_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center' }}
-                      className="w-full h-48"
-                      resizeMode="cover"
-                    />
-                    <View className="p-6">
-                      <Text className="font-bold text-xl text-slate-900 mb-3 leading-tight">{event.title}</Text>
-                      <Text className="text-slate-600 text-sm mb-4 leading-relaxed">
-                        {event.rationale || 'No rationale available'}
-                      </Text>
-                      <View className="space-y-2">
-                        <View className="flex-row items-center">
-                          <View className="w-6 h-6 bg-blue-100 rounded-full items-center justify-center mr-2">
-                            <Ionicons name="calendar" size={12} color="#3b82f6" />
+                  {events.map((event, index) => (
+                    <TouchableOpacity
+                      key={event.id}
+                      className="w-80 rounded-lg overflow-hidden bg-white shadow-sm mr-6"
+                      onPress={() => router.push(`/event-details?eventId=${event.id}`)}
+                      style={{ width: screenWidth - 32 }}
+                    >
+                      <Image
+                        source={{ uri: event.banner_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center' }}
+                        className="w-full h-48"
+                        resizeMode="cover"
+                      />
+                      <View className="p-4">
+                        <Text className="font-semibold text-lg text-gray-800 mb-2">{event.title}</Text>
+                        <Text className="text-gray-600 text-sm mt-2 mb-3" numberOfLines={3}>
+                          {decodeHtml(event.description || event.rationale || 'Experience something amazing').replace(/<[^>]*>/g, '').substring(0, 150)}
+                          {decodeHtml(event.description || event.rationale || '').replace(/<[^>]*>/g, '').length > 150 ? '...' : ''}
+                        </Text>
+                        <View className="mt-3">
+                          <View className="flex-row items-center mb-1">
+                            <Ionicons name="calendar" size={16} color="#6b7280" />
+                            <Text className="text-xs text-gray-500 ml-1">{formatDate(event.start_date)}</Text>
                           </View>
-                          <Text className="text-xs text-gray-600 font-medium">
-                            {formatDate(event.start_date)}
-                          </Text>
-                        </View>
-                        <View className="flex-row items-center">
-                          <View className="w-6 h-6 bg-green-100 rounded-full items-center justify-center mr-2">
-                            <Ionicons name="time" size={12} color="#10b981" />
+                          <View className="flex-row items-center">
+                            <Ionicons name="time" size={16} color="#6b7280" />
+                            <Text className="text-xs text-gray-500 ml-1">
+                              {formatTime(event.start_time)} - {formatTime(event.end_time)}
+                            </Text>
                           </View>
-                          <Text className="text-xs text-gray-600 font-medium">
-                            {formatTime(event.start_time)} - {formatTime(event.end_time)}
-                          </Text>
                         </View>
                       </View>
-                    </View>
-                  </TouchableOpacity>
-                ))}
+                    </TouchableOpacity>
+                  ))}
                 </ScrollView>
-                
-                {/* Subtle scroll indicator */}
-                {events.length > 1 && (
-                  <View className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                    <View className="w-1 h-8 bg-slate-300 rounded-full opacity-50" />
-                  </View>
-                )}
               </View>
               
-              {/* Subtle More Events Link */}
-              <View className="flex-row justify-center mt-6">
+              {/* See All Button */}
+              <View className="flex-row justify-end mt-6">
                 <TouchableOpacity
                   onPress={() => router.push('/(tabs)/events')}
-                  className="flex-row items-center"
+                  className="bg-blue-600 px-6 py-3 rounded-xl items-center flex-row"
                 >
-                  <Text className="text-slate-600 text-base font-medium mr-2">View all events</Text>
-                  <Ionicons name="arrow-forward" size={16} color="#6b7280" />
+                  <Text className="text-white font-medium mr-2">See All</Text>
+                  <Ionicons name="arrow-forward" size={16} color="white" />
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
             !loading && (
-              <View className="bg-white rounded-3xl shadow-2xl border border-slate-100 p-8 mb-12">
+              <View className="rounded-2xl shadow-lg border border-slate-100 p-8 mb-12" style={{ backgroundColor: '#FAFAFA' }}>
                 <View className="items-center">
                   <View className="w-16 h-16 rounded-full bg-blue-100 mb-4 items-center justify-center">
                     <Ionicons name="calendar-outline" size={32} color="#2563eb" />
                   </View>
                   <Text className="text-xl font-semibold text-gray-800 mb-2 text-center">No Upcoming Events</Text>
-                  <Text className="text-gray-600 mb-6 text-center">
+                  <Text className="text-gray-600 text-center">
                     There are no upcoming events at the moment. Check back later for new events!
                   </Text>
                 </View>

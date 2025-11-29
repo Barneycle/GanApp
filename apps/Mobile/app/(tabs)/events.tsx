@@ -93,7 +93,7 @@ export default function Events() {
   return (
     <SafeAreaView className="flex-1 bg-blue-900">
       {/* Header */}
-      <View className="bg-blue-900 px-3 pt-12 mt-6">
+      <View className="bg-blue-900 px-3" style={{ paddingTop: insets.top + 8 }}>
         <View className="flex-row items-center justify-between">
           <TouchableOpacity
             onPress={() => router.back()}
@@ -116,7 +116,7 @@ export default function Events() {
           className="flex-1" 
           contentContainerStyle={{ 
             paddingVertical: 20,
-            paddingTop: insets.top + 20,
+            paddingTop: 8,
             paddingBottom: Math.max(insets.bottom, 20)
           }}
           showsVerticalScrollIndicator={false}
@@ -124,7 +124,7 @@ export default function Events() {
           <Text className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Upcoming Events</Text>
           
           {events.length === 0 ? (
-            <View className="bg-white rounded-xl p-6 items-center">
+            <View className="rounded-xl p-6 items-center" style={{ backgroundColor: '#FAFAFA' }}>
               <Ionicons name="calendar-outline" size={48} color="#6b7280" />
               <Text className="text-lg font-semibold text-gray-800 mt-4 text-center">
                 No Events Available
@@ -137,7 +137,8 @@ export default function Events() {
             events.map((event) => (
               <TouchableOpacity
                 key={event.id}
-                className="bg-white rounded-xl shadow-md mb-4 overflow-hidden"
+                className="rounded-xl shadow-md mb-4 overflow-hidden"
+                style={{ backgroundColor: '#FAFAFA' }}
                 onPress={() => router.push(`/event-details?eventId=${event.id}`)}
               >
                 <Image 
