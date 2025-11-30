@@ -321,58 +321,58 @@ export default function Index() {
                       <Ionicons name="calendar" size={22} color="#2563eb" />
                     </View>
                     <Text className="text-2xl font-bold text-slate-900">Upcoming Events</Text>
-                  </View>
+                </View>
                   <View className="flex-row items-center" style={{ gap: 8 }}>
-                    <TouchableOpacity
-                      onPress={scrollLeft}
+                  <TouchableOpacity
+                    onPress={scrollLeft}
                       className="w-10 h-10 rounded-full items-center justify-center"
                       style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
-                    >
-                      <Ionicons name="chevron-back" size={20} color="white" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={scrollRight}
+                  >
+                    <Ionicons name="chevron-back" size={20} color="white" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={scrollRight}
                       className="w-10 h-10 rounded-full items-center justify-center"
                       style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
-                    >
-                      <Ionicons name="chevron-forward" size={20} color="white" />
-                    </TouchableOpacity>
+                  >
+                    <Ionicons name="chevron-forward" size={20} color="white" />
+                  </TouchableOpacity>
                   </View>
                 </View>
               </View>
               
               {/* Card Content */}
               <View className="p-5">
-                {/* Carousel Container */}
-                <View 
+              {/* Carousel Container */}
+              <View 
                   ref={carouselContainerRef}
-                  className="relative overflow-hidden"
-                  onTouchStart={onTouchStart}
-                  onTouchMove={onTouchMove}
-                  onTouchEnd={onTouchEnd}
+                className="relative overflow-hidden"
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
                   onLayout={(event) => {
                     const { width } = event.nativeEvent.layout;
                     setContainerWidth(width);
                   }}
-                >
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    onScroll={Animated.event(
-                      [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-                      { useNativeDriver: false }
-                    )}
-                    scrollEventThrottle={16}
+              >
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  onScroll={Animated.event(
+                    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+                    { useNativeDriver: false }
+                  )}
+                  scrollEventThrottle={16}
                     contentContainerStyle={{ 
                       paddingLeft: (containerWidth - CARD_WIDTH) / 2,
                       paddingRight: (containerWidth - CARD_WIDTH) / 2
                     }}
-                    decelerationRate="fast"
+                  decelerationRate="fast"
                     snapToOffsets={snapOffsets}
-                    snapToAlignment="start"
+                  snapToAlignment="start"
                     pagingEnabled={false}
-                  >
-                    {events.map((event, index) => (
+                >
+                  {events.map((event, index) => (
                     <TouchableOpacity
                       key={event.id}
                       className="rounded-2xl overflow-hidden"
@@ -390,8 +390,8 @@ export default function Index() {
                         elevation: 3,
                       }}
                     >
-                      <Image 
-                        source={{ uri: event.banner_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center' }} 
+                      <Image
+                        source={{ uri: event.banner_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center' }}
                         className="w-full h-32"
                         resizeMode="cover"
                       />
@@ -465,19 +465,19 @@ export default function Index() {
                         </View>
                       </View>
                     </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-                
-                {/* See All Button */}
-                <View className="flex-row justify-end mt-6">
-                  <TouchableOpacity
-                    onPress={() => router.push('/(tabs)/events')}
-                    className="bg-blue-600 px-6 py-3 rounded-xl items-center flex-row"
-                  >
-                    <Text className="text-white font-medium mr-2">See All</Text>
-                    <Ionicons name="arrow-forward" size={16} color="white" />
-                  </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+              
+              {/* See All Button */}
+              <View className="flex-row justify-end mt-6">
+                <TouchableOpacity
+                  onPress={() => router.push('/(tabs)/events')}
+                  className="bg-blue-600 px-6 py-3 rounded-xl items-center flex-row"
+                >
+                  <Text className="text-white font-medium mr-2">See All</Text>
+                  <Ionicons name="arrow-forward" size={16} color="white" />
+                </TouchableOpacity>
                 </View>
               </View>
             </View>

@@ -185,7 +185,7 @@ export default function Events() {
             
             {/* Card Content */}
             <View className="p-5">
-              {events.length === 0 ? (
+          {events.length === 0 ? (
                 <View className="py-12 items-center">
                   <View 
                     className="w-20 h-20 rounded-full items-center justify-center mb-4"
@@ -194,16 +194,16 @@ export default function Events() {
                     <Ionicons name="calendar-outline" size={40} color="#64748b" />
                   </View>
                   <Text className="text-xl font-semibold text-gray-800 mb-2 text-center">
-                    No Events Available
-                  </Text>
+                No Events Available
+              </Text>
                   <Text className="text-gray-500 text-center text-sm">
-                    Check back later for upcoming events.
-                  </Text>
-                </View>
-              ) : (
+                Check back later for upcoming events.
+              </Text>
+            </View>
+          ) : (
                 events.map((event, index) => (
-                  <TouchableOpacity
-                    key={event.id}
+              <TouchableOpacity
+                key={event.id}
                     className="rounded-2xl overflow-hidden"
                     style={[
                       {
@@ -218,14 +218,14 @@ export default function Events() {
                         marginBottom: index < events.length - 1 ? 16 : 0,
                       }
                     ]}
-                    onPress={() => router.push(`/event-details?eventId=${event.id}`)}
-                  >
-                    <Image 
-                      source={{ uri: event.banner_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center' }} 
+                onPress={() => router.push(`/event-details?eventId=${event.id}`)}
+              >
+                <Image 
+                  source={{ uri: event.banner_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center' }} 
                       className="w-full h-40"
-                      resizeMode="cover"
-                    />
-                    
+                  resizeMode="cover"
+                />
+                
                     <View className="p-4">
                       <View className="flex-row items-center justify-between mb-3">
                         <View 
@@ -238,16 +238,16 @@ export default function Events() {
                           <Ionicons name="people-outline" size={14} color="#64748b" />
                           <Text className="text-xs text-slate-500 ml-1">
                             {event.current_participants || 0}/{event.max_participants || '∞'}
-                          </Text>
+                    </Text>
                         </View>
-                      </View>
-                      
+                  </View>
+                  
                       <Text className="text-lg font-bold text-slate-900 mb-3" numberOfLines={2}>
                         {event.title}
                       </Text>
-                      
+                  
                       <View className="space-y-2 mb-3">
-                        <View className="flex-row items-center">
+                    <View className="flex-row items-center">
                           <View 
                             className="w-7 h-7 rounded-lg items-center justify-center mr-2"
                             style={{ backgroundColor: '#FEF3C7' }}
@@ -255,11 +255,11 @@ export default function Events() {
                             <Ionicons name="calendar-outline" size={14} color="#D97706" />
                           </View>
                           <Text className="text-sm text-slate-700 flex-1">
-                            {formatDate(event.start_date)}
-                          </Text>
-                        </View>
-                        
-                        <View className="flex-row items-center">
+                        {formatDate(event.start_date)}
+                      </Text>
+                    </View>
+                    
+                    <View className="flex-row items-center">
                           <View 
                             className="w-7 h-7 rounded-lg items-center justify-center mr-2"
                             style={{ backgroundColor: '#DCFCE7' }}
@@ -267,11 +267,11 @@ export default function Events() {
                             <Ionicons name="time-outline" size={14} color="#16A34A" />
                           </View>
                           <Text className="text-sm text-slate-700 flex-1">
-                            {formatTime(event.start_time)} - {formatTime(event.end_time)}
-                          </Text>
-                        </View>
-                        
-                        <View className="flex-row items-center">
+                        {formatTime(event.start_time)} - {formatTime(event.end_time)}
+                      </Text>
+                    </View>
+                    
+                    <View className="flex-row items-center">
                           <View 
                             className="w-7 h-7 rounded-lg items-center justify-center mr-2"
                             style={{ backgroundColor: '#DBEAFE' }}
@@ -279,24 +279,24 @@ export default function Events() {
                             <Ionicons name="location-outline" size={14} color="#2563EB" />
                           </View>
                           <Text className="text-sm text-slate-700 flex-1" numberOfLines={1}>
-                            {event.venue || 'Location TBD'}
-                          </Text>
-                        </View>
-                      </View>
-                      
+                        {event.venue || 'Location TBD'}
+                      </Text>
+                    </View>
+                  </View>
+                  
                       <View className="flex-row items-center justify-between pt-3 border-t border-slate-100 mt-3">
                         <Text className="text-xs text-slate-400">
                           Tap to view details
-                        </Text>
+                  </Text>
                         <View className="flex-row items-center">
                           <Text className="text-sm font-semibold text-blue-600 mr-1">View</Text>
                           <Ionicons name="arrow-forward" size={16} color="#2563eb" />
                         </View>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                ))
-              )}
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
             </View>
           </View>
         </ScrollView>

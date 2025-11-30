@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Image, TextInput, KeyboardAvoidingView, Platform, RefreshControl } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Image, TextInput, KeyboardAvoidingView, Platform, RefreshControl, Modal, FlatList, Dimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../lib/authContext';
 import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as MediaLibrary from 'expo-media-library';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { UserService } from '../../lib/userService';
 
 interface UserProfile {
@@ -37,6 +39,13 @@ export default function Profile() {
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showGalleryPicker, setShowGalleryPicker] = useState(false);
+  const [albums, setAlbums] = useState<MediaLibrary.Album[]>([]);
+  const [selectedAlbum, setSelectedAlbum] = useState<MediaLibrary.Album | null>(null);
+  const [photos, setPhotos] = useState<MediaLibrary.Asset[]>([]);
+  const [loadingAlbums, setLoadingAlbums] = useState(false);
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
+  const [showAlbumDropdown, setShowAlbumDropdown] = useState(false);
   const [success, setSuccess] = useState(false);
   const [emailConfirmationMessage, setEmailConfirmationMessage] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
@@ -180,39 +189,220 @@ export default function Profile() {
 
   const handleAvatarChange = async () => {
     try {
-      // Request permissions
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please grant photo library access to upload an avatar.');
-        return;
-      }
-
-      // Launch image picker
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        
-        // Validate file size (max 5MB)
-        if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
-          Alert.alert('Error', 'Image size must be less than 5MB');
+      if (Platform.OS === 'android') {
+        // On Android, use expo-media-library to show device albums directly
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Required', 'Please grant media library permissions to upload an avatar.');
           return;
         }
 
-        setAvatarUri(asset.uri);
-        setAvatarPreview(asset.uri);
-        if (error) setError(null);
+        // Show modal immediately for instant response
+        setShowGalleryPicker(true);
+        setSelectedAlbum(null); // null means "All Photos"
+        setLoadingAlbums(true);
+        setLoadingPhotos(true);
+        
+        // Load photos and albums in parallel in the background
+        Promise.all([
+          // Load recent photos (reduced for faster loading)
+          MediaLibrary.getAssetsAsync({
+            mediaType: MediaLibrary.MediaType.photo,
+            sortBy: MediaLibrary.SortBy.creationTime,
+            first: 50, // Reduced from 200 for faster initial load
+          }),
+          // Load albums
+          MediaLibrary.getAlbumsAsync(),
+        ]).then(([allPhotos, albumsList]) => {
+          setPhotos(allPhotos.assets);
+          setAlbums(albumsList);
+          setLoadingPhotos(false);
+          setLoadingAlbums(false);
+        }).catch((err) => {
+          console.error('Error loading photos/albums:', err);
+          setLoadingPhotos(false);
+          setLoadingAlbums(false);
+        });
+      } else {
+        // On iOS, use the standard expo-image-picker
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Required', 'Please grant photo library access to upload an avatar.');
+          return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+          selectionLimit: 1,
+        });
+
+        if (!result.canceled && result.assets[0]) {
+          const asset = result.assets[0];
+          
+          // Validate file size (max 5MB)
+          if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
+            Alert.alert('Error', 'Image size must be less than 5MB');
+            return;
+          }
+
+          setAvatarUri(asset.uri);
+          setAvatarPreview(asset.uri);
+          if (error) setError(null);
+        }
       }
     } catch (err) {
       console.error('Error picking image:', err);
       Alert.alert('Error', 'Failed to pick image. Please try again.');
+      setLoadingAlbums(false);
     }
   };
+
+  const loadPhotosFromAlbum = async (albumId: string | null) => {
+    try {
+      setLoadingPhotos(true);
+      let assets;
+      if (albumId === null) {
+        // Load all photos
+        assets = await MediaLibrary.getAssetsAsync({
+          mediaType: MediaLibrary.MediaType.photo,
+          sortBy: MediaLibrary.SortBy.creationTime,
+          first: 100, // Reduced for faster loading
+        });
+      } else {
+        // Load photos from specific album
+        assets = await MediaLibrary.getAssetsAsync({
+          album: albumId,
+          mediaType: MediaLibrary.MediaType.photo,
+          sortBy: MediaLibrary.SortBy.creationTime,
+          first: 100, // Reduced for faster loading
+        });
+      }
+      setPhotos(assets.assets);
+      setLoadingPhotos(false);
+    } catch (err) {
+      console.error('Error loading photos from album:', err);
+      setLoadingPhotos(false);
+    }
+  };
+
+  const handleSelectAlbum = async (album: MediaLibrary.Album | null) => {
+    setSelectedAlbum(album);
+    await loadPhotosFromAlbum(album?.id || null);
+  };
+
+  const handleSelectPhoto = useCallback(async (photo: MediaLibrary.Asset) => {
+    try {
+      setShowGalleryPicker(false);
+      
+      // Try to get the full asset info, but fallback to photo.uri if it fails
+      let imageUri = photo.uri;
+      try {
+        const assetInfo = await MediaLibrary.getAssetInfoAsync(photo);
+        imageUri = assetInfo.localUri || assetInfo.uri || photo.uri;
+      } catch (infoErr) {
+        // If getAssetInfoAsync fails (e.g., missing ACCESS_MEDIA_LOCATION), use photo.uri directly
+        // This is expected behavior and doesn't affect functionality
+        imageUri = photo.uri;
+      }
+      
+      if (!imageUri) {
+        Alert.alert('Error', 'Failed to get image URI');
+        return;
+      }
+
+      // Validate file size (max 5MB) - approximate check
+      if (photo.width && photo.height) {
+        // Rough estimate: assume 3 bytes per pixel for uncompressed
+        const estimatedSize = photo.width * photo.height * 3;
+        if (estimatedSize > 5 * 1024 * 1024) {
+          Alert.alert('Error', 'Image size must be less than 5MB');
+          return;
+        }
+      }
+
+      // Resize and compress using ImageManipulator
+      try {
+        const manipulatedImage = await ImageManipulator.manipulateAsync(
+          imageUri,
+          [
+            { resize: { width: 800 } }, // Resize to reasonable size
+          ],
+          { 
+            compress: 0.8, 
+            format: ImageManipulator.SaveFormat.JPEG,
+          }
+        );
+        
+        setAvatarUri(manipulatedImage.uri);
+        setAvatarPreview(manipulatedImage.uri);
+        if (error) setError(null);
+      } catch (manipulateErr) {
+        // If manipulation fails, use original
+        console.error('Error manipulating image:', manipulateErr);
+        setAvatarUri(imageUri);
+        setAvatarPreview(imageUri);
+        if (error) setError(null);
+      }
+    } catch (err) {
+      console.error('Error selecting photo:', err);
+      Alert.alert('Error', 'Failed to process image. Please try again.');
+    }
+  }, [error]);
+
+  // Memoize image size calculation
+  const imageSize = useMemo(() => {
+    const { width } = Dimensions.get('window');
+    return (width - 6) / 3;
+  }, []);
+
+  // Memoized PhotoItem component for better performance
+  const PhotoItem = React.memo(({ item, onPress, size }: { 
+    item: MediaLibrary.Asset; 
+    onPress: (item: MediaLibrary.Asset) => void;
+    size: number;
+  }) => (
+    <TouchableOpacity
+      onPress={() => onPress(item)}
+      activeOpacity={0.8}
+      style={{ 
+        width: size, 
+        height: size, 
+        margin: 1,
+      }}
+    >
+      <Image
+        source={{ uri: item.uri }}
+        style={{ 
+          width: '100%', 
+          height: '100%',
+        }}
+        resizeMode="cover"
+      />
+    </TouchableOpacity>
+  ));
+
+  // Optimized renderItem for FlatList
+  const renderPhotoItem = useCallback(({ item }: { item: MediaLibrary.Asset }) => {
+    return <PhotoItem item={item} onPress={handleSelectPhoto} size={imageSize} />;
+  }, [imageSize, handleSelectPhoto]);
+
+  // Optimized keyExtractor
+  const keyExtractor = useCallback((item: MediaLibrary.Asset) => item.id, []);
+
+  // Optimized getItemLayout for better performance (3-column grid)
+  const getItemLayout = useCallback((data: any, index: number) => {
+    const itemSize = imageSize + 2; // width + margin
+    const row = Math.floor(index / 3);
+    const col = index % 3;
+    return {
+      length: itemSize,
+      offset: row * itemSize * 3 + col * itemSize,
+      index,
+    };
+  }, [imageSize]);
 
   const handleRemoveAvatar = () => {
     setAvatarUri(null);
@@ -821,6 +1011,128 @@ export default function Profile() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Gallery Picker Modal - Facebook Messenger Style */}
+      <Modal
+        visible={showGalleryPicker}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          setShowGalleryPicker(false);
+          setShowAlbumDropdown(false);
+        }}
+      >
+        <SafeAreaView className="flex-1 bg-blue-900">
+          {/* Header */}
+          <View className="flex-row items-center justify-between px-4 py-3 border-b border-blue-700 bg-blue-900">
+            <Text className="text-xl font-semibold text-white">Select Photo</Text>
+            <TouchableOpacity
+              onPress={() => setShowGalleryPicker(false)}
+              className="w-10 h-10 items-center justify-center rounded-full active:bg-blue-800"
+            >
+              <Ionicons name="close" size={24} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Album Selector - Dropdown */}
+          {!loadingAlbums && albums.length > 0 && (
+            <View className="bg-blue-900 border-b border-blue-700 px-4 py-3">
+              <TouchableOpacity
+                onPress={() => setShowAlbumDropdown(!showAlbumDropdown)}
+                className="flex-row items-center justify-between bg-blue-800 rounded-lg px-4 py-3"
+              >
+                <View className="flex-row items-center flex-1">
+                  <Ionicons name="folder" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+                  <Text className="text-white text-base font-medium">
+                    {selectedAlbum === null ? 'All Photos' : selectedAlbum.title}
+                  </Text>
+                </View>
+                <Ionicons 
+                  name={showAlbumDropdown ? "chevron-up" : "chevron-down"} 
+                  size={20} 
+                  color="#ffffff" 
+                />
+              </TouchableOpacity>
+              
+              {/* Dropdown Menu */}
+              {showAlbumDropdown && (
+                <View className="absolute top-full left-4 right-4 mt-1 bg-blue-800 rounded-lg border border-blue-700 z-50" style={{ maxHeight: 300 }}>
+                  <ScrollView nestedScrollEnabled>
+                    <TouchableOpacity
+                      onPress={() => {
+                        handleSelectAlbum(null);
+                        setShowAlbumDropdown(false);
+                      }}
+                      className={`px-4 py-3 border-b border-blue-700 ${
+                        selectedAlbum === null ? 'bg-blue-700' : ''
+                      }`}
+                    >
+                      <Text className={`text-base ${
+                        selectedAlbum === null ? 'text-white font-semibold' : 'text-blue-200'
+                      }`}>
+                        All Photos
+                      </Text>
+                    </TouchableOpacity>
+                    {albums.map((album) => (
+                      <TouchableOpacity
+                        key={album.id}
+                        onPress={() => {
+                          handleSelectAlbum(album);
+                          setShowAlbumDropdown(false);
+                        }}
+                        className={`px-4 py-3 border-b border-blue-700 ${
+                          selectedAlbum?.id === album.id ? 'bg-blue-700' : ''
+                        }`}
+                      >
+                        <View className="flex-row items-center justify-between">
+                          <Text className={`text-base flex-1 ${
+                            selectedAlbum?.id === album.id ? 'text-white font-semibold' : 'text-blue-200'
+                          }`}>
+                            {album.title}
+                          </Text>
+                          <Text className={`text-sm ml-2 ${
+                            selectedAlbum?.id === album.id ? 'text-blue-200' : 'text-blue-400'
+                          }`}>
+                            {album.assetCount}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Photos Grid */}
+          {loadingPhotos || loadingAlbums ? (
+            <View className="flex-1 items-center justify-center bg-blue-900">
+              <ActivityIndicator size="large" color="#ffffff" />
+              <Text className="text-blue-200 mt-4">Loading photos...</Text>
+            </View>
+          ) : photos.length === 0 ? (
+            <View className="flex-1 items-center justify-center bg-blue-900">
+              <Ionicons name="images-outline" size={64} color="#64748b" />
+              <Text className="text-slate-400 mt-4 text-lg">No photos found</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={photos}
+              numColumns={3}
+              keyExtractor={keyExtractor}
+              getItemLayout={getItemLayout}
+              contentContainerStyle={{ padding: 2 }}
+              showsVerticalScrollIndicator={false}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={15}
+              updateCellsBatchingPeriod={50}
+              initialNumToRender={15}
+              windowSize={5}
+              renderItem={renderPhotoItem}
+            />
+          )}
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }

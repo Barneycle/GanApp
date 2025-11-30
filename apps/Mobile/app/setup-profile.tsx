@@ -1,0 +1,777 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Image,
+  Alert,
+  ScrollView,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  Dimensions,
+  Modal,
+  FlatList,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../lib/authContext';
+import * as ImagePicker from 'expo-image-picker';
+import * as MediaLibrary from 'expo-media-library';
+import * as ImageManipulator from 'expo-image-manipulator';
+import { UserService } from '../lib/userService';
+
+interface SetupProfileFormData {
+  firstName: string;
+  lastName: string;
+  affiliatedOrganization: string;
+}
+
+export default function SetupProfileScreen() {
+  const [formData, setFormData] = useState<SetupProfileFormData>({
+    firstName: '',
+    lastName: '',
+    affiliatedOrganization: '',
+  });
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showGalleryPicker, setShowGalleryPicker] = useState(false);
+  const [albums, setAlbums] = useState<MediaLibrary.Album[]>([]);
+  const [selectedAlbum, setSelectedAlbum] = useState<MediaLibrary.Album | null>(null);
+  const [photos, setPhotos] = useState<MediaLibrary.Asset[]>([]);
+  const [loadingAlbums, setLoadingAlbums] = useState(false);
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
+  const [showAlbumDropdown, setShowAlbumDropdown] = useState(false);
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { user, refreshUser, isLoading: authLoading } = useAuth();
+  const scrollViewRef = useRef<ScrollView>(null);
+  
+  // Refs for form inputs
+  const firstNameRef = useRef<TextInput>(null);
+  const lastNameRef = useRef<TextInput>(null);
+  const orgRef = useRef<TextInput>(null);
+
+  // Store input Y positions for scrolling
+  const inputYPositions = useRef<{ [key: string]: number }>({});
+  const buttonYPosition = useRef<number>(0);
+
+  // Wait for user to be loaded, redirect to login if not authenticated after loading
+  useEffect(() => {
+    if (!authLoading && !user) {
+      // User not authenticated, redirect to login
+      router.replace('/login');
+    }
+  }, [user, authLoading, router]);
+
+  // Handle keyboard show/hide and scroll to focused input
+  useEffect(() => {
+    const keyboardWillShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        // Find which input is focused and scroll to it
+        let focusedField: string | null = null;
+        if (firstNameRef.current?.isFocused()) {
+          focusedField = 'firstName';
+        } else if (lastNameRef.current?.isFocused()) {
+          focusedField = 'lastName';
+        } else if (orgRef.current?.isFocused()) {
+          focusedField = 'org';
+        }
+
+        if (focusedField && inputYPositions.current[focusedField] !== undefined) {
+          const keyboardHeight = e.endCoordinates.height;
+          const inputY = inputYPositions.current[focusedField];
+          
+          // For the last field (org), scroll enough to show the button as well
+          if (focusedField === 'org') {
+            const screenHeight = Dimensions.get('window').height;
+            const availableHeight = screenHeight - keyboardHeight;
+            
+            if (buttonYPosition.current > 0) {
+              const buttonBottom = buttonYPosition.current + 60;
+              const scrollY = Math.max(0, buttonBottom - availableHeight + 20);
+              setTimeout(() => {
+                scrollViewRef.current?.scrollTo({
+                  y: scrollY,
+                  animated: true,
+                });
+              }, 150);
+            } else {
+              setTimeout(() => {
+                scrollViewRef.current?.scrollTo({
+                  y: Math.max(0, inputY - 250),
+                  animated: true,
+                });
+              }, 150);
+            }
+          } else {
+            // For other fields, scroll to position input above keyboard with padding
+            setTimeout(() => {
+              scrollViewRef.current?.scrollTo({
+                y: Math.max(0, inputY - 120),
+                animated: true,
+              });
+            }, 100);
+          }
+        }
+      }
+    );
+
+    return () => {
+      keyboardWillShowListener.remove();
+    };
+  }, []);
+
+  // Helper to store input Y position when layout changes
+  const handleInputLayout = (field: string) => (event: any) => {
+    const { y } = event.nativeEvent.layout;
+    event.target.measureInWindow((x: number, yPos: number, width: number, height: number) => {
+      inputYPositions.current[field] = yPos;
+    });
+  };
+
+  const handleInputChange = (field: keyof SetupProfileFormData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handlePickImage = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        // On Android, use expo-media-library to show device albums directly
+        const { status, canAskAgain } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Required', 'Please grant media library permissions to upload a profile photo.');
+          return;
+        }
+
+        // Show modal immediately for instant response
+        setShowGalleryPicker(true);
+        setSelectedAlbum(null); // null means "All Photos"
+        setLoadingAlbums(true);
+        setLoadingPhotos(true);
+        
+        // Load photos and albums in parallel in the background
+        Promise.all([
+          // Load recent photos (reduced for faster loading)
+          MediaLibrary.getAssetsAsync({
+            mediaType: MediaLibrary.MediaType.photo,
+            sortBy: MediaLibrary.SortBy.creationTime,
+            first: 50, // Reduced from 200 for faster initial load
+          }),
+          // Load albums
+          MediaLibrary.getAlbumsAsync(),
+        ]).then(([allPhotos, albumsList]) => {
+          setPhotos(allPhotos.assets);
+          setAlbums(albumsList);
+          setLoadingPhotos(false);
+          setLoadingAlbums(false);
+        }).catch((err) => {
+          console.error('Error loading photos/albums:', err);
+          setLoadingPhotos(false);
+          setLoadingAlbums(false);
+        });
+      } else {
+        // On iOS, use the standard expo-image-picker
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Required', 'Please grant camera roll permissions to upload a profile photo.');
+          return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+          selectionLimit: 1,
+        });
+
+        if (!result.canceled && result.assets[0]) {
+          setAvatarUri(result.assets[0].uri);
+          setAvatarPreview(result.assets[0].uri);
+        }
+      }
+    } catch (err) {
+      console.error('Error picking image:', err);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+      setLoadingAlbums(false);
+    }
+  };
+
+  const loadPhotosFromAlbum = async (albumId: string | null) => {
+    try {
+      setLoadingPhotos(true);
+      let assets;
+      if (albumId === null) {
+        // Load all photos
+        assets = await MediaLibrary.getAssetsAsync({
+          mediaType: MediaLibrary.MediaType.photo,
+          sortBy: MediaLibrary.SortBy.creationTime,
+          first: 100, // Reduced for faster loading
+        });
+      } else {
+        // Load photos from specific album
+        assets = await MediaLibrary.getAssetsAsync({
+          album: albumId,
+          mediaType: MediaLibrary.MediaType.photo,
+          sortBy: MediaLibrary.SortBy.creationTime,
+          first: 100, // Reduced for faster loading
+        });
+      }
+      setPhotos(assets.assets);
+      setLoadingPhotos(false);
+    } catch (err) {
+      console.error('Error loading photos from album:', err);
+      setLoadingPhotos(false);
+    }
+  };
+
+  const handleSelectAlbum = async (album: MediaLibrary.Album | null) => {
+    setSelectedAlbum(album);
+    await loadPhotosFromAlbum(album?.id || null);
+  };
+
+  // Memoize image size calculation
+  const imageSize = useMemo(() => {
+    const { width } = Dimensions.get('window');
+    return (width - 6) / 3;
+  }, []);
+
+  const handleSelectPhoto = useCallback(async (photo: MediaLibrary.Asset) => {
+    try {
+      setShowGalleryPicker(false);
+      
+      // Try to get the full asset info, but fallback to photo.uri if it fails
+      let imageUri = photo.uri;
+      try {
+        const assetInfo = await MediaLibrary.getAssetInfoAsync(photo);
+        imageUri = assetInfo.localUri || assetInfo.uri || photo.uri;
+      } catch (infoErr) {
+        // If getAssetInfoAsync fails (e.g., missing ACCESS_MEDIA_LOCATION), use photo.uri directly
+        // This is expected behavior and doesn't affect functionality
+        imageUri = photo.uri;
+      }
+      
+      if (!imageUri) {
+        Alert.alert('Error', 'Failed to get image URI');
+        return;
+      }
+
+      // Resize and compress using ImageManipulator
+      try {
+        const manipulatedImage = await ImageManipulator.manipulateAsync(
+          imageUri,
+          [
+            { resize: { width: 800 } }, // Resize to reasonable size
+          ],
+          { 
+            compress: 0.8, 
+            format: ImageManipulator.SaveFormat.JPEG,
+          }
+        );
+        
+        setAvatarUri(manipulatedImage.uri);
+        setAvatarPreview(manipulatedImage.uri);
+      } catch (manipulateErr) {
+        // If manipulation fails, use original
+        console.error('Error manipulating image:', manipulateErr);
+        setAvatarUri(imageUri);
+        setAvatarPreview(imageUri);
+      }
+    } catch (err) {
+      console.error('Error selecting photo:', err);
+      Alert.alert('Error', 'Failed to process image. Please try again.');
+    }
+  }, []);
+
+  // Memoized PhotoItem component for better performance
+  const PhotoItem = React.memo(({ item, onPress, size }: { 
+    item: MediaLibrary.Asset; 
+    onPress: (item: MediaLibrary.Asset) => void;
+    size: number;
+  }) => (
+    <TouchableOpacity
+      onPress={() => onPress(item)}
+      activeOpacity={0.8}
+      style={{ 
+        width: size, 
+        height: size, 
+        margin: 1,
+      }}
+    >
+      <Image
+        source={{ uri: item.uri }}
+        style={{ 
+          width: '100%', 
+          height: '100%',
+        }}
+        resizeMode="cover"
+      />
+    </TouchableOpacity>
+  ));
+
+  // Optimized renderItem for FlatList
+  const renderPhotoItem = useCallback(({ item }: { item: MediaLibrary.Asset }) => {
+    return <PhotoItem item={item} onPress={handleSelectPhoto} size={imageSize} />;
+  }, [imageSize, handleSelectPhoto]);
+
+  // Optimized keyExtractor
+  const keyExtractor = useCallback((item: MediaLibrary.Asset) => item.id, []);
+
+  // Optimized getItemLayout for better performance (3-column grid)
+  const getItemLayout = useCallback((data: any, index: number) => {
+    const itemSize = imageSize + 2; // width + margin
+    const row = Math.floor(index / 3);
+    const col = index % 3;
+    return {
+      length: itemSize,
+      offset: row * itemSize * 3 + col * itemSize,
+      index,
+    };
+  }, [imageSize]);
+
+  const handleRemoveAvatar = () => {
+    setAvatarUri(null);
+    setAvatarPreview(null);
+  };
+
+  const validateForm = () => {
+    const trimmedFirstName = formData.firstName.trim();
+    const trimmedLastName = formData.lastName.trim();
+    const trimmedOrg = formData.affiliatedOrganization.trim();
+
+    if (!trimmedFirstName || !trimmedLastName) {
+      return 'First name and last name are required';
+    }
+
+    if (!trimmedOrg) {
+      return 'Affiliated organization is required';
+    }
+
+    return null;
+  };
+
+  const handleSubmit = async () => {
+    if (!user?.id) {
+      Alert.alert('Error', 'User not found. Please log in again.');
+      router.replace('/login');
+      return;
+    }
+
+    setError(null);
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      let avatarUrl = '';
+
+      // Upload avatar if selected
+      if (avatarUri) {
+        const uploadResult = await UserService.uploadAvatar(user.id, avatarUri);
+        if (uploadResult.error) {
+          setError(uploadResult.error);
+          setIsLoading(false);
+          return;
+        }
+        avatarUrl = uploadResult.url || '';
+      }
+
+      // Prepare update data
+      const updateData: any = {
+        first_name: formData.firstName.trim(),
+        last_name: formData.lastName.trim(),
+        affiliated_organization: formData.affiliatedOrganization.trim(),
+      };
+
+      if (avatarUrl) {
+        updateData.avatar_url = avatarUrl;
+      }
+
+      // Update user profile
+      const result = await UserService.updateProfile(user.id, updateData);
+
+      if (result.error) {
+        setError(result.error);
+        setIsLoading(false);
+        return;
+      }
+
+      // Refresh user data
+      await refreshUser();
+
+      // Show success and redirect to main app
+      Alert.alert(
+        'Profile Setup Complete!',
+        'Your profile has been set up successfully.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              router.replace('/(tabs)');
+            },
+          },
+        ]
+      );
+    } catch (err: any) {
+      console.error('Profile setup error:', err);
+      setError('An unexpected error occurred. Please try again.');
+      setIsLoading(false);
+    }
+  };
+
+  // Show loading while auth is being checked
+  if (authLoading || !user) {
+    return (
+      <>
+        <StatusBar style="light" />
+        <SafeAreaView className="flex-1 bg-blue-900 items-center justify-center">
+          <ActivityIndicator size="large" color="#ffffff" />
+        </SafeAreaView>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <StatusBar style="light" />
+      <SafeAreaView className="flex-1 bg-blue-900">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <ScrollView
+            ref={scrollViewRef}
+            contentContainerStyle={{
+              flexGrow: 1,
+              paddingTop: insets.top + 20,
+              paddingBottom: Math.max(insets.bottom, 20) + 300,
+              paddingHorizontal: 16,
+            }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+            keyboardDismissMode="interactive"
+          >
+            <View className="flex-1 justify-center max-w-md mx-auto w-full">
+              {/* Header */}
+              <View className="mb-8">
+                <Text className="text-4xl font-bold text-white mb-2 text-center">
+                  Set Up Your Profile
+                </Text>
+                <Text className="text-lg text-blue-200 text-center">
+                  Complete your profile to get started
+                </Text>
+              </View>
+
+              {/* Profile Card */}
+              <View className="bg-white rounded-2xl p-6 shadow-xl">
+                {/* Error Messages */}
+                {error && (
+                  <View className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+                    <Text className="text-red-700 text-base">{error}</Text>
+                  </View>
+                )}
+
+                {/* Avatar Upload */}
+                <View className="items-center mb-6">
+                  <View className="relative">
+                    {avatarPreview ? (
+                      <View className="relative">
+                        <Image
+                          source={{ uri: avatarPreview }}
+                          style={{ 
+                            width: 128, 
+                            height: 128, 
+                            borderRadius: 64,
+                            borderWidth: 4, 
+                            borderColor: '#1e3a8a' 
+                          }}
+                        />
+                        <TouchableOpacity
+                          onPress={handleRemoveAvatar}
+                          className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 rounded-full items-center justify-center"
+                          disabled={isLoading}
+                        >
+                          <Ionicons name="close" size={16} color="#ffffff" />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <View 
+                        style={{ 
+                          width: 128, 
+                          height: 128, 
+                          borderRadius: 64,
+                          borderWidth: 4, 
+                          borderColor: '#1e3a8a',
+                          backgroundColor: '#dbeafe',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <Ionicons name="person" size={48} color="#1e3a8a" />
+                      </View>
+                    )}
+                    <TouchableOpacity
+                      onPress={handlePickImage}
+                      className="absolute bottom-0 right-0 w-10 h-10 bg-blue-600 rounded-full items-center justify-center"
+                      style={{ borderWidth: 3, borderColor: '#ffffff' }}
+                      disabled={isLoading}
+                    >
+                      <Ionicons name="camera" size={20} color="#ffffff" />
+                    </TouchableOpacity>
+                  </View>
+                  <Text className="text-base text-slate-600 mt-3 text-center">
+                    Tap the camera icon to upload a photo
+                  </Text>
+                </View>
+
+                {/* First Name Input */}
+                <View 
+                  className="mb-4"
+                  onLayout={handleInputLayout('firstName')}
+                >
+                  <Text className="text-base font-semibold text-black mb-2">First Name *</Text>
+                  <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
+                    <Ionicons name="person-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
+                    <TextInput
+                      ref={firstNameRef}
+                      className="flex-1 h-12 text-base text-black"
+                      placeholder="Enter your first name"
+                      placeholderTextColor="#666"
+                      value={formData.firstName}
+                      onChangeText={(text) => handleInputChange('firstName', text)}
+                      autoCapitalize="words"
+                      returnKeyType="next"
+                      blurOnSubmit={false}
+                      onSubmitEditing={() => lastNameRef.current?.focus()}
+                    />
+                  </View>
+                </View>
+
+                {/* Last Name Input */}
+                <View 
+                  className="mb-4"
+                  onLayout={handleInputLayout('lastName')}
+                >
+                  <Text className="text-base font-semibold text-black mb-2">Last Name *</Text>
+                  <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
+                    <Ionicons name="person-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
+                    <TextInput
+                      ref={lastNameRef}
+                      className="flex-1 h-12 text-base text-black"
+                      placeholder="Enter your last name"
+                      placeholderTextColor="#666"
+                      value={formData.lastName}
+                      onChangeText={(text) => handleInputChange('lastName', text)}
+                      autoCapitalize="words"
+                      returnKeyType="next"
+                      blurOnSubmit={false}
+                      onSubmitEditing={() => orgRef.current?.focus()}
+                    />
+                  </View>
+                </View>
+
+                {/* Affiliated Organization Input */}
+                <View 
+                  className="mb-6"
+                  onLayout={handleInputLayout('org')}
+                >
+                  <Text className="text-base font-semibold text-black mb-2">Affiliated Organization *</Text>
+                  <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
+                    <Ionicons name="business-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
+                    <TextInput
+                      ref={orgRef}
+                      className="flex-1 h-12 text-base text-black"
+                      placeholder="Enter your organization"
+                      placeholderTextColor="#666"
+                      value={formData.affiliatedOrganization}
+                      onChangeText={(text) => handleInputChange('affiliatedOrganization', text)}
+                      autoCapitalize="words"
+                      returnKeyType="done"
+                      blurOnSubmit={true}
+                      onSubmitEditing={() => {
+                        orgRef.current?.blur();
+                        Keyboard.dismiss();
+                        // Submit form if all fields are filled
+                        if (formData.firstName.trim() && formData.lastName.trim() && formData.affiliatedOrganization.trim()) {
+                          handleSubmit();
+                        }
+                      }}
+                    />
+                  </View>
+                </View>
+
+                {/* Required Fields Legend */}
+                <View className="mb-4">
+                  <Text className="text-base text-gray-600">
+                    <Text className="text-red-500 text-lg font-bold">*</Text> Required fields
+                  </Text>
+                </View>
+
+                {/* Submit Button */}
+                <View
+                  onLayout={(e) => {
+                    e.target.measureInWindow((x: number, y: number, width: number, height: number) => {
+                      buttonYPosition.current = y;
+                    });
+                  }}
+                >
+                  <TouchableOpacity
+                    className="bg-blue-800 rounded-xl py-3 items-center"
+                    style={isLoading ? { backgroundColor: '#9ca3af' } : undefined}
+                    onPress={handleSubmit}
+                    disabled={isLoading}
+                  >
+                  {isLoading ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text className="text-white text-base font-bold">
+                      Complete Setup
+                    </Text>
+                  )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+
+        {/* Gallery Picker Modal - Facebook Messenger Style */}
+        <Modal
+          visible={showGalleryPicker}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => {
+            setShowGalleryPicker(false);
+            setShowAlbumDropdown(false);
+          }}
+        >
+          <SafeAreaView className="flex-1 bg-blue-900">
+            {/* Header */}
+            <View className="flex-row items-center justify-between px-4 py-3 border-b border-blue-700 bg-blue-900">
+              <Text className="text-xl font-semibold text-white">Select Photo</Text>
+              <TouchableOpacity
+                onPress={() => setShowGalleryPicker(false)}
+                className="w-10 h-10 items-center justify-center rounded-full active:bg-blue-800"
+              >
+                <Ionicons name="close" size={24} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Album Selector - Dropdown */}
+            {!loadingAlbums && albums.length > 0 && (
+              <View className="bg-blue-900 border-b border-blue-700 px-4 py-3">
+                <TouchableOpacity
+                  onPress={() => setShowAlbumDropdown(!showAlbumDropdown)}
+                  className="flex-row items-center justify-between bg-blue-800 rounded-lg px-4 py-3"
+                >
+                  <View className="flex-row items-center flex-1">
+                    <Ionicons name="folder" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+                    <Text className="text-white text-base font-medium">
+                      {selectedAlbum === null ? 'All Photos' : selectedAlbum.title}
+                    </Text>
+                  </View>
+                  <Ionicons 
+                    name={showAlbumDropdown ? "chevron-up" : "chevron-down"} 
+                    size={20} 
+                    color="#ffffff" 
+                  />
+                </TouchableOpacity>
+                
+                {/* Dropdown Menu */}
+                {showAlbumDropdown && (
+                  <View className="absolute top-full left-4 right-4 mt-1 bg-blue-800 rounded-lg border border-blue-700 z-50" style={{ maxHeight: 300 }}>
+                    <ScrollView nestedScrollEnabled>
+                      <TouchableOpacity
+                        onPress={() => {
+                          handleSelectAlbum(null);
+                          setShowAlbumDropdown(false);
+                        }}
+                        className={`px-4 py-3 border-b border-blue-700 ${
+                          selectedAlbum === null ? 'bg-blue-700' : ''
+                        }`}
+                      >
+                        <Text className={`text-base ${
+                          selectedAlbum === null ? 'text-white font-semibold' : 'text-blue-200'
+                        }`}>
+                          All Photos
+                        </Text>
+                      </TouchableOpacity>
+                      {albums.map((album) => (
+                        <TouchableOpacity
+                          key={album.id}
+                          onPress={() => {
+                            handleSelectAlbum(album);
+                            setShowAlbumDropdown(false);
+                          }}
+                          className={`px-4 py-3 border-b border-blue-700 ${
+                            selectedAlbum?.id === album.id ? 'bg-blue-700' : ''
+                          }`}
+                        >
+                          <View className="flex-row items-center justify-between">
+                            <Text className={`text-base flex-1 ${
+                              selectedAlbum?.id === album.id ? 'text-white font-semibold' : 'text-blue-200'
+                            }`}>
+                              {album.title}
+                            </Text>
+                            <Text className={`text-sm ml-2 ${
+                              selectedAlbum?.id === album.id ? 'text-blue-200' : 'text-blue-400'
+                            }`}>
+                              {album.assetCount}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Photos Grid */}
+            {loadingPhotos || loadingAlbums ? (
+              <View className="flex-1 items-center justify-center bg-blue-900">
+                <ActivityIndicator size="large" color="#ffffff" />
+                <Text className="text-blue-200 mt-4">Loading photos...</Text>
+              </View>
+            ) : photos.length === 0 ? (
+              <View className="flex-1 items-center justify-center bg-blue-900">
+                <Ionicons name="images-outline" size={64} color="#64748b" />
+                <Text className="text-slate-400 mt-4 text-lg">No photos found</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={photos}
+                numColumns={3}
+                keyExtractor={keyExtractor}
+                getItemLayout={getItemLayout}
+                contentContainerStyle={{ padding: 2 }}
+                showsVerticalScrollIndicator={false}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={15}
+                updateCellsBatchingPeriod={50}
+                initialNumToRender={15}
+                windowSize={5}
+                renderItem={renderPhotoItem}
+              />
+            )}
+          </SafeAreaView>
+        </Modal>
+      </SafeAreaView>
+    </>
+  );
+}
+
+

@@ -19,8 +19,6 @@ import { useRouter } from "expo-router";
 import { useAuth } from '../lib/authContext';
 
 interface RegistrationFormData {
-  firstName: string;
-  lastName: string;
   email: string;
   password: string;
   confirmPassword: string;
@@ -29,8 +27,6 @@ interface RegistrationFormData {
 
 export default function RegistrationScreen() {
   const [formData, setFormData] = useState<RegistrationFormData>({
-    firstName: '',
-    lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -40,7 +36,6 @@ export default function RegistrationScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [localError, setLocalError] = useState('');
   const insets = useSafeAreaInsets();
 
@@ -49,8 +44,6 @@ export default function RegistrationScreen() {
   const { signUp } = useAuth();
   
   // Refs for form inputs
-  const firstNameRef = useRef<TextInput>(null);
-  const lastNameRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
@@ -66,11 +59,7 @@ export default function RegistrationScreen() {
       (e) => {
         // Find which input is focused and scroll to it
         let focusedField: string | null = null;
-        if (firstNameRef.current?.isFocused()) {
-          focusedField = 'firstName';
-        } else if (lastNameRef.current?.isFocused()) {
-          focusedField = 'lastName';
-        } else if (emailRef.current?.isFocused()) {
+        if (emailRef.current?.isFocused()) {
           focusedField = 'email';
         } else if (passwordRef.current?.isFocused()) {
           focusedField = 'password';
@@ -154,13 +143,11 @@ export default function RegistrationScreen() {
 
   const validateForm = () => {
     // Trim values for validation
-    const trimmedFirstName = formData.firstName.trim();
-    const trimmedLastName = formData.lastName.trim();
     const trimmedEmail = formData.email.trim();
     const trimmedPassword = formData.password.trim();
     const trimmedConfirmPassword = formData.confirmPassword.trim();
     
-    if (!trimmedFirstName || !trimmedLastName || !trimmedEmail || !trimmedPassword || !formData.userType) {
+    if (!trimmedEmail || !trimmedPassword || !formData.userType) {
       return 'All required fields must be filled';
     }
 
@@ -227,8 +214,6 @@ export default function RegistrationScreen() {
     
     // Trim all string values
     const trimmedData = {
-      firstName: formData.firstName.trim(),
-      lastName: formData.lastName.trim(),
       email: formData.email.trim(),
       password: formData.password.trim(),
       confirmPassword: formData.confirmPassword.trim(),
@@ -249,14 +234,12 @@ export default function RegistrationScreen() {
     try {
       // Prepare user data for registration with trimmed values
       const userData = {
-        first_name: trimmedData.firstName,
-        last_name: trimmedData.lastName,
         user_type: trimmedData.userType,
         role: 'participant' // Default role for new users
       };
 
-      console.log('Calling signUp with:', { email: trimmedData.email, firstName: trimmedData.firstName, lastName: trimmedData.lastName });
-      const result = await signUp(trimmedData.email, trimmedData.password, trimmedData.firstName, trimmedData.lastName, 'participant');
+      console.log('Calling signUp with:', { email: trimmedData.email });
+      const result = await signUp(trimmedData.email, trimmedData.password, '', '', 'participant');
       
       console.log('SignUp result:', result);
       
@@ -267,13 +250,8 @@ export default function RegistrationScreen() {
       }
 
       if (result.user) {
-        console.log('Registration successful, showing success screen');
-        // Registration successful - show success message and redirect to login
-        setSuccess(true);
-        // Redirect to login after 3 seconds to show success message
-        setTimeout(() => {
-          router.push('/login');
-        }, 3000);
+        // Registration successful - redirect to profile setup
+        router.replace('/setup-profile');
         return;
       }
 
@@ -291,29 +269,7 @@ export default function RegistrationScreen() {
     <>
       <StatusBar style="light" />
       <SafeAreaView className="flex-1 bg-blue-900">
-        {success ? (
-          // Success Screen
-          <View className="flex-1 justify-center items-center px-4">
-            <View className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
-              <View className="w-16 h-16 bg-green-100 rounded-full mx-auto mb-4 flex items-center justify-center">
-                <Ionicons name="checkmark" size={32} color="#059669" />
-              </View>
-              <Text className="text-2xl font-bold text-slate-800 mb-2 text-center">Registration Successful!</Text>
-              <Text className="text-slate-600 mb-6 text-center">
-                Your account has been created successfully. You can now sign in using your email address.
-                {formData.userType === 'outside' && ' Outside users can use any valid email address.'}
-              </Text>
-              <View className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></View>
-              <TouchableOpacity
-                onPress={() => router.push('/login')}
-                className="bg-blue-600 text-white px-6 py-3 rounded-xl items-center"
-              >
-                <Text className="text-white font-semibold">Go to Login Now</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <KeyboardAvoidingView
+        <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
@@ -323,20 +279,23 @@ export default function RegistrationScreen() {
             contentContainerStyle={{ 
               flexGrow: 1,
               paddingTop: 0,
-              paddingBottom: Math.max(insets.bottom, 20) + 300
+              paddingBottom: Math.max(insets.bottom, 20) + 300,
+              paddingHorizontal: !formData.userType ? 16 : 16,
+              paddingVertical: !formData.userType ? 0 : 24,
+              justifyContent: !formData.userType ? 'center' : 'flex-start',
+              alignItems: !formData.userType ? 'center' : 'stretch',
             }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
             keyboardDismissMode="interactive"
-            className="px-4 py-6"
           >
 
             {!formData.userType ? (
               // User Type Selection Screen
-              <View className="flex-1 justify-center">
-                <View className="bg-white rounded-2xl p-5 shadow-lg mx-2">
-                  <Text className="text-lg font-semibold text-black mb-4 text-center">Are you from Partido State University?</Text>
+              <View style={{ width: '100%', maxWidth: 400, alignItems: 'center' }}>
+                <View className="bg-white rounded-2xl p-5 shadow-lg" style={{ width: '100%' }}>
+                  <Text className="text-2xl font-semibold text-black mb-4 text-center">Are you from Partido State University?</Text>
                   <View>
                     <TouchableOpacity
                       className="w-full p-4 border border-gray-200 rounded-lg bg-white hover:border-gray-400 mb-4"
@@ -347,8 +306,8 @@ export default function RegistrationScreen() {
                           <Ionicons name="school-outline" size={24} color="#1e3a8a" />
                         </View>
                         <View className="flex-1">
-                          <Text className="text-base font-medium text-black">PSU Student</Text>
-                          <Text className="text-sm text-gray-600">I'm currently enrolled as a student at Partido State University</Text>
+                          <Text className="text-lg font-medium text-black">PSU Student</Text>
+                          <Text className="text-base text-gray-600">I'm currently enrolled as a student at Partido State University</Text>
                         </View>
                       </View>
                     </TouchableOpacity>
@@ -362,8 +321,8 @@ export default function RegistrationScreen() {
                           <Ionicons name="briefcase-outline" size={24} color="#059669" />
                         </View>
                         <View className="flex-1">
-                          <Text className="text-base font-medium text-black">PSU Employee</Text>
-                          <Text className="text-sm text-gray-600">I work at Partido State University as faculty or staff</Text>
+                          <Text className="text-lg font-medium text-black">PSU Employee</Text>
+                          <Text className="text-base text-gray-600">I work at Partido State University as faculty or staff</Text>
                         </View>
                       </View>
                     </TouchableOpacity>
@@ -377,15 +336,15 @@ export default function RegistrationScreen() {
                           <Ionicons name="people-outline" size={24} color="#7c3aed" />
                         </View>
                         <View className="flex-1">
-                          <Text className="text-base font-medium text-black">Outside PSU</Text>
-                          <Text className="text-sm text-gray-600">I'm not affiliated with Partido State University</Text>
+                          <Text className="text-lg font-medium text-black">Outside PSU</Text>
+                          <Text className="text-base text-gray-600">I'm not affiliated with Partido State University</Text>
                         </View>
                       </View>
                     </TouchableOpacity>
                     
                     <View className="flex-row items-center mb-6">
                       <View className="flex-1 h-px bg-gray-300" />
-                      <Text className="px-3 text-gray-600 text-sm">or</Text>
+                      <Text className="px-3 text-gray-600 text-base">or</Text>
                       <View className="flex-1 h-px bg-gray-300" />
                     </View>
                     
@@ -393,7 +352,7 @@ export default function RegistrationScreen() {
                       onPress={() => router.push('/login')}
                       className="w-full py-3 px-4 bg-blue-800 text-white rounded-lg"
                     >
-                      <Text className="text-white text-sm font-bold text-center">Already have an account? Log in</Text>
+                      <Text className="text-white text-base font-bold text-center">Already have an account? Log in</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -422,8 +381,8 @@ export default function RegistrationScreen() {
                         />
                       </View>
                       <View>
-                        <Text className="text-sm font-medium text-gray-600">Selected User Type</Text>
-                        <Text className="text-base font-semibold text-black">
+                        <Text className="text-base font-medium text-gray-600">Selected User Type</Text>
+                        <Text className="text-lg font-semibold text-black">
                           {formData.userType === 'psu-student' ? 'PSU Student' : 
                            formData.userType === 'psu-employee' ? 'PSU Employee' : 'Outside PSU'}
                         </Text>
@@ -443,69 +402,21 @@ export default function RegistrationScreen() {
                   {/* Error Messages */}
                   {localError && (
                     <View className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
-                      <Text className="text-red-700 text-sm">{localError}</Text>
+                      <Text className="text-red-700 text-base">{localError}</Text>
                     </View>
                   )}
-
-                  {/* First Name Input */}
-                  <View 
-                    className="mb-3"
-                    onLayout={handleInputLayout('firstName')}
-                  >
-                    <Text className="text-sm font-semibold text-black mb-2">First Name *</Text>
-                    <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
-                      <Ionicons name="person-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
-                      <TextInput
-                        ref={firstNameRef}
-                        className="flex-1 h-11 text-sm text-black"
-                        placeholder="Enter your first name"
-                        placeholderTextColor="#666"
-                        value={formData.firstName}
-                        onChangeText={(text) => handleInputChange('firstName', text)}
-                        onBlur={() => handleInputBlur('firstName')}
-                        autoCapitalize="words"
-                        returnKeyType="next"
-                        blurOnSubmit={false}
-                        onSubmitEditing={() => lastNameRef.current?.focus()}
-                      />
-                    </View>
-                  </View>
-
-                  {/* Last Name Input */}
-                  <View 
-                    className="mb-3"
-                    onLayout={handleInputLayout('lastName')}
-                  >
-                    <Text className="text-sm font-semibold text-black mb-2">Last Name *</Text>
-                    <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
-                      <Ionicons name="person-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
-                      <TextInput
-                        ref={lastNameRef}
-                        className="flex-1 h-11 text-sm text-black"
-                        placeholder="Enter your last name"
-                        placeholderTextColor="#666"
-                        value={formData.lastName}
-                        onChangeText={(text) => handleInputChange('lastName', text)}
-                        onBlur={() => handleInputBlur('lastName')}
-                        autoCapitalize="words"
-                        returnKeyType="next"
-                        blurOnSubmit={false}
-                        onSubmitEditing={() => emailRef.current?.focus()}
-                      />
-                    </View>
-                  </View>
 
                   {/* Email Input */}
                   <View 
                     className="mb-3"
                     onLayout={handleInputLayout('email')}
                   >
-                    <Text className="text-sm font-semibold text-black mb-2">Email Address *</Text>
+                    <Text className="text-base font-semibold text-black mb-2">Email Address *</Text>
                     <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
                       <Ionicons name="mail-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
                       <TextInput
                         ref={emailRef}
-                        className="flex-1 h-11 text-sm text-black"
+                        className="flex-1 h-12 text-base text-black"
                         placeholder={
                           formData.userType === 'psu-student' || formData.userType === 'psu-employee'
                             ? 'Enter your PSU email (@parsu.edu.ph)'
@@ -523,7 +434,7 @@ export default function RegistrationScreen() {
                       />
                     </View>
                     {(formData.userType === 'psu-student' || formData.userType === 'psu-employee') && (
-                      <Text className="text-xs text-gray-500 mt-1 ml-1">
+                      <Text className="text-sm text-gray-500 mt-1 ml-1">
                         Must end in @parsu.edu.ph or .pbox@parsu.edu.ph
                       </Text>
                     )}
@@ -534,12 +445,12 @@ export default function RegistrationScreen() {
                     className="mb-3"
                     onLayout={handleInputLayout('password')}
                   >
-                    <Text className="text-sm font-semibold text-black mb-2">Password *</Text>
+                    <Text className="text-base font-semibold text-black mb-2">Password *</Text>
                     <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
                       <Ionicons name="lock-closed-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
                       <TextInput
                         ref={passwordRef}
-                        className="flex-1 h-11 text-sm text-black"
+                        className="flex-1 h-12 text-base text-black"
                         placeholder="Create a password"
                         placeholderTextColor="#666"
                         value={formData.password}
@@ -568,12 +479,12 @@ export default function RegistrationScreen() {
                     className="mb-4"
                     onLayout={handleInputLayout('confirmPassword')}
                   >
-                    <Text className="text-sm font-semibold text-black mb-2">Confirm Password *</Text>
+                    <Text className="text-base font-semibold text-black mb-2">Confirm Password *</Text>
                     <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
                       <Ionicons name="lock-closed-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
                       <TextInput
                         ref={confirmPasswordRef}
-                        className="flex-1 h-11 text-sm text-black"
+                        className="flex-1 h-12 text-base text-black"
                         placeholder="Confirm your password"
                         placeholderTextColor="#666"
                         value={formData.confirmPassword}
@@ -585,6 +496,10 @@ export default function RegistrationScreen() {
                         onSubmitEditing={() => {
                           confirmPasswordRef.current?.blur();
                           Keyboard.dismiss();
+                          // Submit form if all fields are filled and terms accepted
+                          if (formData.email.trim() && formData.password.trim() && formData.confirmPassword.trim() && acceptedTerms) {
+                            handleRegistration();
+                          }
                         }}
                       />
                       <TouchableOpacity
@@ -611,7 +526,7 @@ export default function RegistrationScreen() {
                           <Ionicons name="checkmark" size={18} color="white" />
                         )}
                       </View>
-                      <Text className="text-base text-black flex-1 leading-5">
+                      <Text className="text-base text-black flex-1 leading-6">
                         I agree to the{' '}
                         <Text 
                           className="text-blue-800 underline font-semibold"
@@ -630,6 +545,13 @@ export default function RegistrationScreen() {
                     </TouchableOpacity>
                   </View>
 
+                  {/* Required Fields Legend */}
+                  <View className="mb-4">
+                    <Text className="text-base text-gray-600">
+                      <Text className="text-red-500 text-lg font-bold">*</Text> Required fields
+                    </Text>
+                </View>
+
                   {/* Register Button */}
                   <View
                     onLayout={(e) => {
@@ -643,7 +565,7 @@ export default function RegistrationScreen() {
                       onPress={handleRegistration}
                       disabled={isLoading}
                     >
-                      <Text className="text-white text-sm font-bold">
+                      <Text className="text-white text-base font-bold">
                         {isLoading ? 'Creating Account...' : 'Create Account'}
                       </Text>
                     </TouchableOpacity>
@@ -655,8 +577,7 @@ export default function RegistrationScreen() {
             {/* Bottom Spacing */}
             <View className="h-6" />
           </ScrollView>
-          </KeyboardAvoidingView>
-        )}
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </>
   );

@@ -49,6 +49,20 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="setup-profile"
+              options={{
+                title: 'Setup Profile',
+                headerShown: true,
+                headerStyle: {
+                  backgroundColor: '#1e40af',
+                },
+                headerTintColor: '#ffffff',
+                headerTitleStyle: {
+                  fontWeight: 'bold',
+                },
+              }}
+            />
+            <Stack.Screen
               name="survey"
               options={{
                 title: 'Survey',
