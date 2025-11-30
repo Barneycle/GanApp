@@ -75,7 +75,7 @@ export default function TabLayout() {
           href: !isOrganizer ? '/(tabs)/events' : null,
         }}
       />
-      {/* Show Albums for organizers/admins */}
+      {/* Show Albums for all users */}
       <Tabs.Screen
         name="albums"
         options={{
@@ -83,7 +83,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="images" size={size} color={color} />
           ),
-          href: isOrganizer ? '/(tabs)/albums' : null,
         }}
       />
       <Tabs.Screen
