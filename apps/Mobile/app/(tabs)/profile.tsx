@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Image, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Image, TextInput, KeyboardAvoidingView, Platform, RefreshControl } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../lib/authContext';
@@ -48,6 +48,7 @@ export default function Profile() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadUserProfile();
@@ -157,6 +158,15 @@ export default function Profile() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadUserProfile();
+    if (refreshUser) {
+      await refreshUser();
+    }
+    setRefreshing(false);
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -410,14 +420,14 @@ export default function Profile() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFAFA' }} className="justify-center items-center">
-        <ActivityIndicator size="large" color="#1e40af" />
+      <SafeAreaView className="flex-1 bg-blue-900 justify-center items-center">
+        <ActivityIndicator size="large" color="#ffffff" />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
+    <SafeAreaView className="flex-1 bg-blue-900">
       <ScrollView 
         className="flex-1" 
         contentContainerStyle={{ 
@@ -427,14 +437,16 @@ export default function Profile() {
           paddingBottom: Math.max(insets.bottom, 16)
         }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#1e40af"
+            colors={["#1e40af"]}
+          />
+        }
       >
         <View className="w-full max-w-md mx-auto">
-          {/* Header */}
-          <View className="items-center mb-8">
-            <Text className="text-3xl font-bold text-slate-800 mb-2">Profile</Text>
-            <Text className="text-slate-600">Manage your account</Text>
-          </View>
-
           {/* Profile Card */}
           <View className="rounded-2xl shadow-xl border border-slate-200 p-8 mb-6" style={{ backgroundColor: '#FAFAFA' }}>
             {!isEditMode ? (
@@ -442,7 +454,7 @@ export default function Profile() {
             <View className="items-center mb-6">
               {/* Avatar */}
               {userProfile?.avatar_url ? (
-                <View className="w-24 h-24 rounded-full overflow-hidden mb-4 bg-gray-200">
+                <View className="w-40 h-40 rounded-full overflow-hidden mb-4 bg-gray-200">
                   <Image
                     source={{ uri: userProfile.avatar_url }}
                     className="w-full h-full"
@@ -450,8 +462,8 @@ export default function Profile() {
                   />
                 </View>
               ) : (
-                <View className="w-24 h-24 bg-blue-600 rounded-full items-center justify-center mx-auto mb-4">
-                  <Ionicons name="person" size={50} color="white" />
+                <View className="w-40 h-40 bg-blue-600 rounded-full items-center justify-center mx-auto mb-4">
+                  <Ionicons name="person" size={80} color="white" />
                 </View>
               )}
               
@@ -566,7 +578,7 @@ export default function Profile() {
                       <View className="relative">
                         <Image
                           source={{ uri: avatarPreview }}
-                          className="w-32 h-32 rounded-full"
+                          className="w-48 h-48 rounded-full"
                           resizeMode="cover"
                         />
                         <TouchableOpacity
@@ -578,8 +590,8 @@ export default function Profile() {
                         </TouchableOpacity>
                       </View>
                     ) : (
-                      <View className="w-32 h-32 bg-blue-600 rounded-full items-center justify-center">
-                        <Text className="text-white text-4xl font-bold">
+                      <View className="w-48 h-48 bg-blue-600 rounded-full items-center justify-center">
+                        <Text className="text-white text-6xl font-bold">
                           {formData.first_name?.[0] || formData.email?.[0] || 'U'}
                         </Text>
                       </View>

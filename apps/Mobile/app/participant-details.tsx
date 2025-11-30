@@ -17,9 +17,9 @@ export default function ParticipantDetails() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { participantId, eventId, eventTitle } = useLocalSearchParams<{
-    participantId: string;
-    eventId: string;
-    eventTitle: string;
+    participantId?: string;
+    eventId?: string;
+    eventTitle?: string;
   }>();
   
   const [participant, setParticipant] = useState<ParticipantInfo | null>(null);
@@ -80,6 +80,7 @@ export default function ParticipantDetails() {
     );
   }
 
+
   if (error || !participant) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
@@ -107,8 +108,7 @@ export default function ParticipantDetails() {
       {/* Header */}
       <View 
         className="border-b border-gray-200 px-6 py-4 flex-row items-center justify-between"
-        style={{ backgroundColor: '#FAFAFA' }}
-        style={{ paddingTop: insets.top }}
+        style={{ paddingTop: insets.top, backgroundColor: '#FAFAFA' }}
       >
         <TouchableOpacity
           onPress={() => router.back()}
@@ -123,12 +123,12 @@ export default function ParticipantDetails() {
       <ScrollView 
         showsVerticalScrollIndicator={false}
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 20) }}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 20) + 20 }}
       >
         {/* Avatar Section */}
-        <View className="px-6 pt-6 pb-6">
+        <View className="px-6 pt-6 pb-6 items-center">
           {participant.avatar_url ? (
-            <View className="w-full h-64 rounded-2xl overflow-hidden bg-gray-200 shadow-lg">
+            <View className="w-48 h-48 rounded-full overflow-hidden mb-4 bg-gray-200 shadow-lg">
               <Image
                 source={{ uri: participant.avatar_url }}
                 className="w-full h-full"
@@ -136,7 +136,7 @@ export default function ParticipantDetails() {
               />
             </View>
           ) : (
-            <View className="w-full h-64 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-400 to-blue-600 items-center justify-center shadow-lg">
+            <View className="w-48 h-48 bg-blue-600 rounded-full items-center justify-center mb-4 shadow-lg">
               <Ionicons name="person" size={80} color="white" />
             </View>
           )}
@@ -144,69 +144,61 @@ export default function ParticipantDetails() {
 
         {/* Name and Role */}
         <View className="px-6 pb-6">
-          <Text className="text-3xl font-bold text-gray-900 mb-2">
+          <Text className="text-4xl font-bold text-gray-900 mb-2">
             {participant.first_name} {participant.last_name}
           </Text>
-          <Text className="text-base text-gray-500 capitalize">
+          <Text className="text-lg text-gray-500 capitalize">
             {participant.role}
           </Text>
         </View>
 
-        {/* Event Info Card */}
-        <View className="mx-6 mb-6 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4">
-          <Text className="text-sm text-blue-600 font-semibold mb-2">Event</Text>
-          <Text className="text-lg font-bold text-blue-900">{eventTitle || 'Unknown Event'}</Text>
-        </View>
-
-        {/* Status Badges */}
-        <View className="mx-6 mb-6 flex-row gap-3">
-          <View 
-            className="flex-1 rounded-xl p-4"
-            style={{ backgroundColor: registrationStatus.bg }}
-          >
-            <Text className="text-xs font-semibold mb-1" style={{ color: registrationStatus.text }}>
-              Registration
-            </Text>
-            <Text className="text-base font-bold" style={{ color: registrationStatus.text }}>
-              {registrationStatus.label}
-            </Text>
+        {/* Event and Status Card */}
+        <View className="mx-6 mb-6 rounded-xl p-6 shadow-sm border border-gray-100" style={{ backgroundColor: '#FAFAFA' }}>
+          {/* Event Section */}
+          <View className="mb-6">
+            <Text className="text-2xl text-blue-600 font-semibold mb-3">Event</Text>
+            <Text className="text-2xl font-bold text-blue-900">{eventTitle || 'Sample Conference 2024'}</Text>
           </View>
-          <View 
-            className="flex-1 rounded-xl p-4"
-            style={{ backgroundColor: attendanceStatus.bg }}
-          >
-            <Text className="text-xs font-semibold mb-1" style={{ color: attendanceStatus.text }}>
-              Check-in
-            </Text>
-            <Text className="text-base font-bold" style={{ color: attendanceStatus.text }}>
-              {attendanceStatus.label}
-            </Text>
+
+          {/* Status Badges */}
+          <View className="flex-row gap-3">
+            <View 
+              className="flex-1 rounded-xl p-5"
+              style={{ backgroundColor: registrationStatus.bg }}
+            >
+              <Text className="text-sm font-semibold mb-2" style={{ color: registrationStatus.text }}>
+                Registration
+              </Text>
+              <Text className="text-lg font-bold" style={{ color: registrationStatus.text }}>
+                {registrationStatus.label}
+              </Text>
+            </View>
+            <View 
+              className="flex-1 rounded-xl p-5"
+              style={{ backgroundColor: attendanceStatus.bg }}
+            >
+              <Text className="text-sm font-semibold mb-2" style={{ color: attendanceStatus.text }}>
+                Check-in
+              </Text>
+              <Text className="text-lg font-bold" style={{ color: attendanceStatus.text }}>
+                {attendanceStatus.label}
+              </Text>
+            </View>
           </View>
         </View>
 
         {/* Contact Information */}
         <View className="mx-6 mb-6">
-          <Text className="text-sm font-semibold text-gray-600 mb-3">Contact Information</Text>
+          <Text className="text-base font-semibold text-gray-600 mb-3">Contact Information</Text>
           
           {/* Email */}
-          <View className="rounded-xl p-4 mb-3 flex-row items-center shadow-sm border border-gray-100" style={{ backgroundColor: '#FAFAFA' }}>
-            <View className="w-12 h-12 bg-blue-100 rounded-full items-center justify-center mr-4">
-              <Ionicons name="mail" size={20} color="#1E40AF" />
+          <View className="rounded-xl p-5 flex-row items-center shadow-sm border border-gray-100" style={{ backgroundColor: '#FAFAFA' }}>
+            <View className="w-14 h-14 bg-blue-100 rounded-full items-center justify-center mr-4">
+              <Ionicons name="mail" size={24} color="#1E40AF" />
             </View>
             <View className="flex-1">
-              <Text className="text-xs text-gray-500 mb-1">Email</Text>
-              <Text className="text-base font-medium text-gray-900">{participant.email || 'Not provided'}</Text>
-            </View>
-          </View>
-
-          {/* Phone */}
-          <View className="rounded-xl p-4 flex-row items-center shadow-sm border border-gray-100" style={{ backgroundColor: '#FAFAFA' }}>
-            <View className="w-12 h-12 bg-green-100 rounded-full items-center justify-center mr-4">
-              <Ionicons name="call" size={20} color="#15803D" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-xs text-gray-500 mb-1">Phone</Text>
-              <Text className="text-base font-medium text-gray-900">{participant.phone || 'Not provided'}</Text>
+              <Text className="text-sm text-gray-500 mb-1">Email</Text>
+              <Text className="text-lg font-medium text-gray-900">{participant.email || 'Not provided'}</Text>
             </View>
           </View>
         </View>
@@ -214,19 +206,19 @@ export default function ParticipantDetails() {
         {/* Check-in Details */}
         {participant.check_in_time && (
           <View className="mx-6 mb-6">
-            <Text className="text-sm font-semibold text-gray-600 mb-3">Check-in Details</Text>
+            <Text className="text-base font-semibold text-gray-600 mb-3">Check-in Details</Text>
             
-            <View className="rounded-xl p-4 mb-3 shadow-sm border border-gray-100" style={{ backgroundColor: '#FAFAFA' }}>
-              <Text className="text-xs text-purple-600 mb-1">Check-in Time</Text>
-              <Text className="text-base font-medium text-purple-900">
+            <View className="rounded-xl p-5 mb-3 shadow-sm border border-gray-100" style={{ backgroundColor: '#FAFAFA' }}>
+              <Text className="text-sm text-purple-600 mb-2">Check-in Time</Text>
+              <Text className="text-lg font-medium text-purple-900">
                 {new Date(participant.check_in_time).toLocaleString()}
               </Text>
             </View>
 
             {participant.check_in_method && (
-              <View className="rounded-xl p-4 shadow-sm border border-gray-100" style={{ backgroundColor: '#FAFAFA' }}>
-                <Text className="text-xs text-amber-600 mb-1">Check-in Method</Text>
-                <Text className="text-base font-medium text-amber-900 capitalize">
+              <View className="rounded-xl p-5 shadow-sm border border-gray-100" style={{ backgroundColor: '#FAFAFA' }}>
+                <Text className="text-sm text-amber-600 mb-2">Check-in Method</Text>
+                <Text className="text-lg font-medium text-amber-900 capitalize">
                   {participant.check_in_method.replace('_', ' ')}
                 </Text>
               </View>
@@ -236,9 +228,9 @@ export default function ParticipantDetails() {
 
         {/* Registration Date */}
         {participant.registration_date && (
-          <View className="mx-6 mb-6 rounded-xl p-4 shadow-sm border border-gray-100" style={{ backgroundColor: '#FAFAFA' }}>
-            <Text className="text-xs text-gray-500 mb-1">Registered On</Text>
-            <Text className="text-base font-medium text-gray-900">
+          <View className="mx-6 mb-6 rounded-xl p-5 shadow-sm border border-gray-100" style={{ backgroundColor: '#FAFAFA' }}>
+            <Text className="text-sm text-gray-500 mb-2">Registered On</Text>
+            <Text className="text-lg font-medium text-gray-900">
               {new Date(participant.registration_date).toLocaleDateString()}
             </Text>
           </View>
@@ -247,4 +239,3 @@ export default function ParticipantDetails() {
     </SafeAreaView>
   );
 }
-

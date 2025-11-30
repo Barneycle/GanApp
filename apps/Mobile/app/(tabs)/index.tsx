@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, Image, Dimensions, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, Image, Dimensions, ActivityIndicator, Animated, RefreshControl } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { EventService, Event } from '../../lib/eventService';
@@ -9,14 +9,35 @@ import RenderHTML from 'react-native-render-html';
 import { decodeHtml, getHtmlContentWidth, defaultHtmlStyles, stripHtmlTags } from '../../lib/htmlUtils';
 
 const { width: screenWidth } = Dimensions.get('window');
+const CONTAINER_PADDING = 16; // Padding inside the container card
+const CARD_WIDTH = screenWidth * 0.85;
+const CARD_MARGIN = 16;
+const CARD_SPACING = CARD_WIDTH + CARD_MARGIN;
+// Container width is screen width minus outer padding (typically 16px on each side for the main container)
+const CONTAINER_WIDTH = screenWidth - (CONTAINER_PADDING * 2);
+const CARD_OFFSET = (CONTAINER_WIDTH - CARD_WIDTH) / 2;
 
 export default function Index() {
   const [events, setEvents] = useState<Event[]>([]);
   const [featuredEvent, setFeaturedEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
   const insets = useSafeAreaInsets();
+  const carouselContainerRef = useRef<View>(null);
+  const [containerWidth, setContainerWidth] = useState(screenWidth - 72); // Default estimate
+  
+  // Calculate snap offsets for centering each card within the container card
+  // Each card should snap so its center aligns with the container center
+  const snapOffsets = events.map((_, index) => {
+    // Card position in scroll content (accounting for container padding)
+    const cardLeftInContent = index * CARD_SPACING;
+    // Card center position in scroll content
+    const cardCenterInContent = cardLeftInContent + CARD_WIDTH / 2;
+    // Scroll offset needed to center card within container (card center - container center)
+    return cardCenterInContent - containerWidth / 2;
+  });
 
   const { user: currentUser, isLoading: authLoading } = useAuth();
   const router = useRouter();
@@ -75,6 +96,15 @@ export default function Index() {
       }
     } catch (err) {
       // Silently fail - will fallback to first event
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([loadEvents(), loadFeaturedEvent()]);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -151,16 +181,16 @@ export default function Index() {
 
   if (loading || authLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50 items-center justify-center">
-        <ActivityIndicator size="large" color="#2563eb" />
-        <Text className="text-slate-600 text-lg mt-4">Loading events...</Text>
+      <SafeAreaView className="flex-1 bg-blue-900 items-center justify-center">
+        <ActivityIndicator size="large" color="#ffffff" />
+        <Text className="text-blue-100 text-lg mt-4">Loading events...</Text>
       </SafeAreaView>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView className="flex-1 bg-gradient-to-br from-slate-50 to-blue-50 items-center justify-center px-4">
+      <SafeAreaView className="flex-1 bg-blue-900 items-center justify-center px-4">
         <View className="bg-white rounded-2xl shadow-lg border border-red-200 p-8 max-w-md">
           <View className="w-16 h-16 rounded-full bg-red-100 mx-auto mb-4 items-center justify-center">
             <Ionicons name="alert-circle" size={32} color="#dc2626" />
@@ -181,14 +211,14 @@ export default function Index() {
   // If not authenticated, show loading while redirecting
   if (!currentUser) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFAFA' }} className="items-center justify-center">
-        <ActivityIndicator size="large" color="#1e40af" />
+      <SafeAreaView className="flex-1 bg-blue-900 items-center justify-center">
+        <ActivityIndicator size="large" color="#ffffff" />
       </SafeAreaView>
     );
   }
 
   return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
+      <SafeAreaView className="flex-1 bg-blue-900">
       <ScrollView 
         className="flex-1" 
         contentContainerStyle={{ 
@@ -197,6 +227,14 @@ export default function Index() {
           paddingBottom: Math.max(insets.bottom, 20)
         }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#2563eb"
+            colors={["#2563eb"]}
+          />
+        }
       >
         <View className="w-full max-w-6xl mx-auto">
           {/* Single Featured Event Card */}
@@ -252,99 +290,195 @@ export default function Index() {
             </View>
           )}
           
-          {/* Events Carousel Card */}
+          {/* Upcoming Events Section Card */}
           {events.length > 0 ? (
-            <View className="mb-12">
-              {/* Section Header with Title and Navigation */}
-              <View className="flex-row items-center justify-between mb-6">
-                <View className="flex-1">
-                  <Text className="text-2xl font-bold text-slate-800 mb-1">Upcoming Events</Text>
-                  <Text className="text-slate-600 text-base">Discover and explore our upcoming events</Text>
-                </View>
-                <View className="flex-row items-center space-x-2">
-                  <TouchableOpacity
-                    onPress={scrollLeft}
-                    className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
-                  >
-                    <Ionicons name="chevron-back" size={20} color="white" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={scrollRight}
-                    className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
-                  >
-                    <Ionicons name="chevron-forward" size={20} color="white" />
-                  </TouchableOpacity>
+            <View 
+              className="rounded-3xl overflow-hidden mb-12"
+              style={{ 
+                backgroundColor: '#FFFFFF',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.1,
+                shadowRadius: 12,
+                elevation: 8,
+              }}
+            >
+              {/* Card Header */}
+              <View 
+                className="px-6 py-5"
+                style={{
+                  backgroundColor: '#F8FAFC',
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#E2E8F0',
+                }}
+              >
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center flex-1">
+                    <View 
+                      className="w-10 h-10 rounded-xl items-center justify-center mr-3"
+                      style={{ backgroundColor: '#DBEAFE' }}
+                    >
+                      <Ionicons name="calendar" size={22} color="#2563eb" />
+                    </View>
+                    <Text className="text-2xl font-bold text-slate-900">Upcoming Events</Text>
+                  </View>
+                  <View className="flex-row items-center" style={{ gap: 8 }}>
+                    <TouchableOpacity
+                      onPress={scrollLeft}
+                      className="w-10 h-10 rounded-full items-center justify-center"
+                      style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+                    >
+                      <Ionicons name="chevron-back" size={20} color="white" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={scrollRight}
+                      className="w-10 h-10 rounded-full items-center justify-center"
+                      style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+                    >
+                      <Ionicons name="chevron-forward" size={20} color="white" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
               
-              {/* Carousel Container */}
-              <View 
-                className="relative overflow-hidden"
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
-              >
-                <ScrollView
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={false}
-                  onScroll={Animated.event(
-                    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-                    { useNativeDriver: false }
-                  )}
-                  scrollEventThrottle={16}
-                  contentContainerStyle={{ paddingHorizontal: 0 }}
-                  decelerationRate="fast"
-                  snapToInterval={screenWidth - 32}
-                  snapToAlignment="start"
+              {/* Card Content */}
+              <View className="p-5">
+                {/* Carousel Container */}
+                <View 
+                  ref={carouselContainerRef}
+                  className="relative overflow-hidden"
+                  onTouchStart={onTouchStart}
+                  onTouchMove={onTouchMove}
+                  onTouchEnd={onTouchEnd}
+                  onLayout={(event) => {
+                    const { width } = event.nativeEvent.layout;
+                    setContainerWidth(width);
+                  }}
                 >
-                  {events.map((event, index) => (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    onScroll={Animated.event(
+                      [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+                      { useNativeDriver: false }
+                    )}
+                    scrollEventThrottle={16}
+                    contentContainerStyle={{ 
+                      paddingLeft: (containerWidth - CARD_WIDTH) / 2,
+                      paddingRight: (containerWidth - CARD_WIDTH) / 2
+                    }}
+                    decelerationRate="fast"
+                    snapToOffsets={snapOffsets}
+                    snapToAlignment="start"
+                    pagingEnabled={false}
+                  >
+                    {events.map((event, index) => (
                     <TouchableOpacity
                       key={event.id}
-                      className="w-80 rounded-lg overflow-hidden bg-white shadow-sm mr-6"
+                      className="rounded-2xl overflow-hidden"
                       onPress={() => router.push(`/event-details?eventId=${event.id}`)}
-                      style={{ width: screenWidth - 32 }}
+                      style={{ 
+                        width: CARD_WIDTH,
+                        marginRight: CARD_MARGIN,
+                        backgroundColor: '#FFFFFF',
+                        borderWidth: 1,
+                        borderColor: '#E2E8F0',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.05,
+                        shadowRadius: 8,
+                        elevation: 3,
+                      }}
                     >
-                      <Image
-                        source={{ uri: event.banner_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center' }}
-                        className="w-full h-48"
+                      <Image 
+                        source={{ uri: event.banner_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center' }} 
+                        className="w-full h-32"
                         resizeMode="cover"
                       />
-                      <View className="p-4">
-                        <Text className="font-semibold text-lg text-gray-800 mb-2">{event.title}</Text>
-                        <Text className="text-gray-600 text-sm mt-2 mb-3" numberOfLines={3}>
-                          {(() => {
-                            const text = stripHtmlTags(event.description || event.rationale || 'Experience something amazing');
-                            return text.length > 150 ? text.substring(0, 150) + '...' : text;
-                          })()}
-                        </Text>
-                        <View className="mt-3">
-                          <View className="flex-row items-center mb-1">
-                            <Ionicons name="calendar" size={16} color="#6b7280" />
-                            <Text className="text-xs text-gray-500 ml-1">{formatDate(event.start_date)}</Text>
+                      
+                      <View className="p-3">
+                        <View className="flex-row items-center justify-between mb-2">
+                          <View 
+                            className="px-2 py-1 rounded-full"
+                            style={{ backgroundColor: '#DBEAFE' }}
+                          >
+                            <Text className="text-xs font-semibold text-blue-700">Event</Text>
                           </View>
                           <View className="flex-row items-center">
-                            <Ionicons name="time" size={16} color="#6b7280" />
-                            <Text className="text-xs text-gray-500 ml-1">
+                            <Ionicons name="people-outline" size={12} color="#64748b" />
+                            <Text className="text-xs text-slate-500 ml-1">
+                              {event.current_participants || 0}/{event.max_participants || '∞'}
+                            </Text>
+                          </View>
+                        </View>
+                        
+                        <Text className="text-base font-bold text-slate-800 mb-2" numberOfLines={2}>
+                          {event.title}
+                        </Text>
+                        
+                        <View className="space-y-1.5 mb-2">
+                          <View className="flex-row items-center">
+                            <View 
+                              className="w-6 h-6 rounded-lg items-center justify-center mr-2"
+                              style={{ backgroundColor: '#FEF3C7' }}
+                            >
+                              <Ionicons name="calendar-outline" size={12} color="#D97706" />
+                            </View>
+                            <Text className="text-xs text-slate-700 flex-1">
+                              {formatDate(event.start_date)}
+                            </Text>
+                          </View>
+                          
+                          <View className="flex-row items-center">
+                            <View 
+                              className="w-6 h-6 rounded-lg items-center justify-center mr-2"
+                              style={{ backgroundColor: '#DCFCE7' }}
+                            >
+                              <Ionicons name="time-outline" size={12} color="#16A34A" />
+                            </View>
+                            <Text className="text-xs text-slate-700 flex-1">
                               {formatTime(event.start_time)} - {formatTime(event.end_time)}
                             </Text>
+                          </View>
+                          
+                          <View className="flex-row items-center">
+                            <View 
+                              className="w-6 h-6 rounded-lg items-center justify-center mr-2"
+                              style={{ backgroundColor: '#DBEAFE' }}
+                            >
+                              <Ionicons name="location-outline" size={12} color="#2563EB" />
+                            </View>
+                            <Text className="text-xs text-slate-700 flex-1" numberOfLines={1}>
+                              {event.venue || 'Location TBD'}
+                            </Text>
+                          </View>
+                        </View>
+                        
+                        <View className="flex-row items-center justify-between pt-2 border-t border-slate-100 mt-2">
+                          <Text className="text-xs text-slate-400">
+                            Tap to view
+                          </Text>
+                          <View className="flex-row items-center">
+                            <Text className="text-xs font-semibold text-blue-600 mr-1">View</Text>
+                            <Ionicons name="arrow-forward" size={14} color="#2563eb" />
                           </View>
                         </View>
                       </View>
                     </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-              
-              {/* See All Button */}
-              <View className="flex-row justify-end mt-6">
-                <TouchableOpacity
-                  onPress={() => router.push('/(tabs)/events')}
-                  className="bg-blue-600 px-6 py-3 rounded-xl items-center flex-row"
-                >
-                  <Text className="text-white font-medium mr-2">See All</Text>
-                  <Ionicons name="arrow-forward" size={16} color="white" />
-                </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+                
+                {/* See All Button */}
+                <View className="flex-row justify-end mt-6">
+                  <TouchableOpacity
+                    onPress={() => router.push('/(tabs)/events')}
+                    className="bg-blue-600 px-6 py-3 rounded-xl items-center flex-row"
+                  >
+                    <Text className="text-white font-medium mr-2">See All</Text>
+                    <Ionicons name="arrow-forward" size={16} color="white" />
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           ) : (

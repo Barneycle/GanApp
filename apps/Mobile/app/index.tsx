@@ -1,8 +1,10 @@
 import React, { useEffect } from 'react';
-import { View, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '../lib/authContext';
+
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
 
 export default function Index() {
   const router = useRouter();
@@ -10,19 +12,18 @@ export default function Index() {
 
   useEffect(() => {
     if (!isLoading) {
-      if (user) {
-        router.replace('/(tabs)');
-      } else {
-        router.replace('/login');
-      }
+      // Hide splash screen before navigation
+      SplashScreen.hideAsync().then(() => {
+        if (user) {
+          router.replace('/(tabs)');
+        } else {
+          router.replace('/login');
+        }
+      });
     }
   }, [user, isLoading, router]);
 
-  // Show loading indicator while checking auth state - match splash screen background
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#212121' }} className="items-center justify-center">
-      <ActivityIndicator size="large" color="#ffffff" />
-    </SafeAreaView>
-  );
+  // Return null to keep splash screen visible
+  return null;
 }
 

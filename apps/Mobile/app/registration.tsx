@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -54,6 +54,88 @@ export default function RegistrationScreen() {
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
+
+  // Store input Y positions for scrolling
+  const inputYPositions = useRef<{ [key: string]: number }>({});
+  const buttonYPosition = useRef<number>(0);
+
+  // Handle keyboard show/hide and scroll to focused input
+  useEffect(() => {
+    const keyboardWillShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        // Find which input is focused and scroll to it
+        let focusedField: string | null = null;
+        if (firstNameRef.current?.isFocused()) {
+          focusedField = 'firstName';
+        } else if (lastNameRef.current?.isFocused()) {
+          focusedField = 'lastName';
+        } else if (emailRef.current?.isFocused()) {
+          focusedField = 'email';
+        } else if (passwordRef.current?.isFocused()) {
+          focusedField = 'password';
+        } else if (confirmPasswordRef.current?.isFocused()) {
+          focusedField = 'confirmPassword';
+        }
+
+        if (focusedField && inputYPositions.current[focusedField] !== undefined) {
+          const keyboardHeight = e.endCoordinates.height;
+          const inputY = inputYPositions.current[focusedField];
+          
+          // For password fields, scroll enough to show the button as well
+          if (focusedField === 'password' || focusedField === 'confirmPassword') {
+            // Scroll to show both the input and the button below it
+            // Calculate scroll position to show button above keyboard
+            const screenHeight = Dimensions.get('window').height;
+            const availableHeight = screenHeight - keyboardHeight;
+            
+            // If button position is known, scroll to show it with some padding
+            if (buttonYPosition.current > 0) {
+              // Scroll so button is visible above keyboard with padding
+              const buttonBottom = buttonYPosition.current + 60; // Button height + padding
+              const scrollY = Math.max(0, buttonBottom - availableHeight + 20);
+              setTimeout(() => {
+                scrollViewRef.current?.scrollTo({
+                  y: scrollY,
+                  animated: true,
+                });
+              }, 150);
+            } else {
+              // Fallback: scroll more for password fields to show button
+              // Estimate button position (about 250px below confirm password)
+              setTimeout(() => {
+                scrollViewRef.current?.scrollTo({
+                  y: Math.max(0, inputY - 250),
+                  animated: true,
+                });
+              }, 150);
+            }
+          } else {
+            // For other fields, scroll to position input above keyboard with padding
+            setTimeout(() => {
+              scrollViewRef.current?.scrollTo({
+                y: Math.max(0, inputY - 120),
+                animated: true,
+              });
+            }, 100);
+          }
+        }
+      }
+    );
+
+    return () => {
+      keyboardWillShowListener.remove();
+    };
+  }, []);
+
+  // Helper to store input Y position when layout changes
+  const handleInputLayout = (field: string) => (event: any) => {
+    const { y } = event.nativeEvent.layout;
+    // Get the absolute Y position in window
+    event.target.measureInWindow((x: number, yPos: number, width: number, height: number) => {
+      inputYPositions.current[field] = yPos;
+    });
+  };
 
   const handleInputChange = (field: keyof RegistrationFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -232,20 +314,21 @@ export default function RegistrationScreen() {
           </View>
         ) : (
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
           >
           <ScrollView
             ref={scrollViewRef}
             contentContainerStyle={{ 
               flexGrow: 1,
               paddingTop: 0,
-              paddingBottom: Math.max(insets.bottom, 20)
+              paddingBottom: Math.max(insets.bottom, 20) + 300
             }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+            keyboardDismissMode="interactive"
             className="px-4 py-6"
           >
 
@@ -365,7 +448,10 @@ export default function RegistrationScreen() {
                   )}
 
                   {/* First Name Input */}
-                  <View className="mb-3">
+                  <View 
+                    className="mb-3"
+                    onLayout={handleInputLayout('firstName')}
+                  >
                     <Text className="text-sm font-semibold text-black mb-2">First Name *</Text>
                     <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
                       <Ionicons name="person-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
@@ -381,17 +467,15 @@ export default function RegistrationScreen() {
                         returnKeyType="next"
                         blurOnSubmit={false}
                         onSubmitEditing={() => lastNameRef.current?.focus()}
-                        onFocus={() => {
-                          setTimeout(() => {
-                            scrollViewRef.current?.scrollTo({ y: 200, animated: true });
-                          }, 100);
-                        }}
                       />
                     </View>
                   </View>
 
                   {/* Last Name Input */}
-                  <View className="mb-3">
+                  <View 
+                    className="mb-3"
+                    onLayout={handleInputLayout('lastName')}
+                  >
                     <Text className="text-sm font-semibold text-black mb-2">Last Name *</Text>
                     <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
                       <Ionicons name="person-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
@@ -407,17 +491,15 @@ export default function RegistrationScreen() {
                         returnKeyType="next"
                         blurOnSubmit={false}
                         onSubmitEditing={() => emailRef.current?.focus()}
-                        onFocus={() => {
-                          setTimeout(() => {
-                            scrollViewRef.current?.scrollTo({ y: 250, animated: true });
-                          }, 100);
-                        }}
                       />
                     </View>
                   </View>
 
                   {/* Email Input */}
-                  <View className="mb-3">
+                  <View 
+                    className="mb-3"
+                    onLayout={handleInputLayout('email')}
+                  >
                     <Text className="text-sm font-semibold text-black mb-2">Email Address *</Text>
                     <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
                       <Ionicons name="mail-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
@@ -437,35 +519,7 @@ export default function RegistrationScreen() {
                         autoCapitalize="none"
                         returnKeyType="next"
                         blurOnSubmit={false}
-                        onSubmitEditing={() => {
-                          emailRef.current?.blur();
-                          setTimeout(() => {
-                            scrollViewRef.current?.scrollTo({ y: 400, animated: true });
-                            setTimeout(() => {
-                              if (passwordRef.current) {
-                                passwordRef.current.focus();
-                              }
-                            }, 50);
-                          }, 50);
-                        }}
-                        onKeyPress={({ nativeEvent }) => {
-                          if (nativeEvent.key === 'Enter' || nativeEvent.key === 'enter') {
-                            emailRef.current?.blur();
-                            setTimeout(() => {
-                              scrollViewRef.current?.scrollTo({ y: 400, animated: true });
-                              setTimeout(() => {
-                                if (passwordRef.current) {
-                                  passwordRef.current.focus();
-                                }
-                              }, 50);
-                            }, 50);
-                          }
-                        }}
-                        onFocus={() => {
-                          setTimeout(() => {
-                            scrollViewRef.current?.scrollTo({ y: 300, animated: true });
-                          }, 100);
-                        }}
+                        onSubmitEditing={() => passwordRef.current?.focus()}
                       />
                     </View>
                     {(formData.userType === 'psu-student' || formData.userType === 'psu-employee') && (
@@ -476,7 +530,10 @@ export default function RegistrationScreen() {
                   </View>
 
                   {/* Password Input */}
-                  <View className="mb-3">
+                  <View 
+                    className="mb-3"
+                    onLayout={handleInputLayout('password')}
+                  >
                     <Text className="text-sm font-semibold text-black mb-2">Password *</Text>
                     <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
                       <Ionicons name="lock-closed-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
@@ -491,17 +548,7 @@ export default function RegistrationScreen() {
                         secureTextEntry={!showPassword}
                         returnKeyType="next"
                         blurOnSubmit={false}
-                        onSubmitEditing={() => {
-                          setTimeout(() => {
-                            scrollViewRef.current?.scrollTo({ y: 450, animated: true });
-                            confirmPasswordRef.current?.focus();
-                          }, 100);
-                        }}
-                        onFocus={() => {
-                          setTimeout(() => {
-                            scrollViewRef.current?.scrollTo({ y: 400, animated: true });
-                          }, 100);
-                        }}
+                        onSubmitEditing={() => confirmPasswordRef.current?.focus()}
                       />
                       <TouchableOpacity
                         onPress={() => setShowPassword(!showPassword)}
@@ -517,7 +564,10 @@ export default function RegistrationScreen() {
                   </View>
 
                   {/* Confirm Password Input */}
-                  <View className="mb-4">
+                  <View 
+                    className="mb-4"
+                    onLayout={handleInputLayout('confirmPassword')}
+                  >
                     <Text className="text-sm font-semibold text-black mb-2">Confirm Password *</Text>
                     <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
                       <Ionicons name="lock-closed-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
@@ -535,11 +585,6 @@ export default function RegistrationScreen() {
                         onSubmitEditing={() => {
                           confirmPasswordRef.current?.blur();
                           Keyboard.dismiss();
-                        }}
-                        onFocus={() => {
-                          setTimeout(() => {
-                            scrollViewRef.current?.scrollTo({ y: 450, animated: true });
-                          }, 100);
                         }}
                       />
                       <TouchableOpacity
@@ -586,15 +631,23 @@ export default function RegistrationScreen() {
                   </View>
 
                   {/* Register Button */}
-                  <TouchableOpacity
-                    className={`bg-blue-800 rounded-xl py-3 items-center ${isLoading ? 'bg-gray-400' : ''}`}
-                    onPress={handleRegistration}
-                    disabled={isLoading}
+                  <View
+                    onLayout={(e) => {
+                      e.target.measureInWindow((x: number, y: number, width: number, height: number) => {
+                        buttonYPosition.current = y;
+                      });
+                    }}
                   >
-                    <Text className="text-white text-sm font-bold">
-                      {isLoading ? 'Creating Account...' : 'Create Account'}
-                    </Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      className={`bg-blue-800 rounded-xl py-3 items-center ${isLoading ? 'bg-gray-400' : ''}`}
+                      onPress={handleRegistration}
+                      disabled={isLoading}
+                    >
+                      <Text className="text-white text-sm font-bold">
+                        {isLoading ? 'Creating Account...' : 'Create Account'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             )}

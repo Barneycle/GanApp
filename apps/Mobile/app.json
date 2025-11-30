@@ -45,9 +45,9 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/ganapp-splash.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#212121"
+          "imageWidth": 300,
+          "resizeMode": "cover",
+          "backgroundColor": "#0A1E3A"
         }
       ],
       [

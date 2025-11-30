@@ -9,6 +9,8 @@ export default function TabLayout() {
   
   // Check if user is a participant
   const isParticipant = user?.role === 'participant';
+  // Check if user is an organizer
+  const isOrganizer = user?.role === 'organizer' || user?.role === 'admin';
   
   return (
     <Tabs
@@ -70,6 +72,18 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar" size={size} color={color} />
           ),
+          href: !isOrganizer ? '/(tabs)/events' : null,
+        }}
+      />
+      {/* Show Albums for organizers/admins */}
+      <Tabs.Screen
+        name="albums"
+        options={{
+          title: 'Albums',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="images" size={size} color={color} />
+          ),
+          href: isOrganizer ? '/(tabs)/albums' : null,
         }}
       />
       <Tabs.Screen
@@ -78,15 +92,6 @@ export default function TabLayout() {
           title: 'Profile',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="participant-details"
-        options={{
-          title: 'Participant',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people" size={size} color={color} />
           ),
         }}
       />

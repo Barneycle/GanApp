@@ -204,15 +204,6 @@ export default function QRScanner() {
     [isProcessing, user, router]
   );
 
-  const codeScanner = useCodeScanner({
-    codeTypes: ['qr'],
-    onCodeScanned: (codes) => {
-      if (codes.length > 0 && codes[0].value && !isProcessing) {
-        handleQRScan(codes[0].value);
-      }
-    },
-  });
-
   // Calculate frame position (centered in available space)
   // Account for header and safe area
   const headerHeight = insets.top + 50; // Header + padding
@@ -223,13 +214,31 @@ export default function QRScanner() {
   const frameRight = frameLeft + SCAN_SIZE;
   const frameBottom = frameTop + SCAN_SIZE;
 
+  // Calculate region of interest for faster scanning (normalized 0-1 coordinates)
+  const regionOfInterest = {
+    x: frameLeft / SCREEN_WIDTH,
+    y: frameTop / SCREEN_HEIGHT,
+    width: SCAN_SIZE / SCREEN_WIDTH,
+    height: SCAN_SIZE / SCREEN_HEIGHT,
+  };
+
+  const codeScanner = useCodeScanner({
+    codeTypes: ['qr'],
+    regionOfInterest: regionOfInterest,
+    onCodeScanned: (codes) => {
+      if (codes.length > 0 && codes[0].value && !isProcessing) {
+        handleQRScan(codes[0].value);
+      }
+    },
+  });
+
   // Loading
   if (isInitializing) {
     return (
-      <SafeAreaView className="flex-1 bg-black">
+      <SafeAreaView className="flex-1 bg-blue-900">
         <View className="flex-1 justify-center items-center">
           <ActivityIndicator size="large" color="#ffffff" />
-          <Text className="text-white text-lg font-medium mt-4">Initializing Camera</Text>
+          <Text className="text-blue-100 text-lg font-medium mt-4">Initializing Camera</Text>
         </View>
       </SafeAreaView>
     );
@@ -238,7 +247,7 @@ export default function QRScanner() {
   // Error states
   if (hasPermission === false || error) {
     return (
-      <SafeAreaView className="flex-1 bg-black">
+      <SafeAreaView className="flex-1 bg-blue-900">
         <View className="flex-1 justify-center items-center px-6">
           <View className="w-20 h-20 bg-red-600 rounded-full items-center justify-center mb-6">
             <Ionicons name="camera" size={40} color="white" />
@@ -281,7 +290,7 @@ export default function QRScanner() {
   // No device
   if (!activeDevice) {
     return (
-      <SafeAreaView className="flex-1 bg-black">
+      <SafeAreaView className="flex-1 bg-blue-900">
         <View className="flex-1 justify-center items-center px-6">
           <View className="w-20 h-20 bg-red-600 rounded-full items-center justify-center mb-6">
             <Ionicons name="camera" size={40} color="white" />

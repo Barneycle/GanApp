@@ -12,6 +12,7 @@ import {
   Platform,
   Linking,
   StyleSheet,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,6 +43,7 @@ export default function MyEvents() {
   const [registeredEvents, setRegisteredEvents] = useState<RegisteredEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [qrEvent, setQrEvent] = useState<RegisteredEvent | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
@@ -97,6 +99,12 @@ export default function MyEvents() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadRegisteredEvents();
+    setRefreshing(false);
   };
 
   const formatDate = (dateString: string) => {
@@ -219,6 +227,14 @@ export default function MyEvents() {
     setQrError(null);
     setIsQRModalOpen(true);
     await generateEventQRCode(event);
+  };
+
+  const handleSnapPhoto = async (event: RegisteredEvent) => {
+    // Navigate to camera screen with event ID
+    router.push({
+      pathname: '/camera',
+      params: { eventId: event.id },
+    } as any);
   };
 
   const generateEventQRCode = async (event: RegisteredEvent) => {
@@ -489,122 +505,193 @@ export default function MyEvents() {
         <ScrollView 
           className="flex-1" 
           contentContainerStyle={{ 
-            paddingVertical: 20,
-            paddingTop: insets.top + 20,
-            paddingBottom: Math.max(insets.bottom, 20)
+            paddingBottom: Math.max(insets.bottom, 20) + 80 // Account for tab bar height
           }}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#ffffff"
+              colors={["#ffffff"]}
+            />
+          }
         >
-          <Text className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">My Registered Events</Text>
-          
-          {registeredEvents.map((event) => {
-            const eventStatus = getEventStatus(event);
-            
-            return (
-              <View
-                key={event.registration_id}
-                className="bg-white rounded-xl shadow-md mb-4 overflow-hidden"
-              >
-                {/* Event Banner */}
-                {event.banner_url && (
-                  <View className="h-48 overflow-hidden">
-                    <Image 
-                      source={{ uri: event.banner_url }} 
-                      className="w-full h-full"
-                      resizeMode="cover"
-                    />
-                  </View>
-                )}
-                
-                {/* Event Content */}
-                <View className="p-4">
-                  <View className="flex-row items-start justify-between mb-4">
-                    <Text className="text-lg font-bold text-slate-800 flex-1">{event.title}</Text>
-                    <View className={`ml-2 px-3 py-1 rounded-full ${eventStatus.color}`}>
-                      <Text className={`text-xs font-medium ${eventStatus.textColor}`}>
-                        {eventStatus.text}
-                      </Text>
-                    </View>
-                  </View>
-                  
-                  {event.rationale && (
-                    <Text className="text-sm text-slate-600 mb-4" numberOfLines={3}>
-                      {stripHtmlTags(event.rationale)}
-                    </Text>
-                  )}
-                  
-                  <View className="space-y-2 mb-4">
-                    <View className="flex-row items-center">
-                      <Ionicons name="calendar-outline" size={14} color="#6b7280" />
-                      <Text className="text-sm text-slate-600 ml-2">
-                        {formatDate(event.start_date)}
-                        {event.start_date !== event.end_date && ` - ${formatDate(event.end_date)}`}
-                      </Text>
-                    </View>
-                    
-                    <View className="flex-row items-center">
-                      <Ionicons name="time-outline" size={14} color="#6b7280" />
-                      <Text className="text-sm text-slate-600 ml-2">
-                        {formatTime(event.start_time)} - {formatTime(event.end_time)}
-                      </Text>
-                    </View>
-                    
-                    {/* Check-in Window Info */}
-                    {(event.check_in_before_minutes || event.check_in_during_minutes) && (
-                      <View className="flex-row items-center">
-                        <Ionicons name="checkmark-circle-outline" size={14} color="#2563eb" />
-                        <Text className="text-sm text-blue-600 ml-2">
-                          Check-in: {formatCheckInTime(event)} - {formatCheckInEndTime(event)}
-                        </Text>
-                      </View>
-                    )}
-                    
-                    {event.venue && (
-                      <View className="flex-row items-center">
-                        <Ionicons name="location-outline" size={14} color="#6b7280" />
-                        <Text className="text-sm text-slate-600 ml-2" numberOfLines={1}>
-                          {event.venue}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  
-                  {/* Action Buttons */}
-                  <View className="gap-4">
-                    <TouchableOpacity
-                      onPress={() => router.push(`/event-details?eventId=${event.id}`)}
-                      className="w-full px-4 py-4 bg-blue-600 rounded-lg"
-                    >
-                      <Text className="text-white text-base text-center font-semibold">View Details</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                      onPress={() => handleGenerateQR(event)}
-                      className="w-full px-4 py-4 bg-green-600 rounded-lg"
-                    >
-                      <Text className="text-white text-base text-center font-semibold">Generate QR Code</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                      onPress={() => handleTakeEvaluation(event)}
-                      className="w-full px-4 py-4 bg-purple-600 rounded-lg"
-                    >
-                      <Text className="text-white text-base text-center font-semibold">Take Evaluation</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                      onPress={() => handleUnregister(event.id)}
-                      className="w-full px-4 py-4 bg-red-600 rounded-lg"
-                    >
-                      <Text className="text-white text-base text-center font-semibold">Unregister</Text>
-                    </TouchableOpacity>
-                  </View>
+          {/* My Registered Events Section Card */}
+          <View 
+            className="rounded-3xl overflow-hidden"
+            style={{ 
+              backgroundColor: '#FFFFFF',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 12,
+              elevation: 8,
+            }}
+          >
+            {/* Card Header */}
+            <View 
+              className="px-6 py-5"
+              style={{
+                borderBottomWidth: 1,
+                borderBottomColor: '#E2E8F0',
+              }}
+            >
+              <View className="flex-row items-center">
+                <View 
+                  className="w-10 h-10 rounded-xl items-center justify-center mr-3"
+                  style={{ backgroundColor: '#DBEAFE' }}
+                >
+                  <Ionicons name="calendar-outline" size={22} color="#2563eb" />
                 </View>
+                <Text className="text-2xl font-bold text-slate-900">My Registered Events</Text>
               </View>
-            );
-          })}
-          
-          <View className="h-6" />
+            </View>
+            
+            {/* Events List */}
+            <View className="p-5">
+              {registeredEvents.length === 0 ? (
+                <View className="py-12 items-center">
+                  <View 
+                    className="w-20 h-20 rounded-full items-center justify-center mb-4"
+                    style={{ backgroundColor: '#F1F5F9' }}
+                  >
+                    <Ionicons name="calendar-outline" size={40} color="#64748b" />
+                  </View>
+                  <Text className="text-xl font-semibold text-gray-800 mb-2 text-center">
+                    No Registered Events
+                  </Text>
+                  <Text className="text-gray-500 text-center text-sm">
+                    You haven't registered for any events yet.
+                  </Text>
+                </View>
+              ) : (
+                registeredEvents.map((event) => {
+                  const eventStatus = getEventStatus(event);
+                  
+                  return (
+                    <View
+                      key={event.registration_id}
+                      className="rounded-2xl overflow-hidden mb-6"
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        borderWidth: 1,
+                        borderColor: '#E2E8F0',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.05,
+                        shadowRadius: 8,
+                        elevation: 3,
+                      }}
+                    >
+                      {/* Event Banner */}
+                      {event.banner_url && (
+                        <View className="h-48 overflow-hidden">
+                          <Image 
+                            source={{ uri: event.banner_url }} 
+                            className="w-full h-full"
+                            resizeMode="cover"
+                          />
+                        </View>
+                      )}
+                      
+                      {/* Event Content */}
+                      <View className="p-4">
+                        <View className="flex-row items-start justify-between mb-4">
+                          <Text className="text-lg font-bold text-slate-800 flex-1">{event.title}</Text>
+                          <View className={`ml-2 px-3 py-1 rounded-full ${eventStatus.color}`}>
+                            <Text className={`text-xs font-medium ${eventStatus.textColor}`}>
+                              {eventStatus.text}
+                            </Text>
+                          </View>
+                        </View>
+                        
+                        {event.rationale && (
+                          <Text className="text-sm text-slate-600 mb-4" numberOfLines={3}>
+                            {stripHtmlTags(event.rationale)}
+                          </Text>
+                        )}
+                        
+                        <View className="space-y-2 mb-4">
+                          <View className="flex-row items-center">
+                            <Ionicons name="calendar-outline" size={14} color="#6b7280" />
+                            <Text className="text-sm text-slate-600 ml-2">
+                              {formatDate(event.start_date)}
+                              {event.start_date !== event.end_date && ` - ${formatDate(event.end_date)}`}
+                            </Text>
+                          </View>
+                          
+                          <View className="flex-row items-center">
+                            <Ionicons name="time-outline" size={14} color="#6b7280" />
+                            <Text className="text-sm text-slate-600 ml-2">
+                              {formatTime(event.start_time)} - {formatTime(event.end_time)}
+                            </Text>
+                          </View>
+                          
+                          {/* Check-in Window Info */}
+                          {(event.check_in_before_minutes || event.check_in_during_minutes) && (
+                            <View className="flex-row items-center">
+                              <Ionicons name="checkmark-circle-outline" size={14} color="#2563eb" />
+                              <Text className="text-sm text-blue-600 ml-2">
+                                Check-in: {formatCheckInTime(event)} - {formatCheckInEndTime(event)}
+                              </Text>
+                            </View>
+                          )}
+                          
+                          {event.venue && (
+                            <View className="flex-row items-center">
+                              <Ionicons name="location-outline" size={14} color="#6b7280" />
+                              <Text className="text-sm text-slate-600 ml-2" numberOfLines={1}>
+                                {event.venue}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        
+                        {/* Action Buttons */}
+                        <View className="gap-4">
+                          <TouchableOpacity
+                            onPress={() => router.push(`/event-details?eventId=${event.id}`)}
+                            className="w-full px-4 py-4 bg-blue-600 rounded-lg"
+                          >
+                            <Text className="text-white text-base text-center font-semibold">View Details</Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity
+                            onPress={() => handleGenerateQR(event)}
+                            className="w-full px-4 py-4 bg-green-600 rounded-lg"
+                          >
+                            <Text className="text-white text-base text-center font-semibold">Generate QR Code</Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity
+                            onPress={() => handleTakeEvaluation(event)}
+                            className="w-full px-4 py-4 bg-purple-600 rounded-lg"
+                          >
+                            <Text className="text-white text-base text-center font-semibold">Take Evaluation</Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity
+                            onPress={() => handleSnapPhoto(event)}
+                            className="w-full px-4 py-4 bg-blue-600 rounded-lg"
+                          >
+                            <Text className="text-white text-base text-center font-semibold">Snap Photo</Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity
+                            onPress={() => handleUnregister(event.id)}
+                            className="w-full px-4 py-4 bg-red-600 rounded-lg"
+                          >
+                            <Text className="text-white text-base text-center font-semibold">Unregister</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          </View>
         </ScrollView>
       </View>
 

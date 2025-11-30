@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   Image,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +20,7 @@ export default function Events() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
   
   const router = useRouter();
@@ -48,6 +50,12 @@ export default function Events() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadEvents();
+    setRefreshing(false);
   };
 
   const formatDate = (dateString: string) => {
@@ -118,6 +126,14 @@ export default function Events() {
             paddingBottom: 70 + Math.max(insets.bottom, 8) + 20 // Tab bar height + safe area + extra padding
           }}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#ffffff"
+              colors={["#ffffff"]}
+            />
+          }
         >
           {/* Create New Event Button - Only for organizers/admins */}
           {isOrganizer && (
