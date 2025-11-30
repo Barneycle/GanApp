@@ -9,6 +9,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, firstName: string, lastName: string, role?: 'admin' | 'organizer' | 'participant') => Promise<{ user: User | null; error: string | null }>;
   signOut: () => Promise<{ error: string | null }>;
   refreshUser: () => Promise<void>;
+  setUser: (user: User | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -76,16 +77,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.error('Error loading user profile:', error);
         setUser(null);
       } else if (authUser) {
+        // Log raw metadata to debug
+        console.log('Raw user metadata:', JSON.stringify(authUser.user_metadata, null, 2));
+        console.log('affiliated_organization in metadata:', authUser.user_metadata?.affiliated_organization);
+        console.log('Type of affiliated_organization:', typeof authUser.user_metadata?.affiliated_organization);
+        
         // Create user profile from Supabase Auth user data
+        // Only use metadata values if they exist and are not empty
+        const affiliatedOrg = authUser.user_metadata?.affiliated_organization;
+        const hasAffiliatedOrg = affiliatedOrg && typeof affiliatedOrg === 'string' && affiliatedOrg.trim() !== '';
+        
         const userProfile: User = {
           id: authUser.id,
           email: authUser.email || '',
-          first_name: authUser.user_metadata?.first_name || 'User',
-          last_name: authUser.user_metadata?.last_name || '',
+          first_name: authUser.user_metadata?.first_name && authUser.user_metadata.first_name.trim() !== '' 
+            ? authUser.user_metadata.first_name 
+            : '',
+          last_name: authUser.user_metadata?.last_name && authUser.user_metadata.last_name.trim() !== '' 
+            ? authUser.user_metadata.last_name 
+            : '',
+          affiliated_organization: hasAffiliatedOrg ? affiliatedOrg.trim() : '',
+          avatar_url: authUser.user_metadata?.avatar_url && authUser.user_metadata.avatar_url.trim() !== ''
+            ? authUser.user_metadata.avatar_url
+            : '',
           role: authUser.user_metadata?.role || 'participant',
           created_at: authUser.created_at || new Date().toISOString(),
           updated_at: authUser.updated_at || new Date().toISOString(),
         };
+        
+        console.log('Loaded user profile:', {
+          first_name: userProfile.first_name,
+          last_name: userProfile.last_name,
+          affiliated_organization: userProfile.affiliated_organization,
+          hasAffiliatedOrg,
+          raw_affiliated_org: affiliatedOrg
+        });
+        
         setUser(userProfile);
       } else {
         setUser(null);
@@ -174,10 +201,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const refreshUser = async () => {
     try {
       setIsLoading(true);
-      await checkUser();
+      // Force a session refresh to get latest metadata
+      // First, refresh the session to ensure we have the latest data
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      
+      if (currentSession?.user) {
+        // Wait a moment for metadata to sync
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Get fresh user data
+        const { data: { user: authUser }, error } = await supabase.auth.getUser();
+        
+        if (error) {
+          console.error('Error refreshing user:', error);
+          setIsLoading(false);
+          return;
+        }
+        
+        if (authUser) {
+          await loadUserProfile(authUser.id);
+        } else {
+          setUser(null);
+          setIsLoading(false);
+        }
+      } else {
+        setUser(null);
+        setIsLoading(false);
+      }
     } catch (error) {
       console.error('Error refreshing user:', error);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -189,6 +241,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signUp,
     signOut,
     refreshUser,
+    setUser,
   };
 
   return (

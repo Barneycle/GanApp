@@ -15,15 +15,26 @@ export interface User {
 export class UserService {
   static async signUp(email: string, password: string, userData: Partial<User>): Promise<{ user?: User; error?: string; message?: string }> {
     try {
+      // Build metadata object, only including fields that are provided
+      const metadata: any = {
+        role: userData.role || 'participant',
+      };
+      
+      // Only include first_name if provided and not empty
+      if (userData.first_name && userData.first_name.trim() !== '') {
+        metadata.first_name = userData.first_name.trim();
+      }
+      
+      // Only include last_name if provided and not empty
+      if (userData.last_name && userData.last_name.trim() !== '') {
+        metadata.last_name = userData.last_name.trim();
+      }
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: {
-            role: userData.role || 'participant',
-            first_name: userData.first_name || '',
-            last_name: userData.last_name || ''
-          }
+          data: metadata
         }
       });
 
@@ -33,12 +44,17 @@ export class UserService {
 
       if (data.user) {
         // Create user object from Supabase Auth data
+        // Only use metadata values if they exist and are not empty
         const user: User = {
           id: data.user.id,
           email: data.user.email || '',
           role: data.user.user_metadata?.role || 'participant',
-          first_name: data.user.user_metadata?.first_name || '',
-          last_name: data.user.user_metadata?.last_name || '',
+          first_name: data.user.user_metadata?.first_name && data.user.user_metadata.first_name.trim() !== '' 
+            ? data.user.user_metadata.first_name 
+            : '',
+          last_name: data.user.user_metadata?.last_name && data.user.user_metadata.last_name.trim() !== '' 
+            ? data.user.user_metadata.last_name 
+            : '',
           created_at: data.user.created_at,
           updated_at: data.user.updated_at || data.user.created_at
         };
@@ -106,19 +122,29 @@ export class UserService {
 
   static async updateProfile(userId: string, updates: Partial<User> & { originalEmail?: string }): Promise<{ user?: User; error?: string; needsEmailConfirmation?: boolean }> {
     try {
-      // Prepare update object for metadata
+      // Get current user to preserve existing metadata
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
+      // Prepare update object for metadata - preserve existing values
       const updateData: any = {
-        role: updates.role,
-        first_name: updates.first_name,
-        last_name: updates.last_name
+        ...(currentUser?.user_metadata || {}), // Preserve existing metadata
       };
 
-      // Add optional fields if provided
-      if (updates.avatar_url !== undefined) {
-        updateData.avatar_url = updates.avatar_url;
+      // Update only the fields that are provided
+      if (updates.role !== undefined) {
+        updateData.role = updates.role;
+      }
+      if (updates.first_name !== undefined) {
+        updateData.first_name = updates.first_name;
+      }
+      if (updates.last_name !== undefined) {
+        updateData.last_name = updates.last_name;
       }
       if (updates.affiliated_organization !== undefined) {
         updateData.affiliated_organization = updates.affiliated_organization;
+      }
+      if (updates.avatar_url !== undefined) {
+        updateData.avatar_url = updates.avatar_url;
       }
 
       // Check if email is being changed
@@ -138,19 +164,30 @@ export class UserService {
       const { data, error } = await supabase.auth.updateUser(updateParams);
 
       if (error) {
+        console.error('Error updating user:', error);
         return { error: error.message };
       }
 
       if (data.user) {
+        console.log('User updated, metadata:', data.user.user_metadata);
+        
         const userData: User = {
           id: data.user.id,
           email: data.user.email || '',
           role: data.user.user_metadata?.role || 'participant',
           first_name: data.user.user_metadata?.first_name || '',
           last_name: data.user.user_metadata?.last_name || '',
+          affiliated_organization: data.user.user_metadata?.affiliated_organization || '',
+          avatar_url: data.user.user_metadata?.avatar_url || '',
           created_at: data.user.created_at,
           updated_at: data.user.updated_at || data.user.created_at
         };
+        
+        console.log('Returning user data:', {
+          first_name: userData.first_name,
+          last_name: userData.last_name,
+          affiliated_organization: userData.affiliated_organization
+        });
         
         // Check if email confirmation is needed
         const emailUpdatedImmediately = isEmailChanging && 

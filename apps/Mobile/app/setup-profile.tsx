@@ -50,7 +50,7 @@ export default function SetupProfileScreen() {
   const [showAlbumDropdown, setShowAlbumDropdown] = useState(false);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, refreshUser, isLoading: authLoading } = useAuth();
+  const { user, refreshUser, setUser: setAuthUser, isLoading: authLoading } = useAuth();
   const scrollViewRef = useRef<ScrollView>(null);
   
   // Refs for form inputs
@@ -408,8 +408,23 @@ export default function SetupProfileScreen() {
         return;
       }
 
-      // Refresh user data
-      await refreshUser();
+      // If updateProfile returned the updated user, use it directly
+      // This ensures we have the latest data immediately without waiting for metadata sync
+      if (result.user) {
+        console.log('Profile updated, setting user directly:', {
+          first_name: result.user.first_name,
+          last_name: result.user.last_name,
+          affiliated_organization: result.user.affiliated_organization
+        });
+        setAuthUser(result.user);
+      } else {
+        // Fallback: refresh user data
+        await refreshUser();
+        // Wait a bit for metadata to sync in Supabase
+        await new Promise(resolve => setTimeout(resolve, 500));
+        // Force another refresh to get the latest data
+        await refreshUser();
+      }
 
       // Show success and redirect to main app
       Alert.alert(
