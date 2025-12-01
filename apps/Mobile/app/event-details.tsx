@@ -20,6 +20,7 @@ import { useAuth } from '../lib/authContext';
 import RenderHTML from 'react-native-render-html';
 import { Dimensions } from 'react-native';
 import { decodeHtml, getHtmlContentWidth, defaultHtmlStyles } from '../lib/htmlUtils';
+import TutorialOverlay from '../components/TutorialOverlay';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -194,7 +195,21 @@ export default function EventDetails() {
 
   return (
     <SafeAreaView className="flex-1 bg-blue-900">
-
+      <TutorialOverlay
+        screenId="event-details"
+        steps={[
+          {
+            id: '1',
+            title: 'Event Details',
+            description: 'View complete information about this event including description, speakers, sponsors, and schedule.',
+          },
+          {
+            id: '2',
+            title: 'Register for Event',
+            description: 'Tap the "Register" button to sign up for this event. After registration, you\'ll be able to access event features.',
+          },
+        ]}
+      />
       <ScrollView 
         className="flex-1" 
         contentContainerStyle={{ 

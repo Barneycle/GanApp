@@ -23,6 +23,7 @@ import { CertificateService, Certificate as CertificateType } from '../lib/certi
 import { useAuth } from '../lib/authContext';
 import { supabase } from '../lib/supabase';
 import { saveFileToDownloads } from '../lib/downloadsModule';
+import TutorialOverlay from '../components/TutorialOverlay';
 
 interface CertificateData {
   eventId: string;
@@ -618,6 +619,21 @@ export default function Certificate() {
 
   return (
     <SafeAreaView className="flex-1 bg-blue-900">
+      <TutorialOverlay
+        screenId="certificate"
+        steps={[
+          {
+            id: '1',
+            title: 'Generate Certificate',
+            description: 'Generate your certificate of participation for this event. Make sure you have completed attendance and any required surveys.',
+          },
+          {
+            id: '2',
+            title: 'Download Certificate',
+            description: 'After generating, you can download your certificate. It will be saved to your Downloads folder, just like files downloaded from a browser.',
+          },
+        ]}
+      />
       <View className="flex-1 mx-4 my-2">
         <ScrollView 
           className="flex-1" 

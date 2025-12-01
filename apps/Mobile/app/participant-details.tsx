@@ -12,6 +12,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ParticipantService, ParticipantInfo } from '../lib/participantService';
+import TutorialOverlay from '../components/TutorialOverlay';
 
 export default function ParticipantDetails() {
   const router = useRouter();
@@ -105,6 +106,21 @@ export default function ParticipantDetails() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
+      <TutorialOverlay
+        screenId="participant-details"
+        steps={[
+          {
+            id: '1',
+            title: 'Participant Information',
+            description: 'View detailed information about a participant including their registration status, attendance, and contact details.',
+          },
+          {
+            id: '2',
+            title: 'Check-in Status',
+            description: 'See if the participant has checked in to the event. You can view their QR code and registration details.',
+          },
+        ]}
+      />
       {/* Header */}
       <View 
         className="border-b border-gray-200 px-6 py-4 flex-row items-center justify-between"

@@ -31,6 +31,7 @@ import { SurveyService } from '../../lib/surveyService';
 import { useAuth } from '../../lib/authContext';
 import { supabase } from '../../lib/supabase';
 import { stripHtmlTags } from '../../lib/htmlUtils';
+import TutorialOverlay from '../../components/TutorialOverlay';
 
 interface RegisteredEvent extends Event {
   registration_date: string;
@@ -487,6 +488,21 @@ export default function MyEvents() {
 
   return (
     <SafeAreaView className="flex-1 bg-blue-900">
+      <TutorialOverlay
+        screenId="my-events"
+        steps={[
+          {
+            id: '1',
+            title: 'My Events',
+            description: 'This screen shows all events you have registered for. You can view event details, access your QR code for check-in, take surveys, and generate certificates.',
+          },
+          {
+            id: '2',
+            title: 'Event Actions',
+            description: 'For each event, you can: View QR code for check-in, Take evaluation surveys, and Generate certificates after completing requirements.',
+          },
+        ]}
+      />
       {/* Header */}
       <View className="bg-blue-900 px-3 pt-12 mt-6">
         <View className="flex-row items-center justify-between">

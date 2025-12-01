@@ -25,6 +25,7 @@ import { useAuth } from '../lib/authContext';
 import { supabase } from '../lib/supabase';
 import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
+import TutorialOverlay from '../components/TutorialOverlay';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ASPECT_RATIO = 4 / 3;
@@ -431,6 +432,21 @@ export default function CameraScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-black">
+      <TutorialOverlay
+        screenId="camera"
+        steps={[
+          {
+            id: '1',
+            title: 'Upload Event Photos',
+            description: 'Take photos or select from your gallery to upload photos for this event. You can upload up to 10 photos per event.',
+          },
+          {
+            id: '2',
+            title: 'Photo Upload',
+            description: 'After selecting photos, tap "Upload Photos" to share them with other participants. Photos will appear in the event album.',
+          },
+        ]}
+      />
       {/* Camera View */}
       <View style={{ flex: 1 }}>
         {activeDevice && cameraFormat && (

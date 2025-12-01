@@ -16,6 +16,7 @@ import { SurveyService, Survey } from '../lib/surveyService';
 import { EventService } from '../lib/eventService';
 import { useAuth } from '../lib/authContext';
 import { supabase } from '../lib/supabase';
+import TutorialOverlay from '../components/TutorialOverlay';
 
 interface Question {
   id?: string;
@@ -691,6 +692,21 @@ export default function Evaluation() {
 
   return (
     <SafeAreaView className="flex-1 bg-blue-900">
+      <TutorialOverlay
+        screenId="evaluation"
+        steps={[
+          {
+            id: '1',
+            title: 'Evaluation Survey',
+            description: 'Provide your feedback about the event. Answer all questions honestly. Some questions may be required.',
+          },
+          {
+            id: '2',
+            title: 'Submit Evaluation',
+            description: 'After completing all questions, tap "Submit" to save your evaluation. You may be able to generate a certificate after submission.',
+          },
+        ]}
+      />
       {/* Header */}
       <View className="bg-blue-900 px-3 pt-12 mt-6">
         <View className="flex-row items-center justify-between">

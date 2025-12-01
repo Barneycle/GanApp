@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SurveyService, Survey as SurveyType } from '../lib/surveyService';
 import { useAuth } from '../lib/authContext';
+import TutorialOverlay from '../components/TutorialOverlay';
 
 interface Question {
   id: string;
@@ -460,6 +461,21 @@ export default function Survey() {
 
   return (
     <SafeAreaView className="flex-1 bg-blue-900">
+      <TutorialOverlay
+        screenId="survey"
+        steps={[
+          {
+            id: '1',
+            title: 'Complete Survey',
+            description: 'Answer all questions in this survey. Some questions may be required. Navigate between questions using the buttons.',
+          },
+          {
+            id: '2',
+            title: 'Submit Your Answers',
+            description: 'After answering all questions, tap "Submit" to save your responses. You can only submit once per survey.',
+          },
+        ]}
+      />
       {/* Header */}
       <View className="bg-blue-900 px-3 pt-12 mt-6">
         <View className="flex-row items-center justify-between">

@@ -25,6 +25,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { UserService } from '../lib/userService';
+import TutorialOverlay from '../components/TutorialOverlay';
 
 interface SetupProfileFormData {
   firstName: string;
@@ -499,6 +500,26 @@ export default function SetupProfileScreen() {
     <>
       <StatusBar style="light" />
       <SafeAreaView className="flex-1 bg-blue-900">
+        <TutorialOverlay
+          screenId="setup-profile"
+          steps={[
+            {
+              id: '1',
+              title: 'Complete Your Profile',
+              description: 'Fill in your personal information to complete your profile setup. This information will be used for event registrations.',
+            },
+            {
+              id: '2',
+              title: 'Profile Picture',
+              description: 'Add a profile picture by tapping on the camera icon. You can take a photo or select one from your gallery.',
+            },
+            {
+              id: '3',
+              title: 'Save Your Profile',
+              description: 'After filling in all required fields, tap "Save Profile" to complete your setup and start using the app.',
+            },
+          ]}
+        />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={{ flex: 1 }}

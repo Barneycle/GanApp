@@ -7,6 +7,7 @@ import { useAuth } from '../../lib/authContext';
 import { Ionicons } from '@expo/vector-icons';
 import RenderHTML from 'react-native-render-html';
 import { decodeHtml, getHtmlContentWidth, defaultHtmlStyles, stripHtmlTags } from '../../lib/htmlUtils';
+import TutorialOverlay from '../../components/TutorialOverlay';
 
 const { width: screenWidth } = Dimensions.get('window');
 const CONTAINER_PADDING = 16; // Padding inside the container card
@@ -26,6 +27,7 @@ export default function Index() {
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
   const insets = useSafeAreaInsets();
   const carouselContainerRef = useRef<View>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
   const [containerWidth, setContainerWidth] = useState(screenWidth - 72); // Default estimate
   
   // Calculate snap offsets for centering each card within the container card
@@ -130,21 +132,46 @@ export default function Index() {
 
   // Navigation functions for carousel
   const scrollLeft = () => {
+    if (events.length === 0) return;
+    
     setCurrentEventIndex((prev) => {
       const newIndex = prev - 1;
       if (newIndex < 0) {
-        return events.length - 1;
+        const targetIndex = events.length - 1;
+        // Scroll to the last event
+        setTimeout(() => {
+          const offset = snapOffsets[targetIndex] || 0;
+          scrollViewRef.current?.scrollTo({ x: offset, animated: true });
+        }, 0);
+        return targetIndex;
       }
+      // Scroll to the previous event
+      setTimeout(() => {
+        const offset = snapOffsets[newIndex] || 0;
+        scrollViewRef.current?.scrollTo({ x: offset, animated: true });
+      }, 0);
       return newIndex;
     });
   };
 
   const scrollRight = () => {
+    if (events.length === 0) return;
+    
     setCurrentEventIndex((prev) => {
       const newIndex = prev + 1;
       if (newIndex >= events.length) {
+        // Scroll to the first event
+        setTimeout(() => {
+          const offset = snapOffsets[0] || 0;
+          scrollViewRef.current?.scrollTo({ x: offset, animated: true });
+        }, 0);
         return 0;
       }
+      // Scroll to the next event
+      setTimeout(() => {
+        const offset = snapOffsets[newIndex] || 0;
+        scrollViewRef.current?.scrollTo({ x: offset, animated: true });
+      }, 0);
       return newIndex;
     });
   };
@@ -219,6 +246,21 @@ export default function Index() {
 
   return (
       <SafeAreaView className="flex-1 bg-blue-900">
+      <TutorialOverlay
+        screenId="home"
+        steps={[
+          {
+            id: '1',
+            title: 'Welcome to GanApp!',
+            description: 'This is your home screen. Here you can browse featured events and upcoming events. Swipe left or right on event cards to see more events.',
+          },
+          {
+            id: '2',
+            title: 'View Event Details',
+            description: 'Tap on any event card to see full details, register, and access event features like surveys and certificates.',
+          },
+        ]}
+      />
       <ScrollView 
         className="flex-1" 
         contentContainerStyle={{ 
@@ -356,6 +398,7 @@ export default function Index() {
                   }}
               >
                 <ScrollView
+                  ref={scrollViewRef}
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   onScroll={Animated.event(

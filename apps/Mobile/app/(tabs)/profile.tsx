@@ -9,6 +9,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { UserService } from '../../lib/userService';
+import TutorialOverlay from '../../components/TutorialOverlay';
+import HelpCenter from '../../components/HelpCenter';
 
 interface UserProfile {
   id: string;
@@ -28,6 +30,7 @@ export default function Profile() {
   const insets = useSafeAreaInsets();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isHelpCenterVisible, setIsHelpCenterVisible] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [formData, setFormData] = useState({
     first_name: '',
@@ -686,6 +689,26 @@ export default function Profile() {
 
   return (
     <SafeAreaView className="flex-1 bg-blue-900">
+      <TutorialOverlay
+        screenId="profile"
+        steps={[
+          {
+            id: '1',
+            title: 'Edit Your Profile',
+            description: 'Update your personal information, change your profile picture, and manage your account settings.',
+          },
+          {
+            id: '2',
+            title: 'Profile Picture',
+            description: 'Tap on your profile picture to change it. You can take a new photo or select one from your gallery.',
+          },
+          {
+            id: '3',
+            title: 'Save Changes',
+            description: 'After making changes, tap "Save Changes" to update your profile. You\'ll receive a confirmation when changes are saved.',
+          },
+        ]}
+      />
       <ScrollView 
         className="flex-1" 
         contentContainerStyle={{ 
@@ -792,6 +815,14 @@ export default function Profile() {
               >
                 <Ionicons name="shield-checkmark-outline" size={20} color="white" style={{ marginRight: 8 }} />
                 <Text className="text-white font-semibold">Privacy Policy</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setIsHelpCenterVisible(true)}
+                className="bg-amber-600 py-3 px-6 rounded-xl items-center flex-row justify-center"
+              >
+                <Ionicons name="help-circle-outline" size={20} color="white" style={{ marginRight: 8 }} />
+                <Text className="text-white font-semibold">Help Center</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1184,6 +1215,10 @@ export default function Profile() {
           )}
         </SafeAreaView>
       </Modal>
+      <HelpCenter
+        visible={isHelpCenterVisible}
+        onClose={() => setIsHelpCenterVisible(false)}
+      />
     </SafeAreaView>
   );
 }

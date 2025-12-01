@@ -20,6 +20,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../lib/authContext';
 import { AlbumService, EventWithPhotos, EventPhoto } from '../../lib/albumService';
 import { Ionicons } from '@expo/vector-icons';
+import TutorialOverlay from '../../components/TutorialOverlay';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
@@ -349,6 +350,26 @@ export default function Albums() {
         paddingBottom: insets.bottom + 80, // Account for tab bar
       }}
     >
+      <TutorialOverlay
+        screenId="albums"
+        steps={[
+          {
+            id: '1',
+            title: 'Event Albums',
+            description: 'Browse photos uploaded by participants from different events. Each event has its own photo album.',
+          },
+          {
+            id: '2',
+            title: 'View & Download Photos',
+            description: 'Tap "View All" to see all photos from an event. Tap any photo to view it full screen. Use the download button to save photos to your device.',
+          },
+          {
+            id: '3',
+            title: 'Download All',
+            description: 'Use the "Download All" button to save all photos from an event at once to your Photos/Downloads folder.',
+          },
+        ]}
+      />
       <ScrollView 
         className="flex-1 px-4"
         contentContainerStyle={{

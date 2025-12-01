@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { EventService, Event } from '../../lib/eventService';
 import { useAuth } from '../../lib/authContext';
 import { stripHtmlTags } from '../../lib/htmlUtils';
+import TutorialOverlay from '../../components/TutorialOverlay';
 
 export default function Events() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -104,6 +105,21 @@ export default function Events() {
 
   return (
     <SafeAreaView className="flex-1 bg-blue-900">
+      <TutorialOverlay
+        screenId="events"
+        steps={[
+          {
+            id: '1',
+            title: 'Browse Events',
+            description: 'This screen shows all available events. Browse through events and tap on any event to see details and register.',
+          },
+          {
+            id: '2',
+            title: 'Register for Events',
+            description: 'Tap on an event card to view full details, read descriptions, and register to participate.',
+          },
+        ]}
+      />
       {/* Header */}
       <View className="bg-blue-900 px-3 pt-12 mt-6">
         <View className="flex-row items-center justify-between">

@@ -25,6 +25,7 @@ import {
 import { QRScanService, QRScanResult } from '../../lib/qrScanService';
 import { ParticipantService } from '../../lib/participantService';
 import { useAuth } from '../../lib/authContext';
+import TutorialOverlay from '../../components/TutorialOverlay';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SCAN_SIZE = SCREEN_WIDTH * 0.85;
@@ -309,6 +310,26 @@ export default function QRScanner() {
   // Main camera view
   return (
     <View style={{ flex: 1, backgroundColor: '#000000' }}>
+      <TutorialOverlay
+        screenId="qrscanner"
+        steps={[
+          {
+            id: '1',
+            title: 'QR Code Scanner',
+            description: 'Use this scanner to check in participants at events. Point the camera at a participant\'s QR code to scan it.',
+          },
+          {
+            id: '2',
+            title: 'How to Scan',
+            description: 'Position the QR code within the scanning frame. The app will automatically detect and scan the code. Make sure there\'s good lighting.',
+          },
+          {
+            id: '3',
+            title: 'Check-in Results',
+            description: 'After scanning, you\'ll see the participant\'s details and can mark them as checked in for the event.',
+          },
+        ]}
+      />
       <SafeAreaView style={{ flex: 1 }}>
         {/* Header - camera flip button only */}
         <View
