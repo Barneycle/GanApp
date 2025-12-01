@@ -14,6 +14,7 @@ import {
   Dimensions,
   Modal,
   FlatList,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -39,6 +40,7 @@ export default function SetupProfileScreen() {
   });
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarOriginalUri, setAvatarOriginalUri] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showGalleryPicker, setShowGalleryPicker] = useState(false);
@@ -61,6 +63,14 @@ export default function SetupProfileScreen() {
   // Store input Y positions for scrolling
   const inputYPositions = useRef<{ [key: string]: number }>({});
   const buttonYPosition = useRef<number>(0);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Wait for user to be loaded, redirect to login if not authenticated after loading
   useEffect(() => {
@@ -147,15 +157,21 @@ export default function SetupProfileScreen() {
         // On Android, use expo-media-library to show device albums directly
         const { status, canAskAgain } = await MediaLibrary.requestPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission Required', 'Please grant media library permissions to upload a profile photo.');
+          InteractionManager.runAfterInteractions(() => {
+            if (isMountedRef.current) {
+              Alert.alert('Permission Required', 'Please grant media library permissions to upload a profile photo.');
+            }
+          });
           return;
         }
 
         // Show modal immediately for instant response
-        setShowGalleryPicker(true);
-        setSelectedAlbum(null); // null means "All Photos"
-        setLoadingAlbums(true);
-        setLoadingPhotos(true);
+        if (isMountedRef.current) {
+          setShowGalleryPicker(true);
+          setSelectedAlbum(null); // null means "All Photos"
+          setLoadingAlbums(true);
+          setLoadingPhotos(true);
+        }
         
         // Load photos and albums in parallel in the background
         Promise.all([
@@ -168,20 +184,28 @@ export default function SetupProfileScreen() {
           // Load albums
           MediaLibrary.getAlbumsAsync(),
         ]).then(([allPhotos, albumsList]) => {
-          setPhotos(allPhotos.assets);
-          setAlbums(albumsList);
-          setLoadingPhotos(false);
-          setLoadingAlbums(false);
+          if (isMountedRef.current) {
+            setPhotos(allPhotos.assets);
+            setAlbums(albumsList);
+            setLoadingPhotos(false);
+            setLoadingAlbums(false);
+          }
         }).catch((err) => {
           console.error('Error loading photos/albums:', err);
-          setLoadingPhotos(false);
-          setLoadingAlbums(false);
+          if (isMountedRef.current) {
+            setLoadingPhotos(false);
+            setLoadingAlbums(false);
+          }
         });
       } else {
         // On iOS, use the standard expo-image-picker
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission Required', 'Please grant camera roll permissions to upload a profile photo.');
+          InteractionManager.runAfterInteractions(() => {
+            if (isMountedRef.current) {
+              Alert.alert('Permission Required', 'Please grant camera roll permissions to upload a profile photo.');
+            }
+          });
           return;
         }
 
@@ -194,13 +218,19 @@ export default function SetupProfileScreen() {
         });
 
         if (!result.canceled && result.assets[0]) {
+          // Store original URI for upload (uploadAvatar will handle compression)
+          setAvatarOriginalUri(result.assets[0].uri);
           setAvatarUri(result.assets[0].uri);
           setAvatarPreview(result.assets[0].uri);
         }
       }
     } catch (err) {
       console.error('Error picking image:', err);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+      InteractionManager.runAfterInteractions(() => {
+        if (isMountedRef.current) {
+          Alert.alert('Error', 'Failed to pick image. Please try again.');
+        }
+      });
       setLoadingAlbums(false);
     }
   };
@@ -264,12 +294,15 @@ export default function SetupProfileScreen() {
         return;
       }
 
-      // Resize and compress using ImageManipulator
+      // Store original URI for upload (uploadAvatar will handle compression)
+      setAvatarOriginalUri(imageUri);
+      
+      // Resize and compress using ImageManipulator for preview only
       try {
         const manipulatedImage = await ImageManipulator.manipulateAsync(
           imageUri,
           [
-            { resize: { width: 800 } }, // Resize to reasonable size
+            { resize: { width: 800 } }, // Resize to reasonable size for preview
           ],
           { 
             compress: 0.8, 
@@ -277,10 +310,11 @@ export default function SetupProfileScreen() {
           }
         );
         
+        // Use compressed version for preview, but keep original for upload
         setAvatarUri(manipulatedImage.uri);
         setAvatarPreview(manipulatedImage.uri);
       } catch (manipulateErr) {
-        // If manipulation fails, use original
+        // If manipulation fails, use original for both
         console.error('Error manipulating image:', manipulateErr);
         setAvatarUri(imageUri);
         setAvatarPreview(imageUri);
@@ -340,6 +374,7 @@ export default function SetupProfileScreen() {
   const handleRemoveAvatar = () => {
     setAvatarUri(null);
     setAvatarPreview(null);
+    setAvatarOriginalUri(null);
   };
 
   const validateForm = () => {
@@ -378,8 +413,10 @@ export default function SetupProfileScreen() {
       let avatarUrl = '';
 
       // Upload avatar if selected
-      if (avatarUri) {
-        const uploadResult = await UserService.uploadAvatar(user.id, avatarUri);
+      // Use original URI if available (uploadAvatar will handle compression)
+      const uriToUpload = avatarOriginalUri || avatarUri;
+      if (uriToUpload) {
+        const uploadResult = await UserService.uploadAvatar(user.id, uriToUpload);
         if (uploadResult.error) {
           setError(uploadResult.error);
           setIsLoading(false);

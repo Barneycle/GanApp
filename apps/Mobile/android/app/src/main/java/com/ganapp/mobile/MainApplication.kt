@@ -1,4 +1,4 @@
-package com.anonymous.MobileDebug
+package com.ganapp.mobile
 
 import android.app.Application
 import android.content.res.Configuration

@@ -1,4 +1,6 @@
 import { supabase } from './supabase';
+import * as FileSystem from 'expo-file-system';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 export interface User {
   id: string;
@@ -235,21 +237,41 @@ export class UserService {
 
   static async uploadAvatar(userId: string, fileUri: string): Promise<{ url?: string; error?: string }> {
     try {
-      // Read the file
-      const response = await fetch(fileUri);
-      const blob = await response.blob();
+      // Convert file path to URI format for React Native
+      const imageUri = fileUri.startsWith('file://') ? fileUri : `file://${fileUri}`;
       
+      // Compress and resize image before upload (reduce file size for faster uploads)
+      // Using same logic as camera.tsx for consistency and speed
+      const manipulatedImage = await ImageManipulator.manipulateAsync(
+        imageUri,
+        [{ resize: { width: 1920 } }], // Resize to max width of 1920px (maintains aspect ratio) - same as camera.tsx
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG } // 80% quality, JPEG format
+      );
+
+      // Read compressed file as base64 using expo-file-system
+      const base64 = await FileSystem.readAsStringAsync(manipulatedImage.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Convert base64 to Uint8Array
+      const byteCharacters = atob(base64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const bytes = new Uint8Array(byteNumbers);
+
       // Create a unique filename
       const fileExt = fileUri.split('.').pop() || 'jpg';
       const fileName = `${userId}-${Date.now()}.${fileExt}`;
 
-      // Upload file to Supabase Storage with upsert enabled
+      // Upload file to Supabase Storage using Uint8Array with upsert enabled
       const { data, error: uploadError } = await supabase.storage
         .from('user-avatars')
-        .upload(`${userId}/${fileName}`, blob, {
+        .upload(`${userId}/${fileName}`, bytes, {
           cacheControl: '3600',
           upsert: true,
-          contentType: blob.type || 'image/jpeg'
+          contentType: 'image/jpeg'
         });
 
       if (uploadError) {

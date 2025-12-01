@@ -670,6 +670,13 @@ export default function MyEvents() {
                     >
                       <Text className="text-white text-base text-center font-semibold">Take Evaluation</Text>
                     </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      onPress={() => router.push(`/certificate?eventId=${event.id}`)}
+                      className="w-full px-4 py-4 bg-amber-600 rounded-lg"
+                    >
+                      <Text className="text-white text-base text-center font-semibold">Generate Certificate</Text>
+                    </TouchableOpacity>
                           
                           <TouchableOpacity
                             onPress={() => handleSnapPhoto(event)}

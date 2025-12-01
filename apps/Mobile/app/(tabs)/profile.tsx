@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Image, TextInput, KeyboardAvoidingView, Platform, RefreshControl, Modal, FlatList, Dimensions } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { View, Text, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Image, TextInput, Platform, RefreshControl, Modal, FlatList, Dimensions, InteractionManager } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../lib/authContext';
@@ -37,6 +37,7 @@ export default function Profile() {
   });
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [avatarOriginalUri, setAvatarOriginalUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showGalleryPicker, setShowGalleryPicker] = useState(false);
@@ -58,6 +59,14 @@ export default function Profile() {
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     loadUserProfile();
@@ -193,15 +202,21 @@ export default function Profile() {
         // On Android, use expo-media-library to show device albums directly
         const { status } = await MediaLibrary.requestPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission Required', 'Please grant media library permissions to upload an avatar.');
+          InteractionManager.runAfterInteractions(() => {
+            if (isMountedRef.current) {
+              Alert.alert('Permission Required', 'Please grant media library permissions to upload an avatar.');
+            }
+          });
           return;
         }
 
         // Show modal immediately for instant response
-        setShowGalleryPicker(true);
-        setSelectedAlbum(null); // null means "All Photos"
-        setLoadingAlbums(true);
-        setLoadingPhotos(true);
+        if (isMountedRef.current) {
+          setShowGalleryPicker(true);
+          setSelectedAlbum(null); // null means "All Photos"
+          setLoadingAlbums(true);
+          setLoadingPhotos(true);
+        }
         
         // Load photos and albums in parallel in the background
         Promise.all([
@@ -214,20 +229,28 @@ export default function Profile() {
           // Load albums
           MediaLibrary.getAlbumsAsync(),
         ]).then(([allPhotos, albumsList]) => {
-          setPhotos(allPhotos.assets);
-          setAlbums(albumsList);
-          setLoadingPhotos(false);
-          setLoadingAlbums(false);
+          if (isMountedRef.current) {
+            setPhotos(allPhotos.assets);
+            setAlbums(albumsList);
+            setLoadingPhotos(false);
+            setLoadingAlbums(false);
+          }
         }).catch((err) => {
           console.error('Error loading photos/albums:', err);
-          setLoadingPhotos(false);
-          setLoadingAlbums(false);
+          if (isMountedRef.current) {
+            setLoadingPhotos(false);
+            setLoadingAlbums(false);
+          }
         });
       } else {
         // On iOS, use the standard expo-image-picker
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission Required', 'Please grant photo library access to upload an avatar.');
+          InteractionManager.runAfterInteractions(() => {
+            if (isMountedRef.current) {
+              Alert.alert('Permission Required', 'Please grant photo library access to upload an avatar.');
+            }
+          });
           return;
         }
 
@@ -242,9 +265,13 @@ export default function Profile() {
         if (!result.canceled && result.assets[0]) {
           const asset = result.assets[0];
           
-          // Validate file size (max 5MB)
-          if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
-            Alert.alert('Error', 'Image size must be less than 5MB');
+          // Validate file size (max 50MB)
+          if (asset.fileSize && asset.fileSize > 50 * 1024 * 1024) {
+            InteractionManager.runAfterInteractions(() => {
+              if (isMountedRef.current) {
+                Alert.alert('Error', 'Image size must be less than 50MB');
+              }
+            });
             return;
           }
 
@@ -255,7 +282,11 @@ export default function Profile() {
       }
     } catch (err) {
       console.error('Error picking image:', err);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+      InteractionManager.runAfterInteractions(() => {
+        if (isMountedRef.current) {
+          Alert.alert('Error', 'Failed to pick image. Please try again.');
+        }
+      });
       setLoadingAlbums(false);
     }
   };
@@ -313,17 +344,20 @@ export default function Profile() {
         return;
       }
 
-      // Validate file size (max 5MB) - approximate check
+      // Validate file size (max 50MB) - approximate check
       if (photo.width && photo.height) {
         // Rough estimate: assume 3 bytes per pixel for uncompressed
         const estimatedSize = photo.width * photo.height * 3;
-        if (estimatedSize > 5 * 1024 * 1024) {
-          Alert.alert('Error', 'Image size must be less than 5MB');
+        if (estimatedSize > 50 * 1024 * 1024) {
+          Alert.alert('Error', 'Image size must be less than 50MB');
           return;
         }
       }
 
-      // Resize and compress using ImageManipulator
+      // Store original URI for upload (uploadAvatar will handle compression)
+      setAvatarOriginalUri(imageUri);
+      
+      // Resize and compress using ImageManipulator for preview only
       try {
         const manipulatedImage = await ImageManipulator.manipulateAsync(
           imageUri,
@@ -336,11 +370,12 @@ export default function Profile() {
           }
         );
         
+        // Use compressed version for preview, but keep original for upload
         setAvatarUri(manipulatedImage.uri);
         setAvatarPreview(manipulatedImage.uri);
         if (error) setError(null);
       } catch (manipulateErr) {
-        // If manipulation fails, use original
+        // If manipulation fails, use original for both
         console.error('Error manipulating image:', manipulateErr);
         setAvatarUri(imageUri);
         setAvatarPreview(imageUri);
@@ -407,6 +442,7 @@ export default function Profile() {
   const handleRemoveAvatar = () => {
     setAvatarUri(null);
     setAvatarPreview(null);
+    setAvatarOriginalUri(null);
   };
 
   const handlePasswordChange = (field: string, value: string) => {
@@ -496,8 +532,10 @@ export default function Profile() {
       let avatarUrl = userProfile?.avatar_url || '';
 
       // Upload avatar if a new file was selected
-      if (avatarUri) {
-        const uploadResult = await UserService.uploadAvatar(user.id, avatarUri);
+      // Use original URI if available (uploadAvatar will handle compression)
+      const uriToUpload = avatarOriginalUri || avatarUri;
+      if (uriToUpload) {
+        const uploadResult = await UserService.uploadAvatar(user.id, uriToUpload);
         if (uploadResult.error) {
           setError(uploadResult.error);
           setLoading(false);
@@ -532,25 +570,54 @@ export default function Profile() {
 
       if (result.error) {
         setError(result.error);
+        InteractionManager.runAfterInteractions(() => {
+          if (isMountedRef.current) {
+            Alert.alert('Error', result.error);
+          }
+        });
       } else {
         if (result.needsEmailConfirmation) {
           setSuccess(true);
           setError(null);
           setEmailConfirmationMessage(true);
-          // Reload after showing message
-          setTimeout(async () => {
-            await refreshUser();
-            await loadUserProfile();
-            setIsEditMode(false);
-          }, 3000);
+          InteractionManager.runAfterInteractions(() => {
+            if (isMountedRef.current) {
+              Alert.alert(
+                'Profile Updated',
+                `Profile updated successfully! Please check your new email address (${formData.email}) to confirm the email change.`,
+                [
+                  {
+                    text: 'OK',
+                    onPress: async () => {
+                      await refreshUser();
+                      await loadUserProfile();
+                      setIsEditMode(false);
+                    }
+                  }
+                ]
+              );
+            }
+          });
         } else {
           setSuccess(true);
-          // Refresh user data
-          setTimeout(async () => {
-            await refreshUser();
-            await loadUserProfile();
-            setIsEditMode(false);
-          }, 1500);
+          InteractionManager.runAfterInteractions(() => {
+            if (isMountedRef.current) {
+              Alert.alert(
+                'Success',
+                'Your profile has been updated successfully!',
+                [
+                  {
+                    text: 'OK',
+                    onPress: async () => {
+                      await refreshUser();
+                      await loadUserProfile();
+                      setIsEditMode(false);
+                    }
+                  }
+                ]
+              );
+            }
+          });
         }
       }
     } catch (err) {
@@ -583,6 +650,7 @@ export default function Profile() {
       setAvatarPreview(userProfile.avatar_url || null);
     }
     setAvatarUri(null);
+    setAvatarOriginalUri(null);
   };
 
   const handleSignOut = async () => {
@@ -624,9 +692,12 @@ export default function Profile() {
           flexGrow: 1,
           padding: 16,
           paddingTop: insets.top + 16,
-          paddingBottom: Math.max(insets.bottom, 16)
+          // Add extra bottom padding when in edit mode to account for tab bar (typically 50-60px)
+          paddingBottom: isEditMode ? Math.max(insets.bottom, 16) + 80 : Math.max(insets.bottom, 16)
         }}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -733,27 +804,7 @@ export default function Profile() {
             </View>
               </>
             ) : (
-              <KeyboardAvoidingView 
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={100}
-              >
-                {/* Success Message */}
-                {success && !emailConfirmationMessage && (
-                  <View className="mb-4 p-4 bg-green-50 border border-green-200 rounded-xl">
-                    <Text className="text-green-700 text-sm">Profile updated successfully!</Text>
-                  </View>
-                )}
-
-                {/* Email Confirmation Message */}
-                {emailConfirmationMessage && (
-                  <View className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                    <Text className="text-blue-700 text-sm font-semibold mb-1">Profile updated successfully!</Text>
-                    <Text className="text-blue-700 text-sm">
-                      Please check your new email address ({formData.email}) to confirm the email change.
-                    </Text>
-                  </View>
-                )}
-
+              <View>
                 {/* Error Message */}
                 {error && (
                   <View className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
@@ -1006,7 +1057,7 @@ export default function Profile() {
                     <Text className="text-slate-700 font-semibold">Cancel</Text>
                   </TouchableOpacity>
                 </View>
-              </KeyboardAvoidingView>
+              </View>
             )}
           </View>
         </View>

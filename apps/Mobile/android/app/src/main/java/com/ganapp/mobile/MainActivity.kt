@@ -1,4 +1,4 @@
-package com.anonymous.MobileDebug
+package com.ganapp.mobile
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build
