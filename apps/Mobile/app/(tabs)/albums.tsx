@@ -12,12 +12,18 @@ import {
   Modal,
   FlatList,
   StyleSheet,
+  Alert,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../lib/authContext';
 import { AlbumService, EventWithPhotos, EventPhoto } from '../../lib/albumService';
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as MediaLibrary from 'expo-media-library';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -31,10 +37,42 @@ export default function Albums() {
   const [selectedPhoto, setSelectedPhoto] = useState<EventPhoto | null>(null);
   const [isFullScreenVisible, setIsFullScreenVisible] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  const [downloadingPhotoId, setDownloadingPhotoId] = useState<string | null>(null);
+  const [downloadedPhotoIds, setDownloadedPhotoIds] = useState<Set<string>>(new Set());
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  const [downloadAllProgress, setDownloadAllProgress] = useState({ current: 0, total: 0 });
   const flatListRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+
+  // Load downloaded photo IDs from storage
+  useEffect(() => {
+    const loadDownloadedPhotos = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('downloaded_photo_ids');
+        if (stored) {
+          const ids = JSON.parse(stored);
+          setDownloadedPhotoIds(new Set(ids));
+        }
+      } catch (error) {
+        console.log('Error loading downloaded photos:', error);
+      }
+    };
+    loadDownloadedPhotos();
+  }, []);
+
+  // Save downloaded photo ID to storage
+  const markPhotoAsDownloaded = async (photoId: string) => {
+    try {
+      const newSet = new Set(downloadedPhotoIds);
+      newSet.add(photoId);
+      setDownloadedPhotoIds(newSet);
+      await AsyncStorage.setItem('downloaded_photo_ids', JSON.stringify(Array.from(newSet)));
+    } catch (error) {
+      console.log('Error saving downloaded photo ID:', error);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -99,6 +137,184 @@ export default function Albums() {
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 50,
   }).current;
+
+  const downloadPhoto = async (photo: EventPhoto) => {
+    if (downloadingPhotoId === photo.id) return;
+    
+    setDownloadingPhotoId(photo.id);
+    try {
+      // Download image to cache first
+      const fileName = photo.file_name || `photo_${photo.id}.jpg`;
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+      
+      const downloadResult = await FileSystem.downloadAsync(photo.photo_url, fileUri);
+      
+      if (downloadResult.status !== 200) {
+        throw new Error(`Failed to download image: HTTP ${downloadResult.status}`);
+      }
+
+      // For images, save to media library (Photos/Downloads)
+      if (!MediaLibrary || !MediaLibrary.requestPermissionsAsync || !MediaLibrary.createAssetAsync) {
+        Alert.alert(
+          'Error', 
+          'Media library not available. Please rebuild the app with native modules enabled.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Request permissions - use readOnly: false to get write permission (for saving)
+      // This shows "Save photos" instead of "Modify photos"
+      const permissionResult = await MediaLibrary.requestPermissionsAsync(false);
+      
+      if (!permissionResult.granted) {
+        Alert.alert(
+          'Permission Required',
+          'Please grant photo library access to save the image. You can enable it in your device settings.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Create asset in media library
+      const asset = await MediaLibrary.createAssetAsync(fileUri);
+      
+      // On Android, try to save to Downloads/GanApp folder
+      if (Platform.OS === 'android') {
+        try {
+          const albumName = 'GanApp';
+          let album = await MediaLibrary.getAlbumAsync(albumName);
+          
+          if (!album) {
+            album = await MediaLibrary.createAlbumAsync(albumName, asset, false);
+          } else {
+            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+          }
+        } catch (albumError) {
+          // Album creation failed, but asset is still saved to Photos
+          console.log('Album creation error (asset still saved to Photos):', albumError);
+        }
+      }
+      
+      // Mark photo as downloaded
+      await markPhotoAsDownloaded(photo.id);
+      
+      Alert.alert('Success', 'Photo downloaded to your Photos/Downloads folder!');
+    } catch (error: any) {
+      console.error('Error downloading photo:', error);
+      Alert.alert('Error', `Failed to download photo: ${error.message || 'Unknown error'}`);
+    } finally {
+      setDownloadingPhotoId(null);
+    }
+  };
+
+  const downloadAllPhotos = async (event: EventWithPhotos) => {
+    if (isDownloadingAll || !event.photos || event.photos.length === 0) return;
+
+    setIsDownloadingAll(true);
+    setDownloadAllProgress({ current: 0, total: event.photos.length });
+
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      // Filter out already downloaded photos
+      const photosToDownload = event.photos.filter(photo => !downloadedPhotoIds.has(photo.id));
+
+      if (photosToDownload.length === 0) {
+        Alert.alert('Info', 'All photos have already been downloaded!');
+        setIsDownloadingAll(false);
+        return;
+      }
+
+      // Request permissions once for all downloads
+      if (!MediaLibrary || !MediaLibrary.requestPermissionsAsync || !MediaLibrary.createAssetAsync) {
+        Alert.alert(
+          'Error', 
+          'Media library not available. Please rebuild the app with native modules enabled.',
+          [{ text: 'OK' }]
+        );
+        setIsDownloadingAll(false);
+        return;
+      }
+
+      const permissionResult = await MediaLibrary.requestPermissionsAsync(false);
+      
+      if (!permissionResult.granted) {
+        Alert.alert(
+          'Permission Required',
+          'Please grant photo library access to save the images. You can enable it in your device settings.',
+          [{ text: 'OK' }]
+        );
+        setIsDownloadingAll(false);
+        return;
+      }
+
+      // Download each photo sequentially
+      for (let i = 0; i < photosToDownload.length; i++) {
+        const photo = photosToDownload[i];
+        setDownloadAllProgress({ current: i + 1, total: photosToDownload.length });
+        setDownloadingPhotoId(photo.id);
+
+        try {
+          // Download image to cache
+          const fileName = photo.file_name || `photo_${photo.id}.jpg`;
+          const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+          
+          const downloadResult = await FileSystem.downloadAsync(photo.photo_url, fileUri);
+          
+          if (downloadResult.status === 200) {
+            // Create asset in media library
+            const asset = await MediaLibrary.createAssetAsync(fileUri);
+            
+            // On Android, try to save to Downloads/GanApp folder
+            if (Platform.OS === 'android') {
+              try {
+                const albumName = 'GanApp';
+                let album = await MediaLibrary.getAlbumAsync(albumName);
+                
+                if (!album) {
+                  album = await MediaLibrary.createAlbumAsync(albumName, asset, false);
+                } else {
+                  await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+                }
+              } catch (albumError) {
+                console.log('Album creation error (asset still saved to Photos):', albumError);
+              }
+            }
+            
+            // Mark as downloaded
+            await markPhotoAsDownloaded(photo.id);
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (error: any) {
+          console.error(`Error downloading photo ${photo.id}:`, error);
+          failCount++;
+        } finally {
+          setDownloadingPhotoId(null);
+        }
+      }
+
+      // Show completion message
+      if (successCount > 0) {
+        Alert.alert(
+          'Download Complete',
+          `Successfully downloaded ${successCount} photo${successCount === 1 ? '' : 's'}${failCount > 0 ? `\n\n${failCount} photo${failCount === 1 ? '' : 's'} failed to download.` : '.'}`
+        );
+      } else {
+        Alert.alert('Download Failed', 'No photos were downloaded. Please try again.');
+      }
+    } catch (error: any) {
+      console.error('Error in downloadAllPhotos:', error);
+      Alert.alert('Error', `Failed to download photos: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsDownloadingAll(false);
+      setDownloadAllProgress({ current: 0, total: 0 });
+      setDownloadingPhotoId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -259,14 +475,40 @@ export default function Albums() {
                   <Text className="text-base text-blue-200 ml-1.5">
                     {selectedEvent?.photo_count} {selectedEvent?.photo_count === 1 ? 'photo' : 'photos'}
                   </Text>
+                  {isDownloadingAll && downloadAllProgress.total > 0 && (
+                    <Text className="text-sm text-blue-300 ml-2">
+                      ({downloadAllProgress.current}/{downloadAllProgress.total})
+                    </Text>
+                  )}
                 </View>
               </View>
-              <TouchableOpacity
-                onPress={() => setIsModalVisible(false)}
-                className="w-10 h-10 items-center justify-center rounded-full bg-white/20 active:bg-white/30"
-              >
-                <Ionicons name="close" size={24} color="#ffffff" />
-              </TouchableOpacity>
+              <View className="flex-row items-center gap-2">
+                {selectedEvent && selectedEvent.photos && selectedEvent.photos.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => downloadAllPhotos(selectedEvent)}
+                    disabled={isDownloadingAll}
+                    className="px-3 py-2 rounded-lg bg-green-600 active:bg-green-700"
+                  >
+                    {isDownloadingAll ? (
+                      <View className="flex-row items-center">
+                        <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: 6 }} />
+                        <Text className="text-white text-sm font-semibold">Downloading...</Text>
+                      </View>
+                    ) : (
+                      <View className="flex-row items-center">
+                        <Ionicons name="download" size={18} color="#ffffff" style={{ marginRight: 4 }} />
+                        <Text className="text-white text-sm font-semibold">Download All</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  onPress={() => setIsModalVisible(false)}
+                  className="w-10 h-10 items-center justify-center rounded-full bg-white/20 active:bg-white/30"
+                >
+                  <Ionicons name="close" size={24} color="#ffffff" />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Photo Grid */}
@@ -277,21 +519,42 @@ export default function Albums() {
               >
                 <View className="flex-row flex-wrap" style={{ gap: 12 }}>
                   {selectedEvent.photos.map((photo) => (
-                    <TouchableOpacity
+                    <View
                       key={photo.id}
-                      onPress={() => openFullScreen(photo, selectedEvent)}
                       className="rounded-xl overflow-hidden bg-slate-200"
                       style={{
                         width: (SCREEN_WIDTH - 48 - 12) / 2,
                         height: (SCREEN_WIDTH - 48 - 12) / 2,
                       }}
                     >
-                      <Image
-                        source={{ uri: photo.photo_url }}
+                      <TouchableOpacity
+                        onPress={() => openFullScreen(photo, selectedEvent)}
                         className="w-full h-full"
-                        resizeMode="cover"
-                      />
-                    </TouchableOpacity>
+                      >
+                        <Image
+                          source={{ uri: photo.photo_url }}
+                          className="w-full h-full"
+                          resizeMode="cover"
+                        />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (!downloadedPhotoIds.has(photo.id)) {
+                            downloadPhoto(photo);
+                          }
+                        }}
+                        disabled={downloadingPhotoId === photo.id}
+                        className="absolute top-2 right-2 w-8 h-8 items-center justify-center rounded-full bg-black/60"
+                      >
+                        {downloadingPhotoId === photo.id ? (
+                          <ActivityIndicator size="small" color="#ffffff" />
+                        ) : downloadedPhotoIds.has(photo.id) ? (
+                          <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+                        ) : (
+                          <Ionicons name="download" size={18} color="#ffffff" />
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   ))}
                 </View>
               </ScrollView>
@@ -337,7 +600,26 @@ export default function Albums() {
                   </Text>
                 </View>
               )}
-              <View className="w-10" />
+              {selectedEvent && selectedEvent.photos[currentPhotoIndex] && (
+                <TouchableOpacity
+                  onPress={() => {
+                    const currentPhoto = selectedEvent.photos[currentPhotoIndex];
+                    if (!downloadedPhotoIds.has(currentPhoto.id)) {
+                      downloadPhoto(currentPhoto);
+                    }
+                  }}
+                  disabled={downloadingPhotoId === selectedEvent.photos[currentPhotoIndex].id}
+                  className="w-10 h-10 items-center justify-center rounded-full bg-black/50"
+                >
+                  {downloadingPhotoId === selectedEvent.photos[currentPhotoIndex].id ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : downloadedPhotoIds.has(selectedEvent.photos[currentPhotoIndex].id) ? (
+                    <Ionicons name="checkmark-circle" size={24} color="#10b981" />
+                  ) : (
+                    <Ionicons name="download" size={24} color="#ffffff" />
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Image Carousel */}
