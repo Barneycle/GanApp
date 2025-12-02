@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as Linking from 'expo-linking';
 
 export interface User {
   id: string;
@@ -56,6 +57,9 @@ export class UserService {
             : '',
           last_name: data.user.user_metadata?.last_name && data.user.user_metadata.last_name.trim() !== '' 
             ? data.user.user_metadata.last_name 
+            : '',
+          affiliated_organization: data.user.user_metadata?.affiliated_organization && data.user.user_metadata.affiliated_organization.trim() !== ''
+            ? data.user.user_metadata.affiliated_organization
             : '',
           created_at: data.user.created_at,
           updated_at: data.user.updated_at || data.user.created_at
@@ -119,6 +123,27 @@ export class UserService {
     } catch (error) {
       console.error('Sign out error:', error);
       return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async resetPassword(email: string): Promise<{ error?: string; success?: boolean }> {
+    try {
+      // Get the app scheme for deep linking
+      // For Expo, this will be the app's scheme (e.g., 'ganapp://')
+      const redirectTo = `${Linking.createURL('reset-password')}`;
+      
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectTo,
+      });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Reset password error:', error);
+      return { error: error.message || 'An unexpected error occurred' };
     }
   }
 

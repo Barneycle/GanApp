@@ -10,54 +10,31 @@ export default function Index() {
   const router = useRouter();
   const segments = useSegments();
   const { user, isLoading } = useAuth();
-  const lastCheckedUserIdRef = useRef<string | null>(null);
+  const hasNavigatedRef = useRef(false);
 
   useEffect(() => {
     if (isLoading) return;
 
-    // Don't redirect if we're already on registration or setup-profile screens
+    // Don't redirect if we're already on registration, setup-profile, reset-password, or tabs
     const currentRoute = segments[0];
-    if (currentRoute === 'registration' || currentRoute === 'setup-profile') {
+    if (currentRoute === 'registration' || currentRoute === 'setup-profile' || currentRoute === 'reset-password' || currentRoute === '(tabs)') {
       return;
     }
 
-    // Don't redirect if we're already on tabs (to prevent redirect loops)
-    if (currentRoute === '(tabs)') {
-      return;
-    }
-
-    // Prevent double check for the same user
-    if (user && lastCheckedUserIdRef.current === user.id) {
+    // Prevent multiple navigations
+    if (hasNavigatedRef.current) {
       return;
     }
 
     // Hide splash screen and navigate
     SplashScreen.hideAsync().then(() => {
+      hasNavigatedRef.current = true;
+      
       if (user) {
-        // Mark this user as checked
-        lastCheckedUserIdRef.current = user.id;
-        
-        // Check if profile is complete
-        const isProfileComplete = Boolean(
-          user.first_name?.trim() && 
-          user.last_name?.trim() && 
-          user.affiliated_organization?.trim()
-        );
-        
-        console.log('Profile check:', {
-          first_name: user.first_name,
-          last_name: user.last_name,
-          affiliated_organization: user.affiliated_organization,
-          isProfileComplete
-        });
-        
-        if (isProfileComplete) {
-          router.replace('/(tabs)');
-        } else {
-          router.replace('/setup-profile');
-        }
+        // Facebook's approach: Always send authenticated users to setup-profile
+        // Setup-profile will check if already complete and redirect to tabs if needed
+        router.replace('/setup-profile');
       } else {
-        lastCheckedUserIdRef.current = null;
         router.replace('/login');
       }
     });
@@ -66,4 +43,3 @@ export default function Index() {
   // Return null to keep splash screen visible
   return null;
 }
-

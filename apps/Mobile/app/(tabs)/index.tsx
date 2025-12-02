@@ -25,10 +25,18 @@ export default function Index() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
+  const [isRationaleExpanded, setIsRationaleExpanded] = useState(false);
   const insets = useSafeAreaInsets();
   const carouselContainerRef = useRef<View>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const [containerWidth, setContainerWidth] = useState(screenWidth - 72); // Default estimate
+
+  const shouldCollapseRationale = (rationale: string): boolean => {
+    if (!rationale) return false;
+    const textContent = rationale.replace(/<[^>]*>/g, '');
+    const hasMultipleParagraphs = (rationale.match(/<p>/g) || []).length > 1;
+    return textContent.length > 300 || hasMultipleParagraphs;
+  };
   
   // Calculate snap offsets for centering each card within the container card
   // Each card should snap so its center aligns with the container center
@@ -309,13 +317,33 @@ export default function Index() {
                       </View>
                       <Text className="text-xl font-semibold text-slate-800">Event Rationale</Text>
                     </View>
-                    <RenderHTML
-                      contentWidth={getHtmlContentWidth(64)}
-                      source={{ html: decodeHtml(displayFeaturedEvent.rationale) }}
-                      baseStyle={defaultHtmlStyles.baseStyle}
-                      tagsStyles={defaultHtmlStyles.tagsStyles}
-                      enableExperimentalMarginCollapsing={true}
-                    />
+                    <View className="bg-blue-50 p-4 rounded-xl">
+                      <View style={{ maxHeight: isRationaleExpanded ? undefined : 150, overflow: 'hidden' }}>
+                        <RenderHTML
+                          contentWidth={getHtmlContentWidth(80)}
+                          source={{ html: decodeHtml(displayFeaturedEvent.rationale) }}
+                          baseStyle={defaultHtmlStyles.baseStyle}
+                          tagsStyles={defaultHtmlStyles.tagsStyles}
+                          enableExperimentalMarginCollapsing={true}
+                        />
+                      </View>
+                      {shouldCollapseRationale(displayFeaturedEvent.rationale) && (
+                        <TouchableOpacity
+                          onPress={() => setIsRationaleExpanded(!isRationaleExpanded)}
+                          className="mt-3 flex-row items-center justify-center"
+                        >
+                          <Text className="text-blue-600 font-semibold text-sm">
+                            {isRationaleExpanded ? 'Read Less' : 'Read More'}
+                          </Text>
+                          <Ionicons 
+                            name={isRationaleExpanded ? 'chevron-up' : 'chevron-down'} 
+                            size={16} 
+                            color="#2563eb" 
+                            style={{ marginLeft: 4 }}
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                 )}
 

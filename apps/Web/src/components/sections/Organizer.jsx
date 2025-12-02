@@ -13,6 +13,14 @@ export const Organizer = () => {
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [isRationaleExpanded, setIsRationaleExpanded] = useState(false);
+
+  const shouldCollapseRationale = (rationale) => {
+    if (!rationale) return false;
+    const textContent = rationale.replace(/<[^>]*>/g, '');
+    const hasMultipleParagraphs = (rationale.match(/<p>/g) || []).length > 1;
+    return textContent.length > 300 || hasMultipleParagraphs;
+  };
 
   useEffect(() => {
     loadEvents();
@@ -226,13 +234,34 @@ export const Organizer = () => {
                     </div>
                     <h4 className="text-xl font-semibold text-slate-800">Event Rationale</h4>
                   </div>
-                  <div 
-                    className="text-slate-600 rich-text-content"
-                    dangerouslySetInnerHTML={{ __html: decodeHtml(displayFeaturedEvent.rationale) }}
-                    style={{
-                      wordWrap: 'break-word'
-                    }}
-                  />
+                  <div className="bg-blue-50 p-4 rounded-xl">
+                    <div 
+                      className="text-slate-600 rich-text-content"
+                      dangerouslySetInnerHTML={{ __html: decodeHtml(displayFeaturedEvent.rationale) }}
+                      style={{
+                        wordWrap: 'break-word',
+                        maxHeight: isRationaleExpanded ? 'none' : '150px',
+                        overflow: 'hidden',
+                        transition: 'max-height 0.3s ease'
+                      }}
+                    />
+                    {shouldCollapseRationale(displayFeaturedEvent.rationale) && (
+                      <button
+                        onClick={() => setIsRationaleExpanded(!isRationaleExpanded)}
+                        className="mt-3 w-full flex items-center justify-center text-blue-600 font-semibold text-sm hover:text-blue-700 transition-colors"
+                      >
+                        <span>{isRationaleExpanded ? 'Read Less' : 'Read More'}</span>
+                        <svg 
+                          className={`w-4 h-4 ml-2 transition-transform ${isRationaleExpanded ? 'rotate-180' : ''}`}
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                   <style>{`
                     .rich-text-content h1, .rich-text-content h2, .rich-text-content h3, 
                     .rich-text-content h4, .rich-text-content h5, .rich-text-content h6 {

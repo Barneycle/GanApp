@@ -437,6 +437,21 @@ export default function Certificate() {
       setIsGenerated(true);
       setShowSuccessMessage(true);
       
+      // Create certificate notification
+      if (eventId && event && user?.id) {
+        try {
+          const { NotificationService } = await import('../lib/notificationService');
+          await NotificationService.createCertificateNotification(
+            user.id,
+            event.title,
+            eventId
+          );
+        } catch (err) {
+          // Notification creation failure shouldn't break certificate generation
+          console.error('Failed to create certificate notification:', err);
+        }
+      }
+      
       // Update certificate data
       if (certificateData) {
         setCertificateData({

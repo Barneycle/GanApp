@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   Image,
   Alert,
   RefreshControl,
+  TextInput,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,11 +19,19 @@ import { useAuth } from '../../lib/authContext';
 import { stripHtmlTags } from '../../lib/htmlUtils';
 import TutorialOverlay from '../../components/TutorialOverlay';
 
+type DateFilter = 'all' | 'upcoming' | 'past';
+type SortOption = 'date-asc' | 'date-desc' | 'title-asc' | 'title-desc' | 'participants-asc' | 'participants-desc';
+
 export default function Events() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [venueFilter, setVenueFilter] = useState<string>('all');
+  const [sortOption, setSortOption] = useState<SortOption>('date-asc');
+  const [showFilters, setShowFilters] = useState(false);
   const insets = useSafeAreaInsets();
   
   const router = useRouter();
@@ -75,6 +85,64 @@ export default function Events() {
       hour12: true
     });
   };
+
+  // Get unique venues from events
+  const uniqueVenues = useMemo(() => {
+    const venues = events
+      .map(event => event.venue)
+      .filter((venue): venue is string => !!venue && venue !== 'Location TBD' && venue.trim() !== '');
+    return Array.from(new Set(venues)).sort();
+  }, [events]);
+
+  // Filter and sort events
+  const filteredAndSortedEvents = useMemo(() => {
+    let filtered = [...events];
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(event =>
+        event.title.toLowerCase().includes(query) ||
+        (event.venue && event.venue.toLowerCase().includes(query)) ||
+        (event.rationale && stripHtmlTags(event.rationale).toLowerCase().includes(query))
+      );
+    }
+
+    // Date filter
+    const now = new Date();
+    if (dateFilter === 'upcoming') {
+      filtered = filtered.filter(event => new Date(event.start_date) >= now);
+    } else if (dateFilter === 'past') {
+      filtered = filtered.filter(event => new Date(event.end_date) < now);
+    }
+
+    // Venue filter
+    if (venueFilter !== 'all') {
+      filtered = filtered.filter(event => event.venue === venueFilter);
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortOption) {
+        case 'date-asc':
+          return new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
+        case 'date-desc':
+          return new Date(b.start_date).getTime() - new Date(a.start_date).getTime();
+        case 'title-asc':
+          return a.title.localeCompare(b.title);
+        case 'title-desc':
+          return b.title.localeCompare(a.title);
+        case 'participants-asc':
+          return (a.current_participants || 0) - (b.current_participants || 0);
+        case 'participants-desc':
+          return (b.current_participants || 0) - (a.current_participants || 0);
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [events, searchQuery, dateFilter, venueFilter, sortOption]);
 
   if (loading) {
     return (
@@ -130,11 +198,154 @@ export default function Events() {
             <Text className="text-lg font-bold text-white ml-2">Events</Text>
           </View>
           
-          <View className="w-10" />
+          <TouchableOpacity onPress={() => setShowFilters(!showFilters)}>
+            <Ionicons name="filter" size={20} color="#ffffff" />
+          </TouchableOpacity>
         </View>
       </View>
 
       <View className="flex-1 mx-4 my-2">
+        {/* Search Bar */}
+        <View className="mb-4">
+          <View className="flex-row items-center bg-white rounded-xl px-4 py-3 shadow-sm">
+            <Ionicons name="search" size={20} color="#64748b" />
+            <TextInput
+              className="flex-1 ml-3 text-base text-gray-800"
+              placeholder="Search events..."
+              placeholderTextColor="#9ca3af"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color="#9ca3af" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Filters Modal */}
+        <Modal
+          visible={showFilters}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowFilters(false)}
+        >
+          <View className="flex-1 bg-black/50 justify-end">
+            <View className="bg-white rounded-t-3xl p-6 max-h-[80%]">
+              <View className="flex-row items-center justify-between mb-6">
+                <Text className="text-2xl font-bold text-gray-800">Filters & Sort</Text>
+                <TouchableOpacity onPress={() => setShowFilters(false)}>
+                  <Ionicons name="close" size={24} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Date Filter */}
+                <View className="mb-6">
+                  <Text className="text-lg font-semibold text-gray-800 mb-3">Date</Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    {(['all', 'upcoming', 'past'] as DateFilter[]).map((filter) => (
+                      <TouchableOpacity
+                        key={filter}
+                        onPress={() => setDateFilter(filter)}
+                        className={`px-4 py-2 rounded-lg ${
+                          dateFilter === filter ? 'bg-blue-600' : 'bg-gray-100'
+                        }`}
+                      >
+                        <Text className={`font-medium ${
+                          dateFilter === filter ? 'text-white' : 'text-gray-700'
+                        }`}>
+                          {filter === 'all' ? 'All Events' : filter === 'upcoming' ? 'Upcoming' : 'Past'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Venue Filter */}
+                {uniqueVenues.length > 0 && (
+                  <View className="mb-6">
+                    <Text className="text-lg font-semibold text-gray-800 mb-3">Venue</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-2">
+                      <View className="flex-row gap-2">
+                        <TouchableOpacity
+                          onPress={() => setVenueFilter('all')}
+                          className={`px-4 py-2 rounded-lg ${
+                            venueFilter === 'all' ? 'bg-blue-600' : 'bg-gray-100'
+                          }`}
+                        >
+                          <Text className={`font-medium ${
+                            venueFilter === 'all' ? 'text-white' : 'text-gray-700'
+                          }`}>
+                            All Venues
+                          </Text>
+                        </TouchableOpacity>
+                        {uniqueVenues.map((venue) => (
+                          <TouchableOpacity
+                            key={venue}
+                            onPress={() => setVenueFilter(venue)}
+                            className={`px-4 py-2 rounded-lg ${
+                              venueFilter === venue ? 'bg-blue-600' : 'bg-gray-100'
+                            }`}
+                          >
+                            <Text className={`font-medium ${
+                              venueFilter === venue ? 'text-white' : 'text-gray-700'
+                            }`} numberOfLines={1}>
+                              {venue}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  </View>
+                )}
+
+                {/* Sort Options */}
+                <View className="mb-6">
+                  <Text className="text-lg font-semibold text-gray-800 mb-3">Sort By</Text>
+                  <View className="gap-2">
+                    {[
+                      { value: 'date-asc' as SortOption, label: 'Date (Earliest First)' },
+                      { value: 'date-desc' as SortOption, label: 'Date (Latest First)' },
+                      { value: 'title-asc' as SortOption, label: 'Title (A-Z)' },
+                      { value: 'title-desc' as SortOption, label: 'Title (Z-A)' },
+                      { value: 'participants-asc' as SortOption, label: 'Participants (Fewest First)' },
+                      { value: 'participants-desc' as SortOption, label: 'Participants (Most First)' },
+                    ].map((option) => (
+                      <TouchableOpacity
+                        key={option.value}
+                        onPress={() => setSortOption(option.value)}
+                        className={`px-4 py-3 rounded-lg ${
+                          sortOption === option.value ? 'bg-blue-600' : 'bg-gray-100'
+                        }`}
+                      >
+                        <Text className={`font-medium ${
+                          sortOption === option.value ? 'text-white' : 'text-gray-700'
+                        }`}>
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Clear Filters */}
+                <TouchableOpacity
+                  onPress={() => {
+                    setSearchQuery('');
+                    setDateFilter('all');
+                    setVenueFilter('all');
+                    setSortOption('date-asc');
+                  }}
+                  className="bg-red-100 px-4 py-3 rounded-lg mb-4"
+                >
+                  <Text className="text-red-700 font-semibold text-center">Clear All Filters</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
         <ScrollView 
           className="flex-1" 
           contentContainerStyle={{ 
@@ -195,13 +406,17 @@ export default function Events() {
                 >
                   <Ionicons name="calendar" size={22} color="#2563eb" />
                 </View>
-                <Text className="text-2xl font-bold text-slate-900">Upcoming Events</Text>
+                <Text className="text-2xl font-bold text-slate-900">
+                  {filteredAndSortedEvents.length === events.length 
+                    ? 'Upcoming Events' 
+                    : `Events (${filteredAndSortedEvents.length}${events.length > 0 ? ` of ${events.length}` : ''})`}
+                </Text>
               </View>
             </View>
             
             {/* Card Content */}
             <View className="p-5">
-          {events.length === 0 ? (
+          {filteredAndSortedEvents.length === 0 ? (
                 <View className="py-12 items-center">
                   <View 
                     className="w-20 h-20 rounded-full items-center justify-center mb-4"
@@ -210,14 +425,16 @@ export default function Events() {
                     <Ionicons name="calendar-outline" size={40} color="#64748b" />
                   </View>
                   <Text className="text-xl font-semibold text-gray-800 mb-2 text-center">
-                No Events Available
+                {events.length === 0 ? 'No Events Available' : 'No Events Match Your Filters'}
               </Text>
                   <Text className="text-gray-500 text-center text-sm">
-                Check back later for upcoming events.
+                {events.length === 0 
+                  ? 'Check back later for upcoming events.'
+                  : 'Try adjusting your search or filters.'}
               </Text>
             </View>
           ) : (
-                events.map((event, index) => (
+                filteredAndSortedEvents.map((event, index) => (
               <TouchableOpacity
                 key={event.id}
                     className="rounded-2xl overflow-hidden"

@@ -23,6 +23,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Initialize push notifications
+    const initPushNotifications = async () => {
+      try {
+        const { PushNotificationService } = await import('./pushNotificationService');
+        const token = await PushNotificationService.getPushToken();
+        if (token && user?.id) {
+          await PushNotificationService.registerPushToken(user.id, token);
+        }
+      } catch (err) {
+        console.error('Failed to initialize push notifications:', err);
+      }
+    };
+
     // Check if user is already signed in
     checkUser();
 
@@ -77,11 +90,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.error('Error loading user profile:', error);
         setUser(null);
       } else if (authUser) {
-        // Log raw metadata to debug
-        console.log('Raw user metadata:', JSON.stringify(authUser.user_metadata, null, 2));
-        console.log('affiliated_organization in metadata:', authUser.user_metadata?.affiliated_organization);
-        console.log('Type of affiliated_organization:', typeof authUser.user_metadata?.affiliated_organization);
-        
         // Create user profile from Supabase Auth user data
         // Only use metadata values if they exist and are not empty
         const affiliatedOrg = authUser.user_metadata?.affiliated_organization;
@@ -104,14 +112,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           created_at: authUser.created_at || new Date().toISOString(),
           updated_at: authUser.updated_at || new Date().toISOString(),
         };
-        
-        console.log('Loaded user profile:', {
-          first_name: userProfile.first_name,
-          last_name: userProfile.last_name,
-          affiliated_organization: userProfile.affiliated_organization,
-          hasAffiliatedOrg,
-          raw_affiliated_org: affiliatedOrg
-        });
         
         setUser(userProfile);
       } else {

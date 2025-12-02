@@ -1,15 +1,52 @@
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useEffect } from 'react';
+import * as Notifications from 'expo-notifications';
 import { AuthProvider } from '../lib/authContext';
 import './global.css';
+
+// Configure notification behavior
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
+
+function NotificationHandler() {
+  const router = useRouter();
+  const segments = useSegments();
+
+  useEffect(() => {
+    // Handle notification taps
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const data = response.notification.request.content.data;
+        if (data?.actionUrl) {
+          // Navigate to the action URL
+          router.push(data.actionUrl as any);
+        } else {
+          // Default to notifications tab
+          router.push('/(tabs)/notifications' as any);
+        }
+      }
+    );
+
+    return () => subscription.remove();
+  }, [router]);
+
+  return null;
+}
 
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
+          <NotificationHandler />
           <Stack
             screenOptions={{
               headerShown: false,
@@ -129,6 +166,20 @@ export default function RootLayout() {
               name="participant-details"
               options={{
                 headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="reset-password"
+              options={{
+                title: 'Reset Password',
+                headerShown: true,
+                headerStyle: {
+                  backgroundColor: '#1e40af',
+                },
+                headerTintColor: '#ffffff',
+                headerTitleStyle: {
+                  fontWeight: 'bold',
+                },
               }}
             />
           </Stack>

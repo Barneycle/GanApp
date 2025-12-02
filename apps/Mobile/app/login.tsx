@@ -11,31 +11,20 @@ import {
   ScrollView,
   Keyboard,
   Dimensions,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { useAuth } from '../lib/authContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { UserService } from '../lib/userService';
 
-// Simple in-memory storage fallback
-const storage = {
-  _data: {} as Record<string, string>,
-  async getItem(key: string): Promise<string | null> {
-    try {
-      const value = this._data[key];
-      return value || null;
-    } catch (error) {
-      return null;
-    }
-  },
-  async setItem(key: string, value: string): Promise<void> {
-    this._data[key] = value;
-  },
-  async removeItem(key: string): Promise<void> {
-    delete this._data[key];
-  },
-};
+// Storage keys for remember me functionality
+const REMEMBER_ME_KEY = 'remember_me';
+const REMEMBERED_EMAIL_KEY = 'remembered_email';
 
 interface LoginFormData {
   email: string;
@@ -50,6 +39,10 @@ export default function LoginDashboard() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [isSendingReset, setIsSendingReset] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const insets = useSafeAreaInsets();
 
   const router = useRouter();
@@ -132,20 +125,27 @@ export default function LoginDashboard() {
     });
   };
 
-  // Load saved email on mount
+  // Load saved email on mount (email pre-fill)
   useEffect(() => {
     const loadSavedEmail = async () => {
       try {
-        const savedEmail = await storage.getItem('remembered_email');
-        const shouldRemember = await storage.getItem('remember_me');
+        const savedEmail = await AsyncStorage.getItem(REMEMBERED_EMAIL_KEY);
+        const shouldRemember = await AsyncStorage.getItem(REMEMBER_ME_KEY);
+        
         if (savedEmail && shouldRemember === 'true') {
           // Trim saved email when loading
           const trimmedEmail = savedEmail.trim();
-          setFormData(prev => ({ ...prev, email: trimmedEmail }));
-          setRememberMe(true);
+          if (trimmedEmail) {
+            setFormData(prev => ({ ...prev, email: trimmedEmail }));
+            setRememberMe(true);
+          }
         }
-      } catch (error) {
-        console.error('Error loading saved email:', error);
+      } catch (error: any) {
+        // Silently fail - don't break the login flow
+        // Only log if it's not a ReferenceError (which might be a module loading issue)
+        if (error?.name !== 'ReferenceError') {
+          console.error('Error loading saved email:', error);
+        }
       }
     };
     loadSavedEmail();
@@ -188,16 +188,18 @@ export default function LoginDashboard() {
         // Save email if remember me is checked (non-blocking)
         try {
           if (rememberMe) {
-            await storage.setItem('remembered_email', trimmedEmail);
-            await storage.setItem('remember_me', 'true');
+            await AsyncStorage.setItem(REMEMBERED_EMAIL_KEY, trimmedEmail);
+            await AsyncStorage.setItem(REMEMBER_ME_KEY, 'true');
           } else {
             // Clear saved email if remember me is unchecked
-            await storage.removeItem('remembered_email');
-            await storage.removeItem('remember_me');
+            await AsyncStorage.removeItem(REMEMBERED_EMAIL_KEY);
+            await AsyncStorage.removeItem(REMEMBER_ME_KEY);
           }
-        } catch (storageError) {
-          console.error('Error saving remember me preference:', storageError);
+        } catch (storageError: any) {
           // Don't show error to user - sign-in was successful
+          if (storageError?.name !== 'ReferenceError') {
+            console.error('Error saving remember me preference:', storageError);
+          }
         }
       }
       // Navigation will be handled automatically by useEffect when user state updates
@@ -210,11 +212,50 @@ export default function LoginDashboard() {
   };
 
   const handleForgotPassword = () => {
-    Alert.alert(
-      'Forgot Password',
-      'Password reset link has been sent to your email',
-      [{ text: 'OK' }]
-    );
+    // Pre-fill email if available
+    const emailToUse = formData.email.trim() || forgotPasswordEmail.trim();
+    setForgotPasswordEmail(emailToUse);
+    setShowForgotPassword(true);
+    setResetSent(false);
+  };
+
+  const handleSendResetEmail = async () => {
+    const trimmedEmail = forgotPasswordEmail.trim();
+    
+    if (!trimmedEmail) {
+      Alert.alert('Error', 'Please enter your email address');
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    setIsSendingReset(true);
+
+    try {
+      const result = await UserService.resetPassword(trimmedEmail);
+      
+      if (result.error) {
+        Alert.alert('Error', result.error);
+      } else if (result.success) {
+        setResetSent(true);
+      }
+    } catch (error) {
+      console.error('Reset password error:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+    } finally {
+      setIsSendingReset(false);
+    }
+  };
+
+  const handleCloseForgotPassword = () => {
+    setShowForgotPassword(false);
+    setForgotPasswordEmail('');
+    setResetSent(false);
   };
 
   const handleSocialLogin = (provider: string) => {
@@ -229,13 +270,23 @@ export default function LoginDashboard() {
     const newValue = !rememberMe;
     setRememberMe(newValue);
     
-    // Clear saved email if unchecking remember me
-    if (!newValue) {
-      try {
-        await storage.removeItem('remembered_email');
-        await storage.removeItem('remember_me');
-      } catch (error) {
-        console.error('Error clearing remembered email:', error);
+    try {
+      // Clear saved email if unchecking remember me
+      if (!newValue) {
+        await AsyncStorage.removeItem(REMEMBERED_EMAIL_KEY);
+        await AsyncStorage.removeItem(REMEMBER_ME_KEY);
+      } else {
+        // If checking remember me and email is filled, save it immediately
+        const trimmedEmail = formData.email.trim();
+        if (trimmedEmail) {
+          await AsyncStorage.setItem(REMEMBERED_EMAIL_KEY, trimmedEmail);
+          await AsyncStorage.setItem(REMEMBER_ME_KEY, 'true');
+        }
+      }
+    } catch (error: any) {
+      // Silently fail - don't break the UI
+      if (error?.name !== 'ReferenceError') {
+        console.error('Error toggling remember me:', error);
       }
     }
   };
@@ -352,7 +403,7 @@ export default function LoginDashboard() {
 
                 {/* Forgot Password */}
                 <TouchableOpacity onPress={handleForgotPassword}>
-                  <Text className="text-white text-base font-semibold underline">Forgot Password?</Text>
+                  <Text className="text-blue-700 text-base font-semibold underline">Forgot Password?</Text>
                 </TouchableOpacity>
               </View>
 
@@ -396,6 +447,157 @@ export default function LoginDashboard() {
             <View className="h-6" />
           </ScrollView>
         </KeyboardAvoidingView>
+
+        {/* Forgot Password Modal */}
+        <Modal
+          visible={showForgotPassword}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={handleCloseForgotPassword}
+        >
+          <SafeAreaView className="flex-1 bg-blue-900">
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={{ flex: 1 }}
+            >
+              <ScrollView
+                contentContainerStyle={{
+                  flexGrow: 1,
+                  paddingTop: insets.top + 20,
+                  paddingBottom: Math.max(insets.bottom, 20),
+                  paddingHorizontal: 24,
+                }}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View className="flex-1 justify-center">
+                  {/* Header */}
+                  <View className="mb-8">
+                    <TouchableOpacity
+                      onPress={handleCloseForgotPassword}
+                      className="mb-6 self-start"
+                    >
+                      <Ionicons name="close" size={28} color="#ffffff" />
+                    </TouchableOpacity>
+                    <Text className="text-4xl font-bold text-white mb-3">
+                      Forgot Password?
+                    </Text>
+                    <Text className="text-lg text-blue-100">
+                      {resetSent
+                        ? 'Check your email for the password reset link.'
+                        : 'Enter your email address and we\'ll send you a link to reset your password.'}
+                    </Text>
+                  </View>
+
+                  {!resetSent ? (
+                    <>
+                      {/* Email Input */}
+                      <View className="mb-6">
+                        <Text className="text-base font-semibold text-white mb-3">
+                          Email Address
+                        </Text>
+                        <View className="flex-row items-center border-2 border-blue-700 rounded-2xl px-5 bg-white h-14">
+                          <Ionicons name="mail-outline" size={22} color="#1e40af" style={{ marginRight: 12 }} />
+                          <TextInput
+                            className="flex-1 h-full text-lg text-slate-900"
+                            placeholder="Enter your email address"
+                            placeholderTextColor="#9ca3af"
+                            value={forgotPasswordEmail}
+                            onChangeText={setForgotPasswordEmail}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            returnKeyType="send"
+                            onSubmitEditing={handleSendResetEmail}
+                            editable={!isSendingReset}
+                          />
+                        </View>
+                      </View>
+
+                      {/* Send Reset Email Button */}
+                      <TouchableOpacity
+                        className={`bg-blue-700 rounded-2xl py-5 items-center mb-4 shadow-lg ${isSendingReset ? 'bg-blue-400' : ''}`}
+                        onPress={handleSendResetEmail}
+                        disabled={isSendingReset}
+                      >
+                        {isSendingReset ? (
+                          <ActivityIndicator size="small" color="#ffffff" />
+                        ) : (
+                          <Text className="text-white text-lg font-bold">
+                            Send Reset Link
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+
+                      {/* Cancel Button */}
+                      <TouchableOpacity
+                        className="border-2 border-blue-600 rounded-2xl py-5 items-center"
+                        onPress={handleCloseForgotPassword}
+                        disabled={isSendingReset}
+                      >
+                        <Text className="text-blue-200 text-lg font-bold">
+                          Cancel
+                        </Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <>
+                      {/* Success State */}
+                      <View className="items-center mb-8">
+                        <View className="w-20 h-20 bg-green-500 rounded-full items-center justify-center mb-4">
+                          <Ionicons name="checkmark" size={40} color="#ffffff" />
+                        </View>
+                        <Text className="text-xl font-bold text-white mb-2 text-center">
+                          Email Sent!
+                        </Text>
+                        <Text className="text-base text-blue-100 text-center">
+                          We've sent a password reset link to{'\n'}
+                          <Text className="font-semibold">{forgotPasswordEmail}</Text>
+                        </Text>
+                      </View>
+
+                      {/* Instructions */}
+                      <View className="bg-blue-800 rounded-2xl p-6 mb-6">
+                        <Text className="text-white text-base mb-2 font-semibold">
+                          Next Steps:
+                        </Text>
+                        <Text className="text-blue-100 text-base leading-6">
+                          1. Check your email inbox{'\n'}
+                          2. Click the reset link in the email{'\n'}
+                          3. Create a new password{'\n'}
+                          4. Sign in with your new password
+                        </Text>
+                      </View>
+
+                      {/* Resend Email Button */}
+                      <TouchableOpacity
+                        className="bg-blue-700 rounded-2xl py-5 items-center mb-4 shadow-lg"
+                        onPress={handleSendResetEmail}
+                        disabled={isSendingReset}
+                      >
+                        {isSendingReset ? (
+                          <ActivityIndicator size="small" color="#ffffff" />
+                        ) : (
+                          <Text className="text-white text-lg font-bold">
+                            Resend Email
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+
+                      {/* Back to Login Button */}
+                      <TouchableOpacity
+                        className="border-2 border-blue-600 rounded-2xl py-5 items-center"
+                        onPress={handleCloseForgotPassword}
+                      >
+                        <Text className="text-blue-200 text-lg font-bold">
+                          Back to Login
+                        </Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+              </ScrollView>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
+        </Modal>
     </SafeAreaView>
     </>
   );

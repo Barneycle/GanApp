@@ -4,11 +4,12 @@
   "description": "GanApp - Web and Mobile Applications",
   "private": true,
   "scripts": {
-    "dev:web": "cd Apps/Web && npm run dev",
-    "dev:mobile": "cd Apps/Mobile && npm start",
-    "build:web": "cd Apps/Web && npm run build",
-    "build:mobile": "cd Apps/Mobile && npm run build",
-    "install:all": "npm install && cd Apps/Web && npm install && cd ../Mobile && npm install"
+    "dev:web": "cd apps/Web && npm run dev",
+    "dev:mobile": "cd apps/Mobile && npm start",
+    "build:web": "cd apps/Web && npm run build",
+    "build:mobile": "cd apps/Mobile && npm run build",
+    "install:all": "npm install && cd apps/Web && npm install && cd ../Mobile && npm install",
+    "send-event-reminders": "node scripts/send-event-reminders.js"
   },
   "devDependencies": {
     "rimraf": "^5.0.0"

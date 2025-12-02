@@ -73,12 +73,59 @@ export default function SetupProfileScreen() {
     };
   }, []);
 
+  // Helper function to check if user profile is complete
+  const isProfileComplete = (user: any): boolean => {
+    if (!user) return false;
+    
+    // Handle both undefined and empty string cases - be very explicit
+    const firstName = user.first_name;
+    const lastName = user.last_name;
+    const affiliatedOrg = user.affiliated_organization;
+    
+    const hasFirstName = firstName !== undefined && firstName !== null && String(firstName).trim() !== '';
+    const hasLastName = lastName !== undefined && lastName !== null && String(lastName).trim() !== '';
+    const hasAffiliatedOrg = affiliatedOrg !== undefined && affiliatedOrg !== null && String(affiliatedOrg).trim() !== '';
+    
+    const isComplete = hasFirstName && hasLastName && hasAffiliatedOrg;
+    
+    console.log('Profile completeness check:', {
+      firstName,
+      lastName,
+      affiliatedOrg,
+      hasFirstName,
+      hasLastName,
+      hasAffiliatedOrg,
+      isComplete
+    });
+    
+    return isComplete;
+  };
+
   // Wait for user to be loaded, redirect to login if not authenticated after loading
+  // Also redirect to tabs if profile is already complete (Facebook's approach)
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (authLoading) return;
+    
+    if (!user) {
       // User not authenticated, redirect to login
       router.replace('/login');
+      return;
     }
+    
+    // Add a small delay to ensure user state is fully loaded
+    // Only check for complete profile after a brief moment
+    const checkTimer = setTimeout(() => {
+      // If profile is already complete, redirect to main app
+      // This handles cases where existing users with complete profiles somehow end up here
+      if (isProfileComplete(user)) {
+        console.log('Profile is complete, redirecting to tabs');
+        router.replace('/(tabs)');
+      } else {
+        console.log('Profile is incomplete, staying on setup-profile');
+      }
+    }, 300); // Small delay to ensure state is stable
+    
+    return () => clearTimeout(checkTimer);
   }, [user, authLoading, router]);
 
   // Handle keyboard show/hide and scroll to focused input

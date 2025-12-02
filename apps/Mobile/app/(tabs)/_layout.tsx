@@ -1,11 +1,14 @@
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { View, Text } from 'react-native';
 import { useAuth } from '../../lib/authContext';
+import { useNotifications } from '../../lib/useNotifications';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { unreadCount } = useNotifications();
   
   // Check if user is a participant
   const isParticipant = user?.role === 'participant';
@@ -82,6 +85,44 @@ export default function TabLayout() {
           title: 'Albums',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="images" size={size} color={color} />
+          ),
+        }}
+      />
+      {/* Show Notifications for all users */}
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: 'Notifications',
+          tabBarIcon: ({ color, size }) => (
+            <View>
+              <Ionicons name="notifications" size={size} color={color} />
+              {unreadCount > 0 && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    right: -6,
+                    top: -2,
+                    backgroundColor: '#ef4444',
+                    borderRadius: 10,
+                    minWidth: 18,
+                    height: 18,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    paddingHorizontal: 4,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: '#ffffff',
+                      fontSize: 10,
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </View>
           ),
         }}
       />

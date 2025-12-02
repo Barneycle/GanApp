@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,10 +13,11 @@ import {
   Linking,
   StyleSheet,
   RefreshControl,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import * as FileSystem from 'expo-file-system';
 import QRCode from 'react-native-qrcode-svg';
 import ViewShot, { captureRef } from 'react-native-view-shot';
@@ -30,8 +31,12 @@ import { EventService, Event } from '../../lib/eventService';
 import { SurveyService } from '../../lib/surveyService';
 import { useAuth } from '../../lib/authContext';
 import { supabase } from '../../lib/supabase';
-import { stripHtmlTags } from '../../lib/htmlUtils';
+import { decodeHtml, getHtmlContentWidth, defaultHtmlStyles, stripHtmlTags } from '../../lib/htmlUtils';
+import RenderHTML from 'react-native-render-html';
 import TutorialOverlay from '../../components/TutorialOverlay';
+
+type DateFilter = 'all' | 'upcoming' | 'ongoing' | 'completed';
+type SortOption = 'date-asc' | 'date-desc' | 'title-asc' | 'title-desc' | 'registration-asc' | 'registration-desc';
 
 interface RegisteredEvent extends Event {
   registration_date: string;
@@ -52,11 +57,37 @@ export default function MyEvents() {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [expandedRationale, setExpandedRationale] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [venueFilter, setVenueFilter] = useState<string>('all');
+  const [sortOption, setSortOption] = useState<SortOption>('date-asc');
+  const [showFilters, setShowFilters] = useState(false);
   const qrCodeViewRef = React.useRef<any>(null);
   const insets = useSafeAreaInsets();
   
   const router = useRouter();
   const { user } = useAuth();
+
+  const shouldCollapseRationale = (rationale: string): boolean => {
+    if (!rationale) return false;
+    // Check if content is long (more than 300 characters) or has multiple paragraphs
+    const textContent = rationale.replace(/<[^>]*>/g, ''); // Strip HTML tags
+    const hasMultipleParagraphs = (rationale.match(/<p>/g) || []).length > 1;
+    return textContent.length > 300 || hasMultipleParagraphs;
+  };
+
+  const toggleRationale = (eventId: string) => {
+    setExpandedRationale(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId);
+      } else {
+        newSet.add(eventId);
+      }
+      return newSet;
+    });
+  };
 
   useEffect(() => {
     if (!user?.id) {
@@ -74,6 +105,15 @@ export default function MyEvents() {
     }
   }, [user]);
 
+  // Refresh when screen comes into focus (e.g., after registering for an event)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user?.id && user?.role === 'participant') {
+        loadRegisteredEvents();
+      }
+    }, [user?.id, user?.role])
+  );
+
   const loadRegisteredEvents = async () => {
     if (!user?.id) return;
 
@@ -84,6 +124,7 @@ export default function MyEvents() {
       const result = await EventService.getUserRegistrations(user.id);
       
       if (result.error) {
+        console.error('Error loading registrations:', result.error);
         setError(result.error);
       } else {
         // Extract the events from the registrations (like the web version)
@@ -96,6 +137,7 @@ export default function MyEvents() {
         setRegisteredEvents(events);
       }
     } catch (err) {
+      console.error('Exception loading registered events:', err);
       setError('Failed to load your registered events');
     } finally {
       setLoading(false);
@@ -163,6 +205,76 @@ export default function MyEvents() {
       return { status: 'completed', text: 'Completed', color: 'bg-gray-100', textColor: 'text-gray-800' };
     }
   };
+
+  // Get unique venues from registered events
+  const uniqueVenues = useMemo(() => {
+    const venues = registeredEvents
+      .map(event => event.venue)
+      .filter((venue): venue is string => !!venue && venue !== 'Location TBD' && venue.trim() !== '');
+    return Array.from(new Set(venues)).sort();
+  }, [registeredEvents]);
+
+  // Filter and sort events
+  const filteredAndSortedEvents = useMemo(() => {
+    let filtered = [...registeredEvents];
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(event =>
+        event.title.toLowerCase().includes(query) ||
+        (event.venue && event.venue.toLowerCase().includes(query)) ||
+        (event.rationale && stripHtmlTags(event.rationale).toLowerCase().includes(query))
+      );
+    }
+
+    // Date/Status filter
+    const now = new Date();
+    if (dateFilter === 'upcoming') {
+      filtered = filtered.filter(event => {
+        const startDate = new Date(`${event.start_date}T${event.start_time}`);
+        return now < startDate;
+      });
+    } else if (dateFilter === 'ongoing') {
+      filtered = filtered.filter(event => {
+        const startDate = new Date(`${event.start_date}T${event.start_time}`);
+        const endDate = new Date(`${event.end_date}T${event.end_time}`);
+        return now >= startDate && now <= endDate;
+      });
+    } else if (dateFilter === 'completed') {
+      filtered = filtered.filter(event => {
+        const endDate = new Date(`${event.end_date}T${event.end_time}`);
+        return now > endDate;
+      });
+    }
+
+    // Venue filter
+    if (venueFilter !== 'all') {
+      filtered = filtered.filter(event => event.venue === venueFilter);
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortOption) {
+        case 'date-asc':
+          return new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
+        case 'date-desc':
+          return new Date(b.start_date).getTime() - new Date(a.start_date).getTime();
+        case 'title-asc':
+          return a.title.localeCompare(b.title);
+        case 'title-desc':
+          return b.title.localeCompare(a.title);
+        case 'registration-asc':
+          return new Date(a.registration_date).getTime() - new Date(b.registration_date).getTime();
+        case 'registration-desc':
+          return new Date(b.registration_date).getTime() - new Date(a.registration_date).getTime();
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [registeredEvents, searchQuery, dateFilter, venueFilter, sortOption]);
 
   const handleUnregister = async (eventId: string) => {
     if (!user?.id) return;
@@ -513,11 +625,154 @@ export default function MyEvents() {
             <Text className="text-lg font-bold text-white ml-2">My Events</Text>
           </View>
           
-          <View className="w-10" />
+          <TouchableOpacity onPress={() => setShowFilters(!showFilters)}>
+            <Ionicons name="filter" size={20} color="#ffffff" />
+          </TouchableOpacity>
         </View>
       </View>
 
       <View className="flex-1 mx-4 my-2">
+        {/* Search Bar */}
+        <View className="mb-4">
+          <View className="flex-row items-center bg-white rounded-xl px-4 py-3 shadow-sm">
+            <Ionicons name="search" size={20} color="#64748b" />
+            <TextInput
+              className="flex-1 ml-3 text-base text-gray-800"
+              placeholder="Search your events..."
+              placeholderTextColor="#9ca3af"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color="#9ca3af" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Filters Modal */}
+        <Modal
+          visible={showFilters}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowFilters(false)}
+        >
+          <View className="flex-1 bg-black/50 justify-end">
+            <View className="bg-white rounded-t-3xl p-6 max-h-[80%]">
+              <View className="flex-row items-center justify-between mb-6">
+                <Text className="text-2xl font-bold text-gray-800">Filters & Sort</Text>
+                <TouchableOpacity onPress={() => setShowFilters(false)}>
+                  <Ionicons name="close" size={24} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Status Filter */}
+                <View className="mb-6">
+                  <Text className="text-lg font-semibold text-gray-800 mb-3">Status</Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    {(['all', 'upcoming', 'ongoing', 'completed'] as DateFilter[]).map((filter) => (
+                      <TouchableOpacity
+                        key={filter}
+                        onPress={() => setDateFilter(filter)}
+                        className={`px-4 py-2 rounded-lg ${
+                          dateFilter === filter ? 'bg-blue-600' : 'bg-gray-100'
+                        }`}
+                      >
+                        <Text className={`font-medium ${
+                          dateFilter === filter ? 'text-white' : 'text-gray-700'
+                        }`}>
+                          {filter === 'all' ? 'All Events' : filter === 'upcoming' ? 'Upcoming' : filter === 'ongoing' ? 'Ongoing' : 'Completed'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Venue Filter */}
+                {uniqueVenues.length > 0 && (
+                  <View className="mb-6">
+                    <Text className="text-lg font-semibold text-gray-800 mb-3">Venue</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-2">
+                      <View className="flex-row gap-2">
+                        <TouchableOpacity
+                          onPress={() => setVenueFilter('all')}
+                          className={`px-4 py-2 rounded-lg ${
+                            venueFilter === 'all' ? 'bg-blue-600' : 'bg-gray-100'
+                          }`}
+                        >
+                          <Text className={`font-medium ${
+                            venueFilter === 'all' ? 'text-white' : 'text-gray-700'
+                          }`}>
+                            All Venues
+                          </Text>
+                        </TouchableOpacity>
+                        {uniqueVenues.map((venue) => (
+                          <TouchableOpacity
+                            key={venue}
+                            onPress={() => setVenueFilter(venue)}
+                            className={`px-4 py-2 rounded-lg ${
+                              venueFilter === venue ? 'bg-blue-600' : 'bg-gray-100'
+                            }`}
+                          >
+                            <Text className={`font-medium ${
+                              venueFilter === venue ? 'text-white' : 'text-gray-700'
+                            }`} numberOfLines={1}>
+                              {venue}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  </View>
+                )}
+
+                {/* Sort Options */}
+                <View className="mb-6">
+                  <Text className="text-lg font-semibold text-gray-800 mb-3">Sort By</Text>
+                  <View className="gap-2">
+                    {[
+                      { value: 'date-asc' as SortOption, label: 'Date (Earliest First)' },
+                      { value: 'date-desc' as SortOption, label: 'Date (Latest First)' },
+                      { value: 'title-asc' as SortOption, label: 'Title (A-Z)' },
+                      { value: 'title-desc' as SortOption, label: 'Title (Z-A)' },
+                      { value: 'registration-asc' as SortOption, label: 'Registration Date (Oldest First)' },
+                      { value: 'registration-desc' as SortOption, label: 'Registration Date (Newest First)' },
+                    ].map((option) => (
+                      <TouchableOpacity
+                        key={option.value}
+                        onPress={() => setSortOption(option.value)}
+                        className={`px-4 py-3 rounded-lg ${
+                          sortOption === option.value ? 'bg-blue-600' : 'bg-gray-100'
+                        }`}
+                      >
+                        <Text className={`font-medium ${
+                          sortOption === option.value ? 'text-white' : 'text-gray-700'
+                        }`}>
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Clear Filters */}
+                <TouchableOpacity
+                  onPress={() => {
+                    setSearchQuery('');
+                    setDateFilter('all');
+                    setVenueFilter('all');
+                    setSortOption('date-asc');
+                  }}
+                  className="bg-red-100 px-4 py-3 rounded-lg mb-4"
+                >
+                  <Text className="text-red-700 font-semibold text-center">Clear All Filters</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
         <ScrollView 
           className="flex-1" 
           contentContainerStyle={{ 
@@ -560,13 +815,17 @@ export default function MyEvents() {
                 >
                   <Ionicons name="calendar-outline" size={22} color="#2563eb" />
                 </View>
-                <Text className="text-2xl font-bold text-slate-900">My Registered Events</Text>
+                <Text className="text-2xl font-bold text-slate-900">
+                  {filteredAndSortedEvents.length === registeredEvents.length 
+                    ? 'My Registered Events' 
+                    : `My Events (${filteredAndSortedEvents.length}${registeredEvents.length > 0 ? ` of ${registeredEvents.length}` : ''})`}
+                </Text>
               </View>
             </View>
             
             {/* Events List */}
             <View className="p-5">
-              {registeredEvents.length === 0 ? (
+              {filteredAndSortedEvents.length === 0 ? (
                 <View className="py-12 items-center">
                   <View 
                     className="w-20 h-20 rounded-full items-center justify-center mb-4"
@@ -575,14 +834,16 @@ export default function MyEvents() {
                     <Ionicons name="calendar-outline" size={40} color="#64748b" />
                   </View>
                   <Text className="text-xl font-semibold text-gray-800 mb-2 text-center">
-                    No Registered Events
+                    {registeredEvents.length === 0 ? 'No Registered Events' : 'No Events Match Your Filters'}
                   </Text>
                   <Text className="text-gray-500 text-center text-sm">
-                    You haven't registered for any events yet.
+                    {registeredEvents.length === 0 
+                      ? 'You haven\'t registered for any events yet.'
+                      : 'Try adjusting your search or filters.'}
                   </Text>
                 </View>
               ) : (
-                registeredEvents.map((event) => {
+                filteredAndSortedEvents.map((event) => {
             const eventStatus = getEventStatus(event);
             
             return (
@@ -612,34 +873,64 @@ export default function MyEvents() {
                 )}
                 
                 {/* Event Content */}
-                <View className="p-4">
+                <View className="p-5">
                   <View className="flex-row items-start justify-between mb-4">
-                    <Text className="text-lg font-bold text-slate-800 flex-1">{event.title}</Text>
+                    <Text className="text-xl font-bold text-slate-800 flex-1">{event.title}</Text>
                     <View className={`ml-2 px-3 py-1 rounded-full ${eventStatus.color}`}>
-                      <Text className={`text-xs font-medium ${eventStatus.textColor}`}>
+                      <Text className={`text-sm font-medium ${eventStatus.textColor}`}>
                         {eventStatus.text}
                       </Text>
                     </View>
                   </View>
                   
                   {event.rationale && (
-                    <Text className="text-sm text-slate-600 mb-4" numberOfLines={3}>
-                            {stripHtmlTags(event.rationale)}
-                    </Text>
+                    <View className="mb-4">
+                      <View className="bg-blue-50 p-4 rounded-xl">
+                        <View style={{ maxHeight: expandedRationale.has(event.id) ? undefined : 150, overflow: 'hidden' }}>
+                          <RenderHTML
+                            contentWidth={getHtmlContentWidth(36)}
+                            source={{ html: decodeHtml(event.rationale) }}
+                            baseStyle={{
+                              ...defaultHtmlStyles.baseStyle,
+                              fontSize: 16,
+                              lineHeight: 24,
+                            }}
+                            tagsStyles={defaultHtmlStyles.tagsStyles}
+                            enableExperimentalMarginCollapsing={true}
+                          />
+                        </View>
+                        {shouldCollapseRationale(event.rationale) && (
+                          <TouchableOpacity
+                            onPress={() => toggleRationale(event.id)}
+                            className="mt-3 flex-row items-center justify-center"
+                          >
+                            <Text className="text-blue-600 font-semibold text-sm">
+                              {expandedRationale.has(event.id) ? 'Read Less' : 'Read More'}
+                            </Text>
+                            <Ionicons 
+                              name={expandedRationale.has(event.id) ? 'chevron-up' : 'chevron-down'} 
+                              size={16} 
+                              color="#2563eb" 
+                              style={{ marginLeft: 4 }}
+                            />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
                   )}
                   
-                  <View className="space-y-2 mb-4">
+                  <View className="space-y-2.5 mb-4">
                     <View className="flex-row items-center">
-                      <Ionicons name="calendar-outline" size={14} color="#6b7280" />
-                      <Text className="text-sm text-slate-600 ml-2">
+                      <Ionicons name="calendar-outline" size={18} color="#6b7280" />
+                      <Text className="text-base text-slate-600 ml-2">
                         {formatDate(event.start_date)}
                         {event.start_date !== event.end_date && ` - ${formatDate(event.end_date)}`}
                       </Text>
                     </View>
                     
                     <View className="flex-row items-center">
-                      <Ionicons name="time-outline" size={14} color="#6b7280" />
-                      <Text className="text-sm text-slate-600 ml-2">
+                      <Ionicons name="time-outline" size={18} color="#6b7280" />
+                      <Text className="text-base text-slate-600 ml-2">
                         {formatTime(event.start_time)} - {formatTime(event.end_time)}
                       </Text>
                     </View>
@@ -647,8 +938,8 @@ export default function MyEvents() {
                     {/* Check-in Window Info */}
                     {(event.check_in_before_minutes || event.check_in_during_minutes) && (
                       <View className="flex-row items-center">
-                        <Ionicons name="checkmark-circle-outline" size={14} color="#2563eb" />
-                        <Text className="text-sm text-blue-600 ml-2">
+                        <Ionicons name="checkmark-circle-outline" size={18} color="#2563eb" />
+                        <Text className="text-base text-blue-600 ml-2">
                           Check-in: {formatCheckInTime(event)} - {formatCheckInEndTime(event)}
                         </Text>
                       </View>
@@ -656,56 +947,137 @@ export default function MyEvents() {
                     
                     {event.venue && (
                       <View className="flex-row items-center">
-                        <Ionicons name="location-outline" size={14} color="#6b7280" />
-                        <Text className="text-sm text-slate-600 ml-2" numberOfLines={1}>
+                        <Ionicons name="location-outline" size={18} color="#6b7280" />
+                        <Text className="text-base text-slate-600 ml-2" numberOfLines={1}>
                           {event.venue}
                         </Text>
                       </View>
                     )}
                   </View>
                   
-                  {/* Action Buttons */}
-                  <View className="gap-4">
+                  {/* Action Buttons - 3x3 Grid */}
+                  <View 
+                    style={{
+                      flexDirection: 'row',
+                      flexWrap: 'wrap',
+                      marginTop: 8,
+                      marginHorizontal: -4,
+                    }}
+                  >
+                    {/* Row 1 - Primary Actions (Navy Blue) */}
                     <TouchableOpacity
                       onPress={() => router.push(`/event-details?eventId=${event.id}`)}
-                      className="w-full px-4 py-4 bg-blue-600 rounded-lg"
+                      style={{
+                        width: '31%',
+                        margin: '1%',
+                        backgroundColor: '#1e40af',
+                        borderRadius: 10,
+                        padding: 12,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minHeight: 75,
+                      }}
                     >
-                      <Text className="text-white text-base text-center font-semibold">View Details</Text>
+                      <Ionicons name="information-circle" size={24} color="#ffffff" />
+                      <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
+                        View Details
+                      </Text>
                     </TouchableOpacity>
                     
                     <TouchableOpacity
                       onPress={() => handleGenerateQR(event)}
-                      className="w-full px-4 py-4 bg-green-600 rounded-lg"
+                      style={{
+                        width: '31%',
+                        margin: '1%',
+                        backgroundColor: '#1e40af',
+                        borderRadius: 10,
+                        padding: 12,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minHeight: 75,
+                      }}
                     >
-                      <Text className="text-white text-base text-center font-semibold">Generate QR Code</Text>
+                      <Ionicons name="qr-code" size={24} color="#ffffff" />
+                      <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
+                        Generate QR Code
+                      </Text>
                     </TouchableOpacity>
                     
                     <TouchableOpacity
                       onPress={() => handleTakeEvaluation(event)}
-                      className="w-full px-4 py-4 bg-purple-600 rounded-lg"
+                      style={{
+                        width: '31%',
+                        margin: '1%',
+                        backgroundColor: '#1e40af',
+                        borderRadius: 10,
+                        padding: 12,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minHeight: 75,
+                      }}
                     >
-                      <Text className="text-white text-base text-center font-semibold">Take Evaluation</Text>
+                      <Ionicons name="clipboard-outline" size={24} color="#ffffff" />
+                      <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
+                        Take Evaluation
+                      </Text>
                     </TouchableOpacity>
                     
+                    {/* Row 2 - Secondary Actions (Lighter Blue) & Destructive (Red) */}
                     <TouchableOpacity
                       onPress={() => router.push(`/certificate?eventId=${event.id}`)}
-                      className="w-full px-4 py-4 bg-amber-600 rounded-lg"
+                      style={{
+                        width: '31%',
+                        margin: '1%',
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 10,
+                        padding: 12,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minHeight: 75,
+                      }}
                     >
-                      <Text className="text-white text-base text-center font-semibold">Generate Certificate</Text>
+                      <Ionicons name="ribbon" size={24} color="#ffffff" />
+                      <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
+                        Generate Certificate
+                      </Text>
                     </TouchableOpacity>
                           
-                          <TouchableOpacity
-                            onPress={() => handleSnapPhoto(event)}
-                            className="w-full px-4 py-4 bg-blue-600 rounded-lg"
-                          >
-                            <Text className="text-white text-base text-center font-semibold">Snap Photo</Text>
-                          </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleSnapPhoto(event)}
+                      style={{
+                        width: '31%',
+                        margin: '1%',
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 10,
+                        padding: 12,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minHeight: 75,
+                      }}
+                    >
+                      <Ionicons name="camera" size={24} color="#ffffff" />
+                      <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
+                        Snap Photo
+                      </Text>
+                    </TouchableOpacity>
                     
                     <TouchableOpacity
                       onPress={() => handleUnregister(event.id)}
-                      className="w-full px-4 py-4 bg-red-600 rounded-lg"
+                      style={{
+                        width: '31%',
+                        margin: '1%',
+                        backgroundColor: '#dc2626',
+                        borderRadius: 10,
+                        padding: 12,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minHeight: 75,
+                      }}
                     >
-                      <Text className="text-white text-base text-center font-semibold">Unregister</Text>
+                      <Ionicons name="person-remove" size={24} color="#ffffff" />
+                      <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
+                        Unregister
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>

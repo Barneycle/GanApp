@@ -250,8 +250,11 @@ export default function RegistrationScreen() {
       }
 
       if (result.user) {
-        // Registration successful - redirect to profile setup
-        router.replace('/setup-profile');
+        // Registration successful - wait a moment for auth state to fully update
+        // Then redirect to profile setup (Facebook's approach: new users always go to setup-profile)
+        setTimeout(() => {
+          router.replace('/setup-profile');
+        }, 200);
         return;
       }
 

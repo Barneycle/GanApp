@@ -151,6 +151,11 @@ export const Events = () => {
   const [cancellationDate, setCancellationDate] = useState('');
   const [cancellationNotes, setCancellationNotes] = useState('');
   const [submittingCancellation, setSubmittingCancellation] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState('all'); // 'all', 'upcoming', 'past'
+  const [venueFilter, setVenueFilter] = useState('all');
+  const [sortOption, setSortOption] = useState('date-asc'); // 'date-asc', 'date-desc', 'title-asc', 'title-desc', 'participants-asc', 'participants-desc'
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     loadEvents();
@@ -476,6 +481,54 @@ export const Events = () => {
     });
   };
 
+  // Get unique venues from events
+  const uniqueVenues = [...new Set(events.map(event => event.venue).filter(v => v && v !== 'Location TBD' && v.trim() !== ''))].sort();
+
+  // Filter and sort events
+  const filteredAndSortedEvents = events.filter(event => {
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = 
+        event.title.toLowerCase().includes(query) ||
+        (event.venue && event.venue.toLowerCase().includes(query)) ||
+        (event.rationale && event.rationale.toLowerCase().includes(query));
+      if (!matchesSearch) return false;
+    }
+
+    // Date filter
+    const now = new Date();
+    if (dateFilter === 'upcoming') {
+      if (new Date(event.start_date) < now) return false;
+    } else if (dateFilter === 'past') {
+      if (new Date(event.end_date) >= now) return false;
+    }
+
+    // Venue filter
+    if (venueFilter !== 'all' && event.venue !== venueFilter) {
+      return false;
+    }
+
+    return true;
+  }).sort((a, b) => {
+    switch (sortOption) {
+      case 'date-asc':
+        return new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
+      case 'date-desc':
+        return new Date(b.start_date).getTime() - new Date(a.start_date).getTime();
+      case 'title-asc':
+        return a.title.localeCompare(b.title);
+      case 'title-desc':
+        return b.title.localeCompare(a.title);
+      case 'participants-asc':
+        return (a.current_participants || 0) - (b.current_participants || 0);
+      case 'participants-desc':
+        return (b.current_participants || 0) - (a.current_participants || 0);
+      default:
+        return 0;
+    }
+  });
+
   if (loading) {
     return (
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
@@ -583,6 +636,129 @@ export const Events = () => {
         <div className="text-center mb-8 sm:mb-12">
         </div>
 
+        {/* Search and Filter Bar */}
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8">
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Search Bar */}
+            <div className="flex-1">
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search events by title, venue, or description..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Filter Button */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              Filters & Sort
+            </button>
+          </div>
+
+          {/* Filters Panel */}
+          {showFilters && (
+            <div className="mt-6 pt-6 border-t border-slate-200">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Date Filter */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Date</label>
+                  <div className="flex flex-wrap gap-2">
+                    {['all', 'upcoming', 'past'].map((filter) => (
+                      <button
+                        key={filter}
+                        onClick={() => setDateFilter(filter)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          dateFilter === filter
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        {filter === 'all' ? 'All Events' : filter === 'upcoming' ? 'Upcoming' : 'Past'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Venue Filter */}
+                {uniqueVenues.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Venue</label>
+                    <select
+                      value={venueFilter}
+                      onChange={(e) => setVenueFilter(e.target.value)}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="all">All Venues</option>
+                      {uniqueVenues.map((venue) => (
+                        <option key={venue} value={venue}>{venue}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Sort Options */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Sort By</label>
+                  <select
+                    value={sortOption}
+                    onChange={(e) => setSortOption(e.target.value)}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="date-asc">Date (Earliest First)</option>
+                    <option value="date-desc">Date (Latest First)</option>
+                    <option value="title-asc">Title (A-Z)</option>
+                    <option value="title-desc">Title (Z-A)</option>
+                    <option value="participants-asc">Participants (Fewest First)</option>
+                    <option value="participants-desc">Participants (Most First)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Clear Filters */}
+              <div className="mt-4 pt-4 border-t border-slate-200">
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setDateFilter('all');
+                    setVenueFilter('all');
+                    setSortOption('date-asc');
+                  }}
+                  className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-medium text-sm"
+                >
+                  Clear All Filters
+                </button>
+              </div>
+
+              {/* Results Count */}
+              <div className="mt-4 text-sm text-slate-600">
+                Showing {filteredAndSortedEvents.length} of {events.length} events
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Call to Action for Unauthenticated Users */}
         {!user && (
           <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8 text-center">
@@ -606,7 +782,7 @@ export const Events = () => {
         )}
 
         {/* Events Grid */}
-        {events.length === 0 ? (
+        {filteredAndSortedEvents.length === 0 && events.length === 0 ? (
           <div className="text-center py-12">
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto mb-8">
               <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -814,9 +990,30 @@ export const Events = () => {
               </div>
             ) : null}
           </div>
+        ) : filteredAndSortedEvents.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto">
+              <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <h3 className="text-xl font-semibold text-slate-800 mb-2">No Events Match Your Filters</h3>
+              <p className="text-slate-600 mb-4">Try adjusting your search or filters.</p>
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setDateFilter('all');
+                  setVenueFilter('all');
+                  setSortOption('date-asc');
+                }}
+                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
+              >
+                Clear Filters
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {events.map((event) => (
+            {filteredAndSortedEvents.map((event) => (
               <div key={event.id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden">
                 {/* Event Banner */}
                 {event.banner_url && (

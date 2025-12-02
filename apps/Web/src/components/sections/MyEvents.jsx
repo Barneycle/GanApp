@@ -20,6 +20,11 @@ export const MyEvents = () => {
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [qrEvent, setQrEvent] = useState(null);
   const [eligibilityMap, setEligibilityMap] = useState({}); // Map of eventId -> eligibility status
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState('all'); // 'all', 'upcoming', 'ongoing', 'completed'
+  const [venueFilter, setVenueFilter] = useState('all');
+  const [sortOption, setSortOption] = useState('date-asc'); // 'date-asc', 'date-desc', 'title-asc', 'title-desc', 'registration-asc', 'registration-desc'
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -143,6 +148,59 @@ export const MyEvents = () => {
       return { status: 'completed', text: 'Completed', color: 'bg-gray-100 text-gray-800 border-gray-200' };
     }
   };
+
+  // Get unique venues from registered events
+  const uniqueVenues = [...new Set(registeredEvents.map(event => event.venue).filter(v => v && v !== 'Location TBD' && v.trim() !== ''))].sort();
+
+  // Filter and sort events
+  const filteredAndSortedEvents = registeredEvents.filter(event => {
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = 
+        event.title.toLowerCase().includes(query) ||
+        (event.venue && event.venue.toLowerCase().includes(query)) ||
+        (event.rationale && event.rationale.toLowerCase().includes(query));
+      if (!matchesSearch) return false;
+    }
+
+    // Status filter
+    const now = new Date();
+    const startDate = new Date(`${event.start_date}T${event.start_time}`);
+    const endDate = new Date(`${event.end_date}T${event.end_time}`);
+    
+    if (dateFilter === 'upcoming') {
+      if (now >= startDate) return false;
+    } else if (dateFilter === 'ongoing') {
+      if (now < startDate || now > endDate) return false;
+    } else if (dateFilter === 'completed') {
+      if (now <= endDate) return false;
+    }
+
+    // Venue filter
+    if (venueFilter !== 'all' && event.venue !== venueFilter) {
+      return false;
+    }
+
+    return true;
+  }).sort((a, b) => {
+    switch (sortOption) {
+      case 'date-asc':
+        return new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
+      case 'date-desc':
+        return new Date(b.start_date).getTime() - new Date(a.start_date).getTime();
+      case 'title-asc':
+        return a.title.localeCompare(b.title);
+      case 'title-desc':
+        return b.title.localeCompare(a.title);
+      case 'registration-asc':
+        return new Date(a.registration_date).getTime() - new Date(b.registration_date).getTime();
+      case 'registration-desc':
+        return new Date(b.registration_date).getTime() - new Date(a.registration_date).getTime();
+      default:
+        return 0;
+    }
+  });
 
   const handleUnregister = async (eventId) => {
     if (!user?.id) return;
@@ -309,9 +367,162 @@ export const MyEvents = () => {
           <p className="text-slate-600 text-lg">Events you've registered for</p>
         </div>
 
+        {/* Search and Filter Bar */}
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8">
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Search Bar */}
+            <div className="flex-1">
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search your events by title, venue, or description..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Filter Button */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              Filters & Sort
+            </button>
+          </div>
+
+          {/* Filters Panel */}
+          {showFilters && (
+            <div className="mt-6 pt-6 border-t border-slate-200">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Status Filter */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Status</label>
+                  <div className="flex flex-wrap gap-2">
+                    {['all', 'upcoming', 'ongoing', 'completed'].map((filter) => (
+                      <button
+                        key={filter}
+                        onClick={() => setDateFilter(filter)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          dateFilter === filter
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        {filter === 'all' ? 'All Events' : filter === 'upcoming' ? 'Upcoming' : filter === 'ongoing' ? 'Ongoing' : 'Completed'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Venue Filter */}
+                {uniqueVenues.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Venue</label>
+                    <select
+                      value={venueFilter}
+                      onChange={(e) => setVenueFilter(e.target.value)}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="all">All Venues</option>
+                      {uniqueVenues.map((venue) => (
+                        <option key={venue} value={venue}>{venue}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Sort Options */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Sort By</label>
+                  <select
+                    value={sortOption}
+                    onChange={(e) => setSortOption(e.target.value)}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="date-asc">Date (Earliest First)</option>
+                    <option value="date-desc">Date (Latest First)</option>
+                    <option value="title-asc">Title (A-Z)</option>
+                    <option value="title-desc">Title (Z-A)</option>
+                    <option value="registration-asc">Registration Date (Oldest First)</option>
+                    <option value="registration-desc">Registration Date (Newest First)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Clear Filters */}
+              <div className="mt-4 pt-4 border-t border-slate-200">
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setDateFilter('all');
+                    setVenueFilter('all');
+                    setSortOption('date-asc');
+                  }}
+                  className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-medium text-sm"
+                >
+                  Clear All Filters
+                </button>
+              </div>
+
+              {/* Results Count */}
+              <div className="mt-4 text-sm text-slate-600">
+                Showing {filteredAndSortedEvents.length} of {registeredEvents.length} events
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Registered Events Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {registeredEvents.map((event) => {
+        {filteredAndSortedEvents.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto">
+              <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <h3 className="text-xl font-semibold text-slate-800 mb-2">
+                {registeredEvents.length === 0 ? 'No Registered Events' : 'No Events Match Your Filters'}
+              </h3>
+              <p className="text-slate-600 mb-4">
+                {registeredEvents.length === 0 
+                  ? 'You haven\'t registered for any events yet.'
+                  : 'Try adjusting your search or filters.'}
+              </p>
+              {registeredEvents.length > 0 && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setDateFilter('all');
+                    setVenueFilter('all');
+                    setSortOption('date-asc');
+                  }}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredAndSortedEvents.map((event) => {
             const eventStatus = getEventStatus(event);
             
             return (
@@ -456,7 +667,8 @@ export const MyEvents = () => {
               </div>
             );
           })}
-        </div>
+          </div>
+        )}
       </div>
       
       {/* Event Modal */}

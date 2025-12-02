@@ -59,11 +59,21 @@ export default function EventDetails() {
   const [loadingSpeakers, setLoadingSpeakers] = useState(false);
   const [loadingSponsors, setLoadingSponsors] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [isRationaleExpanded, setIsRationaleExpanded] = useState(false);
   const insets = useSafeAreaInsets();
   
   const router = useRouter();
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const { user } = useAuth();
+
+  const shouldCollapseRationale = (rationale: string): boolean => {
+    if (!rationale) return false;
+    const textContent = rationale.replace(/<[^>]*>/g, '');
+    const hasMultipleParagraphs = (rationale.match(/<p>/g) || []).length > 1;
+    return textContent.length > 300 || hasMultipleParagraphs;
+  };
 
   useEffect(() => {
     if (eventId) {
@@ -73,6 +83,15 @@ export default function EventDetails() {
       setLoading(false);
     }
   }, [eventId]);
+
+  useEffect(() => {
+    // Check registration status when user changes
+    if (user && eventId) {
+      checkRegistrationStatus(eventId);
+    } else {
+      setIsRegistered(false);
+    }
+  }, [user, eventId]);
 
   const loadEventDetails = async () => {
     try {
@@ -93,10 +112,66 @@ export default function EventDetails() {
       loadSpeakers(eventId!);
       loadSponsors(eventId!);
       
+      // Check if user is registered for this event
+      if (user) {
+        checkRegistrationStatus(eventId!);
+      }
+      
     } catch (err) {
       setError('Failed to load event details');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkRegistrationStatus = async (eventId: string) => {
+    if (!user) return;
+    
+    try {
+      const result = await EventService.getUserRegistration(eventId, user.id);
+      setIsRegistered(!!result.registration);
+    } catch (err) {
+      console.error('Failed to check registration status:', err);
+    }
+  };
+
+  const handleRegister = async () => {
+    if (!user) {
+      Alert.alert(
+        'Login Required',
+        'Please log in to register for this event.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Login', onPress: () => router.push('/login') }
+        ]
+      );
+      return;
+    }
+
+    if (!eventId || !event) return;
+
+    setIsRegistering(true);
+    setError(null);
+
+    try {
+      const result = await EventService.registerForEvent(eventId, user.id);
+      
+      if (result.error) {
+        Alert.alert('Registration Failed', result.error);
+      } else if (result.registration) {
+        setIsRegistered(true);
+        // Reload event to update participant count
+        await loadEventDetails();
+        Alert.alert(
+          'Registration Successful!',
+          'You have successfully registered for this event.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to register for event. Please try again.');
+    } finally {
+      setIsRegistering(false);
     }
   };
 
@@ -247,6 +322,47 @@ export default function EventDetails() {
                 )}
               </View>
 
+              {/* Register Button - Above Event Rationale */}
+              <View className="mb-6">
+                {isRegistered ? (
+                  <View className="bg-green-50 border-2 border-green-500 rounded-2xl p-4">
+                    <View className="flex-row items-center justify-center">
+                      <Ionicons name="checkmark-circle" size={24} color="#10b981" />
+                      <Text className="text-green-800 font-semibold text-lg ml-2">
+                        Registered
+                      </Text>
+                    </View>
+                    <Text className="text-green-700 text-center mt-2 text-sm">
+                      You are registered for this event
+                    </Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    className={`bg-blue-700 rounded-2xl py-4 px-6 shadow-lg ${isRegistering ? 'opacity-50' : ''}`}
+                    onPress={handleRegister}
+                    disabled={isRegistering}
+                  >
+                    <View className="flex-row items-center justify-center">
+                      {isRegistering ? (
+                        <>
+                          <ActivityIndicator size="small" color="#ffffff" />
+                          <Text className="text-white font-bold text-lg ml-3">
+                            Registering...
+                          </Text>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons name="person-add" size={24} color="#ffffff" />
+                          <Text className="text-white font-bold text-lg ml-3">
+                            Register for Event
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                )}
+              </View>
+
               {/* Event Rationale */}
               {event.rationale && (
                 <View className="mb-6">
@@ -257,13 +373,31 @@ export default function EventDetails() {
                     <Text className="text-lg font-semibold text-gray-800">Event Rationale</Text>
                   </View>
                   <View className="bg-blue-50 p-4 rounded-xl">
-                    <RenderHTML
-                      contentWidth={getHtmlContentWidth(80)}
-                      source={{ html: decodeHtml(event.rationale) }}
-                      baseStyle={defaultHtmlStyles.baseStyle}
-                      tagsStyles={defaultHtmlStyles.tagsStyles}
-                      enableExperimentalMarginCollapsing={true}
-                    />
+                    <View style={{ maxHeight: isRationaleExpanded ? undefined : 150, overflow: 'hidden' }}>
+                      <RenderHTML
+                        contentWidth={getHtmlContentWidth(80)}
+                        source={{ html: decodeHtml(event.rationale) }}
+                        baseStyle={defaultHtmlStyles.baseStyle}
+                        tagsStyles={defaultHtmlStyles.tagsStyles}
+                        enableExperimentalMarginCollapsing={true}
+                      />
+                    </View>
+                    {shouldCollapseRationale(event.rationale) && (
+                      <TouchableOpacity
+                        onPress={() => setIsRationaleExpanded(!isRationaleExpanded)}
+                        className="mt-3 flex-row items-center justify-center"
+                      >
+                        <Text className="text-blue-600 font-semibold text-sm">
+                          {isRationaleExpanded ? 'Read Less' : 'Read More'}
+                        </Text>
+                        <Ionicons 
+                          name={isRationaleExpanded ? 'chevron-up' : 'chevron-down'} 
+                          size={16} 
+                          color="#2563eb" 
+                          style={{ marginLeft: 4 }}
+                        />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               )}
