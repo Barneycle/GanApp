@@ -5,7 +5,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useEffect } from 'react';
 import * as Notifications from 'expo-notifications';
 import { AuthProvider } from '../lib/authContext';
-import { prepareMediaAccess } from '../lib/mediaAccess';
 import './global.css';
 
 // Configure notification behavior
@@ -43,11 +42,6 @@ function NotificationHandler() {
 }
 
 export default function RootLayout() {
-  useEffect(() => {
-    // Request media permissions once on app start
-    prepareMediaAccess();
-  }, []);
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>

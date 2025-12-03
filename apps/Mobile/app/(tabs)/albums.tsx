@@ -206,11 +206,45 @@ export default function Albums() {
     itemVisiblePercentThreshold: 50,
   }).current;
 
+  // Helper function to request media permissions only when needed (iOS)
+  const requestMediaPermissionsIfNeeded = async (): Promise<boolean> => {
+    if (Platform.OS !== 'ios') {
+      // Android doesn't need permissions (uses MediaStore API)
+      return true;
+    }
+
+    try {
+      const { status, canAskAgain } = await MediaLibrary.getPermissionsAsync();
+      
+      if (status === 'granted') {
+        return true;
+      }
+      
+      if (status === 'denied' && !canAskAgain) {
+        // Permission permanently denied
+        return false;
+      }
+      
+      // Request permission
+      const { status: newStatus } = await MediaLibrary.requestPermissionsAsync(false);
+      return newStatus === 'granted';
+    } catch (error) {
+      console.error('Error requesting media permissions:', error);
+      return false;
+    }
+  };
+
   const downloadPhoto = async (photo: EventPhoto) => {
     if (downloadingPhotoId === photo.id) return;
     
     setDownloadingPhotoId(photo.id);
     try {
+      // Request permissions if needed (iOS only)
+      const hasPermission = await requestMediaPermissionsIfNeeded();
+      if (!hasPermission) {
+        throw new Error('Media library permission is required to save photos');
+      }
+
       // Download image to cache first
       const fileName = photo.file_name || `photo_${photo.id}.jpg`;
       const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
@@ -293,7 +327,7 @@ export default function Albums() {
         // Android: Use MediaStore API (no permissions needed on Android 10+)
         await saveFileToGanApp(assetUri, savedFileName, fileType);
       } else {
-        // iOS: Use MediaLibrary (requires permissions)
+        // iOS: Use MediaLibrary (permissions already checked above)
         const asset = await MediaLibrary.createAssetAsync(assetUri);
         const album = await MediaLibrary.getAlbumAsync('GanApp');
         if (album) {
@@ -321,6 +355,13 @@ export default function Albums() {
     let failCount = 0;
 
     try {
+      // Request permissions if needed (iOS only) - check once at the start
+      const hasPermission = await requestMediaPermissionsIfNeeded();
+      if (!hasPermission) {
+        setIsDownloadingAll(false);
+        throw new Error('Media library permission is required to save photos');
+      }
+
       // Filter out already downloaded photos
       const photosToDownload = event.photos.filter(photo => !downloadedPhotoIds.has(photo.id));
 
@@ -330,8 +371,8 @@ export default function Albums() {
       }
 
       // Download each photo sequentially
-      // Note: On Android, we use sharing (no permissions needed)
-      // On iOS, permissions are requested per-photo if needed
+      // Note: On Android, we use MediaStore API (no permissions needed)
+      // On iOS, permissions are already checked above
       for (let i = 0; i < photosToDownload.length; i++) {
         const photo = photosToDownload[i];
         setDownloadAllProgress({ current: i + 1, total: photosToDownload.length });
