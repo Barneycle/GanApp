@@ -31,9 +31,6 @@ export default function Profile() {
   const [isLoading, setIsLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
   const [formData, setFormData] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
     affiliated_organization: ''
   });
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -49,7 +46,6 @@ export default function Profile() {
   const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [showAlbumDropdown, setShowAlbumDropdown] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [emailConfirmationMessage, setEmailConfirmationMessage] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -77,9 +73,6 @@ export default function Profile() {
   useEffect(() => {
     if (userProfile && !isEditMode) {
       setFormData({
-        first_name: userProfile.first_name || '',
-        last_name: userProfile.last_name || '',
-        email: userProfile.email || '',
         affiliated_organization: userProfile.affiliated_organization || ''
       });
       setAvatarPreview(userProfile.avatar_url || null);
@@ -90,9 +83,6 @@ export default function Profile() {
   useEffect(() => {
     if (isEditMode && userProfile) {
       setFormData({
-        first_name: userProfile.first_name || '',
-        last_name: userProfile.last_name || '',
-        email: userProfile.email || '',
         affiliated_organization: userProfile.affiliated_organization || ''
       });
       setAvatarPreview(userProfile.avatar_url || null);
@@ -547,10 +537,7 @@ export default function Profile() {
 
       // Prepare update data
       const updateData: any = {
-        first_name: formData.first_name.trim(),
-        last_name: formData.last_name.trim(),
-        affiliated_organization: formData.affiliated_organization.trim(),
-        originalEmail: userProfile?.email || user.email
+        affiliated_organization: formData.affiliated_organization.trim()
       };
 
       // Add avatar URL if changed or removed
@@ -560,11 +547,6 @@ export default function Profile() {
       } else if (!avatarPreview && userProfile?.avatar_url) {
         // Avatar was removed
         updateData.avatar_url = '';
-      }
-
-      // Add email if changed
-      if (formData.email.trim() !== (userProfile?.email || user.email)) {
-        updateData.email = formData.email.trim();
       }
 
       const result = await UserService.updateProfile(user.id, updateData);
@@ -577,49 +559,25 @@ export default function Profile() {
           }
         });
       } else {
-        if (result.needsEmailConfirmation) {
-          setSuccess(true);
-          setError(null);
-          setEmailConfirmationMessage(true);
-          InteractionManager.runAfterInteractions(() => {
-            if (isMountedRef.current) {
-              Alert.alert(
-                'Profile Updated',
-                `Profile updated successfully! Please check your new email address (${formData.email}) to confirm the email change.`,
-                [
-                  {
-                    text: 'OK',
-                    onPress: async () => {
-                      await refreshUser();
-                      await loadUserProfile();
-                      setIsEditMode(false);
-                    }
+        setSuccess(true);
+        InteractionManager.runAfterInteractions(() => {
+          if (isMountedRef.current) {
+            Alert.alert(
+              'Success',
+              'Your profile has been updated successfully!',
+              [
+                {
+                  text: 'OK',
+                  onPress: async () => {
+                    await refreshUser();
+                    await loadUserProfile();
+                    setIsEditMode(false);
                   }
-                ]
-              );
-            }
-          });
-        } else {
-          setSuccess(true);
-          InteractionManager.runAfterInteractions(() => {
-            if (isMountedRef.current) {
-              Alert.alert(
-                'Success',
-                'Your profile has been updated successfully!',
-                [
-                  {
-                    text: 'OK',
-                    onPress: async () => {
-                      await refreshUser();
-                      await loadUserProfile();
-                      setIsEditMode(false);
-                    }
-                  }
-                ]
-              );
-            }
-          });
-        }
+                }
+              ]
+            );
+          }
+        });
       }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
@@ -632,7 +590,6 @@ export default function Profile() {
     setIsEditMode(false);
     setError(null);
     setSuccess(false);
-    setEmailConfirmationMessage(false);
     setShowPasswordChange(false);
     setPasswordError(null);
     setPasswordSuccess(false);
@@ -643,9 +600,6 @@ export default function Profile() {
     });
     if (userProfile) {
       setFormData({
-        first_name: userProfile.first_name || '',
-        last_name: userProfile.last_name || '',
-        email: userProfile.email || '',
         affiliated_organization: userProfile.affiliated_organization || ''
       });
       setAvatarPreview(userProfile.avatar_url || null);
@@ -726,40 +680,52 @@ export default function Profile() {
                   <Ionicons name="person" size={80} color="white" />
                 </View>
               )}
-              
-              <Text className="text-2xl font-bold text-slate-800 mb-1">
-                {userProfile?.first_name} {userProfile?.last_name}
-              </Text>
-              <Text className="text-slate-600 mb-2 capitalize">{userProfile?.role}</Text>
-              <Text className="text-slate-500 text-sm">{userProfile?.email}</Text>
             </View>
 
             {/* Profile Information */}
             <View className="border-t border-slate-200 pt-6 mb-6">
-              <Text className="text-lg font-semibold text-slate-800 mb-4">Account Information</Text>
-              
-              <View className="space-y-3">
+              <View className="space-y-3 items-center">
+                    {/* Name */}
+                    {(userProfile?.first_name || userProfile?.last_name) && (
+                      <View className="items-center">
+                        <Text className="text-2xl font-bold text-slate-800 mb-1 text-center">
+                          {userProfile?.first_name} {userProfile?.last_name}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Role */}
+                    {userProfile?.role && (
+                      <View className="items-center">
+                        <Text className="text-slate-600 mb-2 capitalize text-center">{userProfile.role}</Text>
+                      </View>
+                    )}
+
+                    {/* Email */}
+                    {userProfile?.email && (
+                      <View className="items-center">
+                        <Text className="text-slate-500 text-sm text-center">{userProfile.email}</Text>
+                      </View>
+                    )}
+
                     {/* Affiliated Organization */}
                     {userProfile?.affiliated_organization && (
-                      <View className="flex-row items-center">
-                        <Ionicons name="business-outline" size={20} color="#64748b" style={{ marginRight: 12 }} />
-                        <Text className="text-slate-700 flex-1">{userProfile.affiliated_organization}</Text>
+                      <View className="items-center">
+                        <Text className="text-slate-700 text-center">{userProfile.affiliated_organization}</Text>
                       </View>
                     )}
                     
                 {/* Phone */}
                 {userProfile?.phone && (
-                  <View className="flex-row items-center">
-                    <Ionicons name="call" size={20} color="#64748b" style={{ marginRight: 12 }} />
-                    <Text className="text-slate-700 flex-1">{userProfile.phone}</Text>
+                  <View className="items-center">
+                    <Text className="text-slate-700 text-center">{userProfile.phone}</Text>
                   </View>
                 )}
                 
                 {/* Member Since */}
                 {userProfile?.created_at && (
-                  <View className="flex-row items-center">
-                    <Ionicons name="calendar" size={20} color="#64748b" style={{ marginRight: 12 }} />
-                    <Text className="text-slate-700 flex-1">
+                  <View className="items-center">
+                    <Text className="text-slate-700 text-center">
                       Member since {new Date(userProfile.created_at).toLocaleDateString()}
                     </Text>
                   </View>
@@ -809,7 +775,7 @@ export default function Profile() {
                     ) : (
                       <View className="w-48 h-48 bg-blue-600 rounded-full items-center justify-center">
                         <Text className="text-white text-6xl font-bold">
-                          {formData.first_name?.[0] || formData.email?.[0] || 'U'}
+                          {userProfile?.first_name?.[0] || userProfile?.last_name?.[0] || userProfile?.email?.[0] || 'U'}
                         </Text>
                       </View>
                     )}
@@ -828,55 +794,6 @@ export default function Profile() {
 
                 {/* Form Fields */}
                 <View className="mb-6">
-                  {/* First Name */}
-                  <View className="mb-4">
-                    <Text className="text-sm font-medium text-slate-700 mb-2">First Name *</Text>
-                    <View className="flex-row items-center border border-slate-300 rounded-xl px-4 bg-white">
-                      <TextInput
-                        value={formData.first_name}
-                        onChangeText={(value) => handleInputChange('first_name', value)}
-                        placeholder="Enter your first name"
-                        placeholderTextColor="#999"
-                        className="flex-1 h-12 text-sm text-slate-800"
-                        editable={!loading}
-                        autoCapitalize="words"
-                      />
-                    </View>
-                  </View>
-
-                  {/* Last Name */}
-                  <View className="mb-4">
-                    <Text className="text-sm font-medium text-slate-700 mb-2">Last Name *</Text>
-                    <View className="flex-row items-center border border-slate-300 rounded-xl px-4 bg-white">
-                      <TextInput
-                        value={formData.last_name}
-                        onChangeText={(value) => handleInputChange('last_name', value)}
-                        placeholder="Enter your last name"
-                        placeholderTextColor="#999"
-                        className="flex-1 h-12 text-sm text-slate-800"
-                        editable={!loading}
-                        autoCapitalize="words"
-                      />
-                    </View>
-                  </View>
-
-                  {/* Email */}
-                  <View className="mb-4">
-                    <Text className="text-sm font-medium text-slate-700 mb-2">Email *</Text>
-                    <View className="flex-row items-center border border-slate-300 rounded-xl px-4 bg-white">
-                      <TextInput
-                        value={formData.email}
-                        onChangeText={(value) => handleInputChange('email', value)}
-                        placeholder="Enter your email address"
-                        placeholderTextColor="#999"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        className="flex-1 h-12 text-sm text-slate-800"
-                        editable={!loading}
-                      />
-                    </View>
-                  </View>
-
                   {/* Affiliated Organization */}
                   <View className="mb-4">
                     <Text className="text-sm font-medium text-slate-700 mb-2">Affiliated Organization *</Text>

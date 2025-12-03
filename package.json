@@ -9,7 +9,9 @@
     "build:web": "cd apps/Web && npm run build",
     "build:mobile": "cd apps/Mobile && npm run build",
     "install:all": "npm install && cd apps/Web && npm install && cd ../Mobile && npm install",
-    "send-event-reminders": "node scripts/send-event-reminders.js"
+    "send-event-reminders": "node scripts/send-event-reminders.js",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "devDependencies": {
     "rimraf": "^5.0.0"
@@ -22,5 +24,10 @@
     "type": "git",
     "url": "https://github.com/your-username/ganapp.git"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "expo": "~53.0.24",
+    "react": "19.0.0",
+    "react-native": "0.79.6"
+  }
 }

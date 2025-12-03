@@ -586,9 +586,17 @@ export default function SetupProfileScreen() {
                 <Text className="text-4xl font-bold text-white mb-2 text-center">
                   Set Up Your Profile
                 </Text>
-                <Text className="text-lg text-blue-200 text-center">
+                <Text className="text-lg text-blue-200 text-center mb-3">
                   Complete your profile to get started
                 </Text>
+                <View className="bg-amber-500/20 border border-amber-500/30 rounded-xl p-3 mt-2">
+                  <View className="flex-row items-start">
+                    <Ionicons name="information-circle" size={20} color="#fbbf24" style={{ marginRight: 8, marginTop: 2 }} />
+                    <Text className="text-amber-200 text-sm flex-1">
+                      Make sure to use your real name as you can't change it later.
+                    </Text>
+                  </View>
+                </View>
               </View>
 
               {/* Profile Card */}

@@ -5,19 +5,29 @@ const path = require('path');
 /**
  * Copy native module files to Android project
  * This runs AFTER prebuild cleans the directory, so it recreates the files
+ * CRITICAL: This MUST run even with --clean, so we ensure the directory structure exists
  */
 const copyNativeModuleFiles = (config) => {
   return withDangerousMod(config, [
     'android',
     async (config) => {
+      // CRITICAL: Ensure platformProjectRoot exists - create it if needed
       const platformProjectRoot = config.modRequest.platformProjectRoot;
+      
+      // If platformProjectRoot doesn't exist, create the entire android directory structure
+      if (!fs.existsSync(platformProjectRoot)) {
+        console.log('[MediaStoreSaver Plugin] Android directory does not exist, creating structure...');
+        fs.mkdirSync(platformProjectRoot, { recursive: true });
+      }
+      
       const targetDir = path.join(
         platformProjectRoot,
         'app/src/main/java/com/ganapp/mobile'
       );
 
-      // Ensure target directory exists
+      // Ensure target directory exists (create entire path if needed)
       if (!fs.existsSync(targetDir)) {
+        console.log('[MediaStoreSaver Plugin] Creating directory structure:', targetDir);
         fs.mkdirSync(targetDir, { recursive: true });
       }
 
@@ -138,18 +148,27 @@ class MediaStoreSaverPackage : ReactPackage {
  */
 const modifyMainApplication = (config) => {
   return withMainApplication(config, (config) => {
+    const platformProjectRoot = config.modRequest.platformProjectRoot;
     const mainApplicationPath = path.join(
-      config.modRequest.platformProjectRoot,
+      platformProjectRoot,
       'app/src/main/java/com/ganapp/mobile/MainApplication.kt'
     );
 
+    // CRITICAL: Ensure the directory exists before checking for MainApplication.kt
+    const mainApplicationDir = path.dirname(mainApplicationPath);
+    if (!fs.existsSync(mainApplicationDir)) {
+      console.log('[MediaStoreSaver Plugin] MainApplication directory does not exist, creating:', mainApplicationDir);
+      fs.mkdirSync(mainApplicationDir, { recursive: true });
+    }
+
     // Wait a bit and retry if file doesn't exist (handles timing issues with --clean)
-    let retries = 5;
+    // Increase retries and wait time for --clean scenarios
+    let retries = 10;
     while (!fs.existsSync(mainApplicationPath) && retries > 0) {
-      console.log('[MediaStoreSaver Plugin] MainApplication.kt not found, retrying...');
-      // Use a small delay (synchronous check)
+      console.log(`[MediaStoreSaver Plugin] MainApplication.kt not found, retrying... (${retries} attempts remaining)`);
+      // Use a longer delay for --clean scenarios
       const start = Date.now();
-      while (Date.now() - start < 100) { /* wait 100ms */ }
+      while (Date.now() - start < 200) { /* wait 200ms */ }
       retries--;
     }
 
@@ -180,34 +199,47 @@ const modifyMainApplication = (config) => {
         }
       }
 
-      // Add package registration if not present - use more robust pattern matching
+      // Add package registration if not present - use simple and reliable pattern matching
       if (!mainApplication.includes('packages.add(MediaStoreSaverPackage())')) {
-        // Pattern 1: After the comment line (most common)
-        if (mainApplication.match(/\/\/ packages\.add\(MyReactNativePackage\(\)\)/)) {
+        // Find the getPackages function and add registration before return
+        // Match: "return packages" inside getPackages function
+        const getPackagesMatch = mainApplication.match(/override fun getPackages\(\):.*?\{([\s\S]*?)return packages([\s\S]*?)\}/);
+        
+        if (getPackagesMatch) {
+          // Simple approach: find "return packages" and add before it
           mainApplication = mainApplication.replace(
-            /(\/\/ packages\.add\(MyReactNativePackage\(\)\)\s*\n\s*)(return packages)/g,
-            `$1packages.add(MediaStoreSaverPackage())\n            $2`
+            /(\s+)(return packages)/g,
+            (match, whitespace, returnStmt) => {
+              // Only replace if it's inside getPackages function (has packages = PackageList before it)
+              const beforeMatch = mainApplication.substring(0, mainApplication.indexOf(match));
+              if (beforeMatch.includes('val packages = PackageList')) {
+                return `            packages.add(MediaStoreSaverPackage())\n${whitespace}${returnStmt}`;
+              }
+              return match;
+            }
+          );
+          
+          // Double check it was added
+          if (mainApplication.includes('packages.add(MediaStoreSaverPackage())')) {
+            modified = true;
+            console.log('[MediaStoreSaver Plugin] Added package registration (before return)');
+          } else {
+            // Fallback: add after PackageList line
+            mainApplication = mainApplication.replace(
+              /(val packages = PackageList\(this\)\.packages)/g,
+              `$1\n            packages.add(MediaStoreSaverPackage())`
+            );
+            modified = true;
+            console.log('[MediaStoreSaver Plugin] Added package registration (after PackageList)');
+          }
+        } else {
+          // Fallback: add after PackageList
+          mainApplication = mainApplication.replace(
+            /(val packages = PackageList\(this\)\.packages)/g,
+            `$1\n            packages.add(MediaStoreSaverPackage())`
           );
           modified = true;
-          console.log('[MediaStoreSaver Plugin] Added package registration (after comment)');
-        }
-        // Pattern 2: Before return statement (if pattern 1 didn't match)
-        else if (mainApplication.includes('return packages')) {
-          mainApplication = mainApplication.replace(
-            /(\s+)(return packages\s*$)/gm,
-            `            packages.add(MediaStoreSaverPackage())\n$1$2`
-          );
-          modified = true;
-          console.log('[MediaStoreSaver Plugin] Added package registration (before return)');
-        }
-        // Pattern 3: After PackageList (if patterns 1 & 2 didn't match)
-        else {
-          mainApplication = mainApplication.replace(
-            /(val packages = PackageList\(this\)\.packages\s*\n)/g,
-            `$1            packages.add(MediaStoreSaverPackage())\n`
-          );
-          modified = true;
-          console.log('[MediaStoreSaver Plugin] Added package registration (after PackageList)');
+          console.log('[MediaStoreSaver Plugin] Added package registration (fallback after PackageList)');
         }
       } else {
         console.log('[MediaStoreSaver Plugin] Package already registered');
@@ -225,8 +257,21 @@ const modifyMainApplication = (config) => {
         console.log('[MediaStoreSaver Plugin] MainApplication.kt updated successfully');
       }
     } else {
-      console.warn('[MediaStoreSaver Plugin] MainApplication.kt not found at:', mainApplicationPath);
-      console.warn('[MediaStoreSaver Plugin] This might happen with --clean. The file should be created on next prebuild.');
+      console.error('[MediaStoreSaver Plugin] ERROR: MainApplication.kt not found at:', mainApplicationPath);
+      console.error('[MediaStoreSaver Plugin] This should not happen. The file should be created by Expo prebuild.');
+      console.error('[MediaStoreSaver Plugin] Platform project root:', platformProjectRoot);
+      console.error('[MediaStoreSaver Plugin] Directory exists:', fs.existsSync(path.dirname(mainApplicationPath)));
+      
+      // List files in the directory to help debug
+      try {
+        const dirContents = fs.readdirSync(path.dirname(mainApplicationPath));
+        console.error('[MediaStoreSaver Plugin] Directory contents:', dirContents);
+      } catch (e) {
+        console.error('[MediaStoreSaver Plugin] Could not read directory:', e.message);
+      }
+      
+      // Don't throw error, but log it clearly so user knows something is wrong
+      console.error('[MediaStoreSaver Plugin] The plugin will continue, but MainApplication.kt modification was skipped.');
     }
 
     return config;
@@ -244,18 +289,32 @@ const modifyMainApplication = (config) => {
  * - Creating files AFTER prebuild cleans the directory (using withDangerousMod)
  * - Using retry logic to handle timing issues with MainApplication.kt generation
  * - Using multiple pattern matching strategies to ensure registration is added
+ * - Ensuring directory structure exists before creating files
  *
  * Order matters: files must be created before MainApplication.kt is modified
  */
 const withMediaStoreSaver = (config) => {
+  // CRITICAL: Log that plugin is running - this helps verify it executes with --clean
+  console.log('[MediaStoreSaver Plugin] ========================================');
+  console.log('[MediaStoreSaver Plugin] Plugin is executing...');
+  console.log('[MediaStoreSaver Plugin] ========================================');
+  
   // Step 1: Create native module files
   config = copyNativeModuleFiles(config);
 
   // Step 2: Modify MainApplication.kt to register the package
   config = modifyMainApplication(config);
+  
+  console.log('[MediaStoreSaver Plugin] ========================================');
+  console.log('[MediaStoreSaver Plugin] Plugin execution completed');
+  console.log('[MediaStoreSaver Plugin] ========================================');
 
   return config;
 };
 
+// Ensure the plugin is exported correctly
 module.exports = withMediaStoreSaver;
+
+// Also export as default for compatibility
+module.exports.default = withMediaStoreSaver;
 

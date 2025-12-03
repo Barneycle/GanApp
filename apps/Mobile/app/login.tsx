@@ -317,7 +317,10 @@ export default function LoginDashboard() {
             <View className="flex-1 justify-center">
               {/* Header */}
               <View className="items-center mb-12">
-                <Text className="text-6xl font-black text-white mb-6 tracking-tight">GanApp</Text>
+                <Text 
+                  className="text-6xl font-black text-white mb-6 tracking-tight"
+                  style={{ fontFamily: Platform.OS === 'ios' ? 'Times New Roman' : 'serif' }}
+                >GanApp</Text>
                 <Text className="text-2xl font-bold text-white mb-3 text-center">Welcome Back!</Text>
                 <Text className="text-lg text-blue-100 text-center px-4">Sign in to your account</Text>
               </View>
