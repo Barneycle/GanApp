@@ -21,71 +21,6 @@ export class AlbumService {
    */
   static async getEventsWithPhotos(): Promise<{ events: EventWithPhotos[]; error?: string }> {
     try {
-      // First, try to get events with photos from a potential event_photos table
-      // If that doesn't exist, we'll fall back to checking storage
-      const { data: photosData, error: photosError } = await supabase
-        .from('event_photos')
-        .select(`
-          id,
-          event_id,
-          photo_url,
-          uploaded_by,
-          uploaded_at,
-          file_name,
-          events (*)
-        `)
-        .order('uploaded_at', { ascending: false });
-
-      if (photosError) {
-        // If table doesn't exist, try alternative approach - check storage bucket
-        console.log('event_photos table not found, trying storage bucket approach');
-        return await this.getEventsWithPhotosFromStorage();
-      }
-
-      if (!photosData || photosData.length === 0) {
-        return { events: [] };
-      }
-
-      // Group photos by event
-      const eventsMap = new Map<string, EventWithPhotos>();
-
-      photosData.forEach((photo: any) => {
-        const event = photo.events as Event;
-        if (!event) return;
-
-        if (!eventsMap.has(event.id)) {
-          eventsMap.set(event.id, {
-            ...event,
-            photos: [],
-            photo_count: 0,
-          });
-        }
-
-        const eventWithPhotos = eventsMap.get(event.id)!;
-        eventWithPhotos.photos.push({
-          id: photo.id,
-          event_id: photo.event_id,
-          photo_url: photo.photo_url,
-          uploaded_by: photo.uploaded_by,
-          uploaded_at: photo.uploaded_at,
-          file_name: photo.file_name,
-        });
-        eventWithPhotos.photo_count = eventWithPhotos.photos.length;
-      });
-
-      const events = Array.from(eventsMap.values());
-      return { events, error: undefined };
-    } catch (error) {
-      console.error('Error fetching events with photos:', error);
-      return { events: [], error: error instanceof Error ? error.message : 'Failed to load albums' };
-    }
-  }
-
-  /**
-   * Alternative approach: Get events and check storage bucket for photos
-   */
-  static async getEventsWithPhotosFromStorage(): Promise<{ events: EventWithPhotos[]; error?: string }> {
-    try {
       // Get all published events
       const { data: events, error: eventsError } = await supabase
         .from('events')
@@ -152,28 +87,6 @@ export class AlbumService {
    * Get photos for a specific event
    */
   static async getEventPhotos(eventId: string): Promise<{ photos: EventPhoto[]; error?: string }> {
-    try {
-      const { data, error } = await supabase
-        .from('event_photos')
-        .select('*')
-        .eq('event_id', eventId)
-        .order('uploaded_at', { ascending: false });
-
-      if (error) {
-        // Fallback to storage
-        return await this.getEventPhotosFromStorage(eventId);
-      }
-
-      return { photos: data || [], error: undefined };
-    } catch (error) {
-      return { photos: [], error: error instanceof Error ? error.message : 'Failed to load photos' };
-    }
-  }
-
-  /**
-   * Get photos for a specific event from storage
-   */
-  static async getEventPhotosFromStorage(eventId: string): Promise<{ photos: EventPhoto[]; error?: string }> {
     try {
       const { data: files, error } = await supabase.storage
         .from('event-photos')

@@ -88,16 +88,6 @@ export default function SetupProfileScreen() {
     
     const isComplete = hasFirstName && hasLastName && hasAffiliatedOrg;
     
-    console.log('Profile completeness check:', {
-      firstName,
-      lastName,
-      affiliatedOrg,
-      hasFirstName,
-      hasLastName,
-      hasAffiliatedOrg,
-      isComplete
-    });
-    
     return isComplete;
   };
 
@@ -118,10 +108,7 @@ export default function SetupProfileScreen() {
       // If profile is already complete, redirect to main app
       // This handles cases where existing users with complete profiles somehow end up here
       if (isProfileComplete(user)) {
-        console.log('Profile is complete, redirecting to tabs');
         router.replace('/(tabs)');
-      } else {
-        console.log('Profile is incomplete, staying on setup-profile');
       }
     }, 300); // Small delay to ensure state is stable
     

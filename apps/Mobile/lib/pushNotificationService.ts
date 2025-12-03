@@ -109,8 +109,6 @@ export class PushNotificationService {
         console.warn('Notification permissions not granted, cannot send notification');
         throw new Error('Notification permissions not granted');
       }
-
-      console.log('Sending local notification:', { title, body, data });
       
       await Notifications.scheduleNotificationAsync({
         content: {
@@ -122,8 +120,6 @@ export class PushNotificationService {
         },
         trigger: null, // Show immediately
       });
-      
-      console.log('Local notification sent successfully');
     } catch (error) {
       console.error('Error sending local notification:', error);
       throw error;

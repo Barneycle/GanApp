@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,21 +12,26 @@ import {
   Modal,
   FlatList,
   StyleSheet,
-  Alert,
   Platform,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../lib/authContext';
 import { AlbumService, EventWithPhotos, EventPhoto } from '../../lib/albumService';
+import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import TutorialOverlay from '../../components/TutorialOverlay';
 import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { addAttributionToImage } from '../../lib/imageAttribution';
+import { saveFileToGanApp } from '../../lib/mediaStoreSaver';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+type DateFilter = 'all' | 'upcoming' | 'past';
+type SortOption = 'date-asc' | 'date-desc' | 'title-asc' | 'title-desc' | 'photos-asc' | 'photos-desc';
 
 export default function Albums() {
   const [events, setEvents] = useState<EventWithPhotos[]>([]);
@@ -42,6 +47,11 @@ export default function Albums() {
   const [downloadedPhotoIds, setDownloadedPhotoIds] = useState<Set<string>>(new Set());
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
   const [downloadAllProgress, setDownloadAllProgress] = useState({ current: 0, total: 0 });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [venueFilter, setVenueFilter] = useState<string>('all');
+  const [sortOption, setSortOption] = useState<SortOption>('date-asc');
+  const [showFilters, setShowFilters] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -116,6 +126,63 @@ export default function Albums() {
     });
   };
 
+  // Get unique venues from events
+  const uniqueVenues = useMemo(() => {
+    const venues = events
+      .map(event => event.venue)
+      .filter((venue): venue is string => !!venue && venue !== 'Location TBD' && venue.trim() !== '');
+    return Array.from(new Set(venues)).sort();
+  }, [events]);
+
+  // Filter and sort events
+  const filteredAndSortedEvents = useMemo(() => {
+    let filtered = [...events];
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(event =>
+        event.title.toLowerCase().includes(query) ||
+        (event.venue && event.venue.toLowerCase().includes(query))
+      );
+    }
+
+    // Date filter
+    const now = new Date();
+    if (dateFilter === 'upcoming') {
+      filtered = filtered.filter(event => new Date(event.start_date) >= now);
+    } else if (dateFilter === 'past') {
+      filtered = filtered.filter(event => new Date(event.end_date) < now);
+    }
+
+    // Venue filter
+    if (venueFilter !== 'all') {
+      filtered = filtered.filter(event => event.venue === venueFilter);
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortOption) {
+        case 'date-asc':
+          return new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
+        case 'date-desc':
+          return new Date(b.start_date).getTime() - new Date(a.start_date).getTime();
+        case 'title-asc':
+          return a.title.localeCompare(b.title);
+        case 'title-desc':
+          return b.title.localeCompare(a.title);
+        case 'photos-asc':
+          return (a.photo_count || 0) - (b.photo_count || 0);
+        case 'photos-desc':
+          return (b.photo_count || 0) - (a.photo_count || 0);
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [events, searchQuery, dateFilter, venueFilter, sortOption]);
+
   const openFullScreen = (photo: EventPhoto, event: EventWithPhotos) => {
     const index = event.photos.findIndex(p => p.id === photo.id);
     const photoIndex = index >= 0 ? index : 0;
@@ -154,56 +221,91 @@ export default function Albums() {
         throw new Error(`Failed to download image: HTTP ${downloadResult.status}`);
       }
 
-      // For images, save to media library (Photos/Downloads)
-      if (!MediaLibrary || !MediaLibrary.requestPermissionsAsync || !MediaLibrary.createAssetAsync) {
-        Alert.alert(
-          'Error', 
-          'Media library not available. Please rebuild the app with native modules enabled.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-
-      // Request permissions - use readOnly: false to get write permission (for saving)
-      // This shows "Save photos" instead of "Modify photos"
-      const permissionResult = await MediaLibrary.requestPermissionsAsync(false);
-      
-      if (!permissionResult.granted) {
-        Alert.alert(
-          'Permission Required',
-          'Please grant photo library access to save the image. You can enable it in your device settings.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-
-      // Create asset in media library
-      const asset = await MediaLibrary.createAssetAsync(fileUri);
-      
-      // On Android, try to save to Downloads/GanApp folder
-      if (Platform.OS === 'android') {
-        try {
-          const albumName = 'GanApp';
-          let album = await MediaLibrary.getAlbumAsync(albumName);
-          
-          if (!album) {
-            album = await MediaLibrary.createAlbumAsync(albumName, asset, false);
-          } else {
-            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+      // Add attribution watermark (Reddit-style)
+      let finalImageUri = fileUri;
+      try {
+        // Get uploader's user ID from filename (format: userId_timestamp.jpg)
+        let uploaderUserId = photo.uploaded_by;
+        if (!uploaderUserId && photo.file_name) {
+          // Extract userId from filename: userId_timestamp.jpg
+          const fileNameParts = photo.file_name.split('_');
+          if (fileNameParts.length >= 2) {
+            uploaderUserId = fileNameParts[0];
           }
-        } catch (albumError) {
-          // Album creation failed, but asset is still saved to Photos
-          console.log('Album creation error (asset still saved to Photos):', albumError);
+        }
+        
+        // Get uploader's full name for attribution
+        let userName = 'User';
+        if (uploaderUserId) {
+          // Try to get user profile from RPC function
+          const { data: userProfile, error: rpcError } = await supabase.rpc('get_user_profile', { user_id: uploaderUserId });
+          
+          if (!rpcError && userProfile) {
+            const profile = typeof userProfile === 'string' ? JSON.parse(userProfile) : userProfile;
+            const firstName = profile.first_name || '';
+            const lastName = profile.last_name || '';
+            
+            if (firstName && lastName) {
+              userName = `${firstName} ${lastName}`;
+            } else if (firstName) {
+              userName = firstName;
+            } else if (lastName) {
+              userName = lastName;
+            } else if (profile.email) {
+              userName = profile.email.split('@')[0];
+            }
+          } else {
+            // Fallback: use filename pattern
+            userName = uploaderUserId.substring(0, 8) + '...';
+          }
+        }
+        
+        // Add attribution overlay to the image
+        finalImageUri = await addAttributionToImage(fileUri, userName);
+        
+        // Verify the attributed image exists
+        if (finalImageUri !== fileUri) {
+          const checkPath = finalImageUri.startsWith('file://') 
+            ? finalImageUri 
+            : `file://${finalImageUri}`;
+          
+          const fileInfo = await FileSystem.getInfoAsync(checkPath);
+          if (!fileInfo.exists) {
+            finalImageUri = fileUri;
+          }
+        }
+      } catch (attributionError) {
+        console.error('Error adding attribution, using original image:', attributionError);
+        finalImageUri = fileUri;
+      }
+
+      // Ensure URI has file:// prefix
+      const assetUri = finalImageUri.startsWith('file://') 
+        ? finalImageUri 
+        : `file://${finalImageUri}`;
+      
+      // Generate filename for saved file
+      const savedFileName = photo.file_name || `GanApp_${photo.id}_${Date.now()}.jpg`;
+      const fileType = savedFileName.split('.').pop()?.toLowerCase() || 'jpg';
+      
+      // Save to Pictures/GanApp/
+      if (Platform.OS === 'android') {
+        // Android: Use MediaStore API (no permissions needed on Android 10+)
+        await saveFileToGanApp(assetUri, savedFileName, fileType);
+      } else {
+        // iOS: Use MediaLibrary (requires permissions)
+        const asset = await MediaLibrary.createAssetAsync(assetUri);
+        const album = await MediaLibrary.getAlbumAsync('GanApp');
+        if (album) {
+          await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+        } else {
+          await MediaLibrary.createAlbumAsync('GanApp', asset, false);
         }
       }
       
-      // Mark photo as downloaded
       await markPhotoAsDownloaded(photo.id);
-      
-      Alert.alert('Success', 'Photo downloaded to your Photos/Downloads folder!');
     } catch (error: any) {
       console.error('Error downloading photo:', error);
-      Alert.alert('Error', `Failed to download photo: ${error.message || 'Unknown error'}`);
     } finally {
       setDownloadingPhotoId(null);
     }
@@ -223,35 +325,13 @@ export default function Albums() {
       const photosToDownload = event.photos.filter(photo => !downloadedPhotoIds.has(photo.id));
 
       if (photosToDownload.length === 0) {
-        Alert.alert('Info', 'All photos have already been downloaded!');
-        setIsDownloadingAll(false);
-        return;
-      }
-
-      // Request permissions once for all downloads
-      if (!MediaLibrary || !MediaLibrary.requestPermissionsAsync || !MediaLibrary.createAssetAsync) {
-        Alert.alert(
-          'Error', 
-          'Media library not available. Please rebuild the app with native modules enabled.',
-          [{ text: 'OK' }]
-        );
-        setIsDownloadingAll(false);
-        return;
-      }
-
-      const permissionResult = await MediaLibrary.requestPermissionsAsync(false);
-      
-      if (!permissionResult.granted) {
-        Alert.alert(
-          'Permission Required',
-          'Please grant photo library access to save the images. You can enable it in your device settings.',
-          [{ text: 'OK' }]
-        );
         setIsDownloadingAll(false);
         return;
       }
 
       // Download each photo sequentially
+      // Note: On Android, we use sharing (no permissions needed)
+      // On iOS, permissions are requested per-photo if needed
       for (let i = 0; i < photosToDownload.length; i++) {
         const photo = photosToDownload[i];
         setDownloadAllProgress({ current: i + 1, total: photosToDownload.length });
@@ -265,26 +345,88 @@ export default function Albums() {
           const downloadResult = await FileSystem.downloadAsync(photo.photo_url, fileUri);
           
           if (downloadResult.status === 200) {
-            // Create asset in media library
-            const asset = await MediaLibrary.createAssetAsync(fileUri);
-            
-            // On Android, try to save to Downloads/GanApp folder
-            if (Platform.OS === 'android') {
-              try {
-                const albumName = 'GanApp';
-                let album = await MediaLibrary.getAlbumAsync(albumName);
-                
-                if (!album) {
-                  album = await MediaLibrary.createAlbumAsync(albumName, asset, false);
-                } else {
-                  await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+            // Add attribution watermark (Reddit-style)
+            let finalImageUri = fileUri;
+            try {
+              // Get uploader's user ID from filename (format: userId_timestamp.jpg)
+              let uploaderUserId = photo.uploaded_by;
+              if (!uploaderUserId && photo.file_name) {
+                // Extract userId from filename: userId_timestamp.jpg
+                const fileNameParts = photo.file_name.split('_');
+                if (fileNameParts.length >= 2) {
+                  uploaderUserId = fileNameParts[0];
                 }
-              } catch (albumError) {
-                console.log('Album creation error (asset still saved to Photos):', albumError);
+              }
+              
+              // Get uploader's full name for attribution
+              let userName = 'User';
+              if (uploaderUserId) {
+                // Try to get user profile from RPC function
+                const { data: userProfile, error: rpcError } = await supabase.rpc('get_user_profile', { user_id: uploaderUserId });
+                
+                if (!rpcError && userProfile) {
+                  const profile = typeof userProfile === 'string' ? JSON.parse(userProfile) : userProfile;
+                  const firstName = profile.first_name || '';
+                  const lastName = profile.last_name || '';
+                  
+                  if (firstName && lastName) {
+                    userName = `${firstName} ${lastName}`;
+                  } else if (firstName) {
+                    userName = firstName;
+                  } else if (lastName) {
+                    userName = lastName;
+                  } else if (profile.email) {
+                    userName = profile.email.split('@')[0];
+                  }
+                } else {
+                  // Fallback: use filename pattern
+                  userName = uploaderUserId.substring(0, 8) + '...';
+                }
+              }
+              
+              // Add attribution overlay to the image
+              finalImageUri = await addAttributionToImage(fileUri, userName);
+              
+              // Verify the attributed image exists
+              if (finalImageUri !== fileUri) {
+                const checkPath = finalImageUri.startsWith('file://') 
+                  ? finalImageUri 
+                  : `file://${finalImageUri}`;
+                
+                const fileInfo = await FileSystem.getInfoAsync(checkPath);
+                if (!fileInfo.exists) {
+                  finalImageUri = fileUri;
+                }
+              }
+            } catch (attributionError) {
+              console.error('Error adding attribution (bulk), using original image:', attributionError);
+              finalImageUri = fileUri;
+            }
+            
+            // Ensure URI has file:// prefix
+            const assetUri = finalImageUri.startsWith('file://') 
+              ? finalImageUri 
+              : `file://${finalImageUri}`;
+            
+            // Generate filename for saved file
+            const savedFileName = photo.file_name || `GanApp_${photo.id}_${Date.now()}.jpg`;
+            const fileType = savedFileName.split('.').pop()?.toLowerCase() || 'jpg';
+            
+            // Save to Pictures/GanApp/
+            if (Platform.OS === 'android') {
+              // Android: Use MediaStore API (no permissions needed on Android 10+)
+              await saveFileToGanApp(assetUri, savedFileName, fileType);
+            } else {
+              // iOS: Use MediaLibrary (requires permissions)
+              const asset = await MediaLibrary.createAssetAsync(assetUri);
+              const album = await MediaLibrary.getAlbumAsync('GanApp');
+              if (album) {
+                await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+              } else {
+                await MediaLibrary.createAlbumAsync('GanApp', asset, false);
               }
             }
             
-            // Mark as downloaded
             await markPhotoAsDownloaded(photo.id);
             successCount++;
           } else {
@@ -298,18 +440,8 @@ export default function Albums() {
         }
       }
 
-      // Show completion message
-      if (successCount > 0) {
-        Alert.alert(
-          'Download Complete',
-          `Successfully downloaded ${successCount} photo${successCount === 1 ? '' : 's'}${failCount > 0 ? `\n\n${failCount} photo${failCount === 1 ? '' : 's'} failed to download.` : '.'}`
-        );
-      } else {
-        Alert.alert('Download Failed', 'No photos were downloaded. Please try again.');
-      }
     } catch (error: any) {
       console.error('Error in downloadAllPhotos:', error);
-      Alert.alert('Error', `Failed to download photos: ${error.message || 'Unknown error'}`);
     } finally {
       setIsDownloadingAll(false);
       setDownloadAllProgress({ current: 0, total: 0 });
@@ -344,12 +476,13 @@ export default function Albums() {
   }
 
   return (
-    <SafeAreaView
-      className="flex-1 bg-blue-900"
-      style={{
-        paddingBottom: insets.bottom + 80, // Account for tab bar
-      }}
-    >
+    <View style={{ flex: 1 }}>
+      <SafeAreaView
+        className="flex-1 bg-blue-900"
+        style={{
+          paddingBottom: insets.bottom + 80, // Account for tab bar
+        }}
+      >
       <TutorialOverlay
         screenId="albums"
         steps={[
@@ -384,7 +517,121 @@ export default function Albums() {
           />
         }
       >
-        {events.length === 0 ? (
+        {/* Search Bar */}
+        <View className="mb-4">
+          <View className="flex-row items-center bg-white rounded-xl px-4 py-3 shadow-md">
+            <Ionicons name="search" size={20} color="#64748b" />
+            <TextInput
+              className="flex-1 ml-3 text-slate-800"
+              placeholder="Search events..."
+              placeholderTextColor="#94a3b8"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color="#64748b" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Filter and Sort Controls */}
+        <View className="flex-row items-center gap-2 mb-4">
+          <TouchableOpacity
+            onPress={() => setShowFilters(!showFilters)}
+            className="flex-1 flex-row items-center justify-center bg-white rounded-xl px-4 py-3 shadow-md"
+          >
+            <Ionicons name="filter" size={18} color="#1e40af" />
+            <Text className="ml-2 text-slate-800 font-medium">Filters</Text>
+            {(dateFilter !== 'all' || venueFilter !== 'all') && (
+              <View className="ml-2 w-2 h-2 bg-blue-600 rounded-full" />
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            className="flex-1 flex-row items-center justify-center bg-white rounded-xl px-4 py-3 shadow-md"
+            onPress={() => {
+              // Cycle through sort options
+              const sortOptions: SortOption[] = ['date-asc', 'date-desc', 'title-asc', 'title-desc', 'photos-asc', 'photos-desc'];
+              const currentIndex = sortOptions.indexOf(sortOption);
+              const nextIndex = (currentIndex + 1) % sortOptions.length;
+              setSortOption(sortOptions[nextIndex]);
+            }}
+          >
+            <Ionicons name="swap-vertical" size={18} color="#1e40af" />
+            <Text className="ml-2 text-slate-800 font-medium">
+              {sortOption === 'date-asc' ? 'Date ↑' :
+               sortOption === 'date-desc' ? 'Date ↓' :
+               sortOption === 'title-asc' ? 'Title A-Z' :
+               sortOption === 'title-desc' ? 'Title Z-A' :
+               sortOption === 'photos-asc' ? 'Photos ↑' :
+               'Photos ↓'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Filter Modal */}
+        {showFilters && (
+          <View className="bg-white rounded-xl p-4 mb-4 shadow-md">
+            <Text className="text-lg font-bold text-slate-800 mb-3">Date Filter</Text>
+            <View className="flex-row flex-wrap gap-2 mb-4">
+              {(['all', 'upcoming', 'past'] as DateFilter[]).map((filter) => (
+                <TouchableOpacity
+                  key={filter}
+                  onPress={() => setDateFilter(filter)}
+                  className={`px-4 py-2 rounded-lg ${
+                    dateFilter === filter ? 'bg-blue-600' : 'bg-slate-100'
+                  }`}
+                >
+                  <Text className={`font-medium ${
+                    dateFilter === filter ? 'text-white' : 'text-slate-700'
+                  }`}>
+                    {filter === 'all' ? 'All' : filter === 'upcoming' ? 'Upcoming' : 'Past'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {uniqueVenues.length > 0 && (
+              <>
+                <Text className="text-lg font-bold text-slate-800 mb-3">Venue</Text>
+                <View className="flex-row flex-wrap gap-2">
+                  <TouchableOpacity
+                    onPress={() => setVenueFilter('all')}
+                    className={`px-4 py-2 rounded-lg ${
+                      venueFilter === 'all' ? 'bg-blue-600' : 'bg-slate-100'
+                    }`}
+                  >
+                    <Text className={`font-medium ${
+                      venueFilter === 'all' ? 'text-white' : 'text-slate-700'
+                    }`}>
+                      All Venues
+                    </Text>
+                  </TouchableOpacity>
+                  {uniqueVenues.map((venue) => (
+                    <TouchableOpacity
+                      key={venue}
+                      onPress={() => setVenueFilter(venue)}
+                      className={`px-4 py-2 rounded-lg ${
+                        venueFilter === venue ? 'bg-blue-600' : 'bg-slate-100'
+                      }`}
+                    >
+                      <Text className={`font-medium ${
+                        venueFilter === venue ? 'text-white' : 'text-slate-700'
+                      }`}>
+                        {venue}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+          </View>
+        )}
+
+        {filteredAndSortedEvents.length === 0 ? (
+          events.length === 0 ? (
           <View className="bg-white rounded-3xl p-8 shadow-xl items-center" style={styles.card}>
             <Ionicons name="images-outline" size={64} color="#94a3b8" className="mb-4" />
             <Text className="text-slate-600 text-center text-lg font-medium mb-2">
@@ -395,8 +642,18 @@ export default function Albums() {
             </Text>
           </View>
         ) : (
+          <View className="bg-white rounded-3xl p-8 shadow-xl items-center" style={styles.card}>
+            <Ionicons name="search-outline" size={64} color="#94a3b8" className="mb-4" />
+            <Text className="text-slate-600 text-center text-lg font-medium mb-2">
+              No Results Found
+            </Text>
+            <Text className="text-slate-500 text-center">
+              Try adjusting your search or filters
+            </Text>
+          </View>
+        )) : (
           <View>
-            {events.map((event, index) => (
+            {filteredAndSortedEvents.map((event, index) => (
               <View
                 key={event.id}
                 className="bg-white rounded-3xl shadow-xl overflow-hidden"
@@ -680,7 +937,8 @@ export default function Albums() {
           </View>
         </SafeAreaView>
       </Modal>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 

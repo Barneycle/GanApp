@@ -260,10 +260,8 @@ export default function Notifications() {
         
         // Request permissions and send notification
         const hasPermission = await PushNotificationService.requestPermissions();
-        console.log('Permission granted:', hasPermission);
         
         if (hasPermission) {
-          console.log('Sending test push notification...');
           await PushNotificationService.sendLocalNotification(
             randomTest.title,
             randomTest.message,
@@ -274,7 +272,6 @@ export default function Notifications() {
               type: randomTest.type,
             }
           );
-          console.log('Push notification sent successfully');
         } else {
           Alert.alert(
             'Permission Required', 

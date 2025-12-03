@@ -69,7 +69,8 @@
           "color": "#1e40af",
           "sounds": []
         }
-      ]
+      ],
+      "./plugins/withMediaStoreSaver.js"
     ],
     "experiments": {
       "typedRoutes": true

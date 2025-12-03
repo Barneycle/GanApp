@@ -101,22 +101,7 @@ export default function CameraScreen() {
     try {
       const PHOTO_LIMIT = 10;
       
-      // First, try to check the event_photos table
-      const { data: tableData, error: tableError } = await supabase
-        .from('event_photos')
-        .select('id')
-        .eq('event_id', eventId)
-        .eq('user_id', userId);
-
-      if (!tableError && tableData) {
-        const photoCount = tableData.length;
-        return { 
-          allowed: photoCount < PHOTO_LIMIT, 
-          count: photoCount 
-        };
-      }
-
-      // If table doesn't exist or has error, check storage bucket
+      // Check storage bucket for user's photos
       // List all files in the event folder
       const { data: files, error: storageError } = await supabase.storage
         .from('event-photos')
@@ -338,27 +323,8 @@ export default function CameraScreen() {
         throw uploadError;
       }
 
-      // Get public URL for the uploaded photo
-      const { data: urlData } = supabase.storage
-        .from('event-photos')
-        .getPublicUrl(filename);
-
-      // Optionally, save to event_photos table if it exists
-      const { error: dbError } = await supabase.from('event_photos').insert({
-        event_id: eventId,
-        user_id: userId,
-        photo_url: data.path,
-        photo_url_public: urlData?.publicUrl || null,
-        uploaded_at: new Date().toISOString(),
-      });
-
       // Report final progress (100% cumulative)
       onProgress?.(100);
-
-      if (dbError) {
-        // Table might not exist, that's okay - we still uploaded to storage
-        console.log('Note: Could not save to event_photos table:', dbError.message);
-      }
     } catch (err: any) {
       console.error('Error uploading photo:', err);
       throw new Error(err.message || 'Failed to upload photo.');
