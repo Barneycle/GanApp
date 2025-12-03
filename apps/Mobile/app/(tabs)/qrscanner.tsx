@@ -339,7 +339,7 @@ export default function QRScanner() {
             right: 0,
             paddingHorizontal: 16,
             paddingVertical: 12,
-            paddingTop: insets.top + 8,
+            paddingTop: 8,
             zIndex: 100,
           }}
         >

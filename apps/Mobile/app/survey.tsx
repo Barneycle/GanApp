@@ -477,7 +477,7 @@ export default function Survey() {
         ]}
       />
       {/* Header */}
-      <View className="bg-blue-900 px-3 pt-12 mt-6">
+      <View className="bg-blue-900 px-3 py-3">
         <View className="flex-row items-center justify-between">
           <TouchableOpacity
             onPress={() => router.back()}
@@ -520,7 +520,7 @@ export default function Survey() {
           className="flex-1" 
           contentContainerStyle={{ 
             paddingVertical: 20,
-            paddingTop: insets.top + 20,
+            paddingTop: 20,
             paddingBottom: Math.max(insets.bottom, 20)
           }}
           showsVerticalScrollIndicator={false}

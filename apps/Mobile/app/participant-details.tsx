@@ -124,7 +124,7 @@ export default function ParticipantDetails() {
       {/* Header */}
       <View 
         className="border-b border-gray-200 px-6 py-4 flex-row items-center justify-between"
-        style={{ paddingTop: insets.top, backgroundColor: '#FAFAFA' }}
+        style={{ paddingTop: 0, backgroundColor: '#FAFAFA' }}
       >
         <TouchableOpacity
           onPress={() => router.back()}

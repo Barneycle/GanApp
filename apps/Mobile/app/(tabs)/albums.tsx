@@ -506,7 +506,7 @@ export default function Albums() {
       <ScrollView 
         className="flex-1 px-4"
         contentContainerStyle={{
-          paddingTop: insets.top + 16,
+          paddingTop: 16,
         }}
         refreshControl={
           <RefreshControl
@@ -742,7 +742,7 @@ export default function Albums() {
             {/* Header */}
             <View 
               className="flex-row items-center justify-between px-4 bg-blue-900"
-              style={{ paddingTop: insets.top + 8, paddingBottom: 12 }}
+              style={{ paddingTop: 8, paddingBottom: 12 }}
             >
               <View className="flex-1 mr-3">
                 <Text className="text-2xl font-bold text-white" numberOfLines={1}>
@@ -860,7 +860,7 @@ export default function Albums() {
             {/* Header */}
             <View 
               className="absolute top-0 left-0 right-0 z-10 flex-row items-center justify-between px-4 py-3"
-              style={{ paddingTop: insets.top + 8 }}
+              style={{ paddingTop: 8 }}
             >
               <TouchableOpacity
                 onPress={() => setIsFullScreenVisible(false)}

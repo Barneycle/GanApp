@@ -25,6 +25,7 @@ import { useAuth } from '../lib/authContext';
 import { supabase } from '../lib/supabase';
 import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import TutorialOverlay from '../components/TutorialOverlay';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -174,6 +175,78 @@ export default function CameraScreen() {
     setCapturedPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
+  const pickImagesFromLibrary = async () => {
+    try {
+      // Check photo limit
+      const totalPhotos = photoCount + capturedPhotos.length;
+      if (totalPhotos >= 10) {
+        Alert.alert(
+          'Photo Limit Reached',
+          `You have reached the maximum limit of 10 photos for this event. You have ${photoCount} uploaded photos and ${capturedPhotos.length} photos ready to upload.`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Request permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please grant media library permissions to select photos.'
+        );
+        return;
+      }
+
+      // Calculate how many photos can still be added
+      const remainingSlots = 10 - photoCount - capturedPhotos.length;
+      const selectionLimit = Math.min(remainingSlots, 10);
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: true,
+        selectionLimit: selectionLimit,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        // Process selected images
+        const newPhotos: CapturedPhoto[] = [];
+        
+        for (const asset of result.assets) {
+          // Check if we've reached the limit
+          if (photoCount + capturedPhotos.length + newPhotos.length >= 10) {
+            Alert.alert(
+              'Photo Limit Reached',
+              `You can only add up to 10 photos. Added ${newPhotos.length} photo(s).`
+            );
+            break;
+          }
+
+          // Compress and resize the image
+          const manipulatedImage = await ImageManipulator.manipulateAsync(
+            asset.uri,
+            [{ resize: { width: 1920 } }], // Resize to max width 1920px
+            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+          );
+
+          newPhotos.push({
+            path: manipulatedImage.uri.replace('file://', ''),
+            uri: manipulatedImage.uri,
+          });
+        }
+
+        if (newPhotos.length > 0) {
+          setCapturedPhotos(prev => [...prev, ...newPhotos]);
+        }
+      }
+    } catch (err: any) {
+      console.error('Error picking images:', err);
+      Alert.alert('Error', err.message || 'Failed to pick images. Please try again.');
+    }
+  };
+
   const uploadAllPhotos = async () => {
     if (!eventId || !user?.id) {
       Alert.alert('Error', 'Missing event or user information.');
@@ -238,22 +311,20 @@ export default function CameraScreen() {
 
       await Promise.all(uploadPromises);
 
+      // Store the count before clearing
+      const uploadedCount = capturedPhotos.length;
+
       // Update photo count
-      setPhotoCount(prev => prev + capturedPhotos.length);
+      setPhotoCount(prev => prev + uploadedCount);
+
+      // Clear captured photos and reset progress
+      setCapturedPhotos([]);
+      setUploadProgress({ current: 0, total: 0, percentage: 0 });
 
       Alert.alert(
         'Success', 
-        `Successfully uploaded ${capturedPhotos.length} photo(s)!`,
-        [
-          { 
-            text: 'OK', 
-            onPress: () => {
-              setCapturedPhotos([]);
-              setUploadProgress({ current: 0, total: 0, percentage: 0 });
-              router.back();
-            }
-          }
-        ]
+        `Successfully uploaded ${uploadedCount} photo(s)!`,
+        [{ text: 'OK' }]
       );
     } catch (err: any) {
       console.error('Error uploading photos:', err);
@@ -447,14 +518,7 @@ export default function CameraScreen() {
               <Ionicons name="close" size={24} color="#ffffff" />
             </TouchableOpacity>
             
-            <Text className="text-white text-lg font-semibold">Take Photo</Text>
-            
-            <TouchableOpacity
-              onPress={toggleCamera}
-              className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
-            >
-              <Ionicons name="camera-reverse" size={24} color="#ffffff" />
-            </TouchableOpacity>
+            <View className="w-10" />
           </View>
 
           {/* Bottom Controls */}
@@ -470,27 +534,11 @@ export default function CameraScreen() {
             </View>
 
             {/* Bottom Controls Row */}
-            <View className="flex-row items-center justify-center px-4" style={{ gap: 20 }}>
-              {/* Photo Preview Button - Bottom Left */}
-              {capturedPhotos.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => setIsPhotoModalOpen(true)}
-                  className="relative"
-                >
-                  <View className="w-16 h-16 rounded-xl overflow-hidden border-2 border-white">
-                    <Image
-                      source={{ uri: capturedPhotos[capturedPhotos.length - 1].uri }}
-                      className="w-full h-full"
-                      resizeMode="cover"
-                    />
-                    <View className="absolute inset-0 bg-black/30 items-center justify-center">
-                      <Text className="text-white font-bold text-sm">{capturedPhotos.length}</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              )}
+            <View className="flex-row items-center justify-between px-1 relative">
+              {/* Left Side - Spacer */}
+              <View style={{ width: 64 }} />
 
-              {/* Camera Button - Centered */}
+              {/* Center - Camera Button */}
               <TouchableOpacity
                 onPress={takePhoto}
                 disabled={isCapturing || isUploading || (photoCount + capturedPhotos.length >= 10)}
@@ -511,10 +559,43 @@ export default function CameraScreen() {
                 )}
               </TouchableOpacity>
 
-              {/* Spacer for symmetry */}
-              {capturedPhotos.length > 0 && (
-                <View className="w-16 h-16" />
-              )}
+              {/* Right Side - Spacer (same width as left for symmetry) */}
+              <View style={{ width: 64 }} />
+
+              {/* Photo Preview Button - Always visible */}
+              <View style={{ position: 'absolute', left: '50%', marginLeft: -120 }}>
+                <TouchableOpacity
+                  onPress={() => setIsPhotoModalOpen(true)}
+                  className="relative"
+                >
+                  <View className="w-16 h-16 rounded-xl overflow-hidden border-2 border-white bg-black/30 items-center justify-center">
+                    {capturedPhotos.length > 0 ? (
+                      <>
+                        <Image
+                          source={{ uri: capturedPhotos[capturedPhotos.length - 1].uri }}
+                          className="w-full h-full"
+                          resizeMode="cover"
+                        />
+                        <View className="absolute inset-0 bg-black/30 items-center justify-center">
+                          <Text className="text-white font-bold text-sm">{capturedPhotos.length}</Text>
+                        </View>
+                      </>
+                    ) : (
+                      <Ionicons name="add" size={24} color="#ffffff" />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* Flip Camera Button - Positioned close to snap button */}
+              <View style={{ position: 'absolute', left: '50%', marginLeft: 60 }}>
+                <TouchableOpacity
+                  onPress={toggleCamera}
+                  className="w-16 h-16 rounded-full bg-black/50 items-center justify-center"
+                >
+                  <Ionicons name="camera-reverse" size={24} color="#ffffff" />
+                </TouchableOpacity>
+              </View>
             </View>
             
             {error && (
@@ -557,6 +638,25 @@ export default function CameraScreen() {
             contentContainerStyle={{ paddingTop: 20, paddingBottom: 20 }}
           >
             <View className="flex-row flex-wrap" style={{ gap: 12 }}>
+              {/* Add Images Button */}
+              {photoCount + capturedPhotos.length < 10 && (
+                <TouchableOpacity
+                  onPress={pickImagesFromLibrary}
+                  className="relative border-2 border-dashed border-white/50 items-center justify-center"
+                  style={{ 
+                    width: '30%', 
+                    aspectRatio: 1,
+                    borderRadius: 12,
+                    marginTop: 8,
+                  }}
+                >
+                  <Ionicons name="add" size={32} color="#ffffff" />
+                  <Text className="text-white/70 text-xs mt-2 text-center px-2">
+                    Add Photos
+                  </Text>
+                </TouchableOpacity>
+              )}
+              
               {capturedPhotos.map((photo, index) => (
                 <View key={index} className="relative" style={{ width: '30%', marginTop: 8 }}>
                   <Image
@@ -618,7 +718,7 @@ export default function CameraScreen() {
               <TouchableOpacity
                 onPress={async () => {
                   await uploadAllPhotos();
-                  setIsPhotoModalOpen(false);
+                  // Modal will stay open, but captured photos will be cleared
                 }}
                 disabled={isUploading || isCapturing}
                 className="w-full py-4 rounded-full bg-green-600 items-center justify-center"

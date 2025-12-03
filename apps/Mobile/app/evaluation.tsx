@@ -708,7 +708,7 @@ export default function Evaluation() {
         ]}
       />
       {/* Header */}
-      <View className="bg-blue-900 px-3 pt-12 mt-6">
+      <View className="bg-blue-900 px-3" style={{ paddingTop: insets.top + 12, paddingBottom: 12 }}>
         <View className="flex-row items-center justify-between">
           <TouchableOpacity
             onPress={handleBack}

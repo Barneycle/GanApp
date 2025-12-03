@@ -10,7 +10,6 @@ import * as MediaLibrary from 'expo-media-library';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { UserService } from '../../lib/userService';
 import TutorialOverlay from '../../components/TutorialOverlay';
-import HelpCenter from '../../components/HelpCenter';
 
 interface UserProfile {
   id: string;
@@ -25,12 +24,11 @@ interface UserProfile {
 }
 
 export default function Profile() {
-  const { user, signOut, refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isHelpCenterVisible, setIsHelpCenterVisible] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [formData, setFormData] = useState({
     first_name: '',
@@ -656,28 +654,6 @@ export default function Profile() {
     setAvatarOriginalUri(null);
   };
 
-  const handleSignOut = async () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            const result = await signOut();
-            if (result.error) {
-              Alert.alert('Error', result.error);
-            } else {
-              // Navigate back to login screen
-              router.replace('/login');
-            }
-          }
-        }
-      ]
-    );
-  };
 
   if (isLoading) {
     return (
@@ -714,7 +690,7 @@ export default function Profile() {
         contentContainerStyle={{ 
           flexGrow: 1,
           padding: 16,
-          paddingTop: insets.top + 16,
+          paddingTop: 16,
           // Add extra bottom padding when in edit mode to account for tab bar (typically 50-60px)
           paddingBottom: isEditMode ? Math.max(insets.bottom, 16) + 80 : Math.max(insets.bottom, 16)
         }}
@@ -801,37 +777,6 @@ export default function Profile() {
                     <Text className="text-white font-semibold">Edit Profile</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={() => router.push('/terms')}
-                className="bg-slate-600 py-3 px-6 rounded-xl items-center flex-row justify-center"
-              >
-                <Ionicons name="document-text-outline" size={20} color="white" style={{ marginRight: 8 }} />
-                <Text className="text-white font-semibold">Terms & Conditions</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => router.push('/terms?type=privacy')}
-                className="bg-slate-600 py-3 px-6 rounded-xl items-center flex-row justify-center"
-              >
-                <Ionicons name="shield-checkmark-outline" size={20} color="white" style={{ marginRight: 8 }} />
-                <Text className="text-white font-semibold">Privacy Policy</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setIsHelpCenterVisible(true)}
-                className="bg-amber-600 py-3 px-6 rounded-xl items-center flex-row justify-center"
-              >
-                <Ionicons name="help-circle-outline" size={20} color="white" style={{ marginRight: 8 }} />
-                <Text className="text-white font-semibold">Help Center</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleSignOut}
-                className="bg-red-600 py-3 px-6 rounded-xl items-center flex-row justify-center"
-              >
-                <Ionicons name="log-out-outline" size={20} color="white" style={{ marginRight: 8 }} />
-                <Text className="text-white font-semibold">Sign Out</Text>
-              </TouchableOpacity>
             </View>
               </>
             ) : (
@@ -1215,10 +1160,6 @@ export default function Profile() {
           )}
         </SafeAreaView>
       </Modal>
-      <HelpCenter
-        visible={isHelpCenterVisible}
-        onClose={() => setIsHelpCenterVisible(false)}
-      />
     </SafeAreaView>
   );
 }

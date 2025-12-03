@@ -273,7 +273,6 @@ export default function Index() {
         className="flex-1" 
         contentContainerStyle={{ 
           padding: 16,
-          paddingTop: insets.top + 8,
           paddingBottom: Math.max(insets.bottom, 20)
         }}
         showsVerticalScrollIndicator={false}

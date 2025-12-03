@@ -1,14 +1,18 @@
+import React, { useState } from 'react';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { View, Text } from 'react-native';
 import { useAuth } from '../../lib/authContext';
 import { useNotifications } from '../../lib/useNotifications';
+import GlobalNavbar from '../../components/GlobalNavbar';
+import Sidebar from '../../components/Sidebar';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { unreadCount } = useNotifications();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // Check if user is a participant
   const isParticipant = user?.role === 'participant';
@@ -16,27 +20,31 @@ export default function TabLayout() {
   const isOrganizer = user?.role === 'organizer' || user?.role === 'admin';
   
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: '#ffffff',
-        tabBarInactiveTintColor: '#bfdbfe',
-        tabBarStyle: {
-          backgroundColor: '#1e3a8a',
-          borderTopWidth: 0,
-          borderTopColor: 'transparent',
-          elevation: 0,
-          shadowOpacity: 0,
-          paddingBottom: Math.max(insets.bottom, 8),
-          paddingTop: 8,
-          height: 70 + Math.max(insets.bottom, 8),
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-        },
-        headerShown: false,
-      }}
-    >
+    <View style={{ flex: 1 }}>
+      <GlobalNavbar onAvatarPress={() => setIsSidebarOpen(true)} />
+      <Sidebar visible={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <View style={{ flex: 1 }}>
+        <Tabs
+          screenOptions={{
+            tabBarActiveTintColor: '#ffffff',
+            tabBarInactiveTintColor: '#bfdbfe',
+            tabBarStyle: {
+              backgroundColor: '#1e3a8a',
+              borderTopWidth: 0,
+              borderTopColor: 'transparent',
+              elevation: 0,
+              shadowOpacity: 0,
+              paddingBottom: Math.max(insets.bottom, 8),
+              paddingTop: 8,
+              height: 70 + Math.max(insets.bottom, 8),
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+            },
+            headerShown: false,
+          }}
+        >
       <Tabs.Screen
         name="index"
         options={{
@@ -129,12 +137,11 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
-          ),
+          href: null, // Hide from tab bar
         }}
       />
-    </Tabs>
+      </Tabs>
+      </View>
+    </View>
   );
 }
