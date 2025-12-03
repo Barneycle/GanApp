@@ -235,9 +235,24 @@ const modifyMainApplication = (config) => {
 
 /**
  * Expo config plugin to add MediaStoreSaver native module
+ * 
+ * This plugin:
+ * 1. Creates MediaStoreSaverModule.kt and MediaStoreSaverPackage.kt files
+ * 2. Registers MediaStoreSaverPackage in MainApplication.kt
+ * 
+ * The plugin is designed to work with `expo prebuild --clean` by:
+ * - Creating files AFTER prebuild cleans the directory (using withDangerousMod)
+ * - Using retry logic to handle timing issues with MainApplication.kt generation
+ * - Using multiple pattern matching strategies to ensure registration is added
+ * 
  * Order matters: files must be created before MainApplication.kt is modified
  */
 const withMediaStoreSaver = (config) => {
+  if (!config.modRequest || !config.modRequest.platformProjectRoot) {
+    console.warn('[MediaStoreSaver Plugin] Platform project root not found, skipping plugin');
+    return config;
+  }
+
   // Step 1: Create native module files
   config = copyNativeModuleFiles(config);
   
