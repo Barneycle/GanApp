@@ -92,7 +92,7 @@ export default function SetupProfileScreen() {
   };
 
   // Wait for user to be loaded, redirect to login if not authenticated after loading
-  // Also redirect to tabs if profile is already complete (Facebook's approach)
+  // Also redirect to tabs if profile is already complete
   useEffect(() => {
     if (authLoading) return;
     
@@ -102,17 +102,12 @@ export default function SetupProfileScreen() {
       return;
     }
     
-    // Add a small delay to ensure user state is fully loaded
-    // Only check for complete profile after a brief moment
-    const checkTimer = setTimeout(() => {
-      // If profile is already complete, redirect to main app
-      // This handles cases where existing users with complete profiles somehow end up here
-      if (isProfileComplete(user)) {
-        router.replace('/(tabs)');
-      }
-    }, 300); // Small delay to ensure state is stable
-    
-    return () => clearTimeout(checkTimer);
+    // Immediately check if profile is complete and redirect if so
+    // This prevents any flash of the setup-profile screen
+    if (isProfileComplete(user)) {
+      router.replace('/(tabs)');
+      return;
+    }
   }, [user, authLoading, router]);
 
   // Handle keyboard show/hide and scroll to focused input
@@ -530,6 +525,20 @@ export default function SetupProfileScreen() {
     );
   }
 
+  // Don't render anything if profile is complete or still loading auth
+  // This prevents any flash of the setup-profile screen
+  if (authLoading) {
+    return null;
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  if (isProfileComplete(user)) {
+    return null;
+  }
+
   return (
     <>
       <StatusBar style="light" />
@@ -545,12 +554,12 @@ export default function SetupProfileScreen() {
             {
               id: '2',
               title: 'Profile Picture',
-              description: 'Add a profile picture by tapping on the camera icon. You can take a photo or select one from your gallery.',
+              description: 'Add a profile picture by tapping on the camera icon to select a photo from your gallery.',
             },
             {
               id: '3',
               title: 'Save Your Profile',
-              description: 'After filling in all required fields, tap "Save Profile" to complete your setup and start using the app.',
+              description: 'After filling in all required fields, tap "Complete Setup" to complete your setup and start using the app.',
             },
           ]}
         />
@@ -640,7 +649,7 @@ export default function SetupProfileScreen() {
                     </TouchableOpacity>
                   </View>
                   <Text className="text-base text-slate-600 mt-3 text-center">
-                    Tap the camera icon to upload a photo
+                    Tap the camera icon to select a photo from your gallery
                   </Text>
                 </View>
 

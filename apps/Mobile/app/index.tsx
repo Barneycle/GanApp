@@ -12,6 +12,21 @@ export default function Index() {
   const { user, isLoading } = useAuth();
   const hasNavigatedRef = useRef(false);
 
+  // Helper function to check if user profile is complete
+  const isProfileComplete = (user: any): boolean => {
+    if (!user) return false;
+    
+    const firstName = user.first_name;
+    const lastName = user.last_name;
+    const affiliatedOrg = user.affiliated_organization;
+    
+    const hasFirstName = firstName !== undefined && firstName !== null && String(firstName).trim() !== '';
+    const hasLastName = lastName !== undefined && lastName !== null && String(lastName).trim() !== '';
+    const hasAffiliatedOrg = affiliatedOrg !== undefined && affiliatedOrg !== null && String(affiliatedOrg).trim() !== '';
+    
+    return hasFirstName && hasLastName && hasAffiliatedOrg;
+  };
+
   useEffect(() => {
     if (isLoading) return;
 
@@ -31,9 +46,14 @@ export default function Index() {
       hasNavigatedRef.current = true;
       
       if (user) {
-        // Facebook's approach: Always send authenticated users to setup-profile
-        // Setup-profile will check if already complete and redirect to tabs if needed
-        router.replace('/setup-profile');
+        // Check if profile is complete before redirecting
+        if (isProfileComplete(user)) {
+          // Profile is complete, go directly to tabs
+          router.replace('/(tabs)');
+        } else {
+          // Profile is incomplete, go to setup-profile
+          router.replace('/setup-profile');
+        }
       } else {
         router.replace('/login');
       }
