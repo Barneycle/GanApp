@@ -606,12 +606,12 @@ export default function MyEvents() {
           {
             id: '1',
             title: 'My Events',
-            description: 'This screen shows all events you have registered for. You can view event details, access your QR code for check-in, take surveys, and generate certificates.',
+            description: 'This screen shows all events you have registered for. You can view event details, access your QR code for check-in, and take surveys.',
           },
           {
             id: '2',
             title: 'Event Actions',
-            description: 'For each event, you can: View QR code for check-in, Take evaluation surveys, and Generate certificates after completing requirements.',
+            description: 'For each event, you can: View QR code for check-in and Take evaluation surveys.',
           },
         ]}
       />
@@ -978,25 +978,6 @@ export default function MyEvents() {
                       </Text>
                     </TouchableOpacity>
                     
-                    {/* Row 2 - Secondary Actions (Lighter Blue) & Destructive (Red) */}
-                    <TouchableOpacity
-                      onPress={() => router.push(`/certificate?eventId=${event.id}`)}
-                      style={{
-                        width: '31%',
-                        margin: '1%',
-                        backgroundColor: '#3b82f6',
-                        borderRadius: 10,
-                        padding: 12,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minHeight: 75,
-                      }}
-                    >
-                      <Ionicons name="ribbon" size={24} color="#ffffff" />
-                      <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
-                        Generate Certificate
-                      </Text>
-                    </TouchableOpacity>
                           
                     <TouchableOpacity
                       onPress={() => handleSnapPhoto(event)}

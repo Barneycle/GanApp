@@ -79,17 +79,6 @@ export default function Evaluation() {
     safeNavigate(() => router.replace('/(tabs)/my-events'));
   };
 
-  const handleNavigateToCertificate = (eventId: string) => {
-    // Use setTimeout to ensure navigation context is ready
-    setTimeout(() => {
-      safeNavigate(() => {
-        router.push({
-          pathname: '/certificate',
-          params: { eventId }
-        });
-      });
-    }, 0);
-  };
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -294,22 +283,17 @@ export default function Evaluation() {
         throw new Error(submitError.message || 'Failed to submit evaluation');
       }
       
-      // Show success alert and navigate to certificate
+      // Show success alert
       Alert.alert(
         'Evaluation Submitted Successfully!',
-        'Thank you for your feedback. Generating your certificate...',
+        'Thank you for your feedback.',
         [
           {
             text: 'Continue',
             onPress: () => {
-              // Use setTimeout to ensure navigation context is ready after alert dismissal
+              // Navigate back to my-events
               setTimeout(() => {
-                if (survey?.event_id) {
-                  handleNavigateToCertificate(survey.event_id);
-                } else {
-                  // Fallback to my-events if no event_id
-                  handleNavigateToMyEvents();
-                }
+                handleNavigateToMyEvents();
               }, 100);
             }
           }
@@ -646,14 +630,6 @@ export default function Evaluation() {
               You have already submitted an evaluation for this survey. Thank you for your feedback!
             </Text>
             <View className="w-full items-center gap-4">
-              {survey?.event_id && (
-                <TouchableOpacity
-                  onPress={() => handleNavigateToCertificate(survey.event_id)}
-                  className="bg-green-600 px-6 py-4 rounded-xl w-full items-center justify-center"
-                >
-                  <Text className="text-white font-semibold text-base">Generate Certificate</Text>
-                </TouchableOpacity>
-              )}
               <TouchableOpacity
                 onPress={handleNavigateToMyEvents}
                 className="bg-blue-600 px-6 py-4 rounded-xl w-full items-center justify-center"

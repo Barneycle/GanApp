@@ -302,10 +302,11 @@ export default function LoginDashboard() {
         >
           <ScrollView
             ref={scrollViewRef}
-        contentContainerStyle={{ 
+            scrollEnabled={false}
+            contentContainerStyle={{ 
           flexGrow: 1,
           paddingTop: insets.top + 20,
-              paddingBottom: Math.max(insets.bottom, 20) + 300
+              paddingBottom: Math.max(insets.bottom, 20)
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"

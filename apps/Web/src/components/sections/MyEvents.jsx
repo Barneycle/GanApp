@@ -4,9 +4,9 @@ import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Calendar, MapPin, Clock, Users } from "lucide-react";
 import EventModal from './EventModal';
 import { GenerateQRModal } from './GenerateQR';
+import CertificateGenerator from '../CertificateGenerator';
 import { EventService } from '../../services/eventService';
 import { SurveyService } from '../../services/surveyService';
-import { CertificateService } from '../../services/certificateService';
 import { useAuth } from '../../contexts/AuthContext';
 
 export const MyEvents = () => {
@@ -19,7 +19,8 @@ export const MyEvents = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [qrEvent, setQrEvent] = useState(null);
-  const [eligibilityMap, setEligibilityMap] = useState({}); // Map of eventId -> eligibility status
+  const [isCertificateModalOpen, setIsCertificateModalOpen] = useState(false);
+  const [certificateEventId, setCertificateEventId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('all'); // 'all', 'upcoming', 'ongoing', 'completed'
   const [venueFilter, setVenueFilter] = useState('all');
@@ -60,31 +61,6 @@ export const MyEvents = () => {
         })) || [];
         
         setRegisteredEvents(events);
-        
-        // Check eligibility for each event
-        const eligibilityPromises = events.map(async (event) => {
-          try {
-            const eligibilityCheck = await CertificateService.checkEligibility(user.id, event.id);
-            return {
-              eventId: event.id,
-              eligible: eligibilityCheck.eligibility?.eligible || false,
-              hasTemplate: eligibilityCheck.eligibility?.template_available || false
-            };
-          } catch (err) {
-            return {
-              eventId: event.id,
-              eligible: false,
-              hasTemplate: false
-            };
-          }
-        });
-        
-        const eligibilityResults = await Promise.all(eligibilityPromises);
-        const eligibilityMapObj = {};
-        eligibilityResults.forEach(result => {
-          eligibilityMapObj[result.eventId] = result;
-        });
-        setEligibilityMap(eligibilityMapObj);
       }
     } catch (err) {
       setError('Failed to load your registered events');
@@ -601,7 +577,7 @@ export const MyEvents = () => {
                   </div>
                   
                   {/* Action Buttons */}
-                  <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => {
                         setSelectedEvent(event);
@@ -641,24 +617,17 @@ export const MyEvents = () => {
                       Take Evaluation
                     </button>
                     <button
-                      onClick={() => navigate(`/certificate?eventId=${event.id}`)}
-                      disabled={!eligibilityMap[event.id]?.eligible}
-                      className={`w-full px-4 py-2 rounded-lg transition-colors text-sm ${
-                        eligibilityMap[event.id]?.eligible
-                          ? 'bg-green-600 text-white hover:bg-green-700'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
-                      title={
-                        !eligibilityMap[event.id]?.eligible
-                          ? 'Complete attendance and evaluation to generate certificate'
-                          : 'Generate Certificate'
-                      }
+                      onClick={() => {
+                        setCertificateEventId(event.id);
+                        setIsCertificateModalOpen(true);
+                      }}
+                      className="w-full px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm"
                     >
                       Generate Certificate
                     </button>
                     <button
                       onClick={() => handleUnregister(event.id)}
-                      className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                      className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm col-span-2"
                     >
                       Unregister
                     </button>
@@ -684,6 +653,17 @@ export const MyEvents = () => {
         onClose={() => setIsQRModalOpen(false)} 
         event={qrEvent} 
       />
+      
+      {/* Certificate Generator Modal */}
+      {isCertificateModalOpen && (
+        <CertificateGenerator
+          eventId={certificateEventId}
+          onClose={() => {
+            setIsCertificateModalOpen(false);
+            setCertificateEventId(null);
+          }}
+        />
+      )}
     </section>
     </>
   );

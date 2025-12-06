@@ -19,7 +19,6 @@ export const MobileMenu = ({ menuOpen, setMenuOpen }) => {
            location.pathname === '/events' || 
            location.pathname === '/my-attendance' || 
            location.pathname === '/surveys' || 
-           location.pathname === '/certificates' ||
            location.pathname === '/profile';
   };
 
@@ -27,7 +26,6 @@ export const MobileMenu = ({ menuOpen, setMenuOpen }) => {
     return location.pathname.startsWith('/admin') || 
            location.pathname === '/attendance' || 
            location.pathname === '/surveys' || 
-           location.pathname === '/certificates' ||
            location.pathname === '/reports' ||
            location.pathname === '/settings' ||
            location.pathname === '/profile';
@@ -159,16 +157,6 @@ export const MobileMenu = ({ menuOpen, setMenuOpen }) => {
                 title="Manage evaluation forms, view responses"
               >
                 Surveys
-              </Link>
-              <Link
-                to="/certificates"
-                onClick={() => setMenuOpen(false)}
-                className={`block pl-4 text-base font-medium ${
-                  isActive('/certificates') ? 'text-white' : 'text-gray-300'
-                } hover:text-white transition-colors`}
-                title="Issue and track participant certificates"
-              >
-                Certificates
               </Link>
             </div>
             
@@ -334,23 +322,6 @@ export const MobileMenu = ({ menuOpen, setMenuOpen }) => {
                 title="Answer post-event evaluation forms"
               >
                 Surveys
-              </Link>
-            </div>
-            
-            {/* Certificates Section */}
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-gray-400 uppercase tracking-wide">
-                Certificates
-              </div>
-              <Link
-                to="/certificates"
-                onClick={() => setMenuOpen(false)}
-                className={`block pl-4 text-base font-medium ${
-                  isActive('/certificates') ? 'text-white' : 'text-gray-300'
-                } hover:text-white transition-colors`}
-                title="Download and view your earned certificates"
-              >
-                Certificates
               </Link>
             </div>
             

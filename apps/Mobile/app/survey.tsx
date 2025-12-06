@@ -143,16 +143,12 @@ export default function Survey() {
 
       Alert.alert(
         'Survey Completed!',
-        'Thank you for your feedback. Generating your certificate...',
+        'Thank you for your feedback.',
         [
           {
             text: 'Continue',
             onPress: () => {
-              // Navigate to certificate generation
-              router.push({
-                pathname: '/certificate',
-                params: { eventId: eventId }
-              });
+              router.back();
             }
           }
         ]
@@ -598,13 +594,13 @@ export default function Survey() {
             onPress={() => {
               Alert.alert(
                 'Skip Survey',
-                'Are you sure you want to skip this survey? You can still generate a certificate.',
+                'Are you sure you want to skip this survey?',
                 [
                   { text: 'Cancel', style: 'cancel' },
                   { 
                     text: 'Skip', 
                     style: 'destructive',
-                    onPress: () => router.push('/certificate')
+                    onPress: () => router.back()
                   }
                 ]
               );

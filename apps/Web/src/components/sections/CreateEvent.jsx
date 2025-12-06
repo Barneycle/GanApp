@@ -16,6 +16,7 @@ import { VenueService } from '../../services/venueService';
 import { supabase } from '../../lib/supabaseClient';
 
 import { useAuth } from '../../contexts/AuthContext';
+import CertificateDesigner from '../CertificateDesigner';
 
 // Lazy load RichTextEditor to prevent app-wide crashes
 const RichTextEditor = lazy(() => import('../RichTextEditor'));
@@ -1277,206 +1278,6 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
           }
 
-        } else if (uploadType === 'certificate-template') {
-
-
-
-          try {
-
-            setUploadProgress(25);
-
-            
-
-            // Validate image files
-            for (const file of fileArray) {
-              if (!file.type.startsWith('image/')) {
-                throw new Error('Certificate templates must be image files (JPG, JPEG, or PNG)');
-              }
-            }
-
-            const bucketName = 'certificate-templates';
-
-            
-
-            const results = [];
-
-            for (let index = 0; index < fileArray.length; index++) {
-
-              const file = fileArray[index];
-
-              try {
-
-
-
-                setUploadProgress(25 + (index / fileArray.length) * 25);
-
-                const fileExt = file.name.split('.').pop();
-
-                const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-
-                const filePath = `templates/${fileName}`;
-
-                
-
-                const uploadPromise = supabase.storage
-
-                  .from(bucketName)
-
-                  .upload(filePath, file, {
-
-                    cacheControl: '3600',
-
-                    upsert: false
-
-                  });
-
-                
-
-                const timeoutPromise = new Promise((_, reject) => 
-
-                  setTimeout(() => reject(new Error('Upload timed out after 30 seconds')), 30000)
-
-                );
-
-                
-
-                const { data, error } = await Promise.race([uploadPromise, timeoutPromise]);
-
-                
-
-                if (error) {
-
-                  // Upload failed for file
-
-                  throw error;
-
-                }
-
-                
-
-                const { data: { publicUrl } } = supabase.storage
-
-                  .from(bucketName)
-
-                  .getPublicUrl(filePath);
-
-                
-
-
-
-                setUploadProgress(50 + ((index + 1) / fileArray.length) * 25);
-
-                
-
-                results.push({
-
-                  file: file,
-
-                  filename: file.name,
-
-                  size: file.size,
-
-                  type: file.type,
-
-                  id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-
-                  url: publicUrl,
-
-                  path: filePath,
-
-                  uploaded: true,
-
-                  bucket: bucketName
-
-                });
-
-                
-
-
-
-                if (index < fileArray.length - 1) {
-
-                  await new Promise(resolve => setTimeout(resolve, 500));
-
-                }
-
-                
-
-              } catch (fileError) {
-
-                // Error uploading file
-
-
-
-                setUploadProgress(50 + ((index + 1) / fileArray.length) * 25);
-
-                results.push({
-
-                  file: file,
-
-                  filename: file.name,
-
-                  size: file.size,
-
-                  type: file.type,
-
-                  id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-
-                  url: null,
-
-                  path: null,
-
-                  uploaded: false,
-
-                  bucket: null,
-
-                  error: fileError.message
-
-                });
-
-              }
-
-            }
-
-              setUploadProgress(100);
-
-              
-
-              onUpload(results);
-
-              
-
-            } catch (error) {
-
-              // Certificate template upload failed
-
-
-
-              const fileResults = fileArray.map((file, index) => {
-
-                setUploadProgress(((index + 1) / fileArray.length) * 100);
-
-                return {
-
-                  file: file,
-
-                  filename: file.name,
-
-                  size: file.size,
-
-                  type: file.type,
-
-                  id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-
-                  uploaded: false
-
-                };
-
-              });
-
-              onUpload(fileResults);
-
-            }
 
         } else {
 
@@ -2033,26 +1834,16 @@ export const CreateEvent = () => {
 
     eventKits: [],
 
-    eventProgrammes: [],
-
-    certificateTemplates: []
+    eventProgrammes: []
 
   }));
 
 
 
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
-
-  // Certificate name placement configuration
-  const [certificateNamePlacement, setCertificateNamePlacement] = useState({
-    x: 0.5,
-    y: 0.5,
-    fontSize: 36,
-    color: '#000000',
-    fontFamily: 'Arial, sans-serif',
-    fontWeight: 'bold',
-    textAlign: 'center'
-  });
+  
+  // Track created event ID for certificate designer
+  const [createdEventId, setCreatedEventId] = useState(null);
 
 
 
@@ -2617,17 +2408,6 @@ export const CreateEvent = () => {
 
         }));
 
-      } else if (uploadType === 'certificate-template') {
-
-        // For certificate templates, accumulate multiple files
-
-        setUploadedFiles(prev => ({ 
-
-          ...prev, 
-
-          certificateTemplates: prev.certificateTemplates ? [...prev.certificateTemplates, ...results] : results 
-
-        }));
 
       }
 
@@ -2748,24 +2528,6 @@ export const CreateEvent = () => {
             ...prev, 
 
             eventProgrammes: prev.eventProgrammes?.filter(f => f.id !== fileId) || []
-
-          }));
-
-        }
-
-      } else if (uploadType === 'certificate-template') {
-
-        fileArray = uploadedFiles.certificateTemplates;
-
-        fileToRemove = fileArray?.find(f => f.id === fileId);
-
-        if (fileToRemove) {
-
-          setUploadedFiles(prev => ({ 
-
-            ...prev, 
-
-            certificateTemplates: prev.certificateTemplates?.filter(f => f.id !== fileId) || []
 
           }));
 
@@ -3083,15 +2845,6 @@ export const CreateEvent = () => {
 
     }
 
-    
-
-    // Handle certificate templates
-
-    if (uploadedFiles.certificateTemplates && uploadedFiles.certificateTemplates.length > 0) {
-
-      eventData.certificate_templates_url = uploadedFiles.certificateTemplates.map(f => f.url).join(',');
-
-    }
 
     
 
@@ -3110,9 +2863,6 @@ export const CreateEvent = () => {
     sessionStorage.setItem('pending-event-data', JSON.stringify(eventData));
 
     sessionStorage.setItem('pending-event-files', JSON.stringify(uploadedFiles));
-
-    // Store certificate name placement configuration
-    sessionStorage.setItem('certificate-name-placement', JSON.stringify(certificateNamePlacement));
 
     // Store speakers and sponsors with their image URLs for later processing
     const speakersWithImages = speakers.map(speaker => ({
@@ -4465,13 +4215,23 @@ export const CreateEvent = () => {
                         {/* Title/Prefix */}
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-1">Title/Prefix</label>
-                          <input
-                            type="text"
-                            placeholder="Dr., Prof., Mr., Ms."
-                            value={speaker.prefix}
+                          <select
+                            value={speaker.prefix || ''}
                             onChange={(e) => updateSpeaker(index, 'prefix', e.target.value)}
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
+                          >
+                            <option value="">Select...</option>
+                            <option value="Dr.">Dr.</option>
+                            <option value="Prof.">Prof.</option>
+                            <option value="Mr.">Mr.</option>
+                            <option value="Mrs.">Mrs.</option>
+                            <option value="Ms.">Ms.</option>
+                            <option value="Miss">Miss</option>
+                            <option value="Engr.">Engr.</option>
+                            <option value="Atty.">Atty.</option>
+                            <option value="Rev.">Rev.</option>
+                            <option value="Hon.">Hon.</option>
+                          </select>
                         </div>
 
                         {/* First Name */}
@@ -4505,10 +4265,17 @@ export const CreateEvent = () => {
                           <label className="block text-sm font-medium text-slate-700 mb-1">Middle Initial</label>
                           <input
                             type="text"
-                            placeholder="A."
+                            placeholder="A"
                             maxLength="5"
                             value={speaker.middle_initial}
-                            onChange={(e) => updateSpeaker(index, 'middle_initial', e.target.value)}
+                            onChange={(e) => {
+                              let value = e.target.value;
+                              // Auto-add period if value exists and doesn't end with period
+                              if (value && !value.endsWith('.')) {
+                                value = value + '.';
+                              }
+                              updateSpeaker(index, 'middle_initial', value);
+                            }}
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           />
                         </div>
@@ -4516,13 +4283,19 @@ export const CreateEvent = () => {
                         {/* Affix */}
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-1">Affix</label>
-                          <input
-                            type="text"
-                            placeholder="Jr., Sr., III"
-                            value={speaker.affix}
+                          <select
+                            value={speaker.affix || ''}
                             onChange={(e) => updateSpeaker(index, 'affix', e.target.value)}
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
+                          >
+                            <option value="">Select...</option>
+                            <option value="Jr.">Jr.</option>
+                            <option value="Sr.">Sr.</option>
+                            <option value="II">II</option>
+                            <option value="III">III</option>
+                            <option value="IV">IV</option>
+                            <option value="V">V</option>
+                          </select>
                         </div>
 
                         {/* Keynote Speaker Checkbox */}
@@ -4712,191 +4485,36 @@ export const CreateEvent = () => {
 
               />
 
-
-
-              <FileDropzone
-
-                label="Certificate Template"
-
-                name="certificatesFile"
-
-                accept=".jpg,.jpeg,.png"
-
-                onFileChange={() => {}}
-
-                onUpload={(results) => handleFileUpload('certificate-template', results)}
-
-                uploadType="certificate-template"
-
-                multiple
-
-                maxSizeMB={35}
-
-                control={control}
-
-                error={errors.certificatesFile}
-
-                uploadedFiles={uploadedFiles.certificateTemplates || []}
-
-                onRemoveFile={(fileId) => handleRemoveFile('certificate-template', fileId)}
-
-              />
-
-              {/* Certificate Name Placement Configuration */}
-              {uploadedFiles.certificateTemplates && uploadedFiles.certificateTemplates.length > 0 && (
-                <div className="mt-6 bg-purple-50 rounded-xl border border-purple-200 p-6">
-                  <div className="flex items-center space-x-3 mb-4">
-                    <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-800">Certificate Name Placement</h3>
-                      <p className="text-xs text-slate-600">Configure where the participant name appears on the certificate</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* X Position (Horizontal) */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Horizontal Position (X): {Math.round(certificateNamePlacement.x * 100)}%
-                      </label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={certificateNamePlacement.x}
-                        onChange={(e) => setCertificateNamePlacement(prev => ({ ...prev, x: parseFloat(e.target.value) }))}
-                        className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                      <div className="flex justify-between text-xs text-slate-500 mt-1">
-                        <span>Left (0%)</span>
-                        <span>Center (50%)</span>
-                        <span>Right (100%)</span>
-                      </div>
-                    </div>
-
-                    {/* Y Position (Vertical) */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Vertical Position (Y): {Math.round(certificateNamePlacement.y * 100)}%
-                      </label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={certificateNamePlacement.y}
-                        onChange={(e) => setCertificateNamePlacement(prev => ({ ...prev, y: parseFloat(e.target.value) }))}
-                        className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                      <div className="flex justify-between text-xs text-slate-500 mt-1">
-                        <span>Bottom (0%)</span>
-                        <span>Middle (50%)</span>
-                        <span>Top (100%)</span>
-                      </div>
-                    </div>
-
-                    {/* Font Size */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Font Size: {certificateNamePlacement.fontSize}px
-                      </label>
-                      <input
-                        type="range"
-                        min="12"
-                        max="72"
-                        step="2"
-                        value={certificateNamePlacement.fontSize}
-                        onChange={(e) => setCertificateNamePlacement(prev => ({ ...prev, fontSize: parseInt(e.target.value) }))}
-                        className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
-
-                    {/* Text Color */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Text Color
-                      </label>
-                      <div className="flex items-center space-x-3">
-                        <input
-                          type="color"
-                          value={certificateNamePlacement.color}
-                          onChange={(e) => setCertificateNamePlacement(prev => ({ ...prev, color: e.target.value }))}
-                          className="w-12 h-10 rounded-lg border border-slate-300 cursor-pointer"
-                        />
-                        <input
-                          type="text"
-                          value={certificateNamePlacement.color}
-                          onChange={(e) => setCertificateNamePlacement(prev => ({ ...prev, color: e.target.value }))}
-                          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                          placeholder="#000000"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Font Family */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Font Family
-                      </label>
-                      <select
-                        value={certificateNamePlacement.fontFamily}
-                        onChange={(e) => setCertificateNamePlacement(prev => ({ ...prev, fontFamily: e.target.value }))}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                      >
-                        <option value="Arial, sans-serif">Arial</option>
-                        <option value="Times New Roman, serif">Times New Roman</option>
-                        <option value="Courier New, monospace">Courier New</option>
-                        <option value="Georgia, serif">Georgia</option>
-                        <option value="Verdana, sans-serif">Verdana</option>
-                        <option value="Helvetica, sans-serif">Helvetica</option>
-                      </select>
-                    </div>
-
-                    {/* Font Weight */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Font Weight
-                      </label>
-                      <select
-                        value={certificateNamePlacement.fontWeight}
-                        onChange={(e) => setCertificateNamePlacement(prev => ({ ...prev, fontWeight: e.target.value }))}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                      >
-                        <option value="normal">Normal</option>
-                        <option value="bold">Bold</option>
-                        <option value="lighter">Light</option>
-                      </select>
-                    </div>
-
-                    {/* Text Alignment */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Text Alignment
-                      </label>
-                      <select
-                        value={certificateNamePlacement.textAlign}
-                        onChange={(e) => setCertificateNamePlacement(prev => ({ ...prev, textAlign: e.target.value }))}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                      >
-                        <option value="left">Left</option>
-                        <option value="center">Center</option>
-                        <option value="right">Right</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-
             </div>
 
           </div>
 
-          
+          {/* Certificate Configuration Section */}
+          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-800">Certificate Configuration</h3>
+                  <p className="text-sm text-slate-600">Design and customize the certificate layout for this event</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <CertificateDesigner 
+                draftMode={true}
+                draftStorageKey="pending-certificate-config"
+                onSave={(config) => {
+                  // Config is automatically saved to sessionStorage in draft mode
+                  console.log('Certificate config saved as draft');
+                }}
+              />
+            </div>
+          </div>
 
           {/* Action Button */}
 

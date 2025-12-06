@@ -165,6 +165,26 @@ export class UserService {
     }
   }
 
+  static async resetPassword(email: string): Promise<{ error?: string; success?: boolean }> {
+    try {
+      // Get the current origin for web redirect
+      const redirectTo = `${window.location.origin}/reset-password`;
+      
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectTo,
+      });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Reset password error:', error);
+      return { error: error.message || 'An unexpected error occurred' };
+    }
+  }
+
   static async updateProfile(userId: string, updates: Partial<User> & { originalEmail?: string }): Promise<{ user?: User; error?: string; needsEmailConfirmation?: boolean }> {
     try {
       // Prepare update object for metadata

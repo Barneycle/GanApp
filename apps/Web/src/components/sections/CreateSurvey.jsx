@@ -28,8 +28,15 @@ const questionSchema = z.object({
   columns: z.array(z.string()).optional(),
 });
 
+// Zod validation schema for survey sections
+const sectionSchema = z.object({
+  sectionTitle: z.string().min(1, 'Section title is required'),
+  sectionDescription: z.string().optional(),
+  questions: z.array(questionSchema).min(1, 'At least one question is required in each section'),
+});
+
 const createSurveySchema = z.object({
-  questions: z.array(questionSchema).min(1, 'At least one question is required'),
+  sections: z.array(sectionSchema).min(1, 'At least one section is required'),
 });
 
 export const CreateSurvey = () => {
@@ -60,7 +67,7 @@ export const CreateSurvey = () => {
     try {
       // Only save non-file fields to session storage
       const dataToSave = {
-        questions: data.questions || []
+        sections: data.sections || []
       };
       sessionStorage.setItem('create-survey-draft', JSON.stringify(dataToSave));
     } catch (error) {
@@ -87,29 +94,35 @@ export const CreateSurvey = () => {
     resolver: zodResolver(createSurveySchema),
     mode: 'onChange',
     defaultValues: {
-      questions: [
+      sections: [
         {
-          questionText: '',
-          questionType: 'short-answer',
-          options: [''],
-          required: false,
-          scaleMin: 1,
-          scaleMax: 5,
-          lowestLabel: '',
-          highestLabel: '',
-          rows: [''],
-          columns: [''],
+          sectionTitle: '',
+          sectionDescription: '',
+          questions: [
+            {
+              questionText: '',
+              questionType: 'short-answer',
+              options: [''],
+              required: false,
+              scaleMin: 1,
+              scaleMax: 5,
+              lowestLabel: '',
+              highestLabel: '',
+              rows: [''],
+              columns: [''],
+            },
+          ],
         },
       ],
     }
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields: sectionFields, append: appendSection, remove: removeSection } = useFieldArray({
     control,
-    name: "questions"
+    name: "sections"
   });
 
-  const watchedQuestions = watch("questions");
+  const watchedSections = watch("sections");
 
   // Check for pending event data on component mount
   useEffect(() => {
@@ -147,9 +160,16 @@ export const CreateSurvey = () => {
   // Restore saved form data on component mount
   useEffect(() => {
     const savedData = getSavedFormData();
-    if (savedData && savedData.questions && savedData.questions.length > 0) {
-      // Set the saved questions directly using setValue
-      setValue('questions', savedData.questions);
+    if (savedData && savedData.sections && savedData.sections.length > 0) {
+      // Set the saved sections directly using setValue
+      setValue('sections', savedData.sections);
+    } else if (savedData && savedData.questions && savedData.questions.length > 0) {
+      // Migrate old format (questions only) to new format (sections with questions)
+      setValue('sections', [{
+        sectionTitle: '',
+        sectionDescription: '',
+        questions: savedData.questions
+      }]);
     }
   }, [setValue]); // Only depend on setValue
 
@@ -176,94 +196,161 @@ export const CreateSurvey = () => {
   const handleClearDraft = () => {
     clearSavedFormData();
     // Reset form to default values using setValue
-    setValue('questions', [{
-      questionText: '',
-      questionType: 'short-answer',
-      options: [''],
-      required: false,
-      scaleMin: 1,
-      scaleMax: 5,
-      lowestLabel: '',
-      highestLabel: '',
-      rows: [''],
-      columns: [''],
+    setValue('sections', [{
+      sectionTitle: '',
+      sectionDescription: '',
+      questions: [{
+        questionText: '',
+        questionType: 'short-answer',
+        options: [''],
+        required: false,
+        scaleMin: 1,
+        scaleMax: 5,
+        lowestLabel: '',
+        highestLabel: '',
+        rows: [''],
+        columns: [''],
+      }],
     }]);
   };
 
-  const handleQuestionTypeChange = (questionIndex, newType) => {
-    setValue(`questions.${questionIndex}.questionType`, newType);
-    
-    // Reset type-specific fields when changing question type
-    if (newType === 'multiple-choice' || newType === 'checkbox' || newType === 'dropdown') {
-      setValue(`questions.${questionIndex}.options`, ['']);
-    } else if (newType === 'linear-scale' || newType === 'star-rating') {
-      setValue(`questions.${questionIndex}.scaleMin`, 1);
-      setValue(`questions.${questionIndex}.scaleMax`, 5);
-      setValue(`questions.${questionIndex}.lowestLabel`, '');
-      setValue(`questions.${questionIndex}.highestLabel`, '');
-    } else if (newType === 'multiple-choice-grid' || newType === 'checkbox-grid') {
-      setValue(`questions.${questionIndex}.rows`, ['']);
-      setValue(`questions.${questionIndex}.columns`, ['']);
-    }
-  };
-
-  const addOption = (questionIndex) => {
-    const currentOptions = watchedQuestions[questionIndex]?.options || [''];
-    setValue(`questions.${questionIndex}.options`, [...currentOptions, '']);
-  };
-
-  const removeOption = (questionIndex, optionIndex) => {
-    const currentOptions = watchedQuestions[questionIndex]?.options || [''];
-    if (currentOptions.length > 1) {
-      const newOptions = currentOptions.filter((_, i) => i !== optionIndex);
-      setValue(`questions.${questionIndex}.options`, newOptions);
-    }
-  };
-
-  const addRow = (questionIndex) => {
-    const currentRows = watchedQuestions[questionIndex]?.rows || [''];
-    setValue(`questions.${questionIndex}.rows`, [...currentRows, '']);
-  };
-
-  const removeRow = (questionIndex, rowIndex) => {
-    const currentRows = watchedQuestions[questionIndex]?.rows || [''];
-    if (currentRows.length > 1) {
-      const newRows = currentRows.filter((_, i) => i !== rowIndex);
-      setValue(`questions.${questionIndex}.rows`, newRows);
-    }
-  };
-
-  const addColumn = (questionIndex) => {
-    const currentColumns = watchedQuestions[questionIndex]?.columns || [''];
-    setValue(`questions.${questionIndex}.columns`, [...currentColumns, '']);
-  };
-
-  const removeColumn = (questionIndex, columnIndex) => {
-    const currentColumns = watchedQuestions[questionIndex]?.columns || [''];
-    if (currentColumns.length > 1) {
-      const newColumns = currentColumns.filter((_, i) => i !== columnIndex);
-      setValue(`questions.${questionIndex}.columns`, newColumns);
-    }
-  };
-
-  const addQuestion = () => {
-    append({
-      questionText: '',
-      questionType: 'short-answer',
-      options: [''],
-      required: false,
-      scaleMin: 1,
-      scaleMax: 5,
-      lowestLabel: '',
-      highestLabel: '',
-      rows: [''],
-      columns: [''],
+  const addSection = () => {
+    appendSection({
+      sectionTitle: '',
+      sectionDescription: '',
+      questions: [
+        {
+          questionText: '',
+          questionType: 'short-answer',
+          options: [''],
+          required: false,
+          scaleMin: 1,
+          scaleMax: 5,
+          lowestLabel: '',
+          highestLabel: '',
+          rows: [''],
+          columns: [''],
+        },
+      ],
     });
   };
 
-  const removeQuestion = (questionIndex) => {
-    if (fields.length > 1) {
-      remove(questionIndex);
+  const removeSectionHandler = (sectionIndex) => {
+    if (sectionFields.length > 1) {
+      removeSection(sectionIndex);
+    }
+  };
+
+  const handleQuestionTypeChange = (sectionIndex, questionIndex, newType) => {
+    setValue(`sections.${sectionIndex}.questions.${questionIndex}.questionType`, newType);
+    
+    // Reset type-specific fields when changing question type
+    if (newType === 'multiple-choice' || newType === 'checkbox' || newType === 'dropdown') {
+      setValue(`sections.${sectionIndex}.questions.${questionIndex}.options`, ['']);
+    } else if (newType === 'linear-scale' || newType === 'star-rating') {
+      setValue(`sections.${sectionIndex}.questions.${questionIndex}.scaleMin`, 1);
+      setValue(`sections.${sectionIndex}.questions.${questionIndex}.scaleMax`, 5);
+      setValue(`sections.${sectionIndex}.questions.${questionIndex}.lowestLabel`, '');
+      setValue(`sections.${sectionIndex}.questions.${questionIndex}.highestLabel`, '');
+    } else if (newType === 'multiple-choice-grid' || newType === 'checkbox-grid') {
+      setValue(`sections.${sectionIndex}.questions.${questionIndex}.rows`, ['']);
+      setValue(`sections.${sectionIndex}.questions.${questionIndex}.columns`, ['']);
+    }
+  };
+
+  const addOption = (sectionIndex, questionIndex) => {
+    const currentOptions = watchedSections[sectionIndex]?.questions[questionIndex]?.options || [''];
+    setValue(`sections.${sectionIndex}.questions.${questionIndex}.options`, [...currentOptions, '']);
+  };
+
+  const removeOption = (sectionIndex, questionIndex, optionIndex) => {
+    const currentOptions = watchedSections[sectionIndex]?.questions[questionIndex]?.options || [''];
+    if (currentOptions.length > 1) {
+      const newOptions = currentOptions.filter((_, i) => i !== optionIndex);
+      setValue(`sections.${sectionIndex}.questions.${questionIndex}.options`, newOptions);
+    }
+  };
+
+  const addRow = (sectionIndex, questionIndex) => {
+    const currentRows = watchedSections[sectionIndex]?.questions[questionIndex]?.rows || [''];
+    setValue(`sections.${sectionIndex}.questions.${questionIndex}.rows`, [...currentRows, '']);
+  };
+
+  const removeRow = (sectionIndex, questionIndex, rowIndex) => {
+    const currentRows = watchedSections[sectionIndex]?.questions[questionIndex]?.rows || [''];
+    if (currentRows.length > 1) {
+      const newRows = currentRows.filter((_, i) => i !== rowIndex);
+      setValue(`sections.${sectionIndex}.questions.${questionIndex}.rows`, newRows);
+    }
+  };
+
+  const addColumn = (sectionIndex, questionIndex) => {
+    const currentColumns = watchedSections[sectionIndex]?.questions[questionIndex]?.columns || [''];
+    setValue(`sections.${sectionIndex}.questions.${questionIndex}.columns`, [...currentColumns, '']);
+  };
+
+  const removeColumn = (sectionIndex, questionIndex, columnIndex) => {
+    const currentColumns = watchedSections[sectionIndex]?.questions[questionIndex]?.columns || [''];
+    if (currentColumns.length > 1) {
+      const newColumns = currentColumns.filter((_, i) => i !== columnIndex);
+      setValue(`sections.${sectionIndex}.questions.${questionIndex}.columns`, newColumns);
+    }
+  };
+
+  const addQuestion = (sectionIndex) => {
+    const currentQuestions = watchedSections[sectionIndex]?.questions || [];
+    setValue(`sections.${sectionIndex}.questions`, [
+      ...currentQuestions,
+      {
+        questionText: '',
+        questionType: 'short-answer',
+        options: [''],
+        required: false,
+        scaleMin: 1,
+        scaleMax: 5,
+        lowestLabel: '',
+        highestLabel: '',
+        rows: [''],
+        columns: [''],
+      },
+    ]);
+  };
+
+  const removeQuestion = (sectionIndex, questionIndex) => {
+    const currentQuestions = watchedSections[sectionIndex]?.questions || [];
+    if (currentQuestions.length > 1) {
+      const newQuestions = currentQuestions.filter((_, i) => i !== questionIndex);
+      setValue(`sections.${sectionIndex}.questions`, newQuestions);
+    }
+  };
+
+  const duplicateQuestion = (sectionIndex, questionIndex) => {
+    const currentQuestions = watchedSections[sectionIndex]?.questions || [];
+    const questionToDuplicate = currentQuestions[questionIndex];
+    
+    if (questionToDuplicate) {
+      // Create a deep copy of the question
+      const duplicatedQuestion = {
+        questionText: questionToDuplicate.questionText || '',
+        questionType: questionToDuplicate.questionType || 'short-answer',
+        options: questionToDuplicate.options ? [...questionToDuplicate.options] : [''],
+        required: questionToDuplicate.required || false,
+        scaleMin: questionToDuplicate.scaleMin || 1,
+        scaleMax: questionToDuplicate.scaleMax || 5,
+        lowestLabel: questionToDuplicate.lowestLabel || '',
+        highestLabel: questionToDuplicate.highestLabel || '',
+        rows: questionToDuplicate.rows ? [...questionToDuplicate.rows] : [''],
+        columns: questionToDuplicate.columns ? [...questionToDuplicate.columns] : [''],
+      };
+      
+      // Insert the duplicated question right after the current one
+      const newQuestions = [
+        ...currentQuestions.slice(0, questionIndex + 1),
+        duplicatedQuestion,
+        ...currentQuestions.slice(questionIndex + 1)
+      ];
+      
+      setValue(`sections.${sectionIndex}.questions`, newQuestions);
     }
   };
 
@@ -605,55 +692,49 @@ export const CreateSurvey = () => {
         
       }
 
-      // Step 1.7: Create certificate template record if template URL exists
-      if (pendingEventData.certificate_templates_url && pendingEventData.certificate_templates_url.trim()) {
-        try {
-          const templateUrl = pendingEventData.certificate_templates_url.split(',')[0].trim();
-          
-          // Get name placement from sessionStorage if available
-          let namePlacement = null;
-          try {
-            const storedPlacement = sessionStorage.getItem('certificate-name-placement');
-            if (storedPlacement) {
-              namePlacement = JSON.parse(storedPlacement);
-            }
-          } catch (e) {
-            console.warn('Failed to parse certificate name placement from sessionStorage:', e);
-          }
-          
-          const templateResult = await CertificateService.createOrUpdateTemplate(
-            eventId,
-            templateUrl,
-            user.id,
-            `Certificate Template for ${pendingEventData.title}`,
-            `Certificate template for event: ${pendingEventData.title}`,
-            namePlacement
-          );
-          
-          if (templateResult.error) {
-            console.warn('Failed to create certificate template record:', templateResult.error);
-            // Continue without failing - template URL is still stored in event
-          }
-        } catch (templateError) {
-          console.warn('Error creating certificate template record:', templateError);
-          // Continue without failing - template URL is still stored in event
-        }
-      }
 
       // Step 2: Create the survey in the database
       
-      // Transform questions to match the Survey interface
-      const transformedQuestions = data.questions.map((q, index) => ({
-        id: `q_${index + 1}`,
-        type: q.questionType === 'multiple-choice' || q.questionType === 'checkbox' ? 'multiple_choice' : 
-               q.questionType === 'linear-scale' || q.questionType === 'star-rating' ? 'rating' : 
-               q.questionType === 'yes-no' ? 'yes_no' : 'text',
-        question: q.questionText,
-        required: q.required,
-        options: q.options && q.options.length > 0 ? q.options.filter(opt => opt.trim()) : undefined,
-        min_rating: q.scaleMin,
-        max_rating: q.scaleMax
-      }));
+      // Transform sections and questions to match the Survey interface
+      // Flatten sections into a single questions array, preserving section info
+      let questionIndex = 1;
+      const transformedQuestions = [];
+      
+      // Check if data.sections exists, if not, handle gracefully
+      if (!data.sections || !Array.isArray(data.sections)) {
+        throw new Error('Survey sections data is missing or invalid');
+      }
+      
+      data.sections.forEach((section, sectionIndex) => {
+        // Ensure section has questions array
+        if (!section.questions || !Array.isArray(section.questions)) {
+          return; // Skip sections without questions
+        }
+        
+        // Add section header as a special question type (if needed) or just process questions
+        section.questions.forEach((q) => {
+          transformedQuestions.push({
+            id: `q_${questionIndex}`,
+            type: q.questionType === 'multiple-choice' || q.questionType === 'checkbox' ? 'multiple_choice' : 
+                   q.questionType === 'linear-scale' || q.questionType === 'star-rating' ? 'rating' : 
+                   q.questionType === 'yes-no' ? 'yes_no' : 'text',
+            question: q.questionText,
+            required: q.required,
+            options: q.options && q.options.length > 0 ? q.options.filter(opt => opt.trim()) : undefined,
+            min_rating: q.scaleMin,
+            max_rating: q.scaleMax,
+            sectionTitle: section.sectionTitle || undefined,
+            sectionDescription: section.sectionDescription || undefined,
+            sectionIndex: sectionIndex
+          });
+          questionIndex++;
+        });
+      });
+      
+      // Validate that we have at least one question
+      if (transformedQuestions.length === 0) {
+        throw new Error('At least one question is required in the survey');
+      }
       
       const surveyData = {
         event_id: eventId,
@@ -679,15 +760,33 @@ export const CreateSurvey = () => {
 
       const surveyId = surveyResult.survey.id;
 
+      // Step 3: Save certificate configuration if it exists in draft
+      try {
+        const draftCertConfig = sessionStorage.getItem('pending-certificate-config');
+        if (draftCertConfig) {
+          const certConfig = JSON.parse(draftCertConfig);
+          await CertificateService.saveCertificateConfig(eventId, certConfig, user.id);
+        }
+      } catch (certError) {
+        console.error('Failed to save certificate config:', certError);
+        // Don't fail the whole process if certificate config save fails
+      }
+
       // Clear all saved data
       clearSavedFormData();
       sessionStorage.removeItem('pending-event-data');
       sessionStorage.removeItem('pending-event-files');
       sessionStorage.removeItem('pending-event-speakers');
       sessionStorage.removeItem('pending-event-sponsors');
+      sessionStorage.removeItem('pending-certificate-config');
       
       // Show success message
-      alert(`Event and Survey created successfully!\nEvent ID: ${eventId}\nSurvey ID: ${surveyId}\nQuestions: ${data.questions.length}`);
+      // Calculate total questions count from sections
+      const totalQuestions = data.sections?.reduce((total, section) => {
+        return total + (section.questions?.length || 0);
+      }, 0) || 0;
+      
+      alert(`Event and Survey created successfully!\nEvent ID: ${eventId}\nSurvey ID: ${surveyId}\nQuestions: ${totalQuestions}`);
       
       // Navigate to organizer dashboard
       navigate('/organizer');
@@ -812,37 +911,70 @@ export const CreateSurvey = () => {
               </div>
             </div>
             
-            <div className="p-6 space-y-6">
-              {watchedQuestions.map((question, qIndex) => (
-                <div key={qIndex} className="border border-slate-200 rounded-xl p-6 bg-slate-50">
-                  <div className="flex items-start space-x-3 mb-4">
-                    <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
-                      {qIndex + 1}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="text-lg font-medium text-slate-800 mb-1">
-                        {question.questionText || 'Question text will appear here'}
-                      </h4>
-                      {question.required && (
-                        <span className="inline-block px-2 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">
-                          Required
-                        </span>
-                      )}
-                    </div>
-                  </div>
+            <div className="p-6 space-y-8">
+              {watchedSections.map((section, sectionIndex) => {
+                let questionNumber = 1;
+                // Calculate question number across all previous sections
+                for (let i = 0; i < sectionIndex; i++) {
+                  questionNumber += watchedSections[i]?.questions?.length || 0;
+                }
+                
+                return (
+                  <div key={sectionIndex} className="space-y-4">
+                    {/* Section Header */}
+                    {(section.sectionTitle || section.sectionDescription) && (
+                      <div className="border-b-2 border-blue-500 pb-3 mb-4">
+                        {section.sectionTitle && (
+                          <h3 className="text-xl font-bold text-slate-800 mb-1">
+                            {section.sectionTitle}
+                          </h3>
+                        )}
+                        {section.sectionDescription && (
+                          <p className="text-sm text-slate-600">
+                            {section.sectionDescription}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Section Questions */}
+                    {section.questions?.map((question, qIndex) => {
+                      const globalQIndex = questionNumber - 1;
+                      questionNumber++;
+                      return (
+                        <div key={qIndex} className="border border-slate-200 rounded-xl p-6 bg-slate-50">
+                          <div className="flex items-start space-x-3 mb-4">
+                            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
+                              {globalQIndex + 1}
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="text-lg font-medium text-slate-800 mb-1">
+                                {question.questionText || 'Question text will appear here'}
+                              </h4>
+                              {question.required && (
+                                <span className="inline-block px-2 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+                                  Required
+                                </span>
+                              )}
+                            </div>
+                          </div>
 
-                  {/* Render different question types */}
-                  {renderQuestionPreview(question, qIndex)}
-                </div>
-              ))}
+                          {/* Render different question types */}
+                          {renderQuestionPreview(question, globalQIndex)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
               
-              {watchedQuestions.length === 0 && (
+              {(!watchedSections || watchedSections.length === 0 || watchedSections.every(s => !s.questions || s.questions.length === 0)) && (
                 <div className="text-center py-8 text-slate-500">
                   <svg className="w-12 h-12 mx-auto mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <p className="text-lg font-medium">No questions yet</p>
-                  <p className="text-sm">Add questions below to see them in preview</p>
+                  <p className="text-sm">Add sections and questions below to see them in preview</p>
                 </div>
               )}
             </div>
@@ -850,326 +982,434 @@ export const CreateSurvey = () => {
         )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 sm:space-y-8">
-          {fields.map((field, qIndex) => (
-            <div 
-              key={field.id} 
-              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden"
-            >
-              {/* Question Header */}
-              <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-6 py-4 border-b border-slate-100">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-lg">
-                      {qIndex + 1}
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-800">Question {qIndex + 1}</h3>
-                      <p className="text-sm text-slate-600">Configure your question settings</p>
+          {sectionFields.map((sectionField, sectionIndex) => {
+            const sectionQuestions = watchedSections[sectionIndex]?.questions || [];
+            let questionNumber = 1;
+            // Calculate question number across all previous sections
+            for (let i = 0; i < sectionIndex; i++) {
+              questionNumber += watchedSections[i]?.questions?.length || 0;
+            }
+            
+            return (
+              <div key={sectionField.id} className="space-y-6">
+                {/* Section Header */}
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-2xl shadow-lg border border-purple-200 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-purple-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-lg">
+                          {sectionIndex + 1}
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-slate-800">Section {sectionIndex + 1}</h3>
+                          <p className="text-sm text-slate-600">Configure your section settings</p>
+                        </div>
+                      </div>
+                      
+                      {sectionFields.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeSectionHandler(sectionIndex)}
+                          className="p-2 rounded-full hover:bg-red-50 text-red-500 hover:text-red-700 transition-all duration-200"
+                          aria-label="Remove section"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   </div>
                   
-                  {fields.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeQuestion(qIndex)}
-                      className="p-2 rounded-full hover:bg-red-50 text-red-500 hover:text-red-700 transition-all duration-200"
-                      aria-label="Remove question"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Question Content */}
-              <div className="p-6 space-y-6">
-                {/* Question Text */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
-                    Question Text
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="What would you like to ask?"
-                    {...control.register(`questions.${qIndex}.questionText`)}
-                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
-                  />
-                  {errors.questions?.[qIndex]?.questionText && (
-                    <p className="text-red-500 text-xs mt-1">{errors.questions[qIndex].questionText.message}</p>
-                  )}
-                </div>
-
-                {/* Question Type */}
-                <div className="space-y-3">
-                  <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
-                    Question Type
-                  </label>
-                  <Controller
-                    name={`questions.${qIndex}.questionType`}
-                    control={control}
-                    render={({ field }) => (
-                      <select
-                        {...field}
-                        onChange={(e) => handleQuestionTypeChange(qIndex, e.target.value)}
-                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 bg-white"
-                      >
-                        <option value="short-answer">📝 Short Answer</option>
-                        <option value="paragraph">📄 Paragraph</option>
-                        <option value="multiple-choice">🔘 Multiple Choice</option>
-                        <option value="checkbox">☑️ Checkbox</option>
-                        <option value="dropdown">📋 Dropdown</option>
-                        <option value="linear-scale">📊 Linear Scale</option>
-                        <option value="star-rating">⭐ Star Rating</option>
-                        <option value="multiple-choice-grid">📊 Multiple Choice Grid</option>
-                        <option value="checkbox-grid">☑️ Checkbox Grid</option>
-                        <option value="date">📅 Date</option>
-                        <option value="time">🕐 Time</option>
-                      </select>
-                    )}
-                  />
-                </div>
-
-                {/* Options for multiple choice, checkbox, and dropdown */}
-                {(watch(`questions.${qIndex}.questionType`) === 'multiple-choice' || watch(`questions.${qIndex}.questionType`) === 'checkbox' || watch(`questions.${qIndex}.questionType`) === 'dropdown') && (
-                  <div className="space-y-3">
-                    <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
-                      Options
-                    </label>
+                  <div className="p-6 space-y-4">
+                    {/* Section Title */}
                     <div className="space-y-2">
-                      {watch(`questions.${qIndex}.options`).map((option, index) => (
-                        <div key={index} className="flex items-center space-x-3">
-                          <div className="flex-1">
+                      <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                        Section Title
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Enter section title (e.g., Event Feedback, Speaker Evaluation)"
+                        {...control.register(`sections.${sectionIndex}.sectionTitle`)}
+                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
+                      />
+                      {errors.sections?.[sectionIndex]?.sectionTitle && (
+                        <p className="text-red-500 text-xs mt-1">{errors.sections[sectionIndex].sectionTitle.message}</p>
+                      )}
+                    </div>
+                    
+                    {/* Section Description */}
+                    <div className="space-y-2">
+                      <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                        Section Description (Optional)
+                      </label>
+                      <textarea
+                        placeholder="Enter section description..."
+                        {...control.register(`sections.${sectionIndex}.sectionDescription`)}
+                        rows={2}
+                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400 resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Section Questions */}
+                <div className="space-y-6">
+                  {sectionQuestions.map((question, qIndex) => {
+                    const globalQIndex = questionNumber - 1;
+                    questionNumber++;
+                    return (
+                      <div 
+                        key={qIndex}
+                        className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden"
+                      >
+                        {/* Question Header */}
+                        <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-6 py-4 border-b border-slate-100">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-lg">
+                                {globalQIndex + 1}
+                              </div>
+                              <div>
+                                <h3 className="text-lg font-semibold text-slate-800">Question {globalQIndex + 1}</h3>
+                                <p className="text-sm text-slate-600">Configure your question settings</p>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center space-x-2">
+                              <button
+                                type="button"
+                                onClick={() => duplicateQuestion(sectionIndex, qIndex)}
+                                className="p-2 rounded-full hover:bg-blue-50 text-blue-500 hover:text-blue-700 transition-all duration-200"
+                                aria-label="Duplicate question"
+                                title="Duplicate question"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                              </button>
+                              
+                              {sectionQuestions.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeQuestion(sectionIndex, qIndex)}
+                                  className="p-2 rounded-full hover:bg-red-50 text-red-500 hover:text-red-700 transition-all duration-200"
+                                  aria-label="Remove question"
+                                  title="Remove question"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Question Content */}
+                        <div className="p-6 space-y-6">
+                          {/* Question Text */}
+                          <div className="space-y-2">
+                            <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                              Question Text
+                            </label>
                             <input
                               type="text"
-                              value={option}
-                              onChange={(e) => {
-                                const newOptions = [...watch(`questions.${qIndex}.options`)];
-                                newOptions[index] = e.target.value;
-                                setValue(`questions.${qIndex}.options`, newOptions);
-                              }}
+                              placeholder="What would you like to ask?"
+                              {...control.register(`sections.${sectionIndex}.questions.${qIndex}.questionText`)}
                               className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
-                              placeholder={`Option ${index + 1}`}
+                            />
+                            {errors.sections?.[sectionIndex]?.questions?.[qIndex]?.questionText && (
+                              <p className="text-red-500 text-xs mt-1">{errors.sections[sectionIndex].questions[qIndex].questionText.message}</p>
+                            )}
+                          </div>
+
+                          {/* Question Type */}
+                          <div className="space-y-3">
+                            <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                              Question Type
+                            </label>
+                            <Controller
+                              name={`sections.${sectionIndex}.questions.${qIndex}.questionType`}
+                              control={control}
+                              render={({ field }) => (
+                                <select
+                                  {...field}
+                                  onChange={(e) => handleQuestionTypeChange(sectionIndex, qIndex, e.target.value)}
+                                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 bg-white"
+                                >
+                                  <option value="short-answer">📝 Short Answer</option>
+                                  <option value="paragraph">📄 Paragraph</option>
+                                  <option value="multiple-choice">🔘 Multiple Choice</option>
+                                  <option value="checkbox">☑️ Checkbox</option>
+                                  <option value="dropdown">📋 Dropdown</option>
+                                  <option value="linear-scale">📊 Linear Scale</option>
+                                  <option value="star-rating">⭐ Star Rating</option>
+                                  <option value="multiple-choice-grid">📊 Multiple Choice Grid</option>
+                                  <option value="checkbox-grid">☑️ Checkbox Grid</option>
+                                  <option value="date">📅 Date</option>
+                                  <option value="time">🕐 Time</option>
+                                </select>
+                              )}
                             />
                           </div>
-                          {watch(`questions.${qIndex}.options`).length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeOption(qIndex, index)}
-                              className="p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-700 transition-all duration-200"
-                            >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
+
+                          {/* Options for multiple choice, checkbox, and dropdown */}
+                          {(watch(`sections.${sectionIndex}.questions.${qIndex}.questionType`) === 'multiple-choice' || watch(`sections.${sectionIndex}.questions.${qIndex}.questionType`) === 'checkbox' || watch(`sections.${sectionIndex}.questions.${qIndex}.questionType`) === 'dropdown') && (
+                            <div className="space-y-3">
+                              <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                                Options
+                              </label>
+                              <div className="space-y-2">
+                                {watch(`sections.${sectionIndex}.questions.${qIndex}.options`)?.map((option, index) => (
+                                  <div key={index} className="flex items-center space-x-3">
+                                    <div className="flex-1">
+                                      <input
+                                        type="text"
+                                        value={option}
+                                        onChange={(e) => {
+                                          const newOptions = [...watch(`sections.${sectionIndex}.questions.${qIndex}.options`)];
+                                          newOptions[index] = e.target.value;
+                                          setValue(`sections.${sectionIndex}.questions.${qIndex}.options`, newOptions);
+                                        }}
+                                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
+                                        placeholder={`Option ${index + 1}`}
+                                      />
+                                    </div>
+                                    {watch(`sections.${sectionIndex}.questions.${qIndex}.options`).length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => removeOption(sectionIndex, qIndex, index)}
+                                        className="p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-700 transition-all duration-200"
+                                      >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => addOption(sectionIndex, qIndex)}
+                                className="inline-flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium text-sm transition-colors duration-200"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                <span>Add Option</span>
+                              </button>
+                            </div>
                           )}
+
+                          {/* Scale settings for linear scale and star rating */}
+                          {(watch(`sections.${sectionIndex}.questions.${qIndex}.questionType`) === 'linear-scale' || watch(`sections.${sectionIndex}.questions.${qIndex}.questionType`) === 'star-rating') && (
+                            <div className="space-y-4">
+                              <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                                Scale Configuration
+                              </label>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <label className="block text-sm font-medium text-slate-600">Minimum Value</label>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="10"
+                                    {...control.register(`sections.${sectionIndex}.questions.${qIndex}.scaleMin`)}
+                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200"
+                                  />
+                                  {errors.sections?.[sectionIndex]?.questions?.[qIndex]?.scaleMin && (
+                                    <p className="text-red-500 text-xs mt-1">{errors.sections[sectionIndex].questions[qIndex].scaleMin.message}</p>
+                                  )}
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="block text-sm font-medium text-slate-600">Maximum Value</label>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="10"
+                                    {...control.register(`sections.${sectionIndex}.questions.${qIndex}.scaleMax`)}
+                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200"
+                                  />
+                                  {errors.sections?.[sectionIndex]?.questions?.[qIndex]?.scaleMax && (
+                                    <p className="text-red-500 text-xs mt-1">{errors.sections[sectionIndex].questions[qIndex].scaleMax.message}</p>
+                                  )}
+                                </div>
+                              </div>
+                              {watch(`sections.${sectionIndex}.questions.${qIndex}.questionType`) === 'linear-scale' && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-slate-600">Lowest Label</label>
+                                    <input
+                                      type="text"
+                                      value={watch(`sections.${sectionIndex}.questions.${qIndex}.lowestLabel`) || ''}
+                                      onChange={(e) => {
+                                        setValue(`sections.${sectionIndex}.questions.${qIndex}.lowestLabel`, e.target.value);
+                                      }}
+                                      className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
+                                      placeholder="e.g., Very dissatisfied"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-slate-600">Highest Label</label>
+                                    <input
+                                      type="text"
+                                      value={watch(`sections.${sectionIndex}.questions.${qIndex}.highestLabel`) || ''}
+                                      onChange={(e) => {
+                                        setValue(`sections.${sectionIndex}.questions.${qIndex}.highestLabel`, e.target.value);
+                                      }}
+                                      className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
+                                      placeholder="e.g., Very satisfied"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Grid settings for multiple choice grid and checkbox grid */}
+                          {(watch(`sections.${sectionIndex}.questions.${qIndex}.questionType`) === 'multiple-choice-grid' || watch(`sections.${sectionIndex}.questions.${qIndex}.questionType`) === 'checkbox-grid') && (
+                            <div className="space-y-4">
+                              <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                                Grid Configuration
+                              </label>
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div className="space-y-3">
+                                  <label className="block text-sm font-medium text-slate-600">Row Labels</label>
+                                  <div className="space-y-2">
+                                    {watch(`sections.${sectionIndex}.questions.${qIndex}.rows`)?.map((row, index) => (
+                                      <div key={index} className="flex items-center space-x-2">
+                                        <input
+                                          type="text"
+                                          value={row}
+                                          onChange={(e) => {
+                                            const newRows = [...watch(`sections.${sectionIndex}.questions.${qIndex}.rows`)];
+                                            newRows[index] = e.target.value;
+                                            setValue(`sections.${sectionIndex}.questions.${qIndex}.rows`, newRows);
+                                          }}
+                                          className="flex-1 px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
+                                          placeholder={`Row ${index + 1}`}
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => removeRow(sectionIndex, qIndex, index)}
+                                          className="p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-700 transition-all duration-200"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                          </svg>
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => addRow(sectionIndex, qIndex)}
+                                    className="inline-flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium text-sm transition-colors duration-200"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                    </svg>
+                                    <span>Add Row</span>
+                                  </button>
+                                </div>
+                                <div className="space-y-3">
+                                  <label className="block text-sm font-medium text-slate-600">Column Labels</label>
+                                  <div className="space-y-2">
+                                    {watch(`sections.${sectionIndex}.questions.${qIndex}.columns`)?.map((column, index) => (
+                                      <div key={index} className="flex items-center space-x-2">
+                                        <input
+                                          type="text"
+                                          value={column}
+                                          onChange={(e) => {
+                                            const newColumns = [...watch(`sections.${sectionIndex}.questions.${qIndex}.columns`)];
+                                            newColumns[index] = e.target.value;
+                                            setValue(`sections.${sectionIndex}.questions.${qIndex}.columns`, newColumns);
+                                          }}
+                                          className="flex-1 px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
+                                          placeholder={`Column ${index + 1}`}
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => removeColumn(sectionIndex, qIndex, index)}
+                                          className="p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-700 transition-all duration-200"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                          </svg>
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => addColumn(sectionIndex, qIndex)}
+                                    className="inline-flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium text-sm transition-colors duration-200"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                    </svg>
+                                    <span>Add Column</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Required Toggle */}
+                          <div className="flex items-center space-x-3 pt-4 border-t border-slate-100">
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                {...control.register(`sections.${sectionIndex}.questions.${qIndex}.required`)}
+                                className="sr-only"
+                              />
+                              <div className={`w-11 h-6 rounded-full transition-all duration-200 ${
+                                watch(`sections.${sectionIndex}.questions.${qIndex}.required`) ? 'bg-blue-600' : 'bg-slate-200'
+                              }`}>
+                                <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-200 ${
+                                  watch(`sections.${sectionIndex}.questions.${qIndex}.required`) ? 'translate-x-5' : 'translate-x-0'
+                                }`} />
+                              </div>
+                            </label>
+                            <span className="text-sm font-medium text-slate-700">Required Question</span>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => addOption(qIndex)}
-                      className="inline-flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium text-sm transition-colors duration-200"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      </div>
+                    );
+                  })}
+                  
+                  {/* Add Question Button for Section */}
+                  <button
+                    type="button"
+                    onClick={() => addQuestion(sectionIndex)}
+                    className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-6 rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 font-semibold text-base shadow-md hover:shadow-lg"
+                  >
+                    <span className="flex items-center justify-center space-x-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                       </svg>
-                      <span>Add Option</span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Scale settings for linear scale and star rating */}
-                {(watch(`questions.${qIndex}.questionType`) === 'linear-scale' || watch(`questions.${qIndex}.questionType`) === 'star-rating') && (
-                  <div className="space-y-4">
-                    <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
-                      Scale Configuration
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="block text-sm font-medium text-slate-600">Minimum Value</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="10"
-                          {...control.register(`questions.${qIndex}.scaleMin`)}
-                          className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200"
-                        />
-                        {errors.questions?.[qIndex]?.scaleMin && (
-                          <p className="text-red-500 text-xs mt-1">{errors.questions[qIndex].scaleMin.message}</p>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <label className="block text-sm font-medium text-slate-600">Maximum Value</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="10"
-                          {...control.register(`questions.${qIndex}.scaleMax`)}
-                          className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200"
-                        />
-                        {errors.questions?.[qIndex]?.scaleMax && (
-                          <p className="text-red-500 text-xs mt-1">{errors.questions[qIndex].scaleMax.message}</p>
-                        )}
-                      </div>
-                    </div>
-                    {watch(`questions.${qIndex}.questionType`) === 'linear-scale' && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-slate-600">Lowest Label</label>
-                          <input
-                            type="text"
-                            value={watch(`questions.${qIndex}.lowestLabel`) || ''}
-                            onChange={(e) => {
-                              const newLowestLabel = e.target.value;
-                              setValue(`questions.${qIndex}.lowestLabel`, newLowestLabel);
-                            }}
-                            className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
-                            placeholder="e.g., Very dissatisfied"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-slate-600">Highest Label</label>
-                          <input
-                            type="text"
-                            value={watch(`questions.${qIndex}.highestLabel`) || ''}
-                            onChange={(e) => {
-                              const newHighestLabel = e.target.value;
-                              setValue(`questions.${qIndex}.highestLabel`, newHighestLabel);
-                            }}
-                            className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
-                            placeholder="e.g., Very satisfied"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Grid settings for multiple choice grid and checkbox grid */}
-                {(watch(`questions.${qIndex}.questionType`) === 'multiple-choice-grid' || watch(`questions.${qIndex}.questionType`) === 'checkbox-grid') && (
-                  <div className="space-y-4">
-                    <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
-                      Grid Configuration
-                    </label>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <div className="space-y-3">
-                        <label className="block text-sm font-medium text-slate-600">Row Labels</label>
-                        <div className="space-y-2">
-                          {watch(`questions.${qIndex}.rows`)?.map((row, index) => (
-                            <div key={index} className="flex items-center space-x-2">
-                              <input
-                                type="text"
-                                value={row}
-                                onChange={(e) => {
-                                  const newRows = [...watch(`questions.${qIndex}.rows`)];
-                                  newRows[index] = e.target.value;
-                                  setValue(`questions.${qIndex}.rows`, newRows);
-                                }}
-                                className="flex-1 px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
-                                placeholder={`Row ${index + 1}`}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => removeRow(qIndex, index)}
-                                className="p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-700 transition-all duration-200"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => addRow(qIndex)}
-                          className="inline-flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium text-sm transition-colors duration-200"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                          </svg>
-                          <span>Add Row</span>
-                        </button>
-                      </div>
-                      <div className="space-y-3">
-                        <label className="block text-sm font-medium text-slate-600">Column Labels</label>
-                        <div className="space-y-2">
-                          {watch(`questions.${qIndex}.columns`)?.map((column, index) => (
-                            <div key={index} className="flex items-center space-x-2">
-                              <input
-                                type="text"
-                                value={column}
-                                onChange={(e) => {
-                                  const newColumns = [...watch(`questions.${qIndex}.columns`)];
-                                  newColumns[index] = e.target.value;
-                                  setValue(`questions.${qIndex}.columns`, newColumns);
-                                }}
-                                className="flex-1 px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
-                                placeholder={`Column ${index + 1}`}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => removeColumn(qIndex, index)}
-                                className="p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-700 transition-all duration-200"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => addColumn(qIndex)}
-                          className="inline-flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium text-sm transition-colors duration-200"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                          </svg>
-                          <span>Add Column</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Required Toggle */}
-                <div className="flex items-center space-x-3 pt-4 border-t border-slate-100">
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      {...control.register(`questions.${qIndex}.required`)}
-                      className="sr-only"
-                    />
-                    <div className={`w-11 h-6 rounded-full transition-all duration-200 ${
-                      watch(`questions.${qIndex}.required`) ? 'bg-blue-600' : 'bg-slate-200'
-                    }`}>
-                      <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-200 ${
-                        watch(`questions.${qIndex}.required`) ? 'translate-x-5' : 'translate-x-0'
-                      }`} />
-                    </div>
-                  </label>
-                  <span className="text-sm font-medium text-slate-700">Required Question</span>
+                      <span>Add Question to This Section</span>
+                    </span>
+                  </button>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 sm:space-x-4 pt-8">
             <button
               type="button"
-              onClick={addQuestion}
-              className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-blue-800 text-white py-4 px-8 rounded-xl hover:from-blue-700 hover:to-blue-900 transition-all duration-200 font-semibold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              onClick={addSection}
+              className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-purple-800 text-white py-4 px-8 rounded-xl hover:from-purple-700 hover:to-purple-900 transition-all duration-200 font-semibold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
             >
               <span className="flex items-center justify-center space-x-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
-                <span>Add New Question</span>
+                <span>Add New Section</span>
               </span>
             </button>
             

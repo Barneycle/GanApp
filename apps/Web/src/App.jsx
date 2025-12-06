@@ -20,12 +20,18 @@ function App() {
         <>
             {!isLoaded && <LoadingScreen onComplete={handleLoadingComplete} />}
 
-            <div className="min-h-screen bg-white text-gray-900">
+            <div className={`${location.pathname === '/login' ? 'h-screen overflow-hidden' : 'min-h-screen'} bg-white text-gray-900`}>
                 {isLoaded && !authLoading && (
                     <>
-                        <Navbar />
-                        <MobileMenu menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
-                        <AnimatedRoutes />
+                        {location.pathname !== '/login' && (
+                            <>
+                                <Navbar />
+                                <MobileMenu menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
+                            </>
+                        )}
+                        <div className={location.pathname === '/login' ? 'h-full overflow-hidden' : ''}>
+                            <AnimatedRoutes />
+                        </div>
                     </>
                 )}
             </div>

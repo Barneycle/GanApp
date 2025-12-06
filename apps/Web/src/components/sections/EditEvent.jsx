@@ -13,10 +13,10 @@ import { EventService } from '../../services/eventService';
 import { SpeakerService } from '../../services/speakerService';
 import { SponsorService } from '../../services/sponsorService';
 import { VenueService } from '../../services/venueService';
-import { CertificateService } from '../../services/certificateService';
 import { supabase } from '../../lib/supabaseClient';
 
 import { useAuth } from '../../contexts/AuthContext';
+import CertificateDesigner from '../CertificateDesigner';
 
 // Lazy load RichTextEditor to prevent app-wide crashes
 const RichTextEditor = lazy(() => import('../RichTextEditor'));
@@ -2039,22 +2039,9 @@ export const EditEvent = () => {
 
     eventKits: [],
 
-    eventProgrammes: [],
-
-    certificateTemplates: []
+    eventProgrammes: []
 
   }));
-
-  // Certificate name placement configuration
-  const [certificateNamePlacement, setCertificateNamePlacement] = useState({
-    x: 0.5,
-    y: 0.5,
-    fontSize: 36,
-    color: '#000000',
-    fontFamily: 'Arial, sans-serif',
-    fontWeight: 'bold',
-    textAlign: 'center'
-  });
 
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
 
@@ -2638,37 +2625,14 @@ export const EditEvent = () => {
         const materialsList = buildFileList(event.materials_url, 'Material');
         const kitsList = buildFileList(event.event_kits_url, 'Event Kit');
         const programmesList = buildFileList(event.event_programmes_url, 'Programme');
-        const certificatesList = buildFileList(event.certificate_templates_url, 'Certificate');
-
         setUploadedFiles((prev) => ({
           ...prev,
           banner: existingBanner,
           materials: materialsList,
           eventKits: kitsList,
           eventProgrammes: programmesList,
-          certificateTemplates: certificatesList,
         }));
 
-        // Load certificate template name placement if template exists
-        if (event.certificate_templates_url) {
-          try {
-            const templateResult = await CertificateService.getCertificateTemplate(eventId);
-            if (templateResult.template && templateResult.template.content_fields?.name_position) {
-              const namePos = templateResult.template.content_fields.name_position;
-              setCertificateNamePlacement({
-                x: namePos.x ?? 0.5,
-                y: namePos.y ?? 0.5,
-                fontSize: namePos.fontSize ?? 36,
-                color: namePos.color ?? '#000000',
-                fontFamily: namePos.fontFamily ?? 'Arial, sans-serif',
-                fontWeight: namePos.fontWeight ?? 'bold',
-                textAlign: namePos.textAlign ?? 'center'
-              });
-            }
-          } catch (e) {
-            console.warn('Failed to load certificate name placement:', e);
-          }
-        }
 
         const speakerResult = await SpeakerService.getEventSpeakers(eventId);
         if (isMounted && speakerResult.speakers) {
@@ -2734,112 +2698,50 @@ export const EditEvent = () => {
 
 
   const handleFileUpload = (uploadType, results) => {
-
-    try {
-
-      if (uploadType === 'banner') {
-
-        // Banner is single file, so replace
-
-        setUploadedFiles(prev => {
-
-          const newState = { ...prev, banner: results[0] };
-
-          return newState;
-
-        });
-
-      } else if (uploadType === 'materials') {
-
-        // For materials, accumulate files by category
-
-        setUploadedFiles(prev => ({ 
-
-          ...prev, 
-
-          materials: prev.materials ? [...prev.materials, ...results] : results 
-
-        }));
-
-      } else if (uploadType === 'logo') {
-
-        // For sponsor logos, accumulate multiple files
-
-        setUploadedFiles(prev => ({ 
-
-          ...prev, 
-
-          sponsorLogos: prev.sponsorLogos ? [...prev.sponsorLogos, ...results] : results 
-
-        }));
-
-      } else if (uploadType === 'photo') {
-
-        // For speaker photos, accumulate multiple files
-
-        setUploadedFiles(prev => ({ 
-
-          ...prev, 
-
-          speakerPhotos: prev.speakerPhotos ? [...prev.speakerPhotos, ...results] : results 
-
-        }));
-
-      } else if (uploadType === 'event-kits') {
-
-        // For event kits, accumulate multiple files
-
-        setUploadedFiles(prev => ({ 
-
-          ...prev, 
-
-          eventKits: prev.eventKits ? [...prev.eventKits, ...results] : results 
-
-        }));
-
-      } else if (uploadType === 'event-programmes') {
-
-        // For event programmes, accumulate multiple files
-
-        setUploadedFiles(prev => ({ 
-
-          ...prev, 
-
-          eventProgrammes: prev.eventProgrammes ? [...prev.eventProgrammes, ...results] : results 
-
-        }));
-
-      } else if (uploadType === 'certificate-template') {
-
-        // For certificate templates, accumulate multiple files
-
-        setUploadedFiles(prev => ({ 
-
-          ...prev, 
-
-          certificateTemplates: prev.certificateTemplates ? [...prev.certificateTemplates, ...results] : results 
-
-        }));
-
-      }
-
-    } catch (error) {
-
-      // Error in handleFileUpload
-
+    if (uploadType === 'banner') {
+      // Banner is single file, so replace
+      setUploadedFiles(prev => {
+        const newState = { ...prev, banner: results[0] };
+        return newState;
+      });
+    } else if (uploadType === 'materials') {
+      // For materials, accumulate files by category
+      setUploadedFiles(prev => ({ 
+        ...prev, 
+        materials: prev.materials ? [...prev.materials, ...results] : results 
+      }));
+    } else if (uploadType === 'logo') {
+      // For sponsor logos, accumulate multiple files
+      setUploadedFiles(prev => ({ 
+        ...prev, 
+        sponsorLogos: prev.sponsorLogos ? [...prev.sponsorLogos, ...results] : results 
+      }));
+    } else if (uploadType === 'photo') {
+      // For speaker photos, accumulate multiple files
+      setUploadedFiles(prev => ({ 
+        ...prev, 
+        speakerPhotos: prev.speakerPhotos ? [...prev.speakerPhotos, ...results] : results 
+      }));
+    } else if (uploadType === 'event-kits') {
+      // For event kits, accumulate multiple files
+      setUploadedFiles(prev => ({ 
+        ...prev, 
+        eventKits: prev.eventKits ? [...prev.eventKits, ...results] : results 
+      }));
+    } else if (uploadType === 'event-programmes') {
+      // For event programmes, accumulate multiple files
+      setUploadedFiles(prev => ({ 
+        ...prev, 
+        eventProgrammes: prev.eventProgrammes ? [...prev.eventProgrammes, ...results] : results 
+      }));
     }
-
   };
 
 
 
   const handleRemoveFile = async (uploadType, fileId, category = null) => {
-
-    try {
-
-      // Find the file to get its storage path
-
-      let fileToRemove = null;
+    // Find the file to get its storage path
+    let fileToRemove = null;
 
       let fileArray = null;
 
@@ -2944,28 +2846,7 @@ export const EditEvent = () => {
           }));
 
         }
-
-      } else if (uploadType === 'certificate-template') {
-
-        fileArray = uploadedFiles.certificateTemplates;
-
-        fileToRemove = fileArray?.find(f => f.id === fileId);
-
-        if (fileToRemove) {
-
-          setUploadedFiles(prev => ({ 
-
-            ...prev, 
-
-            certificateTemplates: prev.certificateTemplates?.filter(f => f.id !== fileId) || []
-
-          }));
-
-        }
-
       }
-
-      
 
       // Remove file from Supabase Storage if it was uploaded
       if (fileToRemove?.path && fileToRemove?.uploaded && fileToRemove?.bucket) {
@@ -2981,11 +2862,6 @@ export const EditEvent = () => {
           // Continue with local removal even if storage removal fails
         }
       }
-
-    } catch (error) {
-      // Error removing file
-    }
-
   };
 
 
@@ -3171,7 +3047,6 @@ export const EditEvent = () => {
           banner_url: uploadedFiles.banner?.url || currentEvent.banner_url || null,
           event_kits_url: uploadedFiles.eventKits?.length ? uploadedFiles.eventKits.map((file) => file.url).filter(Boolean).join(',') : currentEvent.event_kits_url || null,
           event_programmes_url: uploadedFiles.eventProgrammes?.length ? uploadedFiles.eventProgrammes.map((file) => file.url).filter(Boolean).join(',') : currentEvent.event_programmes_url || null,
-          certificate_templates_url: uploadedFiles.certificateTemplates?.length ? uploadedFiles.certificateTemplates.map((file) => file.url).filter(Boolean).join(',') : currentEvent.certificate_templates_url || null,
           updated_at: new Date().toISOString(),
         };
 
@@ -3371,26 +3246,6 @@ export const EditEvent = () => {
           }
         }
 
-        // Update certificate template with name placement if template exists
-        if (updatePayload.certificate_templates_url || currentEvent.certificate_templates_url) {
-          try {
-            const templateUrl = updatePayload.certificate_templates_url || currentEvent.certificate_templates_url;
-            if (templateUrl) {
-              const templateUrlFirst = templateUrl.split(',')[0].trim();
-              await CertificateService.createOrUpdateTemplate(
-                eventId,
-                templateUrlFirst,
-                user.id,
-                `Certificate Template for ${updatePayload.title || currentEvent.title}`,
-                `Certificate template for event: ${updatePayload.title || currentEvent.title}`,
-                certificateNamePlacement
-              );
-            }
-          } catch (templateError) {
-            console.warn('Failed to update certificate template with name placement:', templateError);
-            // Continue - this is not critical
-          }
-        }
 
         setSubmitMessage('Event updated successfully!');
         setTimeout(() => {
@@ -3577,13 +3432,6 @@ export const EditEvent = () => {
 
     
 
-    // Handle certificate templates
-
-    if (uploadedFiles.certificateTemplates && uploadedFiles.certificateTemplates.length > 0) {
-
-      eventData.certificate_templates_url = uploadedFiles.certificateTemplates.map(f => f.url).join(',');
-
-    }
 
     
 
@@ -4968,13 +4816,23 @@ export const EditEvent = () => {
                         {/* Title/Prefix */}
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-1">Title/Prefix</label>
-                          <input
-                            type="text"
-                            placeholder="Dr., Prof., Mr., Ms."
-                            value={speaker.prefix}
+                          <select
+                            value={speaker.prefix || ''}
                             onChange={(e) => updateSpeaker(index, 'prefix', e.target.value)}
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
+                          >
+                            <option value="">Select...</option>
+                            <option value="Dr.">Dr.</option>
+                            <option value="Prof.">Prof.</option>
+                            <option value="Mr.">Mr.</option>
+                            <option value="Mrs.">Mrs.</option>
+                            <option value="Ms.">Ms.</option>
+                            <option value="Miss">Miss</option>
+                            <option value="Engr.">Engr.</option>
+                            <option value="Atty.">Atty.</option>
+                            <option value="Rev.">Rev.</option>
+                            <option value="Hon.">Hon.</option>
+                          </select>
                         </div>
 
                         {/* First Name */}
@@ -5008,10 +4866,17 @@ export const EditEvent = () => {
                           <label className="block text-sm font-medium text-slate-700 mb-1">Middle Initial</label>
                           <input
                             type="text"
-                            placeholder="A."
+                            placeholder="A"
                             maxLength="5"
                             value={speaker.middle_initial}
-                            onChange={(e) => updateSpeaker(index, 'middle_initial', e.target.value)}
+                            onChange={(e) => {
+                              let value = e.target.value;
+                              // Auto-add period if value exists and doesn't end with period
+                              if (value && !value.endsWith('.')) {
+                                value = value + '.';
+                              }
+                              updateSpeaker(index, 'middle_initial', value);
+                            }}
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           />
                         </div>
@@ -5019,13 +4884,19 @@ export const EditEvent = () => {
                         {/* Affix */}
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-1">Affix</label>
-                          <input
-                            type="text"
-                            placeholder="Jr., Sr., III"
-                            value={speaker.affix}
+                          <select
+                            value={speaker.affix || ''}
                             onChange={(e) => updateSpeaker(index, 'affix', e.target.value)}
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
+                          >
+                            <option value="">Select...</option>
+                            <option value="Jr.">Jr.</option>
+                            <option value="Sr.">Sr.</option>
+                            <option value="II">II</option>
+                            <option value="III">III</option>
+                            <option value="IV">IV</option>
+                            <option value="V">V</option>
+                          </select>
                         </div>
 
                         {/* Keynote Speaker Checkbox */}
@@ -5217,183 +5088,17 @@ export const EditEvent = () => {
 
 
 
-              <FileDropzone
-
-                label="Certificate Template"
-
-                name="certificatesFile"
-
-                accept=".jpg,.jpeg,.png"
-
-                onFileChange={() => {}}
-
-                onUpload={(results) => handleFileUpload('certificate-template', results)}
-
-                uploadType="certificate-template"
-
-                multiple
-
-                maxSizeMB={35}
-
-                control={control}
-
-                error={errors.certificatesFile}
-
-                uploadedFiles={uploadedFiles.certificateTemplates || []}
-
-                onRemoveFile={(fileId) => handleRemoveFile('certificate-template', fileId)}
-
-              />
-
-              {/* Certificate Name Placement Configuration */}
-              {uploadedFiles.certificateTemplates && uploadedFiles.certificateTemplates.length > 0 && (
-                <div className="mt-6 bg-purple-50 rounded-xl border border-purple-200 p-6">
-                  <div className="flex items-center space-x-3 mb-4">
-                    <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-800">Certificate Name Placement</h3>
-                      <p className="text-xs text-slate-600">Configure where the participant name appears on the certificate</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* X Position (Horizontal) */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Horizontal Position (X): {Math.round(certificateNamePlacement.x * 100)}%
-                      </label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={certificateNamePlacement.x}
-                        onChange={(e) => setCertificateNamePlacement(prev => ({ ...prev, x: parseFloat(e.target.value) }))}
-                        className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                      <div className="flex justify-between text-xs text-slate-500 mt-1">
-                        <span>Left (0%)</span>
-                        <span>Center (50%)</span>
-                        <span>Right (100%)</span>
-                      </div>
-                    </div>
-
-                    {/* Y Position (Vertical) */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Vertical Position (Y): {Math.round(certificateNamePlacement.y * 100)}%
-                      </label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={certificateNamePlacement.y}
-                        onChange={(e) => setCertificateNamePlacement(prev => ({ ...prev, y: parseFloat(e.target.value) }))}
-                        className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                      <div className="flex justify-between text-xs text-slate-500 mt-1">
-                        <span>Bottom (0%)</span>
-                        <span>Middle (50%)</span>
-                        <span>Top (100%)</span>
-                      </div>
-                    </div>
-
-                    {/* Font Size */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Font Size: {certificateNamePlacement.fontSize}px
-                      </label>
-                      <input
-                        type="range"
-                        min="12"
-                        max="72"
-                        step="2"
-                        value={certificateNamePlacement.fontSize}
-                        onChange={(e) => setCertificateNamePlacement(prev => ({ ...prev, fontSize: parseInt(e.target.value) }))}
-                        className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
-
-                    {/* Text Color */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Text Color
-                      </label>
-                      <div className="flex items-center space-x-3">
-                        <input
-                          type="color"
-                          value={certificateNamePlacement.color}
-                          onChange={(e) => setCertificateNamePlacement(prev => ({ ...prev, color: e.target.value }))}
-                          className="w-12 h-10 rounded-lg border border-slate-300 cursor-pointer"
-                        />
-                        <input
-                          type="text"
-                          value={certificateNamePlacement.color}
-                          onChange={(e) => setCertificateNamePlacement(prev => ({ ...prev, color: e.target.value }))}
-                          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                          placeholder="#000000"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Font Family */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Font Family
-                      </label>
-                      <select
-                        value={certificateNamePlacement.fontFamily}
-                        onChange={(e) => setCertificateNamePlacement(prev => ({ ...prev, fontFamily: e.target.value }))}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                      >
-                        <option value="Arial, sans-serif">Arial</option>
-                        <option value="Times New Roman, serif">Times New Roman</option>
-                        <option value="Courier New, monospace">Courier New</option>
-                        <option value="Georgia, serif">Georgia</option>
-                        <option value="Verdana, sans-serif">Verdana</option>
-                        <option value="Helvetica, sans-serif">Helvetica</option>
-                      </select>
-                    </div>
-
-                    {/* Font Weight */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Font Weight
-                      </label>
-                      <select
-                        value={certificateNamePlacement.fontWeight}
-                        onChange={(e) => setCertificateNamePlacement(prev => ({ ...prev, fontWeight: e.target.value }))}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                      >
-                        <option value="normal">Normal</option>
-                        <option value="bold">Bold</option>
-                        <option value="lighter">Light</option>
-                      </select>
-                    </div>
-
-                    {/* Text Alignment */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Text Alignment
-                      </label>
-                      <select
-                        value={certificateNamePlacement.textAlign}
-                        onChange={(e) => setCertificateNamePlacement(prev => ({ ...prev, textAlign: e.target.value }))}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                      >
-                        <option value="left">Left</option>
-                        <option value="center">Center</option>
-                        <option value="right">Right</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* Certificate Configuration */}
+              <div className="mt-6">
+                <CertificateDesigner 
+                  eventId={eventId}
+                  draftMode={false}
+                  onSave={(config) => {
+                    // Certificate config is saved automatically by CertificateDesigner
+                    console.log('Certificate config saved');
+                  }}
+                />
+              </div>
 
             </div>
 

@@ -10,6 +10,26 @@ html, body {
   color: #333333;
 }
 
+#root {
+  min-height: 100vh;
+}
+
+/* Prevent scrolling on login page */
+body.no-scroll,
+html.no-scroll {
+  overflow: hidden !important;
+  height: 100% !important;
+  max-height: 100vh !important;
+  position: fixed !important;
+  width: 100% !important;
+}
+
+body.no-scroll #root {
+  height: 100% !important;
+  overflow: hidden !important;
+  max-height: 100vh !important;
+}
+
 /* Responsive Typography Scale */
 @layer utilities {
   /* Base responsive text sizes */

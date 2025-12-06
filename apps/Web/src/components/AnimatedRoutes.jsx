@@ -15,14 +15,14 @@ import { MyEvents } from "./sections/MyEvents";
 import GenerateQR from "./sections/GenerateQR";
 import SurveyManagementPage from "./sections/SurveyManagementPage";
 import { Evaluation } from "./sections/Evaluation";
-import { Certificate } from "./sections/Certificate";
 import { EditProfile } from "./sections/EditProfile";
 
 function AnimatedRoutes() {
   const location = useLocation();
+  const isLoginPage = location.pathname === '/login';
 
   return (
-    <div>
+    <div className={isLoginPage ? 'h-full overflow-hidden' : ''}>
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
@@ -40,7 +40,6 @@ function AnimatedRoutes() {
         <Route path="/registration" element={<Registration />} />
         <Route path="/generate-qr" element={<GenerateQR />} />
         <Route path="/evaluation/:surveyId" element={<Evaluation />} />
-        <Route path="/certificate" element={<Certificate />} />
         <Route path="/edit-profile" element={<EditProfile />} />
       </Routes>
     </div>

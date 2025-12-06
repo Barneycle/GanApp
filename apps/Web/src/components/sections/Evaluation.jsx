@@ -578,14 +578,6 @@ export const Evaluation = () => {
               You have already submitted an evaluation for this survey. Thank you for your feedback!
             </p>
             <div className="flex flex-col gap-4 items-center">
-              {survey?.event_id && (
-                <button 
-                  onClick={() => navigate(`/certificate?eventId=${survey.event_id}`)} 
-                  className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-4 rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-200 font-semibold text-base shadow-md hover:shadow-lg"
-                >
-                  Generate Certificate
-                </button>
-              )}
               <button 
                 onClick={() => navigate('/my-events')} 
                 className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-4 rounded-xl hover:from-blue-700 hover:to-blue-900 transition-all duration-200 font-semibold text-base shadow-md hover:shadow-lg"
@@ -680,20 +672,82 @@ export const Evaluation = () => {
         {/* Survey Form */}
         <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 sm:p-8">
           <form onSubmit={handleSubmit}>
-            {survey.questions && survey.questions.length > 0 ? (
-              survey.questions.map((question, index) => (
-                <div key={question.id || index} className="mb-8">
-                  <div className="flex items-start space-x-3 mb-4">
-                    <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
-                      {index + 1}
+            {survey.questions && survey.questions.length > 0 ? (() => {
+              // Group questions by section
+              const sections = [];
+              let currentSection = null;
+              let questionNumber = 1;
+              
+              survey.questions.forEach((question, index) => {
+                const sectionTitle = question.sectionTitle;
+                const sectionDescription = question.sectionDescription;
+                const sectionIndex = question.sectionIndex;
+                
+                // If this question has section info and it's different from current section, start a new section
+                if (sectionTitle && (currentSection === null || currentSection.sectionIndex !== sectionIndex)) {
+                  currentSection = {
+                    sectionTitle,
+                    sectionDescription,
+                    sectionIndex,
+                    questions: []
+                  };
+                  sections.push(currentSection);
+                } else if (!sectionTitle && currentSection === null) {
+                  // If no section info, create a default section
+                  currentSection = {
+                    sectionTitle: null,
+                    sectionDescription: null,
+                    sectionIndex: null,
+                    questions: []
+                  };
+                  sections.push(currentSection);
+                } else if (!sectionTitle && currentSection && currentSection.sectionTitle) {
+                  // If we have a section but this question doesn't have section info, create a new default section
+                  currentSection = {
+                    sectionTitle: null,
+                    sectionDescription: null,
+                    sectionIndex: null,
+                    questions: []
+                  };
+                  sections.push(currentSection);
+                }
+                
+                currentSection.questions.push({ ...question, globalIndex: questionNumber - 1 });
+                questionNumber++;
+              });
+              
+              return sections.map((section, sectionIdx) => (
+                <div key={sectionIdx} className="mb-8">
+                  {/* Section Header */}
+                  {section.sectionTitle && (
+                    <div className="mb-6 pb-4 border-b-2 border-blue-500">
+                      <h3 className="text-xl font-bold text-slate-800 mb-2">
+                        {section.sectionTitle}
+                      </h3>
+                      {section.sectionDescription && (
+                        <p className="text-sm text-slate-600">
+                          {section.sectionDescription}
+                        </p>
+                      )}
                     </div>
-                    <div className="flex-1">
-                      {renderQuestion(question, index)}
+                  )}
+                  
+                  {/* Section Questions */}
+                  {section.questions.map((question, qIdx) => (
+                    <div key={question.id || question.globalIndex || qIdx} className="mb-8">
+                      <div className="flex items-start space-x-3 mb-4">
+                        <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                          {question.globalIndex + 1}
+                        </div>
+                        <div className="flex-1">
+                          {renderQuestion(question, question.globalIndex)}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))
-            ) : (
+              ));
+            })() : (
               <div className="text-center py-8">
                 <p className="text-slate-500">No questions in this survey.</p>
               </div>

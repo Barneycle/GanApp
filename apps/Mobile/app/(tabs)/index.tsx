@@ -265,7 +265,7 @@ export default function Index() {
           {
             id: '2',
             title: 'View Event Details',
-            description: 'Tap on any event card to see full details, register, and access event features like surveys and certificates.',
+            description: 'Tap on any event card to see full details, register, and access event features like surveys.',
           },
         ]}
       />

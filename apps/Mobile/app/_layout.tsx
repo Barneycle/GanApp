@@ -121,20 +121,6 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
-              name="certificate"
-              options={{
-                title: 'Certificate',
-                headerShown: true,
-                headerStyle: {
-                  backgroundColor: '#1e40af',
-                },
-                headerTintColor: '#ffffff',
-                headerTitleStyle: {
-                  fontWeight: 'bold',
-                },
-              }}
-            />
-            <Stack.Screen
               name="terms"
               options={{
                 title: 'Terms & Conditions',
