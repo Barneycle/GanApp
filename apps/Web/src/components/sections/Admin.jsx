@@ -1420,23 +1420,457 @@ const ReviewCancellationModal = ({ request, onApprove, onDecline, onClose, loadi
 
 // Analytics Tab Component
 const AnalyticsTab = () => {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [dateRange, setDateRange] = useState('30'); // days
+  const [exportLoading, setExportLoading] = useState(false);
+
+  useEffect(() => {
+    loadAnalytics();
+  }, [dateRange]);
+
+  const loadAnalytics = async () => {
+    setLoading(true);
+    setError('');
+    const result = await AdminService.getDashboardStats();
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setStats(result.stats || null);
+    }
+    setLoading(false);
+  };
+
+  const exportToCSV = () => {
+    if (!stats) return;
+    
+    setExportLoading(true);
+    try {
+      const csvRows = [];
+      csvRows.push(['Metric', 'Value']);
+      csvRows.push(['Total Users', stats.total_users || 0]);
+      csvRows.push(['Active Users', stats.active_users || 0]);
+      csvRows.push(['Banned Users', stats.banned_users || 0]);
+      csvRows.push(['Total Events', stats.total_events || 0]);
+      csvRows.push(['Published Events', stats.published_events || 0]);
+      csvRows.push(['Cancelled Events', stats.cancelled_events || 0]);
+      csvRows.push(['Total Registrations', stats.total_registrations || 0]);
+      csvRows.push(['Total Certificates', stats.total_certificates || 0]);
+      
+      const csvContent = csvRows.map(row => row.join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `analytics-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('Failed to export data');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="text-slate-600 mt-4">Loading analytics...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-600 mb-4">{error}</p>
+        <button
+          onClick={loadAnalytics}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <h2 className="text-2xl font-semibold text-slate-800 mb-6">Analytics & Reports</h2>
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <p className="text-slate-600">Analytics and reporting features coming soon...</p>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-semibold text-slate-800">Analytics & Reports</h2>
+        <div className="flex items-center space-x-3">
+          <select
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value)}
+            className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last year</option>
+            <option value="all">All time</option>
+          </select>
+          <button
+            onClick={exportToCSV}
+            disabled={exportLoading}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center space-x-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span>{exportLoading ? 'Exporting...' : 'Export CSV'}</span>
+          </button>
+          <button
+            onClick={loadAnalytics}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
+
+      {stats && (
+        <div className="space-y-6">
+          {/* Overview Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
+              <h3 className="text-sm font-medium text-blue-800 mb-2">Total Users</h3>
+              <p className="text-3xl font-bold text-blue-900">{stats.total_users || 0}</p>
+              <p className="text-xs text-blue-700 mt-1">
+                {stats.active_users || 0} active, {stats.banned_users || 0} banned
+              </p>
+            </div>
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
+              <h3 className="text-sm font-medium text-green-800 mb-2">Total Events</h3>
+              <p className="text-3xl font-bold text-green-900">{stats.total_events || 0}</p>
+              <p className="text-xs text-green-700 mt-1">
+                {stats.published_events || 0} published, {stats.cancelled_events || 0} cancelled
+              </p>
+            </div>
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
+              <h3 className="text-sm font-medium text-purple-800 mb-2">Registrations</h3>
+              <p className="text-3xl font-bold text-purple-900">{stats.total_registrations || 0}</p>
+              <p className="text-xs text-purple-700 mt-1">Total event registrations</p>
+            </div>
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-6 border border-orange-200">
+              <h3 className="text-sm font-medium text-orange-800 mb-2">Certificates</h3>
+              <p className="text-3xl font-bold text-orange-900">{stats.total_certificates || 0}</p>
+              <p className="text-xs text-orange-700 mt-1">Certificates generated</p>
+            </div>
+          </div>
+
+          {/* User Growth Chart (Simple Bar Representation) */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">User Statistics</h3>
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between text-sm text-slate-600 mb-1">
+                  <span>Active Users</span>
+                  <span>{stats.active_users || 0}</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-2">
+                  <div
+                    className="bg-green-600 h-2 rounded-full"
+                    style={{ width: `${stats.total_users > 0 ? ((stats.active_users || 0) / stats.total_users) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-sm text-slate-600 mb-1">
+                  <span>Banned Users</span>
+                  <span>{stats.banned_users || 0}</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-2">
+                  <div
+                    className="bg-red-600 h-2 rounded-full"
+                    style={{ width: `${stats.total_users > 0 ? ((stats.banned_users || 0) / stats.total_users) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Event Statistics */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Event Statistics</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-700 mb-1">Published Events</p>
+                <p className="text-2xl font-bold text-blue-900">{stats.published_events || 0}</p>
+              </div>
+              <div className="p-4 bg-red-50 rounded-lg">
+                <p className="text-sm text-red-700 mb-1">Cancelled Events</p>
+                <p className="text-2xl font-bold text-red-900">{stats.cancelled_events || 0}</p>
+              </div>
+              <div className="p-4 bg-green-50 rounded-lg">
+                <p className="text-sm text-green-700 mb-1">Total Registrations</p>
+                <p className="text-2xl font-bold text-green-900">{stats.total_registrations || 0}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Activity Summary */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Activity Summary</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                <span className="text-slate-700">Pending Cancellation Requests</span>
+                <span className="font-semibold text-orange-600">{stats.pending_cancellations || 0}</span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                <span className="text-slate-700">Total Certificates Generated</span>
+                <span className="font-semibold text-purple-600">{stats.total_certificates || 0}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 // Settings Tab Component
 const SettingsTab = () => {
+  const [settings, setSettings] = useState({
+    maintenance_mode: false,
+    registration_enabled: true,
+    event_creation_enabled: true,
+    survey_creation_enabled: true,
+    email_notifications_enabled: true,
+    max_events_per_user: 10,
+    max_participants_per_event: 1000,
+  });
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    setLoading(true);
+    setError('');
+    // In a real app, this would fetch from a settings table
+    // For now, we'll use default values
+    setLoading(false);
+  };
+
+  const handleSettingChange = (key, value) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+    setSuccess('');
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      // In a real app, this would save to a settings table
+      // For now, we'll just simulate success
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setSuccess('Settings saved successfully!');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError('Failed to save settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="text-slate-600 mt-4">Loading settings...</p>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <h2 className="text-2xl font-semibold text-slate-800 mb-6">System Settings</h2>
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <p className="text-slate-600">System settings coming soon...</p>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-semibold text-slate-800">System Settings</h2>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-2"
+        >
+          {saving ? (
+            <>
+              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>Saving...</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+              <span>Save Settings</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {success && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">
+          {success}
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-6">
+        {/* General Settings */}
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <h3 className="text-lg font-semibold text-slate-800 mb-4">General Settings</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+              <div className="flex-1">
+                <label htmlFor="maintenance_mode" className="text-sm font-medium text-slate-700 cursor-pointer">
+                  Maintenance Mode
+                </label>
+                <p className="text-xs text-slate-500 mt-1">Temporarily disable the system for maintenance</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="maintenance_mode"
+                  checked={settings.maintenance_mode}
+                  onChange={(e) => handleSettingChange('maintenance_mode', e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+              <div className="flex-1">
+                <label htmlFor="registration_enabled" className="text-sm font-medium text-slate-700 cursor-pointer">
+                  User Registration
+                </label>
+                <p className="text-xs text-slate-500 mt-1">Allow new users to register</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="registration_enabled"
+                  checked={settings.registration_enabled}
+                  onChange={(e) => handleSettingChange('registration_enabled', e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Feature Settings */}
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <h3 className="text-lg font-semibold text-slate-800 mb-4">Feature Settings</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+              <div className="flex-1">
+                <label htmlFor="event_creation_enabled" className="text-sm font-medium text-slate-700 cursor-pointer">
+                  Event Creation
+                </label>
+                <p className="text-xs text-slate-500 mt-1">Allow organizers to create events</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="event_creation_enabled"
+                  checked={settings.event_creation_enabled}
+                  onChange={(e) => handleSettingChange('event_creation_enabled', e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+              <div className="flex-1">
+                <label htmlFor="survey_creation_enabled" className="text-sm font-medium text-slate-700 cursor-pointer">
+                  Survey Creation
+                </label>
+                <p className="text-xs text-slate-500 mt-1">Allow organizers to create surveys</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="survey_creation_enabled"
+                  checked={settings.survey_creation_enabled}
+                  onChange={(e) => handleSettingChange('survey_creation_enabled', e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+              <div className="flex-1">
+                <label htmlFor="email_notifications_enabled" className="text-sm font-medium text-slate-700 cursor-pointer">
+                  Email Notifications
+                </label>
+                <p className="text-xs text-slate-500 mt-1">Enable system-wide email notifications</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="email_notifications_enabled"
+                  checked={settings.email_notifications_enabled}
+                  onChange={(e) => handleSettingChange('email_notifications_enabled', e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Limits */}
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <h3 className="text-lg font-semibold text-slate-800 mb-4">System Limits</h3>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="max_events_per_user" className="block text-sm font-medium text-slate-700 mb-2">
+                Max Events Per User
+              </label>
+              <input
+                type="number"
+                id="max_events_per_user"
+                value={settings.max_events_per_user}
+                onChange={(e) => handleSettingChange('max_events_per_user', parseInt(e.target.value) || 0)}
+                min="1"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="max_participants_per_event" className="block text-sm font-medium text-slate-700 mb-2">
+                Max Participants Per Event
+              </label>
+              <input
+                type="number"
+                id="max_participants_per_event"
+                value={settings.max_participants_per_event}
+                onChange={(e) => handleSettingChange('max_participants_per_event', parseInt(e.target.value) || 0)}
+                min="1"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

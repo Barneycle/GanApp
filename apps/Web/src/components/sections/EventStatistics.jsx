@@ -14,6 +14,7 @@ export const EventStatistics = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const isVisible = usePageVisibility();
   const loadingRef = useRef(false);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -29,11 +30,12 @@ export const EventStatistics = () => {
       return;
     }
 
-    // Only load if page is visible
-    if (isVisible && !loadingRef.current) {
+    // Only load once on mount, prevent reloading when switching tabs/windows
+    if (!hasLoadedRef.current && !loadingRef.current) {
+      hasLoadedRef.current = true;
       loadEvents();
     }
-  }, [isAuthenticated, user, authLoading, navigate, isVisible]);
+  }, [isAuthenticated, user, authLoading, navigate]);
 
   const loadEvents = async () => {
     // Don't start loading if page is not visible
@@ -54,23 +56,23 @@ export const EventStatistics = () => {
       
       // Only update state if page is still visible
       if (isVisible) {
-        if (result.error) {
-          setError(result.error);
-        } else {
-          setEvents(result.events || []);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setEvents(result.events || []);
         }
       }
     } catch (err) {
       // Only update error if page is still visible
       if (isVisible) {
-        setError('Failed to load events');
-        console.error(err);
+      setError('Failed to load events');
+      console.error(err);
       }
     } finally {
       loadingRef.current = false;
       // Only set loading to false if page is still visible
       if (isVisible) {
-        setLoading(false);
+      setLoading(false);
       }
     }
   };

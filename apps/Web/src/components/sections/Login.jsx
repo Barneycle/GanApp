@@ -300,9 +300,9 @@ export const Login = () => {
         
         // Navigate after a brief delay to show success message
         setTimeout(() => {
-          if (result.redirectPath) {
-            navigate(result.redirectPath);
-          }
+        if (result.redirectPath) {
+          navigate(result.redirectPath);
+        }
         }, 500);
       } else {
         // Handle failed login attempts

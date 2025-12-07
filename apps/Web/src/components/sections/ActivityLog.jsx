@@ -23,6 +23,7 @@ export const ActivityLog = () => {
   const [showFilters, setShowFilters] = useState(false);
   const isVisible = usePageVisibility();
   const loadingRef = useRef(false);
+  const hasLoadedRef = useRef(false);
   const pageSize = 50;
 
   useEffect(() => {
@@ -39,11 +40,21 @@ export const ActivityLog = () => {
       return;
     }
 
-    if (isVisible && !loadingRef.current) {
+    // Only load once on mount, prevent reloading when switching tabs/windows
+    if (!hasLoadedRef.current && !loadingRef.current) {
+      hasLoadedRef.current = true;
       loadLogs();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, user?.role, authLoading, isVisible, page, filters.action, filters.resourceType, filters.searchQuery, filters.startDate, filters.endDate]);
+  }, [isAuthenticated, user?.role, authLoading]);
+
+  // Separate effect for filters and page changes
+  useEffect(() => {
+    if (hasLoadedRef.current && !loadingRef.current) {
+      loadLogs();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, filters.action, filters.resourceType, filters.searchQuery, filters.startDate, filters.endDate]);
 
   const loadLogs = async () => {
     if (!isVisible) return;

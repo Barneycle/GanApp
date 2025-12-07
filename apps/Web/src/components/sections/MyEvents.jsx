@@ -18,6 +18,7 @@ export const MyEvents = () => {
   const [error, setError] = useState(null);
   const isVisible = usePageVisibility();
   const loadingRef = useRef(false);
+  const hasLoadedRef = useRef(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
@@ -41,15 +42,16 @@ export const MyEvents = () => {
       return;
     }
 
-    // Only load if page is visible
-    if (isVisible && !loadingRef.current) {
+    // Only load once on mount, prevent reloading when switching tabs/windows
+    if (!hasLoadedRef.current && !loadingRef.current) {
+      hasLoadedRef.current = true;
       loadRegisteredEvents();
     }
-  }, [user, isAuthenticated, navigate, isVisible]);
+  }, [user, isAuthenticated, navigate]);
 
   const loadRegisteredEvents = async () => {
     if (!user?.id) return;
-    
+
     // Don't start loading if page is not visible
     if (!isVisible) {
       return;
@@ -69,29 +71,29 @@ export const MyEvents = () => {
       
       // Only update state if page is still visible
       if (isVisible) {
-        if (result.error) {
-          setError(result.error);
-        } else {
-          // Extract the events from the registrations
-          const events = result.registrations?.map(registration => ({
-            ...registration.events,
-            registration_date: registration.registration_date,
-            registration_id: registration.id
-          })) || [];
-          
-          setRegisteredEvents(events);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        // Extract the events from the registrations
+        const events = result.registrations?.map(registration => ({
+          ...registration.events,
+          registration_date: registration.registration_date,
+          registration_id: registration.id
+        })) || [];
+        
+        setRegisteredEvents(events);
         }
       }
     } catch (err) {
       // Only update error if page is still visible
       if (isVisible) {
-        setError('Failed to load your registered events');
+      setError('Failed to load your registered events');
       }
     } finally {
       loadingRef.current = false;
       // Only set loading to false if page is still visible
       if (isVisible) {
-        setLoading(false);
+      setLoading(false);
       }
     }
   };

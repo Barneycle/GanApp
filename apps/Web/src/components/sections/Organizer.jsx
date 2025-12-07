@@ -13,6 +13,7 @@ export const Organizer = () => {
   const [error, setError] = useState(null);
   const isVisible = usePageVisibility();
   const loadingRef = useRef(false);
+  const hasLoadedRef = useRef(false);
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -26,12 +27,13 @@ export const Organizer = () => {
   };
 
   useEffect(() => {
-    // Only load if page is visible
-    if (isVisible && !loadingRef.current) {
+    // Only load once on mount, prevent reloading when switching tabs/windows
+    if (!hasLoadedRef.current && !loadingRef.current) {
+      hasLoadedRef.current = true;
       loadEvents();
       loadFeaturedEvent();
     }
-  }, [isVisible]);
+  }, []);
 
   const loadEvents = async () => {
     // Don't start loading if page is not visible

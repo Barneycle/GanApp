@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
@@ -17,6 +17,7 @@ export const Home = () => {
   const [currentSlideOffset, setCurrentSlideOffset] = useState(0);
   const [isRationaleExpanded, setIsRationaleExpanded] = useState(false);
   const { user, isAuthenticated, signOut, clearAuthData } = useAuth();
+  const hasLoadedRef = useRef(false);
 
   const shouldCollapseRationale = (rationale) => {
     if (!rationale) return false;
@@ -84,11 +85,20 @@ export const Home = () => {
   const [dragOffset, setDragOffset] = useState(0);
 
   useEffect(() => {
-    loadEvents();
-    loadFeaturedEvent();
+    // Only load once on mount, prevent reloading when switching tabs/windows
+    if (!hasLoadedRef.current) {
+      hasLoadedRef.current = true;
+      loadEvents();
+      loadFeaturedEvent();
+    }
   }, []);
 
   const loadEvents = async () => {
+    // Prevent reloading if already loaded
+    if (hasLoadedRef.current) {
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);

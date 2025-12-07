@@ -159,16 +159,18 @@ export const Events = () => {
   const [showFilters, setShowFilters] = useState(false);
   const isVisible = usePageVisibility();
   const loadingRef = useRef(false);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    // Only load if page is visible
-    if (isVisible && !loadingRef.current) {
+    // Only load once on mount, prevent reloading when switching tabs/windows
+    if (!hasLoadedRef.current && !loadingRef.current) {
+      hasLoadedRef.current = true;
       loadEvents();
       if (user) {
         loadUserRegistrations();
       }
     }
-  }, [user?.id, user?.role, isVisible]); // Only depend on user ID and role, not the entire user object
+  }, [user?.id, user?.role]); // Only depend on user ID and role, not the entire user object
 
   const loadEvents = async () => {
     // Don't start loading if page is not visible
@@ -191,10 +193,10 @@ export const Events = () => {
         const result = await EventService.getEventsByCreator(user.id);
         // Only update state if page is still visible
         if (isVisible) {
-          if (result.error) {
-            setError(result.error);
-          } else {
-            setEvents(result.events || []);
+        if (result.error) {
+          setError(result.error);
+        } else {
+          setEvents(result.events || []);
           }
         }
       } else if (user) {
@@ -202,10 +204,10 @@ export const Events = () => {
         const result = await EventService.getPublishedEvents();
         // Only update state if page is still visible
         if (isVisible) {
-          if (result.error) {
-            setError(result.error);
-          } else {
-            setEvents(result.events || []);
+        if (result.error) {
+          setError(result.error);
+        } else {
+          setEvents(result.events || []);
           }
         }
       } else {
@@ -213,23 +215,23 @@ export const Events = () => {
         const result = await EventService.getPublishedEvents();
         // Only update state if page is still visible
         if (isVisible) {
-          if (result.error) {
-            setError(result.error);
-          } else {
-            setEvents(result.events || []);
+        if (result.error) {
+          setError(result.error);
+        } else {
+          setEvents(result.events || []);
           }
         }
       }
     } catch (err) {
       // Only update error if page is still visible
       if (isVisible) {
-        setError('Failed to load events. Please try again.');
+      setError('Failed to load events. Please try again.');
       }
     } finally {
       loadingRef.current = false;
       // Only set loading to false if page is still visible
       if (isVisible) {
-        setLoading(false);
+      setLoading(false);
       }
     }
   };

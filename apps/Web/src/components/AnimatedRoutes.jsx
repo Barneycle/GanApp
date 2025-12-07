@@ -18,6 +18,9 @@ import SurveyManagementPage from "./sections/SurveyManagementPage";
 import { Evaluation } from "./sections/Evaluation";
 import { EditProfile } from "./sections/EditProfile";
 import ActivityLog from "./sections/ActivityLog";
+import { ResetPassword } from "./sections/ResetPassword";
+import { Notifications } from "./sections/Notifications";
+import { Settings } from "./sections/Settings";
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -45,6 +48,9 @@ function AnimatedRoutes() {
         <Route path="/evaluation/:surveyId" element={<Evaluation />} />
         <Route path="/edit-profile" element={<EditProfile />} />
         <Route path="/activity-log" element={<ActivityLog />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/notifications" element={<Notifications />} />
+        <Route path="/settings" element={<Settings />} />
       </Routes>
     </div>
   );

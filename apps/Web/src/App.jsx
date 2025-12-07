@@ -13,7 +13,7 @@ function App() {
     const { loading: authLoading } = useAuth();
 
     // Pages that should skip loading screen and hide navbar
-    const authPages = ['/login', '/registration'];
+    const authPages = ['/login', '/registration', '/reset-password'];
     const isAuthPage = authPages.includes(location.pathname);
 
     const handleLoadingComplete = () => {

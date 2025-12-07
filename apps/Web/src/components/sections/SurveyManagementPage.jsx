@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { EventService } from '../../services/eventService';
@@ -19,6 +19,7 @@ export default function SurveyManagementPage() {
   const [opensAtTime, setOpensAtTime] = useState('');
   const [closesAtDate, setClosesAtDate] = useState('');
   const [closesAtTime, setClosesAtTime] = useState('');
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
     // Redirect if not authenticated or not an organizer
@@ -27,7 +28,11 @@ export default function SurveyManagementPage() {
       return;
     }
 
-    loadEvents();
+    // Only load once on mount, prevent reloading when switching tabs/windows
+    if (!hasLoadedRef.current) {
+      hasLoadedRef.current = true;
+      loadEvents();
+    }
   }, [isAuthenticated, user, navigate]);
 
   useEffect(() => {

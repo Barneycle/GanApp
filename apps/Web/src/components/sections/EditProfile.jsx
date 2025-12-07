@@ -2,16 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { UserService } from '../../services/userService';
-import { ArrowLeft, Camera, X } from 'lucide-react';
+import { Camera, X } from 'lucide-react';
 
 export const EditProfile = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const fileInputRef = useRef(null);
   const [formData, setFormData] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
     affiliated_organization: ''
   });
   const [avatarPreview, setAvatarPreview] = useState(null);
@@ -19,7 +16,6 @@ export const EditProfile = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
-  const [emailConfirmationMessage, setEmailConfirmationMessage] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -42,9 +38,6 @@ export const EditProfile = () => {
   useEffect(() => {
     if (user) {
       setFormData({
-        first_name: user.first_name || '',
-        last_name: user.last_name || '',
-        email: user.email || '',
         affiliated_organization: user.affiliated_organization || ''
       });
       setAvatarPreview(user.avatar_url || null);
@@ -200,10 +193,7 @@ export const EditProfile = () => {
 
       // Prepare update data
       const updateData = {
-        first_name: formData.first_name.trim(),
-        last_name: formData.last_name.trim(),
-        affiliated_organization: formData.affiliated_organization.trim(),
-        originalEmail: user.email
+        affiliated_organization: formData.affiliated_organization.trim()
       };
 
       // Add avatar URL if changed or removed
@@ -215,31 +205,16 @@ export const EditProfile = () => {
         updateData.avatar_url = '';
       }
 
-      // Add email if changed
-      if (formData.email.trim() !== user.email) {
-        updateData.email = formData.email.trim();
-      }
-
       const result = await UserService.updateProfile(user.id, updateData);
 
       if (result.error) {
         setError(result.error);
       } else {
-        if (result.needsEmailConfirmation) {
-          setSuccess(true);
-          setError(null);
-          setEmailConfirmationMessage(true);
-          // Reload after showing message
-          setTimeout(() => {
-            window.location.reload();
-          }, 3000);
-        } else {
-          setSuccess(true);
-          // Update the user context by reloading the page after a short delay
-          setTimeout(() => {
-            window.location.reload();
-          }, 1500);
-        }
+        setSuccess(true);
+        // Update the user context by reloading the page after a short delay
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
       }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
@@ -262,38 +237,12 @@ export const EditProfile = () => {
   return (
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        {/* Header */}
-        <div className="mb-8">
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center text-slate-600 hover:text-slate-800 mb-4 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
-          </button>
-          
-          <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 mb-2">
-            Edit Profile
-          </h1>
-          <p className="text-slate-600 text-lg">
-            Update your personal information
-          </p>
-        </div>
-
         {/* Profile Form */}
         <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
           {/* Success Message */}
-          {success && !emailConfirmationMessage && (
+          {success && (
             <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">
               Profile updated successfully! Refreshing...
-            </div>
-          )}
-
-          {/* Email Confirmation Message */}
-          {emailConfirmationMessage && (
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 text-sm">
-              <p className="font-semibold mb-2">Profile updated successfully!</p>
-              <p>Please check your new email address ({formData.email}) to confirm the email change. The email will be updated once you confirm it.</p>
             </div>
           )}
 
@@ -352,60 +301,6 @@ export const EditProfile = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* First Name Field */}
-            <div>
-              <label htmlFor="first_name" className="block text-sm font-medium text-slate-700 mb-2">
-                First Name *
-              </label>
-              <input
-                type="text"
-                id="first_name"
-                name="first_name"
-                value={formData.first_name}
-                onChange={handleInputChange}
-                required
-                disabled={loading}
-                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                placeholder="Enter your first name"
-              />
-            </div>
-
-            {/* Last Name Field */}
-            <div>
-              <label htmlFor="last_name" className="block text-sm font-medium text-slate-700 mb-2">
-                Last Name *
-              </label>
-              <input
-                type="text"
-                id="last_name"
-                name="last_name"
-                value={formData.last_name}
-                onChange={handleInputChange}
-                required
-                disabled={loading}
-                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                placeholder="Enter your last name"
-              />
-            </div>
-
-            {/* Email Field */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
-                Email *
-              </label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                required
-                disabled={loading}
-                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                placeholder="Enter your email address"
-              />
-            </div>
-
             {/* Affiliated Organization Field */}
             <div>
               <label htmlFor="affiliated_organization" className="block text-sm font-medium text-slate-700 mb-2">

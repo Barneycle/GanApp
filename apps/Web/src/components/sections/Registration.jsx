@@ -462,20 +462,20 @@ export const Registration = () => {
                     Email Address *
                   </label>
                   <div className="relative" ref={suggestionsRef}>
-                    <input
+                  <input
                       ref={emailInputRef}
-                      type="email"
-                      id="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
                       onFocus={() => {
                         if (emailSuggestions.length > 0) {
                           setShowEmailSuggestions(true);
                         }
                       }}
-                      required
-                      disabled={loading}
+                    required
+                    disabled={loading}
                       autoComplete="email"
                       aria-describedby="email-validation email-help"
                       aria-invalid={emailValidation.isValid === false}
@@ -487,12 +487,12 @@ export const Registration = () => {
                           ? 'border-green-300 focus:ring-green-500 focus:border-green-500'
                           : 'border-slate-300 focus:ring-blue-500 focus:border-transparent'
                       }`}
-                      placeholder={
-                        formData.userType === 'psu-student' || formData.userType === 'psu-employee'
-                          ? 'Enter your PSU email (@parsu.edu.ph)'
-                          : 'Enter your email address'
-                      }
-                    />
+                    placeholder={
+                      formData.userType === 'psu-student' || formData.userType === 'psu-employee'
+                        ? 'Enter your PSU email (@parsu.edu.ph)'
+                        : 'Enter your email address'
+                    }
+                  />
                     
                     {/* Email Validation Indicator */}
                     {emailValidation.isValid !== null && formData.email && (
@@ -561,8 +561,8 @@ export const Registration = () => {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label htmlFor="password" className="block text-sm font-medium text-slate-700">
-                        Password *
-                      </label>
+                      Password *
+                    </label>
                       <button
                         type="button"
                         onClick={() => setShowPasswordRequirements(!showPasswordRequirements)}
