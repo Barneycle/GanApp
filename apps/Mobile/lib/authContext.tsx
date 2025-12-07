@@ -98,11 +98,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const userProfile: User = {
           id: authUser.id,
           email: authUser.email || '',
+          prefix: authUser.user_metadata?.prefix && authUser.user_metadata.prefix.trim() !== '' 
+            ? authUser.user_metadata.prefix 
+            : '',
           first_name: authUser.user_metadata?.first_name && authUser.user_metadata.first_name.trim() !== '' 
             ? authUser.user_metadata.first_name 
             : '',
+          middle_initial: authUser.user_metadata?.middle_initial && authUser.user_metadata.middle_initial.trim() !== '' 
+            ? authUser.user_metadata.middle_initial 
+            : '',
           last_name: authUser.user_metadata?.last_name && authUser.user_metadata.last_name.trim() !== '' 
             ? authUser.user_metadata.last_name 
+            : '',
+          affix: authUser.user_metadata?.affix && authUser.user_metadata.affix.trim() !== '' 
+            ? authUser.user_metadata.affix 
             : '',
           affiliated_organization: hasAffiliatedOrg ? affiliatedOrg.trim() : '',
           avatar_url: authUser.user_metadata?.avatar_url && authUser.user_metadata.avatar_url.trim() !== ''

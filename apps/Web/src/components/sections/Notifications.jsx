@@ -17,11 +17,31 @@ export const Notifications = () => {
   const isVisible = usePageVisibility();
   const hasLoadedRef = useRef(false);
 
+  // Helper function to check if user profile is complete
+  const isProfileComplete = (user) => {
+    if (!user) return false;
+    const firstName = user.first_name;
+    const lastName = user.last_name;
+    const affiliatedOrg = user.affiliated_organization;
+    
+    const hasFirstName = firstName !== undefined && firstName !== null && String(firstName).trim() !== '';
+    const hasLastName = lastName !== undefined && lastName !== null && String(lastName).trim() !== '';
+    const hasAffiliatedOrg = affiliatedOrg !== undefined && affiliatedOrg !== null && String(affiliatedOrg).trim() !== '';
+    
+    return hasFirstName && hasLastName && hasAffiliatedOrg;
+  };
+
   useEffect(() => {
     if (authLoading) return;
 
     if (!isAuthenticated) {
       navigate('/login');
+      return;
+    }
+
+    // Check if profile is complete
+    if (!isProfileComplete(user)) {
+      navigate('/setup-profile');
       return;
     }
 

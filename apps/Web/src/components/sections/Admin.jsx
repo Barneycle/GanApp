@@ -1,23 +1,63 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { AdminService } from '../../services/adminService';
 
 export const Admin = () => {
-  const { user: currentUser } = useAuth();
+  const navigate = useNavigate();
+  const { user: currentUser, isAuthenticated, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Helper function to check if user profile is complete
+  const isProfileComplete = (user) => {
+    if (!user) return false;
+    const firstName = user.first_name;
+    const lastName = user.last_name;
+    const affiliatedOrg = user.affiliated_organization;
+    
+    const hasFirstName = firstName !== undefined && firstName !== null && String(firstName).trim() !== '';
+    const hasLastName = lastName !== undefined && lastName !== null && String(lastName).trim() !== '';
+    const hasAffiliatedOrg = affiliatedOrg !== undefined && affiliatedOrg !== null && String(affiliatedOrg).trim() !== '';
+    
+    return hasFirstName && hasLastName && hasAffiliatedOrg;
+  };
 
   // Check if current user is admin
   const isAdmin = currentUser?.role === 'admin';
 
   useEffect(() => {
+    if (authLoading) return;
+
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
     if (!isAdmin) {
       return;
     }
-  }, [isAdmin]);
 
-  if (!isAdmin) {
+    // Check if profile is complete
+    if (!isProfileComplete(currentUser)) {
+      navigate('/setup-profile');
+      return;
+    }
+  }, [isAdmin, isAuthenticated, authLoading, currentUser, navigate]);
+
+  if (authLoading) {
+    return (
+      <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-6"></div>
+          <p className="text-slate-600 text-lg">Loading...</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (!isAuthenticated || !isAdmin) {
     return (
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center">

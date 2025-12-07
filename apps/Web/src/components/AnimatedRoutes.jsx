@@ -17,6 +17,8 @@ import GenerateQR from "./sections/GenerateQR";
 import SurveyManagementPage from "./sections/SurveyManagementPage";
 import { Evaluation } from "./sections/Evaluation";
 import { EditProfile } from "./sections/EditProfile";
+import { Profile } from "./sections/Profile";
+import { SetupProfile } from "./sections/SetupProfile";
 import ActivityLog from "./sections/ActivityLog";
 import { ResetPassword } from "./sections/ResetPassword";
 import { Notifications } from "./sections/Notifications";
@@ -46,7 +48,9 @@ function AnimatedRoutes() {
         <Route path="/registration" element={<Registration />} />
         <Route path="/generate-qr" element={<GenerateQR />} />
         <Route path="/evaluation/:surveyId" element={<Evaluation />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/edit-profile" element={<EditProfile />} />
+        <Route path="/setup-profile" element={<SetupProfile />} />
         <Route path="/activity-log" element={<ActivityLog />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/notifications" element={<Notifications />} />

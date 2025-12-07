@@ -92,6 +92,12 @@ export const Evaluation = () => {
       return;
     }
 
+    // Check if profile is complete
+    if (!isProfileComplete(user)) {
+      navigate('/setup-profile');
+      return;
+    }
+
     if (!surveyId) {
       setError('Survey ID is missing');
       setLoading(false);

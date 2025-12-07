@@ -4260,13 +4260,18 @@ export const CreateEvent = () => {
                           <input
                             type="text"
                             placeholder="A"
-                            maxLength="5"
+                            maxLength="2"
                             value={speaker.middle_initial}
                             onChange={(e) => {
-                              let value = e.target.value;
-                              // Auto-add period if value exists and doesn't end with period
-                              if (value && !value.endsWith('.')) {
-                                value = value + '.';
+                              let value = e.target.value.toUpperCase();
+                              // Only add period if user is typing (value has a letter at the end, not a period)
+                              // This allows the period to be deleted but will reappear when typing
+                              if (value && value.length > 0) {
+                                const lastChar = value[value.length - 1];
+                                // If last character is a letter (not period, not space), add period
+                                if (/[A-Za-z]/.test(lastChar)) {
+                                  value = value + '.';
+                                }
                               }
                               updateSpeaker(index, 'middle_initial', value);
                             }}

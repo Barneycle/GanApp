@@ -26,12 +26,29 @@ export const EditProfile = () => {
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
 
-  // Redirect if not authenticated
+  // Helper function to check if user profile is complete
+  const isProfileComplete = (user) => {
+    if (!user) return false;
+    const firstName = user.first_name;
+    const lastName = user.last_name;
+    const affiliatedOrg = user.affiliated_organization;
+    
+    const hasFirstName = firstName !== undefined && firstName !== null && String(firstName).trim() !== '';
+    const hasLastName = lastName !== undefined && lastName !== null && String(lastName).trim() !== '';
+    const hasAffiliatedOrg = affiliatedOrg !== undefined && affiliatedOrg !== null && String(affiliatedOrg).trim() !== '';
+    
+    return hasFirstName && hasLastName && hasAffiliatedOrg;
+  };
+
+  // Redirect if not authenticated or profile incomplete
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       navigate('/login');
       return;
     }
+    
+    // Note: EditProfile allows access even if profile is incomplete (for completing it)
+    // But we can still check and show a message if needed
   }, [isAuthenticated, authLoading, navigate]);
 
   // Load user data when component mounts

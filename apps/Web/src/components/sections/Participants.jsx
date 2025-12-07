@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import EventModal from './EventModal';
 import { EventService } from '../../services/eventService';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const Participants = () => {
+  const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
   const [events, setEvents] = useState([]);
   const [featuredEvent, setFeaturedEvent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -22,10 +25,40 @@ export const Participants = () => {
     return textContent.length > 300 || hasMultipleParagraphs;
   };
 
+  // Helper function to check if user profile is complete
+  const isProfileComplete = (user) => {
+    if (!user) return false;
+    const firstName = user.first_name;
+    const lastName = user.last_name;
+    const affiliatedOrg = user.affiliated_organization;
+    
+    const hasFirstName = firstName !== undefined && firstName !== null && String(firstName).trim() !== '';
+    const hasLastName = lastName !== undefined && lastName !== null && String(lastName).trim() !== '';
+    const hasAffiliatedOrg = affiliatedOrg !== undefined && affiliatedOrg !== null && String(affiliatedOrg).trim() !== '';
+    
+    return hasFirstName && hasLastName && hasAffiliatedOrg;
+  };
+
   useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    
+    if (user?.role !== 'participant') {
+      navigate('/');
+      return;
+    }
+
+    // Check if profile is complete
+    if (!isProfileComplete(user)) {
+      navigate('/setup-profile');
+      return;
+    }
+
     loadEvents();
     loadFeaturedEvent();
-  }, []);
+  }, [user, isAuthenticated, navigate]);
 
   const loadEvents = async () => {
     try {
@@ -191,6 +224,35 @@ export const Participants = () => {
         return 'Unknown';
     }
   };
+
+  // Check authentication and role before rendering
+  if (!isAuthenticated || user?.role !== 'participant' || !isProfileComplete(user)) {
+    return (
+      <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center">
+        <div className="text-center">
+          <div className="bg-white rounded-2xl shadow-lg border border-red-200 p-8 max-w-md">
+            <div className="w-16 h-16 rounded-full bg-red-100 mx-auto mb-4 flex items-center justify-center">
+              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-slate-800 mb-2">Access Denied</h3>
+            <p className="text-red-800 mb-6">
+              {!isAuthenticated 
+                ? 'You must be logged in to access this page.'
+                : 'Only participants can access this page.'}
+            </p>
+            <button 
+              onClick={() => navigate(!isAuthenticated ? '/login' : '/')} 
+              className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 transition-all duration-200 font-medium shadow-md hover:shadow-lg"
+            >
+              {!isAuthenticated ? 'Go to Login' : 'Go to Home'}
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   if (loading) {
     return (

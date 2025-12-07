@@ -28,15 +28,21 @@ import { UserService } from '../lib/userService';
 import TutorialOverlay from '../components/TutorialOverlay';
 
 interface SetupProfileFormData {
+  prefix: string;
   firstName: string;
+  middleInitial: string;
   lastName: string;
+  affix: string;
   affiliatedOrganization: string;
 }
 
 export default function SetupProfileScreen() {
   const [formData, setFormData] = useState<SetupProfileFormData>({
+    prefix: '',
     firstName: '',
+    middleInitial: '',
     lastName: '',
+    affix: '',
     affiliatedOrganization: '',
   });
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
@@ -57,9 +63,16 @@ export default function SetupProfileScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   
   // Refs for form inputs
+  const prefixRef = useRef<TextInput>(null);
   const firstNameRef = useRef<TextInput>(null);
+  const middleInitialRef = useRef<TextInput>(null);
   const lastNameRef = useRef<TextInput>(null);
+  const affixRef = useRef<TextInput>(null);
   const orgRef = useRef<TextInput>(null);
+  
+  // Dropdown states
+  const [showPrefixDropdown, setShowPrefixDropdown] = useState(false);
+  const [showAffixDropdown, setShowAffixDropdown] = useState(false);
 
   // Store input Y positions for scrolling
   const inputYPositions = useRef<{ [key: string]: number }>({});
@@ -457,8 +470,11 @@ export default function SetupProfileScreen() {
 
       // Prepare update data
       const updateData: any = {
+        prefix: formData.prefix.trim() || '',
         first_name: formData.firstName.trim(),
+        middle_initial: formData.middleInitial.trim() || '',
         last_name: formData.lastName.trim(),
+        affix: formData.affix.trim() || '',
         affiliated_organization: formData.affiliatedOrganization.trim(),
       };
 
@@ -661,6 +677,44 @@ export default function SetupProfileScreen() {
                   </Text>
                 </View>
 
+                {/* Prefix Dropdown */}
+                <View className="mb-4">
+                  <Text className="text-base font-semibold text-black mb-2">Prefix</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowPrefixDropdown(!showPrefixDropdown)}
+                    className="flex-row items-center justify-between border border-gray-300 rounded-xl px-3 bg-gray-50 h-12"
+                  >
+                    <Text className={`text-base ${formData.prefix ? 'text-black' : 'text-gray-500'}`}>
+                      {formData.prefix || 'Select...'}
+                    </Text>
+                    <Ionicons 
+                      name={showPrefixDropdown ? "chevron-up" : "chevron-down"} 
+                      size={20} 
+                      color="#1e3a8a" 
+                    />
+                  </TouchableOpacity>
+                  {showPrefixDropdown && (
+                    <View className="mt-1 border border-gray-300 rounded-xl bg-white shadow-lg">
+                      {['', 'Dr.', 'Prof.', 'Mr.', 'Mrs.', 'Ms.', 'Miss', 'Engr.', 'Atty.', 'Rev.', 'Hon.'].map((option) => (
+                        <TouchableOpacity
+                          key={option}
+                          onPress={() => {
+                            handleInputChange('prefix', option);
+                            setShowPrefixDropdown(false);
+                          }}
+                          className={`p-3 border-b border-gray-200 last:border-b-0 ${
+                            formData.prefix === option ? 'bg-blue-50' : ''
+                          }`}
+                        >
+                          <Text className={`text-base ${formData.prefix === option ? 'text-blue-700 font-semibold' : 'text-gray-700'}`}>
+                            {option || 'None'}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+
                 {/* First Name Input */}
                 <View 
                   className="mb-4"
@@ -677,6 +731,42 @@ export default function SetupProfileScreen() {
                       value={formData.firstName}
                       onChangeText={(text) => handleInputChange('firstName', text)}
                       autoCapitalize="words"
+                      returnKeyType="next"
+                      blurOnSubmit={false}
+                      onSubmitEditing={() => middleInitialRef.current?.focus()}
+                    />
+                  </View>
+                </View>
+
+                {/* Middle Initial Input */}
+                <View 
+                  className="mb-4"
+                  onLayout={handleInputLayout('middleInitial')}
+                >
+                  <Text className="text-base font-semibold text-black mb-2">Middle Initial</Text>
+                  <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
+                    <Ionicons name="person-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
+                    <TextInput
+                      ref={middleInitialRef}
+                      className="flex-1 h-12 text-base text-black"
+                      placeholder="A"
+                      placeholderTextColor="#666"
+                      value={formData.middleInitial}
+                      onChangeText={(text) => {
+                        // Convert to uppercase and only add period if user is typing (value has a letter at the end, not a period)
+                        // This allows the period to be deleted but will reappear when typing
+                        let value = text.toUpperCase();
+                        if (value && value.length > 0) {
+                          const lastChar = value[value.length - 1];
+                          // If last character is a letter (not period, not space), add period
+                          if (/[A-Za-z]/.test(lastChar)) {
+                            value = value + '.';
+                          }
+                        }
+                        handleInputChange('middleInitial', value);
+                      }}
+                      maxLength={2}
+                      autoCapitalize="characters"
                       returnKeyType="next"
                       blurOnSubmit={false}
                       onSubmitEditing={() => lastNameRef.current?.focus()}
@@ -702,9 +792,47 @@ export default function SetupProfileScreen() {
                       autoCapitalize="words"
                       returnKeyType="next"
                       blurOnSubmit={false}
-                      onSubmitEditing={() => orgRef.current?.focus()}
+                      onSubmitEditing={() => affixRef.current?.focus()}
                     />
                   </View>
+                </View>
+
+                {/* Affix Dropdown */}
+                <View className="mb-4">
+                  <Text className="text-base font-semibold text-black mb-2">Affix</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowAffixDropdown(!showAffixDropdown)}
+                    className="flex-row items-center justify-between border border-gray-300 rounded-xl px-3 bg-gray-50 h-12"
+                  >
+                    <Text className={`text-base ${formData.affix ? 'text-black' : 'text-gray-500'}`}>
+                      {formData.affix || 'Select...'}
+                    </Text>
+                    <Ionicons 
+                      name={showAffixDropdown ? "chevron-up" : "chevron-down"} 
+                      size={20} 
+                      color="#1e3a8a" 
+                    />
+                  </TouchableOpacity>
+                  {showAffixDropdown && (
+                    <View className="mt-1 border border-gray-300 rounded-xl bg-white shadow-lg">
+                      {['', 'Jr.', 'Sr.', 'II', 'III', 'IV', 'V'].map((option) => (
+                        <TouchableOpacity
+                          key={option}
+                          onPress={() => {
+                            handleInputChange('affix', option);
+                            setShowAffixDropdown(false);
+                          }}
+                          className={`p-3 border-b border-gray-200 last:border-b-0 ${
+                            formData.affix === option ? 'bg-blue-50' : ''
+                          }`}
+                        >
+                          <Text className={`text-base ${formData.affix === option ? 'text-blue-700 font-semibold' : 'text-gray-700'}`}>
+                            {option || 'None'}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
                 </View>
 
                 {/* Affiliated Organization Input */}

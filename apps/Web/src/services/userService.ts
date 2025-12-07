@@ -4,8 +4,11 @@ export interface User {
   id: string;
   email: string;
   role: 'admin' | 'organizer' | 'participant';
+  prefix?: string;
   first_name?: string;
+  middle_initial?: string;
   last_name?: string;
+  affix?: string;
   avatar_url?: string;
   affiliated_organization?: string;
   created_at: string;
@@ -13,6 +16,17 @@ export interface User {
 }
 
 export class UserService {
+  static async checkEmailExists(email: string): Promise<{ exists: boolean; error?: string }> {
+    // Note: Supabase Auth doesn't provide a reliable public API to check email existence
+    // without potentially sending emails or causing side effects.
+    // The most reliable approach is to let signUp handle duplicate email detection.
+    // This function is kept for potential future use with RPC functions or admin APIs.
+    
+    // For now, we'll return false to allow signup attempts
+    // The actual signUp will properly detect and report duplicate emails
+    return { exists: false };
+  }
+
   static async getCurrentUser(): Promise<User | null> {
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -43,8 +57,11 @@ export class UserService {
         id: user.id,
         email: user.email || '',
         role: role,
+        prefix: user.user_metadata?.prefix || '',
         first_name: user.user_metadata?.first_name || '',
+        middle_initial: user.user_metadata?.middle_initial || '',
         last_name: user.user_metadata?.last_name || '',
+        affix: user.user_metadata?.affix || '',
         avatar_url: user.user_metadata?.avatar_url || '',
         affiliated_organization: user.user_metadata?.affiliated_organization || '',
         created_at: user.created_at,
@@ -65,8 +82,11 @@ export class UserService {
         options: {
           data: {
             role: userData.role || 'participant',
+            prefix: userData.prefix || '',
             first_name: userData.first_name || '',
+            middle_initial: userData.middle_initial || '',
             last_name: userData.last_name || '',
+            affix: userData.affix || '',
             avatar_url: userData.avatar_url || '',
             affiliated_organization: userData.affiliated_organization || ''
           }
@@ -83,8 +103,11 @@ export class UserService {
           id: data.user.id,
           email: data.user.email || '',
           role: data.user.user_metadata?.role || 'participant',
+          prefix: data.user.user_metadata?.prefix || '',
           first_name: data.user.user_metadata?.first_name || '',
+          middle_initial: data.user.user_metadata?.middle_initial || '',
           last_name: data.user.user_metadata?.last_name || '',
+          affix: data.user.user_metadata?.affix || '',
           avatar_url: data.user.user_metadata?.avatar_url || '',
           affiliated_organization: data.user.user_metadata?.affiliated_organization || '',
           created_at: data.user.created_at,
@@ -147,8 +170,11 @@ export class UserService {
           id: data.user.id,
           email: data.user.email || '',
           role: role,
+          prefix: data.user.user_metadata?.prefix || '',
           first_name: data.user.user_metadata?.first_name || '',
+          middle_initial: data.user.user_metadata?.middle_initial || '',
           last_name: data.user.user_metadata?.last_name || '',
+          affix: data.user.user_metadata?.affix || '',
           avatar_url: data.user.user_metadata?.avatar_url || '',
           affiliated_organization: data.user.user_metadata?.affiliated_organization || '',
           created_at: data.user.created_at,
@@ -200,14 +226,33 @@ export class UserService {
 
   static async updateProfile(userId: string, updates: Partial<User> & { originalEmail?: string }): Promise<{ user?: User; error?: string; needsEmailConfirmation?: boolean }> {
     try {
-      // Prepare update object for metadata
+      // Get current user to preserve existing metadata
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
+      // Prepare update object for metadata - preserve existing values
       const updateData: any = {
-        role: updates.role,
-        first_name: updates.first_name,
-        last_name: updates.last_name
+        ...(currentUser?.user_metadata || {}), // Preserve existing metadata
       };
 
-      // Add optional fields if provided
+      // Update only the fields that are provided
+      if (updates.role !== undefined) {
+        updateData.role = updates.role;
+      }
+      if (updates.prefix !== undefined) {
+        updateData.prefix = updates.prefix;
+      }
+      if (updates.first_name !== undefined) {
+        updateData.first_name = updates.first_name;
+      }
+      if (updates.middle_initial !== undefined) {
+        updateData.middle_initial = updates.middle_initial;
+      }
+      if (updates.last_name !== undefined) {
+        updateData.last_name = updates.last_name;
+      }
+      if (updates.affix !== undefined) {
+        updateData.affix = updates.affix;
+      }
       if (updates.avatar_url !== undefined) {
         updateData.avatar_url = updates.avatar_url;
       }
@@ -241,8 +286,11 @@ export class UserService {
           id: data.user.id,
           email: data.user.email || '', // This will be the new email if confirmation is disabled, or old email until confirmed
           role: data.user.user_metadata?.role || 'participant',
+          prefix: data.user.user_metadata?.prefix || '',
           first_name: data.user.user_metadata?.first_name || '',
+          middle_initial: data.user.user_metadata?.middle_initial || '',
           last_name: data.user.user_metadata?.last_name || '',
+          affix: data.user.user_metadata?.affix || '',
           avatar_url: data.user.user_metadata?.avatar_url || '',
           affiliated_organization: data.user.user_metadata?.affiliated_organization || '',
           created_at: data.user.created_at,

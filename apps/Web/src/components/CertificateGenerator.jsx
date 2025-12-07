@@ -40,7 +40,7 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       font_size: 48,
       color: '#000000',
       position: { x: 50, y: 50 },
-      font_family: '"MonteCarlo", cursive',
+      font_family: 'MonteCarlo, cursive',
       font_weight: 'bold'
     },
     event_title_config: {
@@ -208,9 +208,21 @@ const CertificateGenerator = ({ eventId, onClose }) => {
   };
 
   const getUserName = () => {
-    if (user?.first_name && user?.last_name) {
-      return `${user.first_name} ${user.last_name}`;
+    if (!user) {
+      return user?.email?.split('@')[0] || 'Participant';
     }
+    
+    const parts = [];
+    if (user.prefix) parts.push(user.prefix);
+    if (user.first_name) parts.push(user.first_name);
+    if (user.middle_initial) parts.push(user.middle_initial);
+    if (user.last_name) parts.push(user.last_name);
+    if (user.affix) parts.push(user.affix);
+    
+    if (parts.length > 0) {
+      return parts.join(' ');
+    }
+    
     return user?.email?.split('@')[0] || 'Participant';
   };
 
@@ -424,6 +436,9 @@ const CertificateGenerator = ({ eventId, onClose }) => {
   const generatePNG = async () => {
     if (!config || !event) return null;
 
+    // Ensure fonts are loaded before creating canvas
+    await document.fonts.ready;
+    
     const canvas = document.createElement('canvas');
     const width = config.width || 2000;
     const height = config.height || 1200;
@@ -579,9 +594,17 @@ const CertificateGenerator = ({ eventId, onClose }) => {
 
     // Participant Name
     ctx.fillStyle = nameConfig.color || '#000000';
-    ctx.font = `${nameConfig.font_weight || 'bold'} ${nameConfig.font_size || 48}px ${nameConfig.font_family || '"MonteCarlo", cursive'}`;
+    // Ensure MonteCarlo font is loaded before rendering
+    const fontFamily = nameConfig.font_family || 'MonteCarlo, cursive';
+    
+    // Wait for all fonts to be ready before rendering
+    await document.fonts.ready;
+    
+    // Set font and render
+    ctx.font = `${nameConfig.font_weight || 'bold'} ${nameConfig.font_size || 48}px ${fontFamily}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    
     ctx.fillText(
       participantName,
       (width * nameConfig.position.x) / 100,

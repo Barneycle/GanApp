@@ -94,11 +94,6 @@ export const Home = () => {
   }, []);
 
   const loadEvents = async () => {
-    // Prevent reloading if already loaded
-    if (hasLoadedRef.current) {
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);

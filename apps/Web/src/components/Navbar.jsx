@@ -578,7 +578,7 @@ export const Navbar = () => {
                     {/* Profile Section at Top */}
                     <button
                       onClick={() => {
-                        navigate('/edit-profile');
+                        navigate('/profile');
                         closeProfileDropdown();
                       }}
                       className="w-full px-4 py-3 border-b border-gray-200 hover:bg-gray-50 transition-colors text-left flex items-center space-x-3"

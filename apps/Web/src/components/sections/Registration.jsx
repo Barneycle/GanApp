@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import TermsModal from '../TermsModal';
+import { AcademicCapIcon, BriefcaseIcon, UserGroupIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 // Common email domains for autocomplete
 const COMMON_EMAIL_DOMAINS = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com', 'aol.com', 'mail.com', 'protonmail.com'];
@@ -10,8 +11,6 @@ export const Registration = () => {
   const navigate = useNavigate();
   const { signUp, loading, error, clearError } = useAuth();
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -98,6 +97,7 @@ export const Registration = () => {
         setEmailValidation({ isValid: null, message: '' });
       }
     }
+
   }, [formData.email, formData.userType]);
 
   // Close suggestions when clicking outside
@@ -146,13 +146,11 @@ export const Registration = () => {
 
   const validateForm = () => {
     // Trim values for validation
-    const trimmedFirstName = formData.firstName.trim();
-    const trimmedLastName = formData.lastName.trim();
     const trimmedEmail = formData.email.trim();
     const trimmedPassword = formData.password.trim();
     const trimmedConfirmPassword = formData.confirmPassword.trim();
     
-    if (!trimmedFirstName || !trimmedLastName || !trimmedEmail || !trimmedPassword || !formData.userType) {
+    if (!trimmedEmail || !trimmedPassword || !formData.userType) {
       return 'All required fields must be filled';
     }
 
@@ -204,13 +202,17 @@ export const Registration = () => {
     // Trim all string values
     const trimmedData = {
       ...formData,
-      firstName: formData.firstName.trim(),
-      lastName: formData.lastName.trim(),
       email: formData.email.trim(),
       password: formData.password.trim(),
       confirmPassword: formData.confirmPassword.trim()
     };
     
+    // Check if email exists before submitting
+    if (emailValidation.isValid === false && emailValidation.message.includes('already registered')) {
+      setLocalError('This email address is already registered. Please use a different email or try logging in.');
+      return;
+    }
+
     // Validate form with trimmed data
     const validationError = validateForm();
     if (validationError) {
@@ -222,8 +224,6 @@ export const Registration = () => {
     try {
       // Prepare user data for registration with trimmed values
       const userData = {
-        first_name: trimmedData.firstName,
-        last_name: trimmedData.lastName,
         user_type: trimmedData.userType,
         role: 'participant' // Default role for new users
       };
@@ -231,17 +231,22 @@ export const Registration = () => {
       const result = await signUp(trimmedData.email, trimmedData.password, userData);
       
       if (result.error) {
-        setLocalError(result.error);
+        // Check if error is about duplicate email
+        const errorMessage = result.error.toLowerCase();
+        if (errorMessage.includes('already registered') || 
+            errorMessage.includes('user already exists') ||
+            errorMessage.includes('email already exists') ||
+            errorMessage.includes('already been registered')) {
+          setLocalError('This email address is already registered. Please use a different email or try logging in.');
+        } else {
+          setLocalError(result.error);
+        }
         return;
       }
 
       if (result.user) {
-        // Registration successful - show success message and redirect to login
-        setSuccess(true);
-        // Redirect to login after 3 seconds to show success message
-        setTimeout(() => {
-          navigate('/login');
-        }, 3000);
+        // Registration successful - redirect to profile setup
+        navigate('/setup-profile');
         return;
       }
 
@@ -304,10 +309,7 @@ export const Registration = () => {
               >
                 <div className="flex items-center">
                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
-                    <svg className="w-6 h-6 text-blue-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l9-5-9-5-9 5 9 5z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                    </svg>
+                    <AcademicCapIcon className="w-6 h-6 text-blue-800" />
                   </div>
                   <div className="flex-1">
                     <h4 className="text-base font-medium text-slate-800">PSU Student</h4>
@@ -323,9 +325,7 @@ export const Registration = () => {
               >
                 <div className="flex items-center">
                   <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-                    <svg className="w-6 h-6 text-green-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 00-2 2v2m8 0V6a2 2 0 00-2-2M8 6V4a2 2 0 00-2-2H4a2 2 0 00-2 2v2m8 0V6a2 2 0 00-2 2v2m8 0V6a2 2 0 00-2-2" />
-                    </svg>
+                    <BriefcaseIcon className="w-6 h-6 text-green-800" />
                   </div>
                   <div className="flex-1">
                     <h4 className="text-base font-medium text-slate-800">PSU Employee</h4>
@@ -341,9 +341,7 @@ export const Registration = () => {
               >
                 <div className="flex items-center">
                   <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
-                    <svg className="w-6 h-6 text-purple-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
+                    <UserGroupIcon className="w-6 h-6 text-purple-800" />
                   </div>
                   <div className="flex-1">
                     <h4 className="text-base font-medium text-slate-800">Outside PSU</h4>
@@ -381,15 +379,13 @@ export const Registration = () => {
                     formData.userType === 'psu-student' ? 'bg-blue-100' : 
                     formData.userType === 'psu-employee' ? 'bg-green-100' : 'bg-purple-100'
                   }`}>
-                    <svg className="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      {formData.userType === 'psu-student' ? (
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                      ) : formData.userType === 'psu-employee' ? (
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 00-2 2v2m8 0V6a2 2 0 00-2-2M8 6V4a2 2 0 00-2-2H4a2 2 0 00-2 2v2m8 0V6a2 2 0 00-2 2v2m8 0V6a2 2 0 00-2-2" />
-                      ) : (
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                      )}
-                    </svg>
+                    {formData.userType === 'psu-student' ? (
+                      <AcademicCapIcon className="w-5 h-5 text-slate-800" />
+                    ) : formData.userType === 'psu-employee' ? (
+                      <BriefcaseIcon className="w-5 h-5 text-slate-800" />
+                    ) : (
+                      <UserGroupIcon className="w-5 h-5 text-slate-800" />
+                    )}
                   </div>
                   <div>
                     <p className="text-sm font-medium text-slate-600">Selected User Type</p>
@@ -403,9 +399,7 @@ export const Registration = () => {
                   onClick={() => setFormData(prev => ({ ...prev, userType: '' }))}
                   className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <XMarkIcon className="w-6 h-6" />
                 </button>
               </div>
             </div>
@@ -420,43 +414,6 @@ export const Registration = () => {
               )}
 
               <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Personal Information */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label htmlFor="firstName" className="block text-sm font-medium text-slate-700 mb-2">
-                      First Name *
-                    </label>
-                    <input
-                      type="text"
-                      id="firstName"
-                      name="firstName"
-                      value={formData.firstName}
-                      onChange={handleInputChange}
-                      required
-                      disabled={loading}
-                      className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                      placeholder="Enter your first name"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="lastName" className="block text-sm font-medium text-slate-700 mb-2">
-                      Last Name *
-                    </label>
-                    <input
-                      type="text"
-                      id="lastName"
-                      name="lastName"
-                      value={formData.lastName}
-                      onChange={handleInputChange}
-                      required
-                      disabled={loading}
-                      className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                      placeholder="Enter your last name"
-                    />
-                  </div>
-                </div>
-
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
                     Email Address *

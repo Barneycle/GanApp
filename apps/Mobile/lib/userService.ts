@@ -7,8 +7,11 @@ export interface User {
   id: string;
   email: string;
   role: 'admin' | 'organizer' | 'participant';
+  prefix?: string;
   first_name: string;
+  middle_initial?: string;
   last_name: string;
+  affix?: string;
   avatar_url?: string;
   affiliated_organization?: string;
   created_at: string;
@@ -95,8 +98,11 @@ export class UserService {
           id: data.user.id,
           email: data.user.email || '',
           role: role,
+          prefix: data.user.user_metadata?.prefix || '',
           first_name: data.user.user_metadata?.first_name || '',
+          middle_initial: data.user.user_metadata?.middle_initial || '',
           last_name: data.user.user_metadata?.last_name || '',
+          affix: data.user.user_metadata?.affix || '',
           created_at: data.user.created_at,
           updated_at: data.user.updated_at || data.user.created_at
         };
@@ -161,11 +167,20 @@ export class UserService {
       if (updates.role !== undefined) {
         updateData.role = updates.role;
       }
+      if (updates.prefix !== undefined) {
+        updateData.prefix = updates.prefix;
+      }
       if (updates.first_name !== undefined) {
         updateData.first_name = updates.first_name;
       }
+      if (updates.middle_initial !== undefined) {
+        updateData.middle_initial = updates.middle_initial;
+      }
       if (updates.last_name !== undefined) {
         updateData.last_name = updates.last_name;
+      }
+      if (updates.affix !== undefined) {
+        updateData.affix = updates.affix;
       }
       if (updates.affiliated_organization !== undefined) {
         updateData.affiliated_organization = updates.affiliated_organization;
@@ -202,8 +217,11 @@ export class UserService {
           id: data.user.id,
           email: data.user.email || '',
           role: data.user.user_metadata?.role || 'participant',
+          prefix: data.user.user_metadata?.prefix || '',
           first_name: data.user.user_metadata?.first_name || '',
+          middle_initial: data.user.user_metadata?.middle_initial || '',
           last_name: data.user.user_metadata?.last_name || '',
+          affix: data.user.user_metadata?.affix || '',
           affiliated_organization: data.user.user_metadata?.affiliated_organization || '',
           avatar_url: data.user.user_metadata?.avatar_url || '',
           created_at: data.user.created_at,
