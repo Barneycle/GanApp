@@ -524,9 +524,6 @@ export const EditSurvey = () => {
               Edit Survey
             </h1>
           </div>
-          <p className="text-slate-600 text-lg sm:text-xl max-w-2xl mx-auto">
-            Update your survey questions and gather valuable feedback from your event participants
-          </p>
         </div>
 
         {/* Error Message */}

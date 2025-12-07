@@ -318,13 +318,6 @@ export const EventStatisticsDetail = () => {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Statistics
           </button>
-          
-          <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 mb-2">
-            {stats.event.title}
-          </h1>
-          <p className="text-slate-600 text-lg">
-            {stats.survey.title}
-          </p>
         </div>
 
         {/* Summary Cards */}

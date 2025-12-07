@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Search } from 'lucide-react';
 
 export const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -115,17 +114,6 @@ export const Navbar = () => {
                   Activity Log
                 </Link>
               </>
-            )}
-            
-            {/* Global Search - Available to all authenticated users */}
-            {isAuthenticated && (
-              <Link
-                to="/search"
-                className="text-lg font-medium text-gray-300 hover:text-white transition-colors flex items-center space-x-1"
-              >
-                <Search className="w-5 h-5" />
-                <span>Search</span>
-              </Link>
             )}
             
             {user?.role === 'organizer' && (
@@ -374,18 +362,6 @@ export const Navbar = () => {
                       Activity Log
                     </Link>
                   </>
-                )}
-                
-                {/* Global Search - Mobile */}
-                {isAuthenticated && (
-                  <Link
-                    to="/search"
-                    className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md flex items-center space-x-2"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    <Search className="w-5 h-5" />
-                    <span>Search</span>
-                  </Link>
                 )}
                 
                 {user?.role === 'organizer' && (

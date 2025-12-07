@@ -363,13 +363,6 @@ export const MyEvents = () => {
       `}</style>
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        
-        {/* Page Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 mb-2">My Registered Events</h1>
-          <p className="text-slate-600 text-lg">Events you've registered for</p>
-        </div>
-
         {/* Search and Filter Bar */}
         <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8">
           <div className="flex flex-col lg:flex-row gap-4">

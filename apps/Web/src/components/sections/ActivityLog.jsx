@@ -42,7 +42,8 @@ export const ActivityLog = () => {
     if (isVisible && !loadingRef.current) {
       loadLogs();
     }
-  }, [isAuthenticated, user, authLoading, navigate, isVisible, page, filters]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user?.role, authLoading, isVisible, page, filters.action, filters.resourceType, filters.searchQuery, filters.startDate, filters.endDate]);
 
   const loadLogs = async () => {
     if (!isVisible) return;
@@ -165,14 +166,6 @@ export const ActivityLog = () => {
   return (
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 mb-2">
-            Activity Log / Audit Trail
-          </h1>
-          <p className="text-slate-600">Track all user actions and system changes</p>
-        </div>
-
         {/* Filters */}
         <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 mb-6">
           <div className="flex items-center justify-between mb-4">

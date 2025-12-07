@@ -18,7 +18,6 @@ import SurveyManagementPage from "./sections/SurveyManagementPage";
 import { Evaluation } from "./sections/Evaluation";
 import { EditProfile } from "./sections/EditProfile";
 import ActivityLog from "./sections/ActivityLog";
-import GlobalSearch from "./sections/GlobalSearch";
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -46,7 +45,6 @@ function AnimatedRoutes() {
         <Route path="/evaluation/:surveyId" element={<Evaluation />} />
         <Route path="/edit-profile" element={<EditProfile />} />
         <Route path="/activity-log" element={<ActivityLog />} />
-        <Route path="/search" element={<GlobalSearch />} />
       </Routes>
     </div>
   );

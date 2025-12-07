@@ -2995,12 +2995,6 @@ export const CreateEvent = () => {
 
           </div>
 
-          <p className="text-slate-600 text-xl sm:text-2xl max-w-3xl mx-auto">
-
-            {pageSubtitle}
-
-          </p>
-
           
 
           

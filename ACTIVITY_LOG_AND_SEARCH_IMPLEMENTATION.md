@@ -86,11 +86,12 @@ This will create:
 
 The following routes have been added:
 - `/activity-log` - Activity log page (admin only)
-- `/search` - Global search page (all authenticated users)
 
 Navigation links have been added to:
 - Navbar (desktop and mobile)
 - Admin section
+
+**Note:** Global Search feature has been removed from the application.
 
 ### 3. Integration with Services
 

@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import TermsModal from '../TermsModal';
+
+// Common email domains for autocomplete
+const COMMON_EMAIL_DOMAINS = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com', 'aol.com', 'mail.com', 'protonmail.com'];
 
 export const Registration = () => {
   const navigate = useNavigate();
@@ -22,6 +25,93 @@ export const Registration = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [localError, setLocalError] = useState('');
+  
+  // Email validation state
+  const [emailValidation, setEmailValidation] = useState({ isValid: null, message: '' });
+  const [emailSuggestions, setEmailSuggestions] = useState([]);
+  const [showEmailSuggestions, setShowEmailSuggestions] = useState(false);
+  const [showPasswordRequirements, setShowPasswordRequirements] = useState(false);
+  const emailInputRef = useRef(null);
+  const suggestionsRef = useRef(null);
+
+  // Real-time email validation
+  useEffect(() => {
+    const email = formData.email.trim();
+    if (!email) {
+      setEmailValidation({ isValid: null, message: '' });
+      setEmailSuggestions([]);
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const isValid = emailRegex.test(email);
+    
+    // Check PSU email requirement for students and employees
+    if (isValid && (formData.userType === 'psu-student' || formData.userType === 'psu-employee')) {
+      const isPSUEmail = email.endsWith('@parsu.edu.ph') || email.endsWith('.pbox@parsu.edu.ph');
+      if (isPSUEmail) {
+        setEmailValidation({ isValid: true, message: 'Valid PSU email address' });
+      } else {
+        setEmailValidation({ isValid: false, message: 'PSU students and employees must use @parsu.edu.ph or .pbox@parsu.edu.ph email addresses' });
+      }
+      setEmailSuggestions([]);
+      return;
+    }
+    
+    if (isValid) {
+      setEmailValidation({ isValid: true, message: 'Valid email address' });
+      setEmailSuggestions([]);
+    } else {
+      // Check if user is typing and suggest domains (only for outside users)
+      if (formData.userType === 'outside') {
+        const atIndex = email.indexOf('@');
+        if (atIndex > 0 && !email.includes('@', atIndex + 1)) {
+          const localPart = email.substring(0, atIndex);
+          const domainPart = email.substring(atIndex + 1);
+          
+          if (domainPart.length > 0) {
+            const suggestions = COMMON_EMAIL_DOMAINS
+              .filter(domain => domain.startsWith(domainPart.toLowerCase()))
+              .map(domain => `${localPart}@${domain}`)
+              .slice(0, 3);
+            setEmailSuggestions(suggestions);
+            setShowEmailSuggestions(suggestions.length > 0);
+          } else {
+            setEmailSuggestions([]);
+            setShowEmailSuggestions(false);
+          }
+        } else {
+          setEmailSuggestions([]);
+          setShowEmailSuggestions(false);
+        }
+      } else {
+        setEmailSuggestions([]);
+        setShowEmailSuggestions(false);
+      }
+      
+      if (email.length > 0) {
+        setEmailValidation({ 
+          isValid: false, 
+          message: email.includes('@') ? 'Please enter a valid email address' : 'Email must include @ symbol' 
+        });
+      } else {
+        setEmailValidation({ isValid: null, message: '' });
+      }
+    }
+  }, [formData.email, formData.userType]);
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target) && 
+          emailInputRef.current && !emailInputRef.current.contains(event.target)) {
+        setShowEmailSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -29,6 +119,17 @@ export const Registration = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+    
+    // Clear local error when user starts typing
+    if (localError) {
+      setLocalError('');
+    }
+  };
+
+  const handleEmailSuggestionClick = (suggestion) => {
+    setFormData(prev => ({ ...prev, email: suggestion }));
+    setShowEmailSuggestions(false);
+    emailInputRef.current?.focus();
   };
 
   const handleUserTypeSelect = (userType) => {
@@ -190,13 +291,6 @@ export const Registration = () => {
   return (
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-slate-800 mb-4">GanApp</h1>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">Create Account</h2>
-          <p className="text-slate-600">Join GanApp and start managing your events and surveys</p>
-        </div>
-
         {!formData.userType ? (
           // User Type Selection Screen
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
@@ -367,39 +461,133 @@ export const Registration = () => {
                   <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
                     Email Address *
                   </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    required
-                    disabled={loading}
-                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    placeholder={
-                      formData.userType === 'psu-student' || formData.userType === 'psu-employee'
-                        ? 'Enter your PSU email (@parsu.edu.ph)'
-                        : 'Enter your email address'
-                    }
-                  />
-                  {(formData.userType === 'psu-student' || formData.userType === 'psu-employee') && (
+                  <div className="relative" ref={suggestionsRef}>
+                    <input
+                      ref={emailInputRef}
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      onFocus={() => {
+                        if (emailSuggestions.length > 0) {
+                          setShowEmailSuggestions(true);
+                        }
+                      }}
+                      required
+                      disabled={loading}
+                      autoComplete="email"
+                      aria-describedby="email-validation email-help"
+                      aria-invalid={emailValidation.isValid === false}
+                      aria-required="true"
+                      className={`w-full px-4 py-3 pr-12 border rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                        emailValidation.isValid === false 
+                          ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                          : emailValidation.isValid === true
+                          ? 'border-green-300 focus:ring-green-500 focus:border-green-500'
+                          : 'border-slate-300 focus:ring-blue-500 focus:border-transparent'
+                      }`}
+                      placeholder={
+                        formData.userType === 'psu-student' || formData.userType === 'psu-employee'
+                          ? 'Enter your PSU email (@parsu.edu.ph)'
+                          : 'Enter your email address'
+                      }
+                    />
+                    
+                    {/* Email Validation Indicator */}
+                    {emailValidation.isValid !== null && formData.email && (
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        {emailValidation.isValid ? (
+                          <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Email Suggestions Dropdown */}
+                    {showEmailSuggestions && emailSuggestions.length > 0 && formData.userType === 'outside' && (
+                      <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-slate-200 max-h-40 overflow-y-auto">
+                        {emailSuggestions.map((suggestion, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            onClick={() => handleEmailSuggestionClick(suggestion)}
+                            className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-blue-50 transition-colors border-b border-slate-100 last:border-b-0"
+                            aria-label={`Use email ${suggestion}`}
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Email Validation Message */}
+                  {emailValidation.message && (
+                    <p 
+                      id="email-validation"
+                      className={`mt-1 text-xs ${emailValidation.isValid ? 'text-green-600' : 'text-red-600'}`}
+                      role="status"
+                      aria-live="polite"
+                    >
+                      {emailValidation.message}
+                    </p>
+                  )}
+                  
+                  {/* Helper text */}
+                  {(formData.userType === 'psu-student' || formData.userType === 'psu-employee') && !emailValidation.message && (
                     <p className="text-xs text-slate-500 mt-1">
                       Must end in @parsu.edu.ph or .pbox@parsu.edu.ph
                     </p>
                   )}
-                  {formData.userType === 'outside' && (
+                  {formData.userType === 'outside' && !emailValidation.message && (
                     <p className="text-xs text-slate-500 mt-1">
                       Any valid email address is accepted
                     </p>
                   )}
+                  
+                  <p id="email-help" className="mt-1 text-xs text-slate-500 sr-only">
+                    Enter your email address. We'll suggest common email domains as you type.
+                  </p>
                 </div>
 
                 {/* Password Fields */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-2">
-                      Password *
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label htmlFor="password" className="block text-sm font-medium text-slate-700">
+                        Password *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswordRequirements(!showPasswordRequirements)}
+                        className="text-xs text-blue-600 hover:text-blue-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                        aria-label="Show password requirements"
+                        aria-expanded={showPasswordRequirements}
+                      >
+                        Requirements?
+                      </button>
+                    </div>
+                    
+                    {/* Password Requirements Tooltip */}
+                    {showPasswordRequirements && (
+                      <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800" role="tooltip">
+                        <p className="font-semibold mb-1">Password Requirements:</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          <li>At least 8 characters long</li>
+                          <li>Contains at least one uppercase letter</li>
+                          <li>Contains at least one lowercase letter</li>
+                          <li>Contains at least one number</li>
+                          <li>Contains at least one special character</li>
+                        </ul>
+                      </div>
+                    )}
+                    
                     <div className="relative">
                       <input
                         type={showPassword ? "text" : "password"}
@@ -409,27 +597,34 @@ export const Registration = () => {
                         onChange={handleInputChange}
                         required
                         disabled={loading}
+                        autoComplete="new-password"
+                        aria-describedby="password-help"
+                        aria-required="true"
                         className="w-full px-4 py-3 pr-12 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                         placeholder="Create a strong password"
                       />
                       <button
                         type="button"
                         onClick={togglePasswordVisibility}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
                         disabled={loading}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
                       >
                         {showPassword ? (
-                          <svg className="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
                           </svg>
                         ) : (
-                          <svg className="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                           </svg>
                         )}
                       </button>
                     </div>
+                    <p id="password-help" className="mt-1 text-xs text-slate-500 sr-only">
+                      Create a strong password. Click the eye icon to show or hide your password.
+                    </p>
                   </div>
 
                   <div>

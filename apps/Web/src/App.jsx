@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LoadingScreen } from "./components/LoadingScreen";
 import AnimatedRoutes from "./components/AnimatedRoutes";
 import { Navbar } from "./components/Navbar";
@@ -12,24 +12,35 @@ function App() {
     const location = useLocation();
     const { loading: authLoading } = useAuth();
 
+    // Pages that should skip loading screen and hide navbar
+    const authPages = ['/login', '/registration'];
+    const isAuthPage = authPages.includes(location.pathname);
+
     const handleLoadingComplete = () => {
         setIsLoaded(true);
     };
 
+    // Skip loading screen for auth pages
+    useEffect(() => {
+        if (isAuthPage && !isLoaded) {
+            setIsLoaded(true);
+        }
+    }, [isAuthPage, isLoaded]);
+
     return (
         <>
-            {!isLoaded && <LoadingScreen onComplete={handleLoadingComplete} />}
+            {!isLoaded && !isAuthPage && <LoadingScreen onComplete={handleLoadingComplete} />}
 
-            <div className={`${location.pathname === '/login' ? 'h-screen overflow-hidden' : 'min-h-screen'} bg-white text-gray-900`}>
-                {isLoaded && !authLoading && (
+            <div className={`${isAuthPage ? 'h-screen overflow-hidden' : 'min-h-screen'} bg-white text-gray-900`}>
+                {(isLoaded || isAuthPage) && !authLoading && (
                     <>
-                        {location.pathname !== '/login' && (
+                        {!isAuthPage && (
                             <>
                                 <Navbar />
                                 <MobileMenu menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
                             </>
                         )}
-                        <div className={location.pathname === '/login' ? 'h-full overflow-hidden' : ''}>
+                        <div className={isAuthPage ? 'h-full overflow-hidden' : ''}>
                             <AnimatedRoutes />
                         </div>
                     </>

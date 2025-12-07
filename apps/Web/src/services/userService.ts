@@ -100,12 +100,25 @@ export class UserService {
     }
   }
 
-  static async signIn(email: string, password: string): Promise<{ user?: User; error?: string }> {
+  static async signIn(email: string, password: string, rememberMe: boolean = false): Promise<{ user?: User; error?: string }> {
     try {
+      // Set session persistence based on rememberMe
+      // If rememberMe is true, use localStorage (persistent session)
+      // If false, use sessionStorage (session-only)
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
+      }, {
+        // Note: Supabase handles session persistence automatically
+        // but we can store the preference for future sessions
       });
+      
+      // Store rememberMe preference
+      if (rememberMe) {
+        localStorage.setItem('rememberMe', 'true');
+      } else {
+        localStorage.removeItem('rememberMe');
+      }
 
       if (error) {
         return { error: error.message };

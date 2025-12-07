@@ -4,15 +4,15 @@ import { supabase } from '../lib/supabaseClient';
 
 const AuthContext = createContext();
 
-export const useAuth = () => {
+function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-};
+}
 
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -229,12 +229,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Sign in function with email
-  const signIn = async (email, password) => {
+  const signIn = async (email, password, rememberMe = false) => {
     setLoading(true);
     setError(null);
     
     try {
-      const result = await UserService.signIn(email, password);
+      const result = await UserService.signIn(email, password, rememberMe);
       if (result.user) {
         setUser(result.user);
         setLoading(false);
@@ -349,5 +349,7 @@ export const AuthProvider = ({ children }) => {
       {children}
     </AuthContext.Provider>
   );
-};
+}
+
+export { useAuth };
 

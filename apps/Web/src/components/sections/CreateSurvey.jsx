@@ -862,9 +862,6 @@ export const CreateSurvey = () => {
               Create Survey
             </h1>
           </div>
-          <p className="text-slate-600 text-lg sm:text-xl max-w-2xl mx-auto">
-            Design engaging questions to gather valuable feedback from your event participants
-          </p>
           
           {/* Event Preview */}
           {pendingEventData && (
