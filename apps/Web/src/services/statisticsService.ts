@@ -29,6 +29,9 @@ export interface QuestionStatistics {
   };
   averageRating?: number;
   responses: any[];
+  sectionTitle?: string;
+  sectionDescription?: string;
+  sectionIndex?: number;
 }
 
 export interface EventStatistics {
@@ -40,11 +43,12 @@ export interface EventStatistics {
   participantCount: number;
   registrationCount: number;
   satisfactionRate?: number;
+  rawResponses?: any[]; // Raw response records for export
 }
 
 export class StatisticsService {
   /**
-   * Get all events with their evaluation forms (surveys)
+   * Get all events with their survey forms (surveys)
    */
   static async getEventsWithSurveys(): Promise<{ events?: EventWithSurvey[]; error?: string }> {
     try {
@@ -64,7 +68,7 @@ export class StatisticsService {
       }
 
       // Get unique event IDs
-      const eventIds = [...new Set(surveys.map(s => s.event_id))];
+      const eventIds = [...new Set(surveys.map(e => e.event_id))];
 
       // Get events
       const { data: events, error: eventsError } = await supabase
@@ -78,7 +82,7 @@ export class StatisticsService {
       }
 
       // Get response counts for each survey
-      const surveyIds = surveys.map(s => s.id);
+      const surveyIds = surveys.map(e => e.id);
       const { data: responses, error: responsesError } = await supabase
         .from('survey_responses')
         .select('survey_id')
@@ -99,7 +103,7 @@ export class StatisticsService {
       // Combine events with their surveys
       const eventsWithSurveys: EventWithSurvey[] = events
         .map(event => {
-          const eventSurvey = surveys.find(s => s.event_id === event.id);
+          const eventSurvey = surveys.find(e => e.event_id === event.id);
           if (!eventSurvey) return null;
 
           return {
@@ -180,10 +184,13 @@ export class StatisticsService {
       const questionStats: QuestionStatistics[] = [];
       const questions = survey.questions || [];
 
-      questions.forEach((question, index) => {
+      questions.forEach((question: any, index: number) => {
         const questionId = question.id || question.question || `q_${index}`;
         const questionText = question.question || question.questionText || '';
         const questionType = question.type || question.questionType || 'text';
+        const sectionTitle = question.sectionTitle;
+        const sectionDescription = question.sectionDescription;
+        const sectionIndex = question.sectionIndex;
 
         const questionResponses = responses
           ?.map(r => r.responses?.[questionId])
@@ -195,16 +202,67 @@ export class StatisticsService {
           questionType,
           totalResponses: questionResponses.length,
           answerDistribution: {},
-          responses: questionResponses
+          responses: questionResponses,
+          sectionTitle: sectionTitle,
+          sectionDescription: sectionDescription,
+          sectionIndex: sectionIndex
         };
 
         // Process based on question type
-        if (questionType === 'multiple-choice' || questionType === 'multiple_choice' || questionType === 'dropdown') {
+        const isGrid = questionType === 'multiple-choice-grid' || 
+                      questionType === 'multiple_choice_grid' || 
+                      questionType === 'checkbox-grid' || 
+                      questionType === 'checkbox_grid';
+
+        if (isGrid) {
+          // For grid questions, process each row separately
+          // Responses are stored as objects: { [rowLabel]: columnValue } or { [rowLabel]: [columnValues] }
+          const rows = question.rows || [];
+          
+          rows.forEach((rowLabel: string) => {
+            const rowStats: QuestionStatistics = {
+              questionId: `${questionId}_${rowLabel}`,
+              questionText: rowLabel, // Use row label as the question text
+              questionType,
+              totalResponses: questionResponses.length,
+              answerDistribution: {},
+              responses: [],
+              sectionTitle: sectionTitle,
+              sectionDescription: sectionDescription,
+              sectionIndex: sectionIndex
+            };
+
+            // Process responses for this row
+            questionResponses.forEach(response => {
+              if (typeof response === 'object' && response !== null) {
+                const rowResponse = response[rowLabel];
+                if (rowResponse !== undefined && rowResponse !== null) {
+                  if (questionType === 'checkbox-grid' || questionType === 'checkbox_grid') {
+                    // For checkbox grids, rowResponse is an array
+                    if (Array.isArray(rowResponse)) {
+                      rowResponse.forEach(column => {
+                        const columnStr = String(column);
+                        rowStats.answerDistribution[columnStr] = (rowStats.answerDistribution[columnStr] || 0) + 1;
+                      });
+                    }
+                  } else {
+                    // For multiple choice grids, rowResponse is a single value
+                    const columnStr = String(rowResponse);
+                    rowStats.answerDistribution[columnStr] = (rowStats.answerDistribution[columnStr] || 0) + 1;
+                  }
+                }
+              }
+            });
+
+            questionStats.push(rowStats);
+          });
+        } else if (questionType === 'multiple-choice' || questionType === 'multiple_choice' || questionType === 'dropdown') {
           // Count each option
           questionResponses.forEach(response => {
             const answer = String(response);
             stats.answerDistribution[answer] = (stats.answerDistribution[answer] || 0) + 1;
           });
+          questionStats.push(stats);
         } else if (questionType === 'checkbox') {
           // For checkboxes, count each selected option
           questionResponses.forEach(response => {
@@ -214,6 +272,7 @@ export class StatisticsService {
               });
             }
           });
+          questionStats.push(stats);
         } else if (questionType === 'linear-scale' || questionType === 'rating' || questionType === 'star-rating') {
           // Calculate average and distribution for ratings
           const numericResponses = questionResponses
@@ -229,15 +288,15 @@ export class StatisticsService {
               stats.answerDistribution[key] = (stats.answerDistribution[key] || 0) + 1;
             });
           }
+          questionStats.push(stats);
         } else {
           // For text/paragraph, just count responses
           questionResponses.forEach(response => {
             const answer = String(response).substring(0, 50); // Truncate for grouping
             stats.answerDistribution[answer] = (stats.answerDistribution[answer] || 0) + 1;
           });
+          questionStats.push(stats);
         }
-
-        questionStats.push(stats);
       });
 
       // Calculate satisfaction rate (if there are rating questions)
@@ -279,7 +338,8 @@ export class StatisticsService {
           questionStats,
           participantCount,
           registrationCount,
-          satisfactionRate
+          satisfactionRate,
+          rawResponses: responses || [] // Include raw responses for export
         }
       };
     } catch (error) {

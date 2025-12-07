@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { Search } from 'lucide-react';
 
 export const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -63,7 +64,7 @@ export const Navbar = () => {
   };
 
   return (
-         <nav className="bg-blue-900 text-white shadow-2xl border-b border-blue-800/50 backdrop-blur-sm">
+         <nav className="bg-blue-900 text-white shadow-2xl border-b border-blue-800/50 backdrop-blur-sm relative z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-20">
           {/* Logo */}
@@ -107,7 +108,24 @@ export const Navbar = () => {
                 >
                   Admin Dashboard
                 </Link>
+                <Link
+                  to="/activity-log"
+                  className="text-lg font-medium text-gray-300 hover:text-white transition-colors"
+                >
+                  Activity Log
+                </Link>
               </>
+            )}
+            
+            {/* Global Search - Available to all authenticated users */}
+            {isAuthenticated && (
+              <Link
+                to="/search"
+                className="text-lg font-medium text-gray-300 hover:text-white transition-colors flex items-center space-x-1"
+              >
+                <Search className="w-5 h-5" />
+                <span>Search</span>
+              </Link>
             )}
             
             {user?.role === 'organizer' && (
@@ -149,14 +167,14 @@ export const Navbar = () => {
                   )}
                 </div>
 
-                {/* Evaluation Dropdown */}
+                {/* Survey Dropdown */}
                 <div className="relative">
                   <button
                     onClick={toggleSurveyDropdown}
                     onMouseEnter={() => setIsSurveyDropdownOpen(true)}
                     className="text-lg font-medium text-gray-300 hover:text-white transition-colors flex items-center space-x-1"
                   >
-                    <span>Evaluation</span>
+                    <span>Survey</span>
                     <svg className="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                     </svg>
@@ -172,7 +190,7 @@ export const Navbar = () => {
                         className="block px-4 py-2 text-sm text-gray-300 hover:bg-blue-900 hover:text-white transition-colors"
                         onClick={closeSurveyDropdown}
                       >
-                        Evaluation Management
+                        Survey Management
                       </Link>
                       <Link
                         to="/event-statistics"
@@ -348,7 +366,26 @@ export const Navbar = () => {
                     >
                       Admin Dashboard
                     </Link>
+                    <Link
+                      to="/activity-log"
+                      className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Activity Log
+                    </Link>
                   </>
+                )}
+                
+                {/* Global Search - Mobile */}
+                {isAuthenticated && (
+                  <Link
+                    to="/search"
+                    className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md flex items-center space-x-2"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Search className="w-5 h-5" />
+                    <span>Search</span>
+                  </Link>
                 )}
                 
                 {user?.role === 'organizer' && (
@@ -374,16 +411,16 @@ export const Navbar = () => {
                       </div>
                     </div>
                     
-                    {/* Mobile Evaluation Section */}
+                    {/* Mobile Survey Section */}
                     <div className="px-3 py-2">
-                      <div className="text-lg font-medium text-gray-300 mb-2">Evaluation</div>
+                      <div className="text-lg font-medium text-gray-300 mb-2">Survey</div>
                       <div className="ml-4 space-y-1">
                         <Link
                           to="/survey-management"
                           className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
                           onClick={() => setIsMobileMenuOpen(false)}
                         >
-                          Evaluation Management
+                          Survey Management
                         </Link>
                         <Link
                           to="/event-statistics"

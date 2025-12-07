@@ -524,7 +524,7 @@ export class AdminService {
         .select('id')
         .eq('event_id', eventId);
 
-      const surveyIds = surveys?.map(s => s.id) || [];
+      const surveyIds = surveys?.map(e => e.id) || [];
       const { data: responses } = surveyIds.length > 0
         ? await supabase
             .from('survey_responses')

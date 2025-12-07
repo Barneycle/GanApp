@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { EventService } from '../../services/eventService';
@@ -20,8 +20,62 @@ export const Evaluation = () => {
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [hasCheckedSubmission, setHasCheckedSubmission] = useState(false);
   const [responses, setResponses] = useState({});
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+  const hasLoadedRef = useRef(false);
+
+  // Get storage key for this survey
+  const getStorageKey = () => {
+    return `survey-draft-${surveyId}`;
+  };
+
+  // Get saved responses from session storage
+  const getSavedResponses = () => {
+    if (!surveyId) return null;
+    try {
+      const saved = sessionStorage.getItem(getStorageKey());
+      return saved ? JSON.parse(saved) : null;
+    } catch (error) {
+      console.error('Error loading saved responses:', error);
+      return null;
+    }
+  };
+
+  // Save responses to session storage
+  const saveResponses = (responsesToSave) => {
+    if (!autoSaveEnabled || !surveyId) return;
+    
+    try {
+      sessionStorage.setItem(getStorageKey(), JSON.stringify(responsesToSave));
+    } catch (error) {
+      console.error('Error saving responses:', error);
+    }
+  };
+
+  // Clear saved responses
+  const clearSavedResponses = () => {
+    if (!surveyId) return;
+    try {
+      sessionStorage.removeItem(getStorageKey());
+    } catch (error) {
+      console.error('Error clearing saved responses:', error);
+    }
+  };
+
+  // Toggle auto-save functionality
+  const toggleAutoSave = () => {
+    setAutoSaveEnabled(!autoSaveEnabled);
+    if (!autoSaveEnabled) {
+      // If enabling auto-save, save current responses
+      saveResponses(responses);
+    }
+  };
 
   useEffect(() => {
+    // Prevent reloading if data has already been loaded
+    if (hasLoadedRef.current) {
+      return;
+    }
+
     // Wait for auth to finish loading
     if (authLoading) {
       return;
@@ -53,7 +107,7 @@ export const Evaluation = () => {
 
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [surveyId, isAuthenticated, user, authLoading, navigate]);
+  }, [surveyId]);
 
   const loadData = async () => {
     if (!surveyId) {
@@ -78,9 +132,25 @@ export const Evaluation = () => {
         setError(surveyResult.error || 'Survey not found');
         setLoading(false);
         setHasCheckedSubmission(true);
+        hasLoadedRef.current = true;
         return;
       } else if (surveyResult.survey) {
         const loadedSurvey = surveyResult.survey;
+        console.log('Loaded survey questions:', loadedSurvey.questions);
+        // Log each question structure
+        if (loadedSurvey.questions && Array.isArray(loadedSurvey.questions)) {
+          loadedSurvey.questions.forEach((q, idx) => {
+            console.log(`Question ${idx}:`, {
+              id: q.id,
+              question: q.question,
+              questionText: q.questionText,
+              questionType: q.questionType,
+              type: q.type,
+              question_type: q.question_type,
+              fullQuestion: q
+            });
+          });
+        }
         setSurvey(loadedSurvey);
         
         // Load event for this survey
@@ -97,6 +167,7 @@ export const Evaluation = () => {
       } else {
         setError('Survey not found.');
         setHasCheckedSubmission(true);
+        hasLoadedRef.current = true;
       }
       
       // Check if user has already submitted a response (after loading survey)
@@ -112,6 +183,7 @@ export const Evaluation = () => {
           setAlreadySubmitted(true);
           setHasCheckedSubmission(true);
           setLoading(false);
+          hasLoadedRef.current = true;
           return;
         }
         // If error is not "not found", log it but continue
@@ -128,15 +200,35 @@ export const Evaluation = () => {
       if (surveyResult.survey?.questions && Array.isArray(surveyResult.survey.questions)) {
         surveyResult.survey.questions.forEach((question, index) => {
           const qId = question.id || question.question || `q_${index}`;
-          initialResponses[qId] = '';
+          const questionType = question.questionType || question.type || question.question_type || '';
+          if (questionType === 'checkbox' || questionType === 'checkbox-grid' || questionType === 'checkbox_grid') {
+            initialResponses[qId] = [];
+          } else if (questionType === 'multiple-choice-grid' || questionType === 'multiple_choice_grid' || questionType === 'checkbox-grid' || questionType === 'checkbox_grid') {
+            initialResponses[qId] = {};
+          } else {
+            initialResponses[qId] = '';
+          }
         });
       }
       console.log('Initial responses:', initialResponses);
-      setResponses(initialResponses);
+      
+      // Load saved responses if available
+      const savedResponses = getSavedResponses();
+      if (savedResponses && Object.keys(savedResponses).length > 0) {
+        // Merge saved responses with initial responses (saved takes precedence)
+        const mergedResponses = { ...initialResponses, ...savedResponses };
+        setResponses(mergedResponses);
+        console.log('Loaded saved responses:', savedResponses);
+      } else {
+        setResponses(initialResponses);
+      }
+      
+      hasLoadedRef.current = true;
     } catch (err) {
       console.error('Error loading data:', err);
       setError(err.message || 'Failed to load survey details');
       setHasCheckedSubmission(true);
+      hasLoadedRef.current = true;
     } finally {
       setLoading(false);
       console.log('Loading complete. Survey:', survey, 'Error:', error);
@@ -144,10 +236,17 @@ export const Evaluation = () => {
   };
 
   const handleResponseChange = (questionId, value) => {
-    setResponses(prev => ({
-      ...prev,
-      [questionId]: value
-    }));
+    setResponses(prev => {
+      const newResponses = {
+        ...prev,
+        [questionId]: value
+      };
+      // Auto-save responses
+      if (autoSaveEnabled) {
+        saveResponses(newResponses);
+      }
+      return newResponses;
+    });
   };
 
   const handleCheckboxChange = (questionId, option, checked) => {
@@ -166,10 +265,17 @@ export const Evaluation = () => {
         }
       }
       
-      return {
+      const newResponses = {
         ...prev,
         [questionId]: newValue
       };
+      
+      // Auto-save responses
+      if (autoSaveEnabled) {
+        saveResponses(newResponses);
+      }
+      
+      return newResponses;
     });
   };
 
@@ -177,7 +283,7 @@ export const Evaluation = () => {
     if (!survey || !survey.questions) {
       return 'Survey is not loaded';
     }
-
+    
     for (const question of survey.questions) {
       if (question.required) {
         const response = responses[question.id || question.question];
@@ -215,17 +321,20 @@ export const Evaluation = () => {
         .single();
 
       if (submitError) {
-        throw new Error(submitError.message || 'Failed to submit evaluation');
+        throw new Error(submitError.message || 'Failed to submit survey');
       }
       
       setSuccess(true);
+      
+      // Clear saved responses on successful submission
+      clearSavedResponses();
       
       // Redirect after 2 seconds
       setTimeout(() => {
         navigate('/my-events');
       }, 2000);
     } catch (err) {
-      setError(err.message || 'Failed to submit evaluation. Please try again.');
+      setError(err.message || 'Failed to submit survey. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -247,13 +356,33 @@ export const Evaluation = () => {
     });
   };
 
+  // Helper function to render HTML content safely
+  const renderHTML = (html) => {
+    if (!html) return '';
+    return { __html: html };
+  };
+
   const renderQuestion = (question, index) => {
     const questionId = question.id || `q_${index}`;
-    const questionText = question.question || question.questionText;
-    const questionType = question.type || question.questionType;
+    const questionText = question.question || question.questionText || '';
+    // Check all possible field names for question type
+    const questionType = question.questionType || question.type || question.question_type || '';
     const isRequired = question.required || false;
     const options = question.options || [];
     const currentResponse = responses[questionId] || '';
+    
+    // Debug logging
+    console.log(`Rendering question ${index}:`, {
+      questionId,
+      questionText,
+      questionType,
+      questionKeys: Object.keys(question),
+      fullQuestion: question
+    });
+    
+    if (!questionType) {
+      console.warn('Question type not found for question:', question);
+    }
 
     switch (questionType) {
       case 'short-answer':
@@ -261,7 +390,7 @@ export const Evaluation = () => {
         return (
           <div key={questionId} className="mb-6">
             <label className="block text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <span className="text-red-500">*</span>}
+              <span dangerouslySetInnerHTML={renderHTML(questionText)} /> {isRequired && <span className="text-red-500">*</span>}
             </label>
             <input
               type="text"
@@ -276,9 +405,9 @@ export const Evaluation = () => {
 
       case 'paragraph':
         return (
-          <div key={questionId} className="mb-6">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <span className="text-red-500">*</span>}
+          <div key={questionId}>
+            <label className="block text-base font-semibold text-slate-800 mb-3">
+              <span dangerouslySetInnerHTML={renderHTML(questionText)} /> {isRequired && <span className="text-red-500">*</span>}
             </label>
             <textarea
               value={currentResponse}
@@ -294,9 +423,9 @@ export const Evaluation = () => {
       case 'multiple-choice':
       case 'multiple_choice':
         return (
-          <div key={questionId} className="mb-6">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <span className="text-red-500">*</span>}
+          <div key={questionId}>
+            <label className="block text-base font-semibold text-slate-800 mb-3">
+              <span dangerouslySetInnerHTML={renderHTML(questionText)} /> {isRequired && <span className="text-red-500">*</span>}
             </label>
             <div className="space-y-3">
               {options.map((option, optIndex) => (
@@ -319,9 +448,9 @@ export const Evaluation = () => {
 
       case 'checkbox':
         return (
-          <div key={questionId} className="mb-6">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <span className="text-red-500">*</span>}
+          <div key={questionId}>
+            <label className="block text-base font-semibold text-slate-800 mb-3">
+              <span dangerouslySetInnerHTML={renderHTML(questionText)} /> {isRequired && <span className="text-red-500">*</span>}
             </label>
             <div className="space-y-3">
               {options.map((option, optIndex) => {
@@ -344,9 +473,9 @@ export const Evaluation = () => {
 
       case 'dropdown':
         return (
-          <div key={questionId} className="mb-6">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <span className="text-red-500">*</span>}
+          <div key={questionId}>
+            <label className="block text-base font-semibold text-slate-800 mb-3">
+              <span dangerouslySetInnerHTML={renderHTML(questionText)} /> {isRequired && <span className="text-red-500">*</span>}
             </label>
             <select
               value={currentResponse}
@@ -371,9 +500,9 @@ export const Evaluation = () => {
         const lowestLabel = question.lowestLabel || '';
         const highestLabel = question.highestLabel || '';
         return (
-          <div key={questionId} className="mb-6">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <span className="text-red-500">*</span>}
+          <div key={questionId}>
+            <label className="block text-base font-semibold text-slate-800 mb-3">
+              <span dangerouslySetInnerHTML={renderHTML(questionText)} /> {isRequired && <span className="text-red-500">*</span>}
             </label>
             <div className="space-y-4">
               <div className="flex items-center justify-between text-sm text-slate-600">
@@ -405,9 +534,9 @@ export const Evaluation = () => {
         const starMax = question.scaleMax || 5;
         const starValue = parseInt(currentResponse) || 0;
         return (
-          <div key={questionId} className="mb-6">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <span className="text-red-500">*</span>}
+          <div key={questionId}>
+            <label className="block text-base font-semibold text-slate-800 mb-3">
+              <span dangerouslySetInnerHTML={renderHTML(questionText)} /> {isRequired && <span className="text-red-500">*</span>}
             </label>
             <div className="flex items-center space-x-1">
               {Array.from({ length: starMax }, (_, i) => i + 1).map((star) => (
@@ -439,9 +568,9 @@ export const Evaluation = () => {
 
       case 'date':
         return (
-          <div key={questionId} className="mb-6">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <span className="text-red-500">*</span>}
+          <div key={questionId}>
+            <label className="block text-base font-semibold text-slate-800 mb-3">
+              <span dangerouslySetInnerHTML={renderHTML(questionText)} /> {isRequired && <span className="text-red-500">*</span>}
             </label>
             <input
               type="date"
@@ -455,9 +584,9 @@ export const Evaluation = () => {
 
       case 'time':
         return (
-          <div key={questionId} className="mb-6">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <span className="text-red-500">*</span>}
+          <div key={questionId}>
+            <label className="block text-base font-semibold text-slate-800 mb-3">
+              <span dangerouslySetInnerHTML={renderHTML(questionText)} /> {isRequired && <span className="text-red-500">*</span>}
             </label>
             <input
               type="time"
@@ -469,11 +598,120 @@ export const Evaluation = () => {
           </div>
         );
 
-      default:
+      case 'multiple-choice-grid':
+      case 'multiple_choice_grid':
+        const rows = question.rows || [];
+        const columns = question.columns || [];
+        const gridResponse = currentResponse || {};
         return (
-          <div key={questionId} className="mb-6">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <span className="text-red-500">*</span>}
+          <div key={questionId}>
+            <label className="block text-base font-semibold text-slate-800 mb-3">
+              <span dangerouslySetInnerHTML={renderHTML(questionText)} /> {isRequired && <span className="text-red-500">*</span>}
+            </label>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse border border-slate-300">
+                <thead>
+                  <tr>
+                    <th className="border border-slate-300 px-4 py-2 bg-slate-50 text-left"></th>
+                    {columns.map((column, colIndex) => (
+                      <th key={colIndex} className="border border-slate-300 px-4 py-2 bg-slate-50 text-center">
+                        {column}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, rowIndex) => (
+                    <tr key={rowIndex}>
+                      <td className="border border-slate-300 px-4 py-2 font-medium">{row}</td>
+                      {columns.map((column, colIndex) => (
+                        <td key={colIndex} className="border border-slate-300 px-4 py-2 text-center">
+                          <input
+                            type="radio"
+                            name={`${questionId}_${rowIndex}`}
+                            value={column}
+                            checked={gridResponse[row] === column}
+                            onChange={(e) => {
+                              const newResponse = { ...gridResponse, [row]: e.target.value };
+                              handleResponseChange(questionId, newResponse);
+                            }}
+                            className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                            required={isRequired}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+
+      case 'checkbox-grid':
+      case 'checkbox_grid':
+        const checkboxRows = question.rows || [];
+        const checkboxColumns = question.columns || [];
+        const checkboxGridResponse = currentResponse || {};
+        return (
+          <div key={questionId}>
+            <label className="block text-base font-semibold text-slate-800 mb-3">
+              <span dangerouslySetInnerHTML={renderHTML(questionText)} /> {isRequired && <span className="text-red-500">*</span>}
+            </label>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse border border-slate-300">
+                <thead>
+                  <tr>
+                    <th className="border border-slate-300 px-4 py-2 bg-slate-50 text-left"></th>
+                    {checkboxColumns.map((column, colIndex) => (
+                      <th key={colIndex} className="border border-slate-300 px-4 py-2 bg-slate-50 text-center">
+                        {column}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {checkboxRows.map((row, rowIndex) => {
+                    const rowKey = row;
+                    const rowResponse = Array.isArray(checkboxGridResponse[rowKey]) ? checkboxGridResponse[rowKey] : [];
+                    return (
+                      <tr key={rowIndex}>
+                        <td className="border border-slate-300 px-4 py-2 font-medium">{row}</td>
+                        {checkboxColumns.map((column, colIndex) => {
+                          const checked = rowResponse.includes(column);
+                          return (
+                            <td key={colIndex} className="border border-slate-300 px-4 py-2 text-center">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  const newRowResponse = e.target.checked
+                                    ? [...rowResponse, column]
+                                    : rowResponse.filter(c => c !== column);
+                                  const newResponse = { ...checkboxGridResponse, [rowKey]: newRowResponse };
+                                  handleResponseChange(questionId, newResponse);
+                                }}
+                                className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                              />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+
+      default:
+        console.warn(`Unknown question type: ${questionType} for question:`, question);
+        return (
+          <div key={questionId}>
+            <label className="block text-base font-semibold text-slate-800 mb-3">
+              <span dangerouslySetInnerHTML={renderHTML(questionText)} /> {isRequired && <span className="text-red-500">*</span>}
+              {questionType && <span className="text-xs text-slate-500 ml-2">(Type: {questionType})</span>}
             </label>
             <input
               type="text"
@@ -514,8 +752,8 @@ export const Evaluation = () => {
             <h3 className="text-xl font-semibold text-slate-800 mb-2">Access Denied</h3>
             <p className="text-red-800 mb-6">
               {!isAuthenticated 
-                ? 'You must be logged in to submit an evaluation.'
-                : 'Only participants can submit evaluations.'}
+                ? 'You must be logged in to submit an survey.'
+                : 'Only participants can submit surveys.'}
             </p>
             <button 
               onClick={() => navigate(!isAuthenticated ? '/login' : '/my-events')} 
@@ -555,7 +793,7 @@ export const Evaluation = () => {
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
             <h3 className="text-2xl font-bold text-slate-800 mb-2">Thank You!</h3>
-            <p className="text-slate-600 mb-6">Your evaluation has been submitted successfully.</p>
+            <p className="text-slate-600 mb-6">Your survey has been submitted successfully.</p>
             <p className="text-sm text-slate-500">Redirecting to My Events...</p>
           </div>
         </motion.div>
@@ -573,9 +811,9 @@ export const Evaluation = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-slate-800 mb-2">Evaluation Already Taken</h3>
+            <h3 className="text-xl font-semibold text-slate-800 mb-2">Survey Already Taken</h3>
             <p className="text-slate-600 mb-8">
-              You have already submitted an evaluation for this survey. Thank you for your feedback!
+              You have already submitted an survey for this event. Thank you for your feedback!
             </p>
             <div className="flex flex-col gap-4 items-center">
               <button 
@@ -617,7 +855,7 @@ export const Evaluation = () => {
 
   return (
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         {/* Header */}
         <div className="mb-8">
           <button
@@ -628,14 +866,77 @@ export const Evaluation = () => {
             Back to My Events
           </button>
           
-          <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 mb-2">
-            {survey.title}
-          </h1>
-          {survey.description && (
-            <p className="text-slate-600 text-lg">
-              {survey.description}
-            </p>
-          )}
+          <div className="flex items-start justify-between mb-4 flex-wrap gap-4">
+            <div className="flex-1">
+              <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 mb-2">
+                {survey.title}
+              </h1>
+              {survey.description && (
+                <p className="text-slate-600 text-lg">
+                  {survey.description}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Auto-save and Draft Management */}
+          <div className="flex items-center justify-between flex-wrap gap-4 mt-6">
+            {/* Auto-save Toggle */}
+            <div className="flex items-center space-x-3">
+              <span className="text-base font-medium text-slate-600">Auto-save</span>
+              <button
+                onClick={toggleAutoSave}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                  autoSaveEnabled ? 'bg-green-500' : 'bg-gray-400'
+                }`}
+              >
+                <div className={`inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white transition-transform ${
+                  autoSaveEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}>
+                  {autoSaveEnabled && (
+                    <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  )}
+                </div>
+              </button>
+              <span className={`text-base font-medium ${autoSaveEnabled ? 'text-green-600' : 'text-gray-500'}`}>
+                {autoSaveEnabled ? 'Enabled' : 'Disabled'}
+              </span>
+            </div>
+            
+            {/* Clear Draft Button */}
+            <button
+              onClick={() => {
+                if (window.confirm('Are you sure you want to clear all your saved responses? This cannot be undone.')) {
+                  clearSavedResponses();
+                  // Reset responses to initial state
+                  const initialResponses = {};
+                  if (survey?.questions && Array.isArray(survey.questions)) {
+                    survey.questions.forEach((question, index) => {
+                      const qId = question.id || question.question || `q_${index}`;
+                      const questionType = question.questionType || question.type || question.question_type || '';
+                      if (questionType === 'checkbox' || questionType === 'checkbox-grid' || questionType === 'checkbox_grid') {
+                        initialResponses[qId] = [];
+                      } else if (questionType === 'multiple-choice-grid' || questionType === 'multiple_choice_grid' || questionType === 'checkbox-grid' || questionType === 'checkbox_grid') {
+                        initialResponses[qId] = {};
+                      } else {
+                        initialResponses[qId] = '';
+                      }
+                    });
+                  }
+                  setResponses(initialResponses);
+                }
+              }}
+              className="inline-flex items-center space-x-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-lg border border-red-200 hover:border-red-300 transition-all duration-200 font-medium text-base shadow-sm hover:shadow-md"
+              title="Clear saved draft"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <span>Clear Draft</span>
+            </button>
+          </div>
         </div>
 
         {/* Event Info Card */}
@@ -718,33 +1019,50 @@ export const Evaluation = () => {
               
               return sections.map((section, sectionIdx) => (
                 <div key={sectionIdx} className="mb-8">
-                  {/* Section Header */}
-                  {section.sectionTitle && (
-                    <div className="mb-6 pb-4 border-b-2 border-blue-500">
-                      <h3 className="text-xl font-bold text-slate-800 mb-2">
-                        {section.sectionTitle}
-                      </h3>
-                      {section.sectionDescription && (
-                        <p className="text-sm text-slate-600">
-                          {section.sectionDescription}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Section Questions */}
-                  {section.questions.map((question, qIdx) => (
-                    <div key={question.id || question.globalIndex || qIdx} className="mb-8">
-                      <div className="flex items-start space-x-3 mb-4">
-                        <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
-                          {question.globalIndex + 1}
-                        </div>
-                        <div className="flex-1">
-                          {renderQuestion(question, question.globalIndex)}
-                        </div>
+                  {/* Section Card */}
+                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-2xl shadow-lg border border-purple-200 overflow-hidden">
+                    {/* Section Header */}
+                    {(section.sectionTitle || section.sectionDescription) && (
+                      <div className="px-6 py-4 border-b border-purple-200 bg-white">
+                        {section.sectionTitle && (
+                          <h3 className="text-xl font-bold text-slate-800 mb-2" dangerouslySetInnerHTML={renderHTML(section.sectionTitle)} />
+                        )}
+                        {section.sectionDescription && (
+                          <p className="text-sm text-slate-600" dangerouslySetInnerHTML={renderHTML(section.sectionDescription)} />
+                        )}
                       </div>
+                    )}
+                    
+                    {/* Section Questions */}
+                    <div className="p-6 space-y-6">
+                      {section.questions.map((question, qIdx) => {
+                        const questionId = question.id || `q_${question.globalIndex}`;
+                        return (
+                          <div 
+                            key={questionId} 
+                            className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 border border-slate-100 overflow-hidden"
+                          >
+                            {/* Question Header */}
+                            <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-6 py-4 border-b border-slate-100">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-lg flex-shrink-0">
+                                  {question.globalIndex + 1}
+                                </div>
+                                <div className="flex-1">
+                                  <p className="text-sm text-slate-600">Question {question.globalIndex + 1}</p>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Question Content */}
+                            <div className="p-6">
+                              {renderQuestion(question, question.globalIndex)}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
+                  </div>
                 </div>
               ));
             })() : (
@@ -774,7 +1092,7 @@ export const Evaluation = () => {
                 disabled={submitting}
                 className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-lg hover:from-blue-700 hover:to-blue-900 transition-all duration-200 font-medium shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {submitting ? 'Submitting...' : 'Submit Evaluation'}
+                {submitting ? 'Submitting...' : 'Submit Survey'}
               </button>
             </div>
           </form>

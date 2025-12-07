@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import EventModal from './EventModal';
 import { EventService } from '../../services/eventService';
+import { usePageVisibility } from '../../hooks/usePageVisibility';
 
 
 export const Organizer = () => {
@@ -10,6 +11,8 @@ export const Organizer = () => {
   const [featuredEvent, setFeaturedEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const isVisible = usePageVisibility();
+  const loadingRef = useRef(false);
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -23,12 +26,26 @@ export const Organizer = () => {
   };
 
   useEffect(() => {
-    loadEvents();
-    loadFeaturedEvent();
-  }, []);
+    // Only load if page is visible
+    if (isVisible && !loadingRef.current) {
+      loadEvents();
+      loadFeaturedEvent();
+    }
+  }, [isVisible]);
 
   const loadEvents = async () => {
+    // Don't start loading if page is not visible
+    if (!isVisible) {
+      return;
+    }
+
+    // Prevent multiple simultaneous loads
+    if (loadingRef.current) {
+      return;
+    }
+
     try {
+      loadingRef.current = true;
       setLoading(true);
       setError(null);
       
@@ -42,26 +59,42 @@ export const Organizer = () => {
       
       const result = await Promise.race([eventsPromise, timeoutPromise]);
       
-      if (result.error) {
-        setError(result.error);
-      } else {
-        setEvents(result.events || []);
-        // Set the first event as selected by default
-        if (result.events && result.events.length > 0) {
-          setSelectedEvent(result.events[0]);
+      // Only update state if page is still visible
+      if (isVisible) {
+        if (result.error) {
+          setError(result.error);
+        } else {
+          setEvents(result.events || []);
+          // Set the first event as selected by default
+          if (result.events && result.events.length > 0) {
+            setSelectedEvent(result.events[0]);
+          }
         }
       }
     } catch (err) {
-      setError('Failed to load events from database');
+      // Only update error if page is still visible
+      if (isVisible) {
+        setError('Failed to load events from database');
+      }
     } finally {
-      setLoading(false);
+      loadingRef.current = false;
+      // Only set loading to false if page is still visible
+      if (isVisible) {
+        setLoading(false);
+      }
     }
   };
 
   const loadFeaturedEvent = async () => {
+    // Don't load if page is not visible
+    if (!isVisible) {
+      return;
+    }
+
     try {
       const result = await EventService.getFeaturedEvent();
-      if (result.event) {
+      // Only update state if page is still visible
+      if (isVisible && result.event) {
         setFeaturedEvent(result.event);
       }
     } catch (err) {

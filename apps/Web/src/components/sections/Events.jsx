@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EventService } from '../../services/eventService';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePageVisibility } from '../../hooks/usePageVisibility';
 
 // Sample events data for placeholders
 const sampleEvents = [
@@ -156,48 +157,80 @@ export const Events = () => {
   const [venueFilter, setVenueFilter] = useState('all');
   const [sortOption, setSortOption] = useState('date-asc'); // 'date-asc', 'date-desc', 'title-asc', 'title-desc', 'participants-asc', 'participants-desc'
   const [showFilters, setShowFilters] = useState(false);
+  const isVisible = usePageVisibility();
+  const loadingRef = useRef(false);
 
   useEffect(() => {
-    loadEvents();
-    if (user) {
-      loadUserRegistrations();
+    // Only load if page is visible
+    if (isVisible && !loadingRef.current) {
+      loadEvents();
+      if (user) {
+        loadUserRegistrations();
+      }
     }
-  }, [user?.id, user?.role]); // Only depend on user ID and role, not the entire user object
+  }, [user?.id, user?.role, isVisible]); // Only depend on user ID and role, not the entire user object
 
   const loadEvents = async () => {
+    // Don't start loading if page is not visible
+    if (!isVisible) {
+      return;
+    }
+
+    // Prevent multiple simultaneous loads
+    if (loadingRef.current) {
+      return;
+    }
+
     try {
+      loadingRef.current = true;
       setLoading(true);
       setError('');
       
       if (user?.role === 'organizer' || user?.role === 'admin') {
         // Load user's own events
         const result = await EventService.getEventsByCreator(user.id);
-        if (result.error) {
-          setError(result.error);
-        } else {
-          setEvents(result.events || []);
+        // Only update state if page is still visible
+        if (isVisible) {
+          if (result.error) {
+            setError(result.error);
+          } else {
+            setEvents(result.events || []);
+          }
         }
       } else if (user) {
         // Load published events for authenticated participants
         const result = await EventService.getPublishedEvents();
-        if (result.error) {
-          setError(result.error);
-        } else {
-          setEvents(result.events || []);
+        // Only update state if page is still visible
+        if (isVisible) {
+          if (result.error) {
+            setError(result.error);
+          } else {
+            setEvents(result.events || []);
+          }
         }
       } else {
         // Load published events for unauthenticated users
         const result = await EventService.getPublishedEvents();
-        if (result.error) {
-          setError(result.error);
-        } else {
-          setEvents(result.events || []);
+        // Only update state if page is still visible
+        if (isVisible) {
+          if (result.error) {
+            setError(result.error);
+          } else {
+            setEvents(result.events || []);
+          }
         }
       }
     } catch (err) {
-      setError('Failed to load events. Please try again.');
+      // Only update error if page is still visible
+      if (isVisible) {
+        setError('Failed to load events. Please try again.');
+      }
     } finally {
-      setLoading(false);
+      loadingRef.current = false;
+      // Only set loading to false if page is still visible
+      if (isVisible) {
+        setLoading(false);
+      }
     }
   };
 

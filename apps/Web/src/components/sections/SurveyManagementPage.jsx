@@ -105,7 +105,7 @@ export default function SurveyManagementPage() {
 
   const handleEventSelect = (eventId) => {
     setSelectedEventId(eventId);
-    setSelectedSurvey(null);
+        setSelectedSurvey(null);
     // Don't clear surveys array - let useEffect handle loading
   };
 
@@ -145,7 +145,7 @@ export default function SurveyManagementPage() {
       } else {
         await loadSurveys(); // Refresh the list
         // Update selected survey with new state
-        const updatedSurvey = surveys.find(s => s.id === selectedSurvey.id);
+        const updatedSurvey = surveys.find(e => e.id === selectedSurvey.id);
         if (updatedSurvey) {
           setSelectedSurvey({ ...updatedSurvey, is_open: result.isOpen });
         }
@@ -434,6 +434,13 @@ export default function SurveyManagementPage() {
                       {/* Quick Actions */}
                       <div className="space-y-4">
                         <button
+                          onClick={() => navigate(`/edit-survey/${selectedSurvey.id}`)}
+                          className="w-full py-3 px-4 rounded-lg font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                        >
+                          Edit Survey
+                        </button>
+
+                        <button
                           onClick={handleToggleSurvey}
                           className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
                             selectedSurvey.is_open
@@ -570,7 +577,7 @@ export default function SurveyManagementPage() {
                     <div className="flex items-center justify-center h-64 text-gray-500">
                       <div className="text-center">
                         <div className="text-4xl mb-2">📝</div>
-                        <p>Select a survey to manage</p>
+                        <p>Select an survey to manage</p>
                       </div>
                     </div>
                   )}

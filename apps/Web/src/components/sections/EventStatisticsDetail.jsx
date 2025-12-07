@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { StatisticsService } from '../../services/statisticsService';
@@ -18,10 +18,20 @@ export const EventStatisticsDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    if (authLoading) return;
+    // Prevent reloading if data has already been loaded
+    if (hasLoadedRef.current) {
+      return;
+    }
 
+    // Wait for auth to finish loading
+    if (authLoading) {
+      return;
+    }
+
+    // Check authentication after loading is complete
     if (!isAuthenticated) {
       navigate('/login');
       return;
@@ -32,12 +42,23 @@ export const EventStatisticsDetail = () => {
       return;
     }
 
-    if (eventId) {
-      loadStatistics();
+    if (!eventId) {
+      setError('Event ID is missing');
+      setLoading(false);
+      return;
     }
-  }, [eventId, isAuthenticated, user, authLoading, navigate]);
+
+    loadStatistics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId]);
 
   const loadStatistics = async () => {
+    if (!eventId) {
+      setError('Event ID is required');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -47,6 +68,7 @@ export const EventStatisticsDetail = () => {
         setError(result.error);
       } else {
         setStats(result.stats);
+        hasLoadedRef.current = true;
       }
     } catch (err) {
       setError('Failed to load statistics');
@@ -63,6 +85,59 @@ export const EventStatisticsDetail = () => {
     }));
   };
 
+  // Helper function to render HTML content safely
+  const renderHTML = (html) => {
+    if (!html) return '';
+    return { __html: html };
+  };
+
+  // Group questions by sections
+  const groupQuestionsBySections = (questionStats) => {
+    const sections = [];
+    let currentSection = null;
+    let questionNumber = 1;
+
+    questionStats.forEach((question) => {
+      const sectionTitle = question.sectionTitle;
+      const sectionDescription = question.sectionDescription;
+      const sectionIndex = question.sectionIndex;
+
+      // If this question has section info and it's different from current section, start a new section
+      if (sectionTitle && (currentSection === null || currentSection.sectionIndex !== sectionIndex)) {
+        currentSection = {
+          sectionTitle,
+          sectionDescription,
+          sectionIndex,
+          questions: []
+        };
+        sections.push(currentSection);
+      } else if (!sectionTitle && currentSection === null) {
+        // If no section info, create a default section
+        currentSection = {
+          sectionTitle: null,
+          sectionDescription: null,
+          sectionIndex: null,
+          questions: []
+        };
+        sections.push(currentSection);
+      } else if (!sectionTitle && currentSection && currentSection.sectionTitle) {
+        // If we have a section but this question doesn't have section info, create a new default section
+        currentSection = {
+          sectionTitle: null,
+          sectionDescription: null,
+          sectionIndex: null,
+          questions: []
+        };
+        sections.push(currentSection);
+      }
+
+      currentSection.questions.push({ ...question, globalIndex: questionNumber - 1 });
+      questionNumber++;
+    });
+
+    return sections;
+  };
+
   const sortedQuestionStats = stats?.questionStats ? [...stats.questionStats].sort((a, b) => {
     if (!sortConfig.key) return 0;
     const aVal = a[sortConfig.key];
@@ -73,16 +148,27 @@ export const EventStatisticsDetail = () => {
     return aVal < bVal ? 1 : -1;
   }) : [];
 
+  const sections = groupQuestionsBySections(sortedQuestionStats);
+
   const exportQuestionData = (format) => {
     if (!stats) return;
 
-    const exportData = stats.questionStats.map(q => ({
-      Question: q.questionText,
-      Type: q.questionType,
-      'Total Responses': q.totalResponses,
-      'Average Rating': q.averageRating?.toFixed(2) || 'N/A',
-      'Answer Distribution': JSON.stringify(q.answerDistribution)
-    }));
+    // Export all questions (grid rows are already expanded)
+    const exportData = stats.questionStats.map(q => {
+      const row = {
+        Question: q.questionText,
+        Type: q.questionType,
+        'Total Responses': q.totalResponses,
+        'Average Rating': q.averageRating?.toFixed(2) || 'N/A',
+      };
+
+      // Add each answer option as a separate column
+      Object.entries(q.answerDistribution).forEach(([option, count]) => {
+        row[option] = count;
+      });
+
+      return row;
+    });
 
     if (format === 'json') {
       StatisticsService.exportAsJSON(exportData, `event-statistics-${eventId}.json`);
@@ -92,19 +178,67 @@ export const EventStatisticsDetail = () => {
   };
 
   const exportResponseData = (format) => {
-    if (!stats) return;
+    if (!stats || !stats.rawResponses) return;
 
-    // Flatten all responses for export
-    const exportData = [];
-    stats.questionStats.forEach(q => {
-      q.responses.forEach((response, idx) => {
-        exportData.push({
-          Question: q.questionText,
-          'Question Type': q.questionType,
-          Response: Array.isArray(response) ? response.join(', ') : String(response),
-          'Response Index': idx + 1
+    // Get all questions from the survey to map question IDs to question text
+    const questions = stats.survey?.questions || [];
+    const questionMap = new Map();
+    
+    // Build a map of question IDs to question text
+    questions.forEach((question, index) => {
+      const questionId = question.id || question.question || `q_${index}`;
+      const questionText = question.question || question.questionText || '';
+      const questionType = question.type || question.questionType || '';
+      const isGrid = questionType === 'multiple-choice-grid' || 
+                     questionType === 'multiple_choice_grid' || 
+                     questionType === 'checkbox-grid' || 
+                     questionType === 'checkbox_grid';
+      
+      if (isGrid) {
+        // For grid questions, map each row
+        const rows = question.rows || [];
+        rows.forEach((rowLabel) => {
+          const rowQuestionId = `${questionId}_${rowLabel}`;
+          questionMap.set(rowQuestionId, rowLabel);
         });
+      } else {
+        questionMap.set(questionId, questionText);
+      }
+    });
+
+    // Export each response as a row
+    const exportData = stats.rawResponses.map((responseRecord, index) => {
+      const row = {
+        'Response #': index + 1,
+        'User ID': responseRecord.user_id || '',
+        'Submitted At': responseRecord.created_at || ''
+      };
+
+      // Add each question's response as a column
+      const responses = responseRecord.responses || {};
+      questionMap.forEach((questionText, questionId) => {
+        const response = responses[questionId];
+        
+        // Handle different response types
+        if (response === undefined || response === null || response === '') {
+          row[questionText] = '';
+        } else if (Array.isArray(response)) {
+          row[questionText] = response.join(', ');
+        } else if (typeof response === 'object') {
+          // For grid questions, format as readable key-value pairs
+          const gridEntries = Object.entries(response).map(([key, value]) => {
+            if (Array.isArray(value)) {
+              return `${key}: ${value.join(', ')}`;
+            }
+            return `${key}: ${value}`;
+          });
+          row[questionText] = gridEntries.join('; ');
+        } else {
+          row[questionText] = String(response);
+        }
       });
+
+      return row;
     });
 
     if (format === 'json') {
@@ -152,7 +286,7 @@ export const EventStatisticsDetail = () => {
     return null;
   }
 
-  // Prepare chart data
+  // Prepare chart data for rating questions (average ratings)
   const ratingData = stats.questionStats
     .filter(q => q.questionType === 'linear-scale' || q.questionType === 'rating' || q.questionType === 'star-rating')
     .map(q => ({
@@ -160,13 +294,6 @@ export const EventStatisticsDetail = () => {
       average: q.averageRating || 0,
       responses: q.totalResponses
     }));
-
-  const responseTrendData = stats.questionStats
-    .map((q, idx) => ({
-      question: `Q${idx + 1}`,
-      responses: q.totalResponses
-    }))
-    .sort((a, b) => b.responses - a.responses);
 
   // Pie chart data for multiple choice questions
   const multipleChoiceData = stats.questionStats
@@ -287,34 +414,6 @@ export const EventStatisticsDetail = () => {
 
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Response Trend Chart */}
-          {responseTrendData.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-6 py-4 border-b border-slate-100">
-                <h3 className="text-xl font-semibold text-slate-800">Response Distribution by Question</h3>
-              </div>
-              <div className="p-6">
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={responseTrendData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="question" stroke="#64748b" />
-                    <YAxis stroke="#64748b" />
-                    <Tooltip 
-                      contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                      }}
-                    />
-                    <Legend />
-                    <Bar dataKey="responses" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-
           {/* Rating Average Chart */}
           {ratingData.length > 0 && (
             <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
@@ -380,95 +479,132 @@ export const EventStatisticsDetail = () => {
           )}
         </div>
 
-        {/* Question Statistics Table */}
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden mb-8">
-          <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-6 py-4 border-b border-slate-100">
-            <h3 className="text-xl font-semibold text-slate-800">Question Statistics</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
-                    onClick={() => handleSort('questionText')}
-                  >
-                    Question
-                  </th>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
-                    onClick={() => handleSort('questionType')}
-                  >
-                    Type
-                  </th>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
-                    onClick={() => handleSort('totalResponses')}
-                  >
-                    Responses
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
-                    Distribution
-                  </th>
-                  {stats.questionStats.some(q => q.averageRating) && (
-                    <th 
-                      className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
-                      onClick={() => handleSort('averageRating')}
-                    >
-                      Avg Rating
-                    </th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-slate-200">
-                {sortedQuestionStats.map((question, index) => (
-                  <tr key={question.questionId} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-slate-900">
-                        {index + 1}. {question.questionText}
+        {/* Question Statistics by Sections */}
+        <div className="space-y-8 mb-8">
+          {sections.map((section, sectionIdx) => (
+            <div key={sectionIdx} className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
+              {/* Section Header */}
+              {section.sectionTitle && (
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 px-6 py-4 border-b border-purple-200">
+                  <h3 className="text-xl font-bold text-slate-800" dangerouslySetInnerHTML={renderHTML(section.sectionTitle)} />
+                </div>
+              )}
+              
+              {/* Grouped Bar Chart for All Questions (Google Forms Style) */}
+              {section.questions.length > 0 && (() => {
+                // Questions are already expanded by the statistics service (grid rows are separate questions)
+                // Collect all unique answer options across all questions in this section
+                const allAnswerOptions = new Set();
+                section.questions.forEach(q => {
+                  Object.keys(q.answerDistribution || {}).forEach(option => allAnswerOptions.add(option));
+                });
+                const answerOptions = Array.from(allAnswerOptions).sort((a, b) => {
+                  // Try to sort by value if they're numbers
+                  const aNum = parseFloat(a);
+                  const bNum = parseFloat(b);
+                  if (!isNaN(aNum) && !isNaN(bNum)) {
+                    return bNum - aNum; // Descending order for numbers
+                  }
+                  // Otherwise maintain original order
+                  return 0;
+                });
+
+                // Create chart data - one entry per question (rows for grids are already separate questions)
+                const chartData = section.questions.map((question) => {
+                  const dataPoint = {
+                    item: question.questionText.length > 40 ? question.questionText.substring(0, 40) + '...' : question.questionText,
+                    itemText: question.questionText,
+                    questionId: question.questionId,
+                    questionText: question.questionText,
+                    totalResponses: question.totalResponses
+                  };
+                  
+                  // Add value for each answer option (0 if not present)
+                  answerOptions.forEach(option => {
+                    dataPoint[option] = question.answerDistribution[option] || 0;
+                  });
+                  
+                  return dataPoint;
+                });
+
+                // Get unique colors for each answer option
+                const optionColors = {};
+                answerOptions.forEach((option, idx) => {
+                  optionColors[option] = COLORS[idx % COLORS.length];
+                });
+
+                return (
+                  <div className="p-6">
+                    {/* Legend */}
+                    <div className="mb-6 flex flex-wrap gap-4 justify-center">
+                      {answerOptions.map((option, idx) => (
+                        <div key={option} className="flex items-center space-x-2">
+                          <div 
+                            className="w-4 h-4 rounded"
+                            style={{ backgroundColor: optionColors[option] }}
+                          />
+                          <span className="text-sm text-slate-700 font-medium">{option}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Grouped Bar Chart */}
+                    {chartData.length > 0 && answerOptions.length > 0 ? (
+                      <div className="mt-4">
+                        <ResponsiveContainer width="100%" height={Math.max(400, chartData.length * 60)}>
+                          <BarChart 
+                            data={chartData}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 120 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis 
+                              dataKey="item"
+                              stroke="#64748b"
+                              angle={-45}
+                              textAnchor="end"
+                              height={140}
+                              tick={{ fontSize: 11 }}
+                            />
+                            <YAxis stroke="#64748b" />
+                            <Tooltip 
+                              contentStyle={{
+                                backgroundColor: 'white',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '8px',
+                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                              }}
+                              formatter={(value, name) => {
+                                const dataPoint = chartData.find(d => d.item === name || d.itemText === name);
+                                const total = dataPoint?.totalResponses || 0;
+                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                return [`${value} (${percentage}%)`, name];
+                              }}
+                              labelFormatter={(label) => {
+                                const dataPoint = chartData.find(d => d.item === label || d.itemText === label);
+                                return dataPoint?.itemText || dataPoint?.questionText || label;
+                              }}
+                            />
+                            {answerOptions.map((option, idx) => (
+                              <Bar 
+                                key={option}
+                                dataKey={option}
+                                fill={optionColors[option]}
+                                radius={idx === answerOptions.length - 1 ? [0, 0, 0, 0] : [0, 0, 0, 0]}
+                              />
+                            ))}
+                          </BarChart>
+                        </ResponsiveContainer>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                        {question.questionType}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                      {question.totalResponses}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-slate-600">
-                        {Object.keys(question.answerDistribution).length > 0 ? (
-                          <div className="space-y-1">
-                            {Object.entries(question.answerDistribution)
-                              .slice(0, 3)
-                              .map(([key, value]) => (
-                                <div key={key} className="flex items-center">
-                                  <span className="w-24 truncate">{key}:</span>
-                                  <span className="font-medium">{value}</span>
-                                </div>
-                              ))}
-                            {Object.keys(question.answerDistribution).length > 3 && (
-                              <span className="text-xs text-slate-500">
-                                +{Object.keys(question.answerDistribution).length - 3} more
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-slate-400">No responses</span>
-                        )}
+                    ) : (
+                      <div className="text-center py-8 text-slate-400">
+                        <p>No responses yet</p>
                       </div>
-                    </td>
-                    {stats.questionStats.some(q => q.averageRating) && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                        {question.averageRating ? question.averageRating.toFixed(2) : 'N/A'}
-                      </td>
                     )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  </div>
+                );
+              })()}
+            </div>
+          ))}
         </div>
       </div>
     </section>

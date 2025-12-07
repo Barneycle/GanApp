@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Calendar, MapPin, Clock, Users } from "lucide-react";
@@ -8,6 +8,7 @@ import CertificateGenerator from '../CertificateGenerator';
 import { EventService } from '../../services/eventService';
 import { SurveyService } from '../../services/surveyService';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePageVisibility } from '../../hooks/usePageVisibility';
 
 export const MyEvents = () => {
   const navigate = useNavigate();
@@ -15,6 +16,8 @@ export const MyEvents = () => {
   const [registeredEvents, setRegisteredEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const isVisible = usePageVisibility();
+  const loadingRef = useRef(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
@@ -38,34 +41,58 @@ export const MyEvents = () => {
       return;
     }
 
-    loadRegisteredEvents();
-  }, [user, isAuthenticated, navigate]);
+    // Only load if page is visible
+    if (isVisible && !loadingRef.current) {
+      loadRegisteredEvents();
+    }
+  }, [user, isAuthenticated, navigate, isVisible]);
 
   const loadRegisteredEvents = async () => {
     if (!user?.id) return;
+    
+    // Don't start loading if page is not visible
+    if (!isVisible) {
+      return;
+    }
+
+    // Prevent multiple simultaneous loads
+    if (loadingRef.current) {
+      return;
+    }
 
     try {
+      loadingRef.current = true;
       setLoading(true);
       setError(null);
       
       const result = await EventService.getUserRegistrations(user.id);
       
-      if (result.error) {
-        setError(result.error);
-      } else {
-        // Extract the events from the registrations
-        const events = result.registrations?.map(registration => ({
-          ...registration.events,
-          registration_date: registration.registration_date,
-          registration_id: registration.id
-        })) || [];
-        
-        setRegisteredEvents(events);
+      // Only update state if page is still visible
+      if (isVisible) {
+        if (result.error) {
+          setError(result.error);
+        } else {
+          // Extract the events from the registrations
+          const events = result.registrations?.map(registration => ({
+            ...registration.events,
+            registration_date: registration.registration_date,
+            registration_id: registration.id
+          })) || [];
+          
+          setRegisteredEvents(events);
+        }
       }
     } catch (err) {
-      setError('Failed to load your registered events');
+      // Only update error if page is still visible
+      if (isVisible) {
+        setError('Failed to load your registered events');
+      }
     } finally {
-      setLoading(false);
+      loadingRef.current = false;
+      // Only set loading to false if page is still visible
+      if (isVisible) {
+        setLoading(false);
+      }
     }
   };
 
@@ -603,8 +630,8 @@ export const MyEvents = () => {
                           const surveyResult = await SurveyService.getSurveysByEvent(event.id);
                           if (surveyResult.surveys && surveyResult.surveys.length > 0) {
                             // Get the first active survey
-                            const activeSurvey = surveyResult.surveys.find(s => s.is_active) || surveyResult.surveys[0];
-                            navigate(`/evaluation/${activeSurvey.id}`);
+                            const activeSurvey = surveyResult.surveys.find(e => e.is_active) || surveyResult.surveys[0];
+                            navigate(`/survey/${activeSurvey.id}`);
                           } else {
                             alert('No survey is available for this event yet.');
                           }
@@ -614,7 +641,7 @@ export const MyEvents = () => {
                       }}
                       className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
                     >
-                      Take Evaluation
+                      Take Survey
                     </button>
                     <button
                       onClick={() => {

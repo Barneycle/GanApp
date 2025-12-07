@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { StatisticsService } from '../../services/statisticsService';
+import { usePageVisibility } from '../../hooks/usePageVisibility';
 import { Calendar, BarChart3, Users, TrendingUp, Search, ArrowRight } from 'lucide-react';
 
 export const EventStatistics = () => {
@@ -11,6 +12,8 @@ export const EventStatistics = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const isVisible = usePageVisibility();
+  const loadingRef = useRef(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -26,25 +29,49 @@ export const EventStatistics = () => {
       return;
     }
 
-    loadEvents();
-  }, [isAuthenticated, user, authLoading, navigate]);
+    // Only load if page is visible
+    if (isVisible && !loadingRef.current) {
+      loadEvents();
+    }
+  }, [isAuthenticated, user, authLoading, navigate, isVisible]);
 
   const loadEvents = async () => {
+    // Don't start loading if page is not visible
+    if (!isVisible) {
+      return;
+    }
+
+    // Prevent multiple simultaneous loads
+    if (loadingRef.current) {
+      return;
+    }
+
     try {
+      loadingRef.current = true;
       setLoading(true);
       setError(null);
       const result = await StatisticsService.getEventsWithSurveys();
       
-      if (result.error) {
-        setError(result.error);
-      } else {
-        setEvents(result.events || []);
+      // Only update state if page is still visible
+      if (isVisible) {
+        if (result.error) {
+          setError(result.error);
+        } else {
+          setEvents(result.events || []);
+        }
       }
     } catch (err) {
-      setError('Failed to load events');
-      console.error(err);
+      // Only update error if page is still visible
+      if (isVisible) {
+        setError('Failed to load events');
+        console.error(err);
+      }
     } finally {
-      setLoading(false);
+      loadingRef.current = false;
+      // Only set loading to false if page is still visible
+      if (isVisible) {
+        setLoading(false);
+      }
     }
   };
 
@@ -80,7 +107,7 @@ export const EventStatistics = () => {
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
       <div className="w-full max-w-7xl mx-auto">
         {/* Search Bar */}
-        <div className="mb-6">
+        <div className="mb-6 relative z-0">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
             <input
@@ -153,12 +180,12 @@ export const EventStatistics = () => {
             <div className="p-12 text-center">
               <BarChart3 className="w-16 h-16 text-slate-400 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-slate-800 mb-2">
-                {searchTerm ? 'No events found' : 'No events with evaluation forms'}
+                {searchTerm ? 'No events found' : 'No events with survey forms'}
               </h3>
               <p className="text-slate-600">
                 {searchTerm 
                   ? 'Try adjusting your search terms'
-                  : 'Events with active evaluation forms will appear here'}
+                  : 'Events with active survey forms will appear here'}
               </p>
             </div>
           ) : (
@@ -170,7 +197,7 @@ export const EventStatistics = () => {
                       Event Title
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
-                      Evaluation Form
+                      Survey Form
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
                       Date

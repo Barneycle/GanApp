@@ -7,6 +7,7 @@ import { Login } from "./sections/Login";
 import { CreateEvent } from "./sections/CreateEvent";
 import { EditEvent } from "./sections/EditEvent";
 import { CreateSurvey } from "./sections/CreateSurvey";
+import { EditSurvey } from "./sections/EditSurvey";
 import { EventStatistics } from "./sections/EventStatistics";
 import { EventStatisticsDetail } from "./sections/EventStatisticsDetail";
 import { Registration } from "./sections/Registration";
@@ -16,6 +17,8 @@ import GenerateQR from "./sections/GenerateQR";
 import SurveyManagementPage from "./sections/SurveyManagementPage";
 import { Evaluation } from "./sections/Evaluation";
 import { EditProfile } from "./sections/EditProfile";
+import ActivityLog from "./sections/ActivityLog";
+import GlobalSearch from "./sections/GlobalSearch";
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -32,6 +35,7 @@ function AnimatedRoutes() {
         <Route path="/create-event" element={<CreateEvent />} />
         <Route path="/edit-event/:eventId" element={<EditEvent />} />
         <Route path="/create-survey" element={<CreateSurvey />} />
+        <Route path="/edit-survey/:surveyId" element={<EditSurvey />} />
         <Route path="/event-statistics" element={<EventStatistics />} />
         <Route path="/event-statistics/:eventId" element={<EventStatisticsDetail />} />
         <Route path="/survey-management" element={<SurveyManagementPage />} />
@@ -41,6 +45,8 @@ function AnimatedRoutes() {
         <Route path="/generate-qr" element={<GenerateQR />} />
         <Route path="/evaluation/:surveyId" element={<Evaluation />} />
         <Route path="/edit-profile" element={<EditProfile />} />
+        <Route path="/activity-log" element={<ActivityLog />} />
+        <Route path="/search" element={<GlobalSearch />} />
       </Routes>
     </div>
   );
