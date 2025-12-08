@@ -264,8 +264,29 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       });
     }
 
+    // Embed fonts
     const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    
+    // Embed MonteCarlo font for participant name
+    let monteCarloFont = null;
+    try {
+      // Fetch MonteCarlo font TTF from Google Fonts GitHub repository
+      // This is the most reliable source for the font file
+      const fontUrl = 'https://github.com/google/fonts/raw/main/ofl/montecarlo/MonteCarlo-Regular.ttf';
+      const fontResponse = await fetch(fontUrl);
+      
+      if (!fontResponse.ok) {
+        throw new Error(`Font fetch failed: ${fontResponse.status}`);
+      }
+      
+      const fontBytes = await fontResponse.arrayBuffer();
+      monteCarloFont = await pdfDoc.embedFont(fontBytes);
+    } catch (error) {
+      console.warn('Error loading MonteCarlo font:', error);
+      // Fallback to Helvetica Bold if font loading fails
+      monteCarloFont = helveticaBoldFont;
+    }
 
     const header = config.header_config || {};
     const participation = config.participation_text_config || {};
@@ -359,14 +380,15 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       });
     }
 
-    // Participant Name
+    // Participant Name - Use MonteCarlo font if available
     const nameSize = nameConfig.font_size || 48;
-    const nameWidth = helveticaBoldFont.widthOfTextAtSize(participantName, nameSize);
+    const nameFont = monteCarloFont || helveticaBoldFont;
+    const nameWidth = nameFont.widthOfTextAtSize(participantName, nameSize);
     page.drawText(participantName, {
       x: (width * nameConfig.position.x) / 100 - nameWidth / 2,
       y: height - (height * nameConfig.position.y) / 100,
       size: nameSize,
-      font: helveticaBoldFont,
+      font: nameFont,
       color: hexToRgb(nameConfig.color || '#000000')
     });
 

@@ -18,6 +18,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import CertificateDesigner from '../CertificateDesigner';
 import { useToast } from '../Toast';
+import { logActivity } from '../../utils/activityLogger';
 
 // Lazy load RichTextEditor to prevent app-wide crashes
 const RichTextEditor = lazy(() => import('../RichTextEditor'));
@@ -3056,6 +3057,20 @@ export const EditEvent = () => {
 
         if (updateError) {
           throw new Error(updateError);
+        }
+
+        // Log activity
+        if (user?.id) {
+          logActivity(
+            user.id,
+            'update',
+            'event',
+            {
+              resourceId: eventId,
+              resourceName: currentEvent.title,
+              details: { event_id: eventId, title: currentEvent.title, changes: Object.keys(updatePayload) }
+            }
+          ).catch(err => console.error('Failed to log event update:', err));
         }
 
         if (uploadedFiles.sponsorLogos && uploadedFiles.sponsorLogos.length > 0) {

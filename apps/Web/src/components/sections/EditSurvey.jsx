@@ -7,6 +7,7 @@ import { SurveyService } from '../../services/surveyService';
 import { useAuth } from '../../contexts/AuthContext';
 import SimpleRichTextEditor from '../SimpleRichTextEditor';
 import { useToast } from '../Toast';
+import { logActivity } from '../../utils/activityLogger';
 
 // Zod validation schema for survey questions
 const questionSchema = z.object({
@@ -457,6 +458,20 @@ export const EditSurvey = () => {
       
       if (result.error) {
         throw new Error(result.error);
+      }
+
+      // Log activity
+      if (user?.id && survey) {
+        logActivity(
+          user.id,
+          'update',
+          'survey',
+          {
+            resourceId: surveyId,
+            resourceName: survey.title || 'Untitled Survey',
+            details: { survey_id: surveyId, title: survey.title, event_id: survey.event_id }
+          }
+        ).catch(err => console.error('Failed to log survey update:', err));
       }
       
       toast.success('Survey updated successfully!');

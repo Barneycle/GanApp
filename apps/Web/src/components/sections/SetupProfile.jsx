@@ -20,6 +20,7 @@ export const SetupProfile = () => {
   const [avatarFile, setAvatarFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const hasInitializedForm = useRef(false);
 
   // Helper function to check if user profile is complete
   const isProfileComplete = (user) => {
@@ -60,9 +61,9 @@ export const SetupProfile = () => {
     }
   }, [user, isAuthenticated, authLoading, navigate]);
 
-  // Load existing user data if available
+  // Load existing user data if available (only once on initial load)
   useEffect(() => {
-    if (user) {
+    if (user && !hasInitializedForm.current) {
       setFormData({
         prefix: user.prefix || '',
         first_name: user.first_name || '',
@@ -72,6 +73,7 @@ export const SetupProfile = () => {
         affiliated_organization: user.affiliated_organization || ''
       });
       setAvatarPreview(user.avatar_url || null);
+      hasInitializedForm.current = true;
     }
   }, [user]);
 

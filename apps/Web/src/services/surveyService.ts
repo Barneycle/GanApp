@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { logActivity } from '../utils/activityLogger';
 
 export interface Survey {
   id: string;
@@ -62,6 +63,20 @@ export class SurveyService {
 
       if (error) {
         return { error: error.message };
+      }
+
+      // Log activity
+      if (data && surveyData.created_by) {
+        logActivity(
+          surveyData.created_by,
+          'create',
+          'survey',
+          {
+            resourceId: data.id,
+            resourceName: data.title || 'Untitled Survey',
+            details: { survey_id: data.id, title: data.title, event_id: data.event_id }
+          }
+        ).catch(err => console.error('Failed to log survey creation:', err));
       }
 
       return { survey: data };

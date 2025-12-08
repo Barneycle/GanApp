@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { UserService } from '../services/userService';
 import { supabase } from '../lib/supabaseClient';
+import { logActivity } from '../utils/activityLogger';
 
 const AuthContext = createContext();
 
@@ -244,6 +245,19 @@ export function AuthProvider({ children }) {
       if (result.user) {
         setUser(result.user);
         setLoading(false);
+        
+        // Log activity
+        logActivity(
+          result.user.id,
+          'login',
+          'user',
+          {
+            resourceId: result.user.id,
+            resourceName: result.user.email || result.user.id,
+            details: { user_id: result.user.id, email: result.user.email }
+          }
+        ).catch(err => console.error('Failed to log login:', err));
+        
         const redirectPath = getRedirectPath(result.user);
         return { success: true, user: result.user, redirectPath };
       } else {
@@ -291,6 +305,9 @@ export function AuthProvider({ children }) {
       setLoading(true);
       setError(null);
       
+      // Save user info for logging before clearing state
+      const currentUser = user;
+      
       // Clear user state first
       setUser(null);
       hasFetchedUser.current = false;
@@ -312,6 +329,20 @@ export function AuthProvider({ children }) {
         setError(result.error);
         setLoading(false);
         return { success: false, error: result.error };
+      }
+
+      // Log activity (after successful sign out)
+      if (currentUser?.id) {
+        logActivity(
+          currentUser.id,
+          'logout',
+          'user',
+          {
+            resourceId: currentUser.id,
+            resourceName: currentUser.email || currentUser.id,
+            details: { user_id: currentUser.id, email: currentUser.email }
+          }
+        ).catch(err => console.error('Failed to log logout:', err));
       }
 
       return { success: true };

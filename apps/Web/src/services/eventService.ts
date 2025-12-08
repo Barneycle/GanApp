@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { logActivity } from '../utils/activityLogger';
 
 export interface Event {
   id: string;
@@ -108,6 +109,20 @@ export class EventService {
 
       if (error) {
         return { error: error.message };
+      }
+
+      // Log activity
+      if (data && eventData.created_by) {
+        logActivity(
+          eventData.created_by,
+          'create',
+          'event',
+          {
+            resourceId: data.id,
+            resourceName: data.title || 'Untitled Event',
+            details: { event_id: data.id, title: data.title }
+          }
+        ).catch(err => console.error('Failed to log event creation:', err));
       }
 
       return { event: data };
@@ -401,6 +416,17 @@ export class EventService {
         return { error: registrationError.message };
       }
 
+      // Log activity
+      logActivity(
+        userId,
+        'create',
+        'registration',
+        {
+          resourceId: registrationData.id,
+          resourceName: eventResult.event.title || 'Event Registration',
+          details: { registration_id: registrationData.id, event_id: eventId, event_title: eventResult.event.title }
+        }
+      ).catch(err => console.error('Failed to log event registration:', err));
 
       // Update event participant count - use database count + 1
       const currentCount = eventResult.event.current_participants || 0;

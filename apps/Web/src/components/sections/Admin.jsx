@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { AdminService } from '../../services/adminService';
 import { SystemSettingsService } from '../../services/systemSettingsService';
+import { DatabaseMaintenanceService } from '../../services/databaseMaintenanceService';
+import { Eye, EyeOff, Send, Trash2, AlertCircle, CheckCircle, XCircle, Info, Database, Activity, Shield } from 'lucide-react';
+import { useToast } from '../../components/Toast';
 
 export const Admin = () => {
   const navigate = useNavigate();
@@ -71,7 +74,7 @@ export const Admin = () => {
 
   return (
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[95%] xl:max-w-[98%] mx-auto">
 
         {/* Error Messages */}
         {error && (
@@ -82,10 +85,10 @@ export const Admin = () => {
 
         {/* Tabs */}
         <div className="bg-white rounded-2xl shadow-xl border border-slate-200 mb-6">
-          <div className="flex flex-wrap border-b border-slate-200">
+          <div className="flex flex-nowrap border-b border-slate-200 overflow-x-auto">
             <button
               onClick={() => setActiveTab('dashboard')}
-              className={`px-6 py-4 font-medium transition-colors ${
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'dashboard'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-slate-600 hover:text-slate-800'
@@ -95,7 +98,7 @@ export const Admin = () => {
             </button>
             <button
               onClick={() => setActiveTab('users')}
-              className={`px-6 py-4 font-medium transition-colors ${
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'users'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-slate-600 hover:text-slate-800'
@@ -104,8 +107,18 @@ export const Admin = () => {
               User Management
             </button>
             <button
+              onClick={() => setActiveTab('archived')}
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
+                activeTab === 'archived'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-slate-600 hover:text-slate-800'
+              }`}
+            >
+              Archived Accounts
+            </button>
+            <button
               onClick={() => setActiveTab('events')}
-              className={`px-6 py-4 font-medium transition-colors ${
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'events'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-slate-600 hover:text-slate-800'
@@ -115,7 +128,7 @@ export const Admin = () => {
             </button>
             <button
               onClick={() => setActiveTab('cancellations')}
-              className={`px-6 py-4 font-medium transition-colors ${
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'cancellations'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-slate-600 hover:text-slate-800'
@@ -125,7 +138,7 @@ export const Admin = () => {
             </button>
             <button
               onClick={() => setActiveTab('analytics')}
-              className={`px-6 py-4 font-medium transition-colors ${
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'analytics'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-slate-600 hover:text-slate-800'
@@ -135,7 +148,7 @@ export const Admin = () => {
             </button>
             <button
               onClick={() => setActiveTab('settings')}
-              className={`px-6 py-4 font-medium transition-colors ${
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'settings'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-slate-600 hover:text-slate-800'
@@ -143,16 +156,39 @@ export const Admin = () => {
             >
               System Settings
             </button>
+            <button
+              onClick={() => setActiveTab('notifications')}
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
+                activeTab === 'notifications'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-slate-600 hover:text-slate-800'
+              }`}
+            >
+              Notification Management
+            </button>
+            <button
+              onClick={() => setActiveTab('database')}
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
+                activeTab === 'database'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-slate-600 hover:text-slate-800'
+              }`}
+            >
+              Database Maintenance
+            </button>
           </div>
 
           {/* Tab Content */}
           <div className="p-6">
             {activeTab === 'dashboard' && <DashboardTab />}
             {activeTab === 'users' && <UsersTab />}
+            {activeTab === 'archived' && <ArchivedUsersTab />}
             {activeTab === 'events' && <EventsTab />}
             {activeTab === 'cancellations' && <CancellationsTab />}
             {activeTab === 'analytics' && <AnalyticsTab />}
             {activeTab === 'settings' && <SettingsTab />}
+            {activeTab === 'notifications' && <NotificationsTab />}
+            {activeTab === 'database' && <DatabaseMaintenanceTab />}
           </div>
         </div>
       </div>
@@ -282,6 +318,7 @@ const DashboardTab = () => {
 
 // Users Tab Component
 const UsersTab = () => {
+  const toast = useToast();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -360,7 +397,24 @@ const UsersTab = () => {
     const result = await AdminService.unbanUser(userId);
     if (result.error) {
       setError(result.error);
+      toast.error(result.error);
     } else {
+      toast.success('User unbanned successfully');
+      await loadUsers();
+      setSelectedUser(null);
+      setActionType(null);
+    }
+    setActionLoading(false);
+  };
+
+  const handleUnarchiveUser = async (userId) => {
+    setActionLoading(true);
+    const result = await AdminService.unarchiveUser(userId);
+    if (result.error) {
+      setError(result.error);
+      toast.error(result.error);
+    } else {
+      toast.success('User unarchived successfully');
       await loadUsers();
       setSelectedUser(null);
       setActionType(null);
@@ -396,7 +450,18 @@ const UsersTab = () => {
 
   const normalizeString = (value) => (value || '').toString().toLowerCase().trim();
 
-  const filteredUsers = users.filter((user) => {
+  // Filter out only archived users (not banned users)
+  // Banned users should still appear in the list, only archived users should be filtered out
+  const activeUsers = users.filter((user) => {
+    // Check if user is archived
+    // Archived users have archived = true in the user data
+    // Banned users should NOT be filtered out - they should still appear in the list
+    // A user is archived if archived === true (from metadata)
+    const isArchived = user.archived === true;
+    return !isArchived; // Only show users that are NOT archived
+  });
+
+  const filteredUsers = activeUsers.filter((user) => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     return (
@@ -458,16 +523,19 @@ const UsersTab = () => {
     );
   }
 
-  const handleCreateUser = async (email, password, confirmPassword) => {
+  const handleCreateUser = async (email, password, confirmPassword, role) => {
     setActionLoading(true);
     setError('');
-    const result = await AdminService.createUser(email, password, confirmPassword);
+    const result = await AdminService.createUser(email, password, confirmPassword, role);
     if (result.error) {
       setError(result.error);
+      toast.error(result.error);
     } else {
+      // Success - close modal, refresh users list, and show toast
       await loadUsers();
       setSelectedUser(null);
       setActionType(null);
+      toast.success(`User account created successfully for ${email}`);
     }
     setActionLoading(false);
   };
@@ -597,8 +665,9 @@ const UsersTab = () => {
           <tbody>
             {sortedUsers.map((user) => {
               const isBanned = Boolean(user.banned_until && new Date(user.banned_until) > new Date());
-              const isInactive = user.is_active === false;
-              const showUnban = isBanned || isInactive;
+              const isArchived = user.archived === true || user.user_metadata?.archived === true;
+              const showUnban = isBanned && !isArchived; // Only show unban for banned users, not archived users
+              const showUnarchive = isArchived; // Show unarchive for archived users
 
               return (
                 <tr key={user.id} className="border-b border-slate-200 hover:bg-slate-50">
@@ -616,12 +685,16 @@ const UsersTab = () => {
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  {user.banned_until && new Date(user.banned_until) > new Date() ? (
+                  {isArchived ? (
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      Archived
+                    </span>
+                  ) : user.banned_until && new Date(user.banned_until) > new Date() ? (
                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
                       Banned
                     </span>
                   ) : user.is_active === false ? (
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                       Inactive
                     </span>
                   ) : (
@@ -645,38 +718,52 @@ const UsersTab = () => {
                     >
                       Edit
                     </button>
-                    <button
-                      onClick={() => {
-                        if (showUnban) {
-                          handleUnbanUser(user.id);
-                        } else {
-                          setSelectedUser(user);
-                          setActionType('ban');
-                        }
-                      }}
-                      className={`px-3 py-1 rounded text-xs ${showUnban ? 'bg-blue-900 hover:bg-blue-800' : 'bg-red-600 hover:bg-red-700'} text-white`}
-                      disabled={actionLoading}
-                    >
-                      {showUnban ? 'Unban' : 'Ban'}
-                    </button>
+                    {showUnarchive ? (
+                      <button
+                        onClick={() => handleUnarchiveUser(user.id)}
+                        className="px-3 py-1 bg-blue-900 hover:bg-blue-800 rounded text-xs text-white"
+                        disabled={actionLoading}
+                      >
+                        Unarchive
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          if (showUnban) {
+                            handleUnbanUser(user.id);
+                          } else {
+                            setSelectedUser(user);
+                            setActionType('ban');
+                          }
+                        }}
+                        className={`px-3 py-1 rounded text-xs ${showUnban ? 'bg-blue-900 hover:bg-blue-800' : 'bg-red-600 hover:bg-red-700'} text-white`}
+                        disabled={actionLoading}
+                      >
+                        {showUnban ? 'Unban' : 'Ban'}
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         setSelectedUser(user);
                         setActionType('role');
                       }}
                       className="px-3 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 text-xs"
+                      disabled={actionLoading || showUnarchive}
                     >
                       Change Role
                     </button>
-                    <button
-                      onClick={() => {
-                        setSelectedUser(user);
-                        setActionType('archive');
-                      }}
-                      className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 text-xs"
-                    >
-                      Archive
-                    </button>
+                    {!showUnarchive && (
+                      <button
+                        onClick={() => {
+                          setSelectedUser(user);
+                          setActionType('archive');
+                        }}
+                        className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 text-xs"
+                        disabled={actionLoading}
+                      >
+                        Archive
+                      </button>
+                    )}
                   </div>
                 </td>
                 </tr>
@@ -737,7 +824,7 @@ const UsersTab = () => {
 
       {actionType === 'create' && (
         <CreateUserModal
-          onCreate={(email, password, confirmPassword) => handleCreateUser(email, password, confirmPassword)}
+          onCreate={(email, password, confirmPassword, role) => handleCreateUser(email, password, confirmPassword, role)}
           onClose={() => {
             setSelectedUser(null);
             setActionType(null);
@@ -745,6 +832,220 @@ const UsersTab = () => {
           loading={actionLoading}
         />
       )}
+    </div>
+  );
+};
+
+// Archived Users Tab Component
+const ArchivedUsersTab = () => {
+  const toast = useToast();
+  const [archivedUsers, setArchivedUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortKey, setSortKey] = useState('archived_at');
+  const [sortDirection, setSortDirection] = useState('desc');
+  const [actionLoading, setActionLoading] = useState(false);
+  const [unarchivingUserId, setUnarchivingUserId] = useState(null);
+
+  useEffect(() => {
+    loadArchivedUsers();
+  }, []);
+
+  const loadArchivedUsers = async () => {
+    setLoading(true);
+    setError('');
+    const result = await AdminService.getArchivedUsers();
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setArchivedUsers(result.users || []);
+    }
+    setLoading(false);
+  };
+
+  const normalizeString = (value) => (value || '').toString().toLowerCase().trim();
+
+  const filteredUsers = archivedUsers.filter((user) => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      normalizeString(user.first_name).includes(term) ||
+      normalizeString(user.last_name).includes(term) ||
+      normalizeString(`${user.first_name} ${user.last_name}`).includes(term) ||
+      normalizeString(user.email).includes(term) ||
+      normalizeString(user.role).includes(term) ||
+      normalizeString(user.archive_reason).includes(term)
+    );
+  });
+
+  const sortedUsers = [...filteredUsers].sort((a, b) => {
+    let aValue = a[sortKey];
+    let bValue = b[sortKey];
+
+    if (sortKey === 'name') {
+      aValue = `${a.first_name || ''} ${a.last_name || ''}`.trim().toLowerCase();
+      bValue = `${b.first_name || ''} ${b.last_name || ''}`.trim().toLowerCase();
+    }
+
+    if (sortKey === 'archived_at' || sortKey === 'original_created_at') {
+      aValue = new Date(aValue).getTime();
+      bValue = new Date(bValue).getTime();
+    }
+
+    if (typeof aValue === 'string') aValue = aValue.toLowerCase();
+    if (typeof bValue === 'string') bValue = bValue.toLowerCase();
+
+    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const toggleSort = (key) => {
+    if (sortKey === key) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDirection(key === 'archived_at' ? 'desc' : 'asc');
+    }
+  };
+
+  const handleUnarchiveUser = async (userId) => {
+    setActionLoading(true);
+    setUnarchivingUserId(userId);
+    setError('');
+    
+    const result = await AdminService.unarchiveUser(userId);
+    if (result.error) {
+      setError(result.error);
+      toast.error(result.error);
+    } else {
+      toast.success('User unarchived successfully');
+      await loadArchivedUsers();
+    }
+    
+    setActionLoading(false);
+    setUnarchivingUserId(null);
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="text-slate-600 mt-4">Loading archived users...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-semibold text-slate-800">Archived Accounts</h2>
+        <button
+          onClick={loadArchivedUsers}
+          className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800"
+        >
+          Refresh
+        </button>
+      </div>
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
+          {error}
+        </div>
+      )}
+
+      {/* Search */}
+      <div className="mb-6">
+        <input
+          type="text"
+          placeholder="Search archived users..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      {/* Users Table */}
+      <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+        {sortedUsers.length === 0 ? (
+          <div className="p-12 text-center">
+            <p className="text-slate-600">No archived users found.</p>
+          </div>
+        ) : (
+          <table className="w-full">
+            <thead className="bg-gradient-to-r from-blue-50 to-slate-50">
+              <tr>
+                <th
+                  onClick={() => toggleSort('name')}
+                  className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase cursor-pointer hover:bg-slate-100"
+                >
+                  Name {sortKey === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Email</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Role</th>
+                <th
+                  onClick={() => toggleSort('archived_at')}
+                  className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase cursor-pointer hover:bg-slate-100"
+                >
+                  Archived Date {sortKey === 'archived_at' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Archive Reason</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Archive Type</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Activities</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedUsers.map((user) => (
+                <tr key={user.id} className="border-b border-slate-200 hover:bg-slate-50">
+                  <td className="px-4 py-3">
+                    {user.first_name} {user.last_name}
+                  </td>
+                  <td className="px-4 py-3">{user.email}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      user.role === 'admin' ? 'bg-red-100 text-red-800' :
+                      user.role === 'organizer' ? 'bg-orange-100 text-orange-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {user.role}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {new Date(user.archived_at).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate" title={user.archive_reason}>
+                    {user.archive_reason}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      {user.archive_type}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-600">
+                    <div className="space-y-1">
+                      <div>Events: {user.total_events_created || 0}</div>
+                      <div>Registrations: {user.total_events_attended || 0}</div>
+                      <div>Surveys: {user.total_surveys_created || 0}</div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => handleUnarchiveUser(user.original_user_id)}
+                      disabled={actionLoading}
+                      className="px-3 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Restore this user account"
+                    >
+                      {unarchivingUserId === user.original_user_id && actionLoading ? 'Unarchiving...' : 'Unarchive'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 };
@@ -887,6 +1188,345 @@ const ArchiveUserModal = ({ user, onArchive, onClose, loading }) => {
             {loading ? 'Archiving...' : 'Archive User'}
           </button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// Edit User Modal
+const EditUserModal = ({ user, onUpdate, onClose, loading }) => {
+  const [formData, setFormData] = useState({
+    prefix: user.prefix || '',
+    first_name: user.first_name || '',
+    middle_initial: user.middle_initial || '',
+    last_name: user.last_name || '',
+    affix: user.affix || '',
+    affiliated_organization: user.affiliated_organization || user.organization || '',
+    role: user.role || 'participant'
+  });
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onUpdate(formData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold text-slate-800 mb-4">Edit User</h3>
+        <p className="text-slate-600 mb-4">
+          Editing: {user.email} (Email cannot be changed)
+        </p>
+        
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4">
+            {/* Prefix */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Prefix (optional)</label>
+              <select
+                name="prefix"
+                value={formData.prefix}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">None</option>
+                <option value="Mr.">Mr.</option>
+                <option value="Mrs.">Mrs.</option>
+                <option value="Ms.">Ms.</option>
+                <option value="Dr.">Dr.</option>
+                <option value="Prof.">Prof.</option>
+              </select>
+            </div>
+
+            {/* First Name */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
+              <input
+                type="text"
+                name="first_name"
+                value={formData.first_name}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+
+            {/* Middle Initial */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Middle Initial (optional)</label>
+              <input
+                type="text"
+                name="middle_initial"
+                value={formData.middle_initial}
+                onChange={handleChange}
+                maxLength={2}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="M."
+              />
+            </div>
+
+            {/* Last Name */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Last Name</label>
+              <input
+                type="text"
+                name="last_name"
+                value={formData.last_name}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+
+            {/* Affix */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Affix (optional)</label>
+              <select
+                name="affix"
+                value={formData.affix}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">None</option>
+                <option value="Jr.">Jr.</option>
+                <option value="Sr.">Sr.</option>
+                <option value="II">II</option>
+                <option value="III">III</option>
+                <option value="IV">IV</option>
+              </select>
+            </div>
+
+            {/* Affiliated Organization */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Affiliated Organization</label>
+              <input
+                type="text"
+                name="affiliated_organization"
+                value={formData.affiliated_organization}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+
+            {/* Role */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="participant">Participant</option>
+                <option value="organizer">Organizer</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex space-x-3 mt-6">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50"
+            >
+              {loading ? 'Updating...' : 'Update User'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Create User Modal
+const CreateUserModal = ({ onCreate, onClose, loading }) => {
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    confirmPassword: '',
+    role: 'participant'
+  });
+  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    // Clear error when user starts typing
+    if (error) setError('');
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
+    // Validation
+    if (!formData.email || !formData.password || !formData.confirmPassword) {
+      setError('All fields are required');
+      return;
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+
+    onCreate(formData.email, formData.password, formData.confirmPassword, formData.role);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+        <h3 className="text-lg font-semibold text-slate-800 mb-4">Create New User</h3>
+        
+        <form onSubmit={handleSubmit}>
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                required
+                placeholder="user@example.com"
+              />
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                  placeholder="Minimum 6 characters"
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-slate-700 focus:outline-none"
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirm Password */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Confirm Password</label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                  placeholder="Re-enter password"
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-slate-700 focus:outline-none"
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Role */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="participant">Participant</option>
+                <option value="organizer">Organizer</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex space-x-3 mt-6">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {loading ? 'Creating...' : 'Create User'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -1993,6 +2633,707 @@ const SettingsTab = () => {
                 min="1"
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Notifications Tab Component
+const NotificationsTab = () => {
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkForm, setBulkForm] = useState({
+    title: '',
+    message: '',
+    type: 'info',
+    priority: 'normal',
+    targetType: 'all',
+    roleFilter: 'participant',
+    selectedUsers: []
+  });
+  const [sending, setSending] = useState(false);
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+  const toast = useToast();
+
+  const pageSize = 20;
+
+  useEffect(() => {
+    loadNotifications();
+  }, [page]);
+
+  const loadNotifications = async () => {
+    setLoading(true);
+    setError('');
+    const result = await AdminService.getAllNotifications(pageSize, page * pageSize);
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setNotifications(result.notifications || []);
+      setTotal(result.total || 0);
+    }
+    setLoading(false);
+  };
+
+  const handleSendBulk = async () => {
+    if (!bulkForm.title || !bulkForm.message) {
+      toast.error('Title and message are required');
+      return;
+    }
+
+    setSending(true);
+    setError('');
+
+    try {
+      let result;
+      if (bulkForm.targetType === 'all') {
+        result = await AdminService.sendNotificationToAll(
+          bulkForm.title,
+          bulkForm.message,
+          bulkForm.type,
+          {
+            priority: bulkForm.priority
+          }
+        );
+      } else if (bulkForm.targetType === 'role') {
+        result = await AdminService.sendNotificationToAll(
+          bulkForm.title,
+          bulkForm.message,
+          bulkForm.type,
+          {
+            priority: bulkForm.priority,
+            roleFilter: bulkForm.roleFilter
+          }
+        );
+      } else {
+        result = await AdminService.sendBulkNotifications(
+          bulkForm.selectedUsers,
+          bulkForm.title,
+          bulkForm.message,
+          bulkForm.type,
+          {
+            priority: bulkForm.priority
+          }
+        );
+      }
+
+      if (result.error) {
+        setError(result.error);
+        toast.error(result.error);
+      } else {
+        toast.success(`Successfully sent ${result.sent || 0} notifications`);
+        setShowBulkModal(false);
+        setBulkForm({
+          title: '',
+          message: '',
+          type: 'info',
+          priority: 'normal',
+          targetType: 'all',
+          roleFilter: 'participant',
+          selectedUsers: []
+        });
+        loadNotifications();
+      }
+    } catch (err) {
+      setError('An unexpected error occurred');
+      toast.error('Failed to send notifications');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleDelete = async (notificationId) => {
+    if (!window.confirm('Are you sure you want to delete this notification?')) return;
+
+    const result = await AdminService.deleteNotification(notificationId);
+    if (result.error) {
+      toast.error(result.error);
+    } else {
+      toast.success('Notification deleted');
+      loadNotifications();
+    }
+  };
+
+  const handleCleanupExpired = async () => {
+    if (!window.confirm('Delete all expired notifications?')) return;
+
+    const result = await AdminService.deleteExpiredNotifications();
+    if (result.error) {
+      toast.error(result.error);
+    } else {
+      toast.success(`Deleted ${result.deleted || 0} expired notifications`);
+      loadNotifications();
+    }
+  };
+
+  if (loading && notifications.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="text-slate-600 mt-4">Loading notifications...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-semibold text-slate-800">Notification Management</h2>
+        <div className="flex space-x-3">
+          <button
+            onClick={handleCleanupExpired}
+            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center space-x-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Clean Expired</span>
+          </button>
+          <button
+            onClick={() => setShowBulkModal(true)}
+            className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 flex items-center space-x-2"
+          >
+            <Send className="w-4 h-4" />
+            <span>Send Bulk Notification</span>
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">User</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Title</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Type</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Priority</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Read</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Created</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {notifications.map((notification) => (
+                <tr key={notification.id} className="hover:bg-slate-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-slate-900">
+                      {notification.user?.email || notification.user_id}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-medium text-slate-900">{notification.title}</div>
+                    <div className="text-xs text-slate-500 truncate max-w-xs">{notification.message}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      notification.type === 'success' ? 'bg-green-100 text-green-800' :
+                      notification.type === 'error' ? 'bg-red-100 text-red-800' :
+                      notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-blue-100 text-blue-800'
+                    }`}>
+                      {notification.type}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      notification.priority === 'urgent' ? 'bg-red-100 text-red-800' :
+                      notification.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                      notification.priority === 'normal' ? 'bg-blue-100 text-blue-800' :
+                      'bg-slate-100 text-slate-800'
+                    }`}>
+                      {notification.priority}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {notification.read ? (
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-slate-400" />
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                    {new Date(notification.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <button
+                      onClick={() => handleDelete(notification.id)}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {notifications.length === 0 && !loading && (
+          <div className="text-center py-12">
+            <p className="text-slate-600">No notifications found</p>
+          </div>
+        )}
+
+        {total > pageSize && (
+          <div className="px-6 py-4 border-t border-slate-200 flex justify-between items-center">
+            <div className="text-sm text-slate-600">
+              Showing {page * pageSize + 1} to {Math.min((page + 1) * pageSize, total)} of {total}
+            </div>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="px-4 py-2 border border-slate-300 rounded-lg disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setPage(p => p + 1)}
+                disabled={(page + 1) * pageSize >= total}
+                className="px-4 py-2 border border-slate-300 rounded-lg disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Bulk Notification Modal */}
+      {showBulkModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-semibold text-slate-800 mb-4">Send Bulk Notification</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={bulkForm.title}
+                  onChange={(e) => setBulkForm({ ...bulkForm, title: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  placeholder="Notification title"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Message</label>
+                <textarea
+                  value={bulkForm.message}
+                  onChange={(e) => setBulkForm({ ...bulkForm, message: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  rows={4}
+                  placeholder="Notification message"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
+                  <select
+                    value={bulkForm.type}
+                    onChange={(e) => setBulkForm({ ...bulkForm, type: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  >
+                    <option value="info">Info</option>
+                    <option value="success">Success</option>
+                    <option value="warning">Warning</option>
+                    <option value="error">Error</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Priority</label>
+                  <select
+                    value={bulkForm.priority}
+                    onChange={(e) => setBulkForm({ ...bulkForm, priority: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  >
+                    <option value="low">Low</option>
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Target</label>
+                <select
+                  value={bulkForm.targetType}
+                  onChange={(e) => setBulkForm({ ...bulkForm, targetType: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                >
+                  <option value="all">All Users</option>
+                  <option value="role">By Role</option>
+                </select>
+              </div>
+
+              {bulkForm.targetType === 'role' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+                  <select
+                    value={bulkForm.roleFilter}
+                    onChange={(e) => setBulkForm({ ...bulkForm, roleFilter: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  >
+                    <option value="participant">Participants</option>
+                    <option value="organizer">Organizers</option>
+                    <option value="admin">Admins</option>
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => setShowBulkModal(false)}
+                className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
+                disabled={sending}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendBulk}
+                disabled={sending}
+                className="flex-1 px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50"
+              >
+                {sending ? 'Sending...' : 'Send Notification'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Database Maintenance Tab Component
+const DatabaseMaintenanceTab = () => {
+  const [stats, setStats] = useState(null);
+  const [orphaned, setOrphaned] = useState([]);
+  const [health, setHealth] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [cleanupDays, setCleanupDays] = useState(90);
+  const [cleaning, setCleaning] = useState(false);
+  const toast = useToast();
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    setError('');
+
+    const [statsResult, orphanedResult, healthResult] = await Promise.all([
+      DatabaseMaintenanceService.getDatabaseStats(),
+      DatabaseMaintenanceService.getOrphanedRecords(),
+      DatabaseMaintenanceService.getSystemHealth()
+    ]);
+
+    if (statsResult.error) {
+      setError(statsResult.error);
+    } else {
+      setStats(statsResult.stats);
+    }
+
+    if (orphanedResult.error) {
+      console.error('Failed to load orphaned records:', orphanedResult.error);
+    } else {
+      setOrphaned(orphanedResult.records || []);
+    }
+
+    if (healthResult.error) {
+      console.error('Failed to load system health:', healthResult.error);
+    } else {
+      setHealth(healthResult.health);
+    }
+
+    setLoading(false);
+  };
+
+  const handleCleanupActivityLogs = async () => {
+    if (!window.confirm(`Delete activity logs older than ${cleanupDays} days?`)) return;
+
+    setCleaning(true);
+    const result = await DatabaseMaintenanceService.cleanupOldActivityLogs(cleanupDays);
+    setCleaning(false);
+
+    if (result.error) {
+      toast.error(result.error);
+    } else {
+      toast.success(`Deleted ${result.deleted || 0} old activity logs`);
+      loadData();
+    }
+  };
+
+  const handleCleanupNotifications = async () => {
+    if (!window.confirm('Delete all expired notifications?')) return;
+
+    setCleaning(true);
+    const result = await DatabaseMaintenanceService.cleanupExpiredNotifications();
+    setCleaning(false);
+
+    if (result.error) {
+      toast.error(result.error);
+    } else {
+      toast.success(`Deleted ${result.deleted || 0} expired notifications`);
+      loadData();
+    }
+  };
+
+  const handleCleanupOldReadNotifications = async () => {
+    if (!window.confirm(`Delete read notifications older than ${cleanupDays} days?`)) return;
+
+    setCleaning(true);
+    const result = await DatabaseMaintenanceService.cleanupOldReadNotifications(cleanupDays);
+    setCleaning(false);
+
+    if (result.error) {
+      toast.error(result.error);
+    } else {
+      toast.success(`Deleted ${result.deleted || 0} old read notifications`);
+      loadData();
+    }
+  };
+
+  const handleDeleteOrphaned = async (tableName) => {
+    if (!window.confirm(`Delete orphaned records from ${tableName}?`)) return;
+
+    setCleaning(true);
+    const result = await DatabaseMaintenanceService.deleteOrphanedRecords(tableName);
+    setCleaning(false);
+
+    if (result.error) {
+      toast.error(result.error);
+    } else {
+      toast.success(`Deleted ${result.deleted || 0} orphaned records`);
+      loadData();
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="text-slate-600 mt-4">Loading database information...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-semibold text-slate-800">Database Maintenance</h2>
+        <button
+          onClick={loadData}
+          className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800"
+        >
+          Refresh
+        </button>
+      </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          {error}
+        </div>
+      )}
+
+      {/* System Health */}
+      {health && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center space-x-2">
+            <Shield className="w-5 h-5" />
+            <span>System Health</span>
+          </h3>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium text-slate-700">Status:</span>
+              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                health.database_status === 'healthy' ? 'bg-green-100 text-green-800' :
+                health.database_status === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                'bg-red-100 text-red-800'
+              }`}>
+                {health.database_status.toUpperCase()}
+              </span>
+            </div>
+            {health.issues && health.issues.length > 0 && (
+              <div className="mt-4">
+                <p className="text-sm font-medium text-slate-700 mb-2">Issues:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  {health.issues.map((issue, idx) => (
+                    <li key={idx} className="text-sm text-slate-600">{issue}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Database Statistics */}
+      {stats && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center space-x-2">
+            <Database className="w-5 h-5" />
+            <span>Database Statistics</span>
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <p className="text-sm text-blue-700 mb-1">Total Tables</p>
+              <p className="text-2xl font-bold text-blue-900">{stats.total_tables || 0}</p>
+            </div>
+            <div className="p-4 bg-green-50 rounded-lg">
+              <p className="text-sm text-green-700 mb-1">Total Rows</p>
+              <p className="text-2xl font-bold text-green-900">{stats.total_rows?.toLocaleString() || 0}</p>
+            </div>
+            <div className="p-4 bg-purple-50 rounded-lg">
+              <p className="text-sm text-purple-700 mb-1">Largest Table</p>
+              <p className="text-lg font-bold text-purple-900">
+                {stats.table_sizes && stats.table_sizes.length > 0
+                  ? stats.table_sizes[0].table_name
+                  : 'N/A'}
+              </p>
+            </div>
+          </div>
+          {stats.table_sizes && stats.table_sizes.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">Table</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">Rows</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">Size (MB)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {stats.table_sizes.slice(0, 10).map((table) => (
+                    <tr key={table.table_name}>
+                      <td className="px-4 py-2 text-sm text-slate-900">{table.table_name}</td>
+                      <td className="px-4 py-2 text-sm text-slate-600">{table.row_count?.toLocaleString() || 0}</td>
+                      <td className="px-4 py-2 text-sm text-slate-600">{table.size_mb?.toFixed(2) || '0.00'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Orphaned Records */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center space-x-2">
+          <AlertCircle className="w-5 h-5" />
+          <span>Orphaned Records</span>
+        </h3>
+        {orphaned.length === 0 ? (
+          <p className="text-slate-600">No orphaned records found. Database is clean!</p>
+        ) : (
+          <div className="space-y-3">
+            {orphaned.map((record, idx) => (
+              <div key={idx} className="flex justify-between items-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                <div>
+                  <p className="font-medium text-slate-800">{record.table_name}</p>
+                  <p className="text-sm text-slate-600">{record.description}</p>
+                  <p className="text-sm text-orange-700 mt-1">Count: {record.count}</p>
+                </div>
+                <button
+                  onClick={() => handleDeleteOrphaned(record.table_name)}
+                  disabled={cleaning}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Cleanup Tools */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center space-x-2">
+          <Activity className="w-5 h-5" />
+          <span>Cleanup Tools</span>
+        </h3>
+        <div className="space-y-4">
+          <div className="p-4 border border-slate-200 rounded-lg">
+            <div className="flex justify-between items-center mb-3">
+              <div>
+                <p className="font-medium text-slate-800">Activity Logs Cleanup</p>
+                <p className="text-sm text-slate-600">Delete activity logs older than specified days</p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <input
+                  type="number"
+                  value={cleanupDays}
+                  onChange={(e) => setCleanupDays(parseInt(e.target.value) || 90)}
+                  min="1"
+                  className="w-20 px-3 py-2 border border-slate-300 rounded-lg"
+                />
+                <button
+                  onClick={handleCleanupActivityLogs}
+                  disabled={cleaning}
+                  className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50"
+                >
+                  Cleanup
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 border border-slate-200 rounded-lg">
+            <div className="flex justify-between items-center mb-3">
+              <div>
+                <p className="font-medium text-slate-800">Expired Notifications</p>
+                <p className="text-sm text-slate-600">Delete all notifications that have expired</p>
+              </div>
+              <button
+                onClick={handleCleanupNotifications}
+                disabled={cleaning}
+                className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50"
+              >
+                Cleanup
+              </button>
+            </div>
+          </div>
+
+          <div className="p-4 border border-slate-200 rounded-lg">
+            <div className="flex justify-between items-center mb-3">
+              <div>
+                <p className="font-medium text-slate-800">Old Read Notifications</p>
+                <p className="text-sm text-slate-600">Delete read notifications older than specified days</p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <input
+                  type="number"
+                  value={cleanupDays}
+                  onChange={(e) => setCleanupDays(parseInt(e.target.value) || 90)}
+                  min="1"
+                  className="w-20 px-3 py-2 border border-slate-300 rounded-lg"
+                />
+                <button
+                  onClick={handleCleanupOldReadNotifications}
+                  disabled={cleaning}
+                  className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50"
+                >
+                  Cleanup
+                </button>
+              </div>
             </div>
           </div>
         </div>
