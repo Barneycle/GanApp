@@ -547,5 +547,113 @@ export class AdminService {
       return { error: 'An unexpected error occurred' };
     }
   }
+
+  /**
+   * Create a new user (admin only)
+   * Only requires email, password, and confirm password
+   */
+  static async createUser(
+    email: string,
+    password: string,
+    confirmPassword: string
+  ): Promise<{ success?: boolean; error?: string; userId?: string }> {
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        return { error: 'Not authenticated' };
+      }
+
+      // Validate passwords match
+      if (password !== confirmPassword) {
+        return { error: 'Passwords do not match' };
+      }
+
+      // Validate password strength
+      if (password.length < 6) {
+        return { error: 'Password must be at least 6 characters long' };
+      }
+
+      // Create user using Supabase Auth admin API
+      const { data, error } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true, // Auto-confirm email for admin-created users
+        user_metadata: {
+          role: 'participant', // Default role
+        },
+      });
+
+      if (error) {
+        return { error: error.message || 'Failed to create user' };
+      }
+
+      return { success: true, userId: data.user?.id };
+    } catch (error) {
+      return { 
+        error: error instanceof Error ? error.message : 'An unexpected error occurred' 
+      };
+    }
+  }
+
+  /**
+   * Update user information (admin only)
+   * Cannot update email
+   */
+  static async updateUser(
+    userId: string,
+    updates: {
+      prefix?: string;
+      first_name?: string;
+      middle_initial?: string;
+      last_name?: string;
+      affix?: string;
+      affiliated_organization?: string;
+      role?: 'admin' | 'organizer' | 'participant';
+    }
+  ): Promise<{ success?: boolean; error?: string }> {
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        return { error: 'Not authenticated' };
+      }
+
+      // Get current user data
+      const { data: { user: targetUser }, error: getUserError } = await supabase.auth.admin.getUserById(userId);
+      
+      if (getUserError || !targetUser) {
+        return { error: 'User not found' };
+      }
+
+      // Prepare metadata update
+      const currentMetadata = targetUser.user_metadata || {};
+      const updatedMetadata = {
+        ...currentMetadata,
+      };
+
+      // Update only provided fields
+      if (updates.prefix !== undefined) updatedMetadata.prefix = updates.prefix;
+      if (updates.first_name !== undefined) updatedMetadata.first_name = updates.first_name;
+      if (updates.middle_initial !== undefined) updatedMetadata.middle_initial = updates.middle_initial;
+      if (updates.last_name !== undefined) updatedMetadata.last_name = updates.last_name;
+      if (updates.affix !== undefined) updatedMetadata.affix = updates.affix;
+      if (updates.affiliated_organization !== undefined) updatedMetadata.affiliated_organization = updates.affiliated_organization;
+      if (updates.role !== undefined) updatedMetadata.role = updates.role;
+
+      // Update user using admin API
+      const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
+        user_metadata: updatedMetadata,
+      });
+
+      if (updateError) {
+        return { error: updateError.message || 'Failed to update user' };
+      }
+
+      return { success: true };
+    } catch (error) {
+      return { 
+        error: error instanceof Error ? error.message : 'An unexpected error occurred' 
+      };
+    }
+  }
 }
 

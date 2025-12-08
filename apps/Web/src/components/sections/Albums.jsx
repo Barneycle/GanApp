@@ -4,7 +4,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { AlbumService } from '../../services/albumService';
 import { downloadImageWithAttribution } from '../../services/imageAttribution';
 import { ConfirmationDialog } from '../ConfirmationDialog';
-import { Search, Filter, X, ChevronLeft, ChevronRight, Download, CheckCircle2, Images, Calendar, MapPin, RefreshCw } from 'lucide-react';
+import { Search, Filter, X, ChevronLeft, ChevronRight, Download, CheckCircle2, Images, Calendar, MapPin, RefreshCw, Upload, Camera } from 'lucide-react';
+import { useToast } from '../Toast';
 
 // Type definitions (using JSDoc for JSX file)
 /** @typedef {'all' | 'upcoming' | 'past'} DateFilter */
@@ -22,6 +23,7 @@ const isProfileComplete = (user) => {
 export const Albums = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const toast = useToast();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -40,6 +42,10 @@ export const Albums = () => {
   const [venueFilter, setVenueFilter] = useState('all');
   const [sortOption, setSortOption] = useState('date-asc');
   const [showFilters, setShowFilters] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, percentage: 0 });
+  const [uploadingEventId, setUploadingEventId] = useState(null);
+  const fileInputRef = useRef(null);
   const hasLoadedRef = useRef(false);
   const [confirmationDialog, setConfirmationDialog] = useState({
     isOpen: false,
@@ -268,6 +274,145 @@ export const Albums = () => {
     await performDownloadAll(event);
   };
 
+  const handleUploadClick = async (event) => {
+    // Check if user can upload (participant or organizer)
+    if (user?.role !== 'participant' && user?.role !== 'organizer') {
+      toast.showToast('Only participants and organizers can upload photos.', 'error');
+      return;
+    }
+
+    if (!user?.id) {
+      toast.showToast('You must be logged in to upload photos.', 'error');
+      return;
+    }
+
+    // Check photo limit
+    const limitCheck = await AlbumService.getUserPhotoCount(event.id, user.id);
+    if (limitCheck.error) {
+      toast.showToast('Could not check photo limit. Please try again.', 'error');
+      return;
+    }
+
+    const PHOTO_LIMIT = 10;
+    if (limitCheck.count >= PHOTO_LIMIT) {
+      toast.showToast(`You have reached the limit of ${PHOTO_LIMIT} photos per event.`, 'error');
+      return;
+    }
+
+    // Set the event for upload and trigger file input
+    setUploadingEventId(event.id);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0 || !uploadingEventId || !user?.id) {
+      setUploadingEventId(null);
+      return;
+    }
+
+    // Check photo limit
+    const limitCheck = await AlbumService.getUserPhotoCount(uploadingEventId, user.id);
+    if (limitCheck.error) {
+      toast.showToast('Could not check photo limit. Please try again.', 'error');
+      setUploadingEventId(null);
+      return;
+    }
+
+    const PHOTO_LIMIT = 10;
+    const remainingSlots = PHOTO_LIMIT - limitCheck.count;
+    
+    if (remainingSlots <= 0) {
+      toast.showToast(`You have reached the limit of ${PHOTO_LIMIT} photos per event.`, 'error');
+      setUploadingEventId(null);
+      return;
+    }
+
+    // Limit files to remaining slots
+    const filesToUpload = files.slice(0, remainingSlots);
+    if (files.length > remainingSlots) {
+      toast.showToast(`You can only upload ${remainingSlots} more photo(s). Only ${remainingSlots} photo(s) will be uploaded.`, 'warning');
+    }
+
+    await uploadPhotos(filesToUpload, uploadingEventId);
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    setUploadingEventId(null);
+  };
+
+  const uploadPhotos = async (files, eventId) => {
+    if (!user?.id) return;
+
+    setIsUploading(true);
+    setUploadProgress({ current: 0, total: files.length, percentage: 0 });
+
+    const progressState = { photoProgress: new Array(files.length).fill(0) };
+
+    const updateProgress = () => {
+      const photoProgress = progressState.photoProgress;
+      const totalProgress = photoProgress.reduce((sum, p) => sum + p, 0);
+      const averageProgress = totalProgress / files.length;
+      const percentage = Math.round(averageProgress);
+      const completedPhotos = photoProgress.filter(p => p >= 100).length;
+
+      setUploadProgress({
+        current: completedPhotos,
+        total: files.length,
+        percentage: Math.min(percentage, 100),
+      });
+    };
+
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      // Upload files sequentially to avoid overwhelming the server
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        try {
+          await AlbumService.uploadPhoto(
+            file,
+            eventId,
+            user.id,
+            (progress) => {
+              progressState.photoProgress[i] = Math.max(
+                progressState.photoProgress[i],
+                Math.min(progress, 100)
+              );
+              updateProgress();
+            }
+          );
+          successCount++;
+        } catch (error) {
+          console.error(`Error uploading photo ${i + 1}:`, error);
+          failCount++;
+        }
+      }
+
+      // Refresh events to show new photos
+      await loadEvents();
+
+      if (successCount > 0) {
+        toast.showToast(
+          `Successfully uploaded ${successCount} photo(s)${failCount > 0 ? ` (${failCount} failed)` : ''}!`,
+          'success'
+        );
+      } else {
+        toast.showToast('Failed to upload photos. Please try again.', 'error');
+      }
+    } catch (error) {
+      console.error('Error uploading photos:', error);
+      toast.showToast('Failed to upload photos. Please try again.', 'error');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress({ current: 0, total: 0, percentage: 0 });
+    }
+  };
+
   const performDownloadAll = async (event) => {
     setIsDownloadingAll(true);
     setDownloadAllProgress({ current: 0, total: event.photos.length });
@@ -342,6 +487,9 @@ export const Albums = () => {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [isFullScreenVisible, selectedEvent]);
 
+  // Check if user can upload photos
+  const canUploadPhotos = user && (user.role === 'participant' || user.role === 'organizer');
+
   // Show loading state while checking auth
   if (authLoading) {
     return (
@@ -388,6 +536,35 @@ export const Albums = () => {
 
   return (
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      {/* Hidden file input for photo uploads */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+      
+      {/* Upload Progress Indicator */}
+      {isUploading && uploadProgress.total > 0 && (
+        <div className="fixed top-20 right-4 bg-white rounded-xl shadow-xl p-4 z-50 min-w-[300px] border border-slate-200">
+          <div className="flex items-center gap-3 mb-2">
+            <Upload className="w-5 h-5 text-green-600" />
+            <span className="font-semibold text-slate-800">Uploading Photos</span>
+          </div>
+          <div className="w-full bg-slate-200 rounded-full h-2 mb-2">
+            <div
+              className="bg-green-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${uploadProgress.percentage}%` }}
+            />
+          </div>
+          <p className="text-sm text-slate-600 text-center">
+            {uploadProgress.current} of {uploadProgress.total} photos uploaded ({uploadProgress.percentage}%)
+          </p>
+        </div>
+      )}
+      
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -545,15 +722,28 @@ export const Albums = () => {
                     <h3 className="text-xl font-bold text-slate-800 flex-1 mr-3 line-clamp-2">
                       {event.title}
                     </h3>
-                    <button
-                      onClick={() => {
-                        setSelectedEvent(event);
-                        setIsModalVisible(true);
-                      }}
-                      className="px-3 py-1.5 bg-blue-900 text-white rounded-lg text-sm font-semibold hover:bg-blue-800 transition-colors whitespace-nowrap"
-                    >
-                      View All
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {canUploadPhotos && (
+                        <button
+                          onClick={() => handleUploadClick(event)}
+                          disabled={isUploading && uploadingEventId === event.id}
+                          className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                          title="Upload Photos"
+                        >
+                          <Upload className="w-4 h-4" />
+                          Upload
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          setSelectedEvent(event);
+                          setIsModalVisible(true);
+                        }}
+                        className="px-3 py-1.5 bg-blue-900 text-white rounded-lg text-sm font-semibold hover:bg-blue-800 transition-colors whitespace-nowrap"
+                      >
+                        View All
+                      </button>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 mt-2 text-sm text-slate-600">
                     <div className="flex items-center gap-1">
@@ -623,6 +813,26 @@ export const Albums = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {canUploadPhotos && (
+                  <button
+                    onClick={() => handleUploadClick(selectedEvent)}
+                    disabled={isUploading && uploadingEventId === selectedEvent.id}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                    title="Upload Photos"
+                  >
+                    {isUploading && uploadingEventId === selectedEvent.id ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Uploading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        <span>Upload</span>
+                      </>
+                    )}
+                  </button>
+                )}
                 {selectedEvent.photos && selectedEvent.photos.length > 0 && (
                   <button
                     onClick={() => downloadAllPhotos(selectedEvent)}

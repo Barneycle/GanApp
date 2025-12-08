@@ -458,17 +458,56 @@ const UsersTab = () => {
     );
   }
 
+  const handleCreateUser = async (email, password, confirmPassword) => {
+    setActionLoading(true);
+    setError('');
+    const result = await AdminService.createUser(email, password, confirmPassword);
+    if (result.error) {
+      setError(result.error);
+    } else {
+      await loadUsers();
+      setSelectedUser(null);
+      setActionType(null);
+    }
+    setActionLoading(false);
+  };
+
+  const handleUpdateUser = async (userId, updates) => {
+    setActionLoading(true);
+    setError('');
+    const result = await AdminService.updateUser(userId, updates);
+    if (result.error) {
+      setError(result.error);
+    } else {
+      await loadUsers();
+      setSelectedUser(null);
+      setActionType(null);
+    }
+    setActionLoading(false);
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-semibold text-slate-800">User Management</h2>
-        <button
-          onClick={loadUsers}
-          disabled={loading}
-          className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50"
-        >
-          Refresh
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setSelectedUser(null);
+              setActionType('create');
+            }}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+          >
+            Create User
+          </button>
+          <button
+            onClick={loadUsers}
+            disabled={loading}
+            className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       {warning && (
@@ -598,6 +637,16 @@ const UsersTab = () => {
                   <div className="flex space-x-2">
                     <button
                       onClick={() => {
+                        setSelectedUser(user);
+                        setActionType('edit');
+                      }}
+                      className="px-3 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 text-xs"
+                      disabled={actionLoading}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => {
                         if (showUnban) {
                           handleUnbanUser(user.id);
                         } else {
@@ -666,6 +715,29 @@ const UsersTab = () => {
         <ArchiveUserModal
           user={selectedUser}
           onArchive={(reason) => handleArchiveUser(selectedUser.id, reason)}
+          onClose={() => {
+            setSelectedUser(null);
+            setActionType(null);
+          }}
+          loading={actionLoading}
+        />
+      )}
+
+      {selectedUser && actionType === 'edit' && (
+        <EditUserModal
+          user={selectedUser}
+          onUpdate={(updates) => handleUpdateUser(selectedUser.id, updates)}
+          onClose={() => {
+            setSelectedUser(null);
+            setActionType(null);
+          }}
+          loading={actionLoading}
+        />
+      )}
+
+      {actionType === 'create' && (
+        <CreateUserModal
+          onCreate={(email, password, confirmPassword) => handleCreateUser(email, password, confirmPassword)}
           onClose={() => {
             setSelectedUser(null);
             setActionType(null);

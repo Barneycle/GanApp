@@ -244,7 +244,7 @@ export const Navbar = () => {
   return (
          <nav className="bg-blue-900 text-white shadow-2xl border-b border-blue-800/50 backdrop-blur-sm relative z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center h-20">
+        <div className="flex items-center justify-between h-20">
           {/* Logo */}
           <div className="flex-shrink-0">
             <Link 
@@ -658,8 +658,8 @@ export const Navbar = () => {
             )}
           </div>
 
-          {/* Mobile menu button */}
-          <div className="md:hidden">
+          {/* Mobile menu button - positioned on the far right */}
+          <div className="md:hidden ml-auto">
             <button
               onClick={toggleMobileMenu}
               className="text-gray-300 hover:text-white focus:outline-none focus:text-white"
