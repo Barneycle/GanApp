@@ -141,7 +141,7 @@ export const Profile = () => {
             {/* Edit Profile Button */}
             <button
               onClick={() => navigate('/edit-profile')}
-              className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl flex items-center space-x-2"
+              className="bg-blue-900 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-800 transition-colors shadow-lg hover:shadow-xl flex items-center space-x-2"
             >
               <Edit className="w-5 h-5" />
               <span>Edit Profile</span>

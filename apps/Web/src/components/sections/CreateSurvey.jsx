@@ -10,6 +10,7 @@ import { SurveyService } from '../../services/surveyService';
 import { CertificateService } from '../../services/certificateService';
 import { useAuth } from '../../contexts/AuthContext';
 import SimpleRichTextEditor from '../SimpleRichTextEditor';
+import { useToast } from '../Toast';
 
 // Zod validation schema for survey questions
 const questionSchema = z.object({
@@ -54,6 +55,7 @@ const createSurveySchema = z.object({
 export const CreateSurvey = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
@@ -145,7 +147,7 @@ export const CreateSurvey = () => {
     
     if (!eventData) {
       // No pending event data, redirect back to event creation
-      alert('Please create an event first before creating a survey.');
+      toast.warning('Please create an event first before creating a survey.');
       navigate('/create-event');
       return;
     }
@@ -164,7 +166,7 @@ export const CreateSurvey = () => {
         setPendingSponsors(sponsors);
       }
     } catch (error) {
-      alert('Error loading event data. Please try again.');
+      toast.error('Error loading event data. Please try again.');
       navigate('/create-event');
     }
   }, [navigate]);
@@ -591,7 +593,7 @@ export const CreateSurvey = () => {
 
   const onSubmit = async (data) => {
     if (!pendingEventData) {
-      alert('No event data found. Please create an event first.');
+      toast.warning('No event data found. Please create an event first.');
       navigate('/create-event');
       return;
     }
@@ -823,13 +825,13 @@ export const CreateSurvey = () => {
         return total + (section.questions?.length || 0);
       }, 0) || 0;
       
-      alert(`Event and Survey created successfully!\nEvent ID: ${eventId}\nSurvey ID: ${surveyId}\nQuestions: ${totalQuestions}`);
+      toast.success(`Event and Survey created successfully! Event ID: ${eventId}, Survey ID: ${surveyId}, Questions: ${totalQuestions}`);
       
       // Navigate to organizer dashboard
       navigate('/organizer');
       
     } catch (err) {
-      alert(`Failed to create event/survey: ${err.message}`);
+      toast.error(`Failed to create event/survey: ${err.message}`);
     } finally {
       setLoading(false);
     }

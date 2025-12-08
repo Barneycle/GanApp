@@ -286,7 +286,7 @@ export const Notifications = () => {
           <div className="flex items-center justify-end mb-4">
             <button
               onClick={handleCreateTestNotification}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center space-x-2"
+              className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-medium flex items-center space-x-2"
               title="Create Test Notification"
             >
               <Bell className="w-4 h-4" />
@@ -306,7 +306,7 @@ export const Notifications = () => {
                   onClick={() => setFilter('all')}
                   className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
                     filter === 'all'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-blue-900 text-white'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
@@ -316,7 +316,7 @@ export const Notifications = () => {
                   onClick={() => setFilter('unread')}
                   className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
                     filter === 'unread'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-blue-900 text-white'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
@@ -326,7 +326,7 @@ export const Notifications = () => {
                   onClick={() => setFilter('read')}
                   className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
                     filter === 'read'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-blue-900 text-white'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
@@ -397,7 +397,7 @@ export const Notifications = () => {
                 disabled={unreadCount === 0}
                 className={`px-4 py-2 text-white rounded-lg transition-colors text-sm font-medium flex items-center space-x-2 ${
                   unreadCount > 0
-                    ? 'bg-blue-600 hover:bg-blue-700'
+                    ? 'bg-blue-900 hover:bg-blue-800'
                     : 'bg-blue-400 cursor-not-allowed opacity-60'
                 }`}
                 title={unreadCount === 0 ? 'All notifications are already read' : 'Mark all notifications as read'}

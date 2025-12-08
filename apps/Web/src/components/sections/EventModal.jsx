@@ -275,7 +275,7 @@ const EventModal = ({ isOpen, onClose, event }) => {
                             href={url.trim()}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex-1 px-3 py-2 bg-blue-600 text-white text-center rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm"
+                            className="flex-1 px-3 py-2 bg-blue-900 text-white text-center rounded-lg hover:bg-blue-800 transition-colors duration-200 text-sm"
                           >
                             <div className="flex items-center justify-center space-x-1">
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -324,7 +324,7 @@ const EventModal = ({ isOpen, onClose, event }) => {
                             href={url.trim()}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex-1 px-3 py-2 bg-green-600 text-white text-center rounded-lg hover:bg-green-700 transition-colors duration-200 text-sm"
+                            className="flex-1 px-3 py-2 bg-blue-900 text-white text-center rounded-lg hover:bg-blue-800 transition-colors duration-200 text-sm"
                           >
                             <div className="flex items-center justify-center space-x-1">
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

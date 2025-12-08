@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { EventService } from '../../services/eventService';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePageVisibility } from '../../hooks/usePageVisibility';
+import { useToast } from '../Toast';
 
 // Sample events data for placeholders
 const sampleEvents = [
@@ -133,6 +134,7 @@ const sampleEvents = [
 export const Events = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const toast = useToast();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -583,7 +585,7 @@ export const Events = () => {
           <p className="text-slate-600 mb-6">{error}</p>
           <button
             onClick={loadEvents}
-            className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
+            className="px-6 py-3 bg-blue-900 text-white rounded-xl hover:bg-blue-800 transition-colors"
           >
             Try Again
           </button>
@@ -703,7 +705,7 @@ export const Events = () => {
             {/* Filter Button */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+              className="px-6 py-3 bg-blue-900 text-white rounded-xl hover:bg-blue-800 transition-colors font-medium flex items-center justify-center gap-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
@@ -726,7 +728,7 @@ export const Events = () => {
                         onClick={() => setDateFilter(filter)}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                           dateFilter === filter
-                            ? 'bg-blue-600 text-white'
+                            ? 'bg-blue-900 text-white'
                             : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                         }`}
                       >
@@ -802,7 +804,7 @@ export const Events = () => {
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
                 onClick={() => navigate('/login')}
-                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
+                className="px-6 py-3 bg-blue-900 text-white rounded-xl hover:bg-blue-800 transition-colors font-medium"
               >
                 Sign In
               </button>
@@ -833,7 +835,7 @@ export const Events = () => {
               {(user?.role === 'organizer' || user?.role === 'admin') && (
                 <button
                   onClick={() => navigate('/create-event')}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
+                  className="px-6 py-3 bg-blue-900 text-white rounded-xl hover:bg-blue-800 transition-colors font-medium"
                 >
                   Create Your First Event
                 </button>
@@ -955,7 +957,7 @@ export const Events = () => {
                             <button 
                               onClick={() => handlePublishEvent(event.id)}
                               disabled={registeringEvents.has(event.id)}
-                              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {registeringEvents.has(event.id) ? 'Publishing...' : 'Publish Event'}
                             </button>
@@ -966,7 +968,7 @@ export const Events = () => {
                             <button 
                               onClick={() => event.is_featured ? handleUnfeatureEvent(event.id) : handleSetFeatured(event.id)}
                               disabled={loading}
-                              className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed mb-2"
+                              className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed mb-2"
                             >
                               {event.is_featured ? '⭐ Unfeature Event' : '⭐ Feature Event'}
                             </button>
@@ -974,7 +976,7 @@ export const Events = () => {
                           
                           {/* Debug: Always show feature button for testing */}
                           <button 
-                            onClick={() => alert('Feature button clicked! Event: ' + event.title)}
+                            onClick={() => toast.info('Feature button clicked! Event: ' + event.title)}
                             className="w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-bold border-2 border-red-800"
                           >
                             🔥 TEST FEATURE BUTTON - CLICK ME!
@@ -985,7 +987,7 @@ export const Events = () => {
                             <div className="w-full text-center">
                               <button 
                                 onClick={() => navigate('/login')}
-                                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                                className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm"
                               >
                                 Login to Register
                               </button>
@@ -1012,7 +1014,7 @@ export const Events = () => {
                             <button 
                               onClick={() => handleRegisterForEvent(event.id)}
                               disabled={registeringEvents.has(event.id)}
-                              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {registeringEvents.has(event.id) ? 'Registering...' : 'Register'}
                             </button>
@@ -1040,7 +1042,7 @@ export const Events = () => {
                   setVenueFilter('all');
                   setSortOption('date-asc');
                 }}
-                className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
+                className="px-6 py-3 bg-blue-900 text-white rounded-xl hover:bg-blue-800 transition-colors font-medium"
               >
                 Clear Filters
               </button>
@@ -1159,14 +1161,14 @@ export const Events = () => {
                         <div className="flex space-x-3">
                           <button 
                             onClick={() => handleEditEvent(event.id)}
-                            className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                            className="flex-1 px-4 py-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-medium"
                           >
                             Edit
                           </button>
                           <button 
                             onClick={() => event.status === 'draft' ? handlePublishEvent(event.id) : handleManageEvent(event.id)}
                             disabled={loading}
-                            className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 px-4 py-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {loading ? 'Publishing...' : event.status === 'draft' ? 'Publish' : 'Manage'}
                           </button>
@@ -1193,7 +1195,7 @@ export const Events = () => {
                       <div className="w-full text-center">
                         <button 
                           onClick={() => navigate('/login')}
-                          className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                          className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm"
                         >
                           Login to Register
                         </button>
@@ -1220,7 +1222,7 @@ export const Events = () => {
                       <button 
                         onClick={() => handleRegisterForEvent(event.id)}
                         disabled={registeringEvents.has(event.id)}
-                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {registeringEvents.has(event.id) ? 'Registering...' : 'Register'}
                       </button>
@@ -1267,7 +1269,7 @@ export const Events = () => {
                 <button
                   onClick={confirmRegistration}
                   disabled={registeringEvents.has(eventToRegister.id)}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {registeringEvents.has(eventToRegister.id) ? 'Registering...' : 'Confirm Registration'}
                 </button>
@@ -1299,7 +1301,7 @@ export const Events = () => {
                   setShowSuccessModal(false);
                   setSuccessModalMessage('');
                 }}
-                className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                className="w-full px-6 py-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors font-medium"
               >
                 Got it!
               </button>
@@ -1349,13 +1351,13 @@ export const Events = () => {
               <div className="bg-green-50 rounded-lg p-4">
                 <h4 className="font-semibold text-green-900 mb-2">Quick Actions</h4>
                 <div className="space-y-2">
-                  <button className="w-full px-3 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors">
+                  <button className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors">
                     View Registrations
                   </button>
-                  <button className="w-full px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors">
+                  <button className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors">
                     Generate QR Code
                   </button>
-                  <button className="w-full px-3 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 transition-colors">
+                  <button className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors">
                     View Analytics
                   </button>
                 </div>

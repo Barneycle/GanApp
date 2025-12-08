@@ -679,7 +679,9 @@ export default function SetupProfileScreen() {
 
                 {/* Prefix Dropdown */}
                 <View className="mb-4">
-                  <Text className="text-base font-semibold text-black mb-2">Prefix</Text>
+                  <Text className="text-base font-semibold text-black mb-2">
+                    Prefix <Text className="text-gray-500 font-normal text-sm">(optional)</Text>
+                  </Text>
                   <TouchableOpacity
                     onPress={() => setShowPrefixDropdown(!showPrefixDropdown)}
                     className="flex-row items-center justify-between border border-gray-300 rounded-xl px-3 bg-gray-50 h-12"
@@ -743,7 +745,9 @@ export default function SetupProfileScreen() {
                   className="mb-4"
                   onLayout={handleInputLayout('middleInitial')}
                 >
-                  <Text className="text-base font-semibold text-black mb-2">Middle Initial</Text>
+                  <Text className="text-base font-semibold text-black mb-2">
+                    Middle Initial <Text className="text-gray-500 font-normal text-sm">(optional)</Text>
+                  </Text>
                   <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
                     <Ionicons name="person-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
                     <TextInput
@@ -799,7 +803,9 @@ export default function SetupProfileScreen() {
 
                 {/* Affix Dropdown */}
                 <View className="mb-4">
-                  <Text className="text-base font-semibold text-black mb-2">Affix</Text>
+                  <Text className="text-base font-semibold text-black mb-2">
+                    Affix <Text className="text-gray-500 font-normal text-sm">(optional)</Text>
+                  </Text>
                   <TouchableOpacity
                     onPress={() => setShowAffixDropdown(!showAffixDropdown)}
                     className="flex-row items-center justify-between border border-gray-300 rounded-xl px-3 bg-gray-50 h-12"

@@ -288,7 +288,7 @@ export const SetupProfile = () => {
                 )}
                 <label
                   htmlFor="avatar-upload"
-                  className="absolute bottom-0 right-0 w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-700 transition-colors shadow-lg"
+                  className="absolute bottom-0 right-0 w-10 h-10 bg-blue-900 text-white rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-800 transition-colors shadow-lg"
                 >
                   <Camera className="w-5 h-5" />
                   <input
@@ -312,7 +312,7 @@ export const SetupProfile = () => {
               {/* Prefix Dropdown */}
               <div>
                 <label htmlFor="prefix" className="block text-base font-semibold text-slate-800 mb-2">
-                  Prefix
+                  Prefix <span className="text-slate-500 font-normal text-sm">(optional)</span>
                 </label>
                 <select
                   id="prefix"
@@ -357,7 +357,7 @@ export const SetupProfile = () => {
               {/* Middle Initial Input */}
               <div>
                 <label htmlFor="middle_initial" className="block text-base font-semibold text-slate-800 mb-2">
-                  Middle Initial
+                  Middle Initial <span className="text-slate-500 font-normal text-sm">(optional)</span>
                 </label>
                 <input
                   type="text"
@@ -405,7 +405,7 @@ export const SetupProfile = () => {
               {/* Affix Dropdown */}
               <div>
                 <label htmlFor="affix" className="block text-base font-semibold text-slate-800 mb-2">
-                  Affix
+                  Affix <span className="text-slate-500 font-normal text-sm">(optional)</span>
                 </label>
                 <select
                   id="affix"

@@ -5,6 +5,7 @@ import { Navbar } from "./components/Navbar";
 import { MobileMenu } from "./components/MobileMenu";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "./contexts/AuthContext";
+import { ToastProvider } from "./components/Toast";
 
 function App() {
     const [menuOpen, setMenuOpen] = useState(false);
@@ -28,7 +29,7 @@ function App() {
     }, [isAuthPage, isLoaded]);
 
     return (
-        <>
+        <ToastProvider>
             {!isLoaded && !isAuthPage && <LoadingScreen onComplete={handleLoadingComplete} />}
 
             <div className={`${isAuthPage ? 'h-screen overflow-hidden' : 'min-h-screen'} bg-white text-gray-900`}>
@@ -46,7 +47,7 @@ function App() {
                     </>
                 )}
             </div>
-        </>
+        </ToastProvider>
     );
 }
 

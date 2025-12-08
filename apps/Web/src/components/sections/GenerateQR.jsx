@@ -176,7 +176,7 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
               <p className="text-red-600 mb-4">{error}</p>
               <button
                 onClick={generateEventQRCode}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                className="bg-blue-900 text-white px-4 py-2 rounded-lg hover:bg-blue-800 transition-colors"
               >
                 Try Again
               </button>
@@ -248,7 +248,7 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
               {/* Download Button */}
               <button
                 onClick={downloadQRCode}
-                className="w-full flex items-center justify-center space-x-2 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-semibold"
+                className="w-full flex items-center justify-center space-x-2 bg-blue-900 text-white px-6 py-3 rounded-lg hover:bg-blue-800 transition-colors font-semibold"
               >
                 <Download className="w-5 h-5" />
                 <span>Download PNG</span>
@@ -460,7 +460,7 @@ export default function GenerateQR() {
             <p className="text-gray-600 mb-4">{error}</p>
             <button
               onClick={generateQRCode}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              className="bg-blue-900 text-white px-4 py-2 rounded-lg hover:bg-blue-800 transition-colors"
             >
               Try Again
             </button>

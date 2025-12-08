@@ -298,7 +298,7 @@ export const EditProfile = () => {
               )}
               <label
                 htmlFor="avatar-upload"
-                className="absolute bottom-2 right-2 w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-700 transition-colors shadow-xl"
+                className="absolute bottom-2 right-2 w-14 h-14 bg-blue-900 text-white rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-800 transition-colors shadow-xl"
               >
                 <Camera className="w-7 h-7" />
                 <input

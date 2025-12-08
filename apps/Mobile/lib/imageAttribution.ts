@@ -183,10 +183,10 @@ export async function addAttributionToImage(
               src: finalLogoPath,
               positionOptions: {
                 position: Position.bottomRight,
-                X: -20,
-                Y: -20,
+                X: -40, // Match web padding
+                Y: 0, // Center vertically
               },
-              scale: 0.5,
+              scale: 3.0, // Much bigger to match web version (6x font size)
               alpha: 1.0,
             }
           ] : [],
@@ -280,7 +280,7 @@ export async function addAttributionToImage(
                 markerSrc: logoPathClean,
                 position: 'bottomRight',
                 scale: 1,
-                markerScale: 0.5,
+                markerScale: 3.0, // Much bigger to match web version
                 quality: 100,
               },
               // Variation 2: With file:// prefixes
@@ -289,7 +289,7 @@ export async function addAttributionToImage(
                 markerSrc: logoPath.startsWith('file://') ? logoPath : `file://${logoPath}`,
                 position: 'bottomRight',
                 scale: 1,
-                markerScale: 0.5,
+                markerScale: 3.0, // Much bigger to match web version
                 quality: 100,
               },
               // Variation 3: Using backgroundImage structure (like markText)
@@ -304,10 +304,10 @@ export async function addAttributionToImage(
                   src: logoPathClean,
                   positionOptions: {
                     position: Position.bottomRight,
-                    X: -20,
-                    Y: -20,
+                    X: -40, // Match web padding
+                    Y: 0, // Center vertically
                   },
-                  scale: 0.5,
+                  scale: 3.0, // Much bigger to match web version (6x font size)
                   alpha: 1.0,
                 }],
                 quality: 100,
@@ -323,9 +323,9 @@ export async function addAttributionToImage(
                 watermarkImages: [{
                   src: logoPathClean,
                   position: 'bottomRight',
-                  X: -20,
-                  Y: -20,
-                  scale: 0.5,
+                  X: -40, // Match web padding
+                  Y: 0, // Center vertically
+                  scale: 3.0, // Much bigger to match web version (6x font size)
                 }],
                 quality: 100,
                 filename: filename,
@@ -336,7 +336,7 @@ export async function addAttributionToImage(
                 image: intermediatePath,
                 watermark: logoPathClean,
                 position: 'bottomRight',
-                scale: 0.5,
+                scale: 3.0, // Much bigger to match web version
                 quality: 100,
               },
             ];

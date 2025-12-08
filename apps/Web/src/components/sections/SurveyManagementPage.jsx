@@ -4,10 +4,12 @@ import { useAuth } from '../../contexts/AuthContext';
 import { StatisticsService } from '../../services/statisticsService';
 import { SurveyService } from '../../services/surveyService';
 import { Search, Calendar, FileText, Edit, Lock, Unlock, Clock, ArrowRight } from 'lucide-react';
+import { useToast } from '../Toast';
 
 export default function SurveyManagementPage() {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
   const [eventsWithSurveys, setEventsWithSurveys] = useState([]);
   const [selectedSurvey, setSelectedSurvey] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -93,7 +95,7 @@ export default function SurveyManagementPage() {
     try {
       const result = await SurveyService.toggleSurveyAvailability(selectedSurvey.id);
       if (result.error) {
-        alert('Failed to update survey: ' + result.error);
+        toast.error('Failed to update survey: ' + result.error);
       } else {
         await loadEventsWithSurveys(); // Refresh the list
         // Reload survey details
@@ -101,9 +103,10 @@ export default function SurveyManagementPage() {
         if (updatedSurvey) {
           setSelectedSurvey(updatedSurvey);
         }
+        toast.success('Survey updated successfully');
       }
     } catch (error) {
-      alert('Failed to update survey: ' + error.message);
+      toast.error('Failed to update survey: ' + error.message);
     }
   };
 
@@ -133,9 +136,9 @@ export default function SurveyManagementPage() {
         closesAtCombined
       );
       if (result.error) {
-        alert('Failed to schedule survey: ' + result.error);
+        toast.error('Failed to schedule survey: ' + result.error);
       } else {
-        alert('Survey scheduled successfully!');
+        toast.success('Survey scheduled successfully!');
         await loadEventsWithSurveys();
         // Reload survey details
         const updatedSurvey = await loadSurveyDetails(selectedSurvey.id);
@@ -144,7 +147,7 @@ export default function SurveyManagementPage() {
         }
       }
     } catch (error) {
-      alert('Failed to schedule survey: ' + error.message);
+      toast.error('Failed to schedule survey: ' + error.message);
     }
   };
 
@@ -221,7 +224,7 @@ export default function SurveyManagementPage() {
             <p className="text-slate-600 mb-4">{error}</p>
             <button
               onClick={loadEventsWithSurveys}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors"
             >
               Try Again
             </button>
@@ -423,7 +426,7 @@ export default function SurveyManagementPage() {
                     <div className="space-y-3">
                       <button
                         onClick={() => navigate(`/edit-survey/${selectedSurvey.id}`)}
-                        className="w-full py-3 px-4 rounded-lg font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center justify-center"
+                        className="w-full py-3 px-4 rounded-lg font-medium bg-blue-900 hover:bg-blue-800 text-white transition-colors flex items-center justify-center"
                       >
                         <Edit className="w-4 h-4 mr-2" />
                         Edit Survey
@@ -434,7 +437,7 @@ export default function SurveyManagementPage() {
                         className={`w-full py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center ${
                           selectedSurvey.is_open
                             ? 'bg-red-600 hover:bg-red-700 text-white'
-                            : 'bg-green-600 hover:bg-green-700 text-white'
+                            : 'bg-blue-900 hover:bg-blue-800 text-white'
                         }`}
                       >
                         {selectedSurvey.is_open ? (
@@ -547,7 +550,7 @@ export default function SurveyManagementPage() {
                             className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
                               (!opensAtDate && !closesAtDate)
                                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                : 'bg-blue-900 hover:bg-blue-800 text-white'
                             }`}
                           >
                             Apply Schedule

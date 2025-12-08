@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { SurveyService } from '../../services/surveyService';
 import { useAuth } from '../../contexts/AuthContext';
 import SimpleRichTextEditor from '../SimpleRichTextEditor';
+import { useToast } from '../Toast';
 
 // Zod validation schema for survey questions
 const questionSchema = z.object({
@@ -458,7 +459,7 @@ export const EditSurvey = () => {
         throw new Error(result.error);
       }
       
-      alert('Survey updated successfully!');
+      toast.success('Survey updated successfully!');
       navigate('/survey-management');
       
     } catch (err) {

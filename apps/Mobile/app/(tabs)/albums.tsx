@@ -14,6 +14,7 @@ import {
   StyleSheet,
   Platform,
   TextInput,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -237,6 +238,32 @@ export default function Albums() {
   const downloadPhoto = async (photo: EventPhoto) => {
     if (downloadingPhotoId === photo.id) return;
     
+    // Check if already downloaded and show warning
+    const isAlreadyDownloaded = downloadedPhotoIds.has(photo.id);
+    if (isAlreadyDownloaded) {
+      Alert.alert(
+        'Photo Already Downloaded',
+        'This photo has already been downloaded. Do you want to download it again?',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Download Again',
+            onPress: async () => {
+              await performDownload(photo);
+            },
+          },
+        ]
+      );
+      return;
+    }
+    
+    await performDownload(photo);
+  };
+
+  const performDownload = async (photo: EventPhoto) => {
     setDownloadingPhotoId(photo.id);
     try {
       // Request permissions if needed (iOS only)
@@ -348,6 +375,32 @@ export default function Albums() {
   const downloadAllPhotos = async (event: EventWithPhotos) => {
     if (isDownloadingAll || !event.photos || event.photos.length === 0) return;
 
+    // Check if there are already downloaded photos and show warning
+    const alreadyDownloaded = event.photos.filter(photo => downloadedPhotoIds.has(photo.id));
+    if (alreadyDownloaded.length > 0) {
+      Alert.alert(
+        'Some Photos Already Downloaded',
+        `${alreadyDownloaded.length} photo(s) have already been downloaded. Do you want to download all photos again (including already downloaded ones)?`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Download All',
+            onPress: async () => {
+              await performDownloadAll(event);
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    await performDownloadAll(event);
+  };
+
+  const performDownloadAll = async (event: EventWithPhotos) => {
     setIsDownloadingAll(true);
     setDownloadAllProgress({ current: 0, total: event.photos.length });
 
@@ -362,13 +415,8 @@ export default function Albums() {
         throw new Error('Media library permission is required to save photos');
       }
 
-      // Filter out already downloaded photos
-      const photosToDownload = event.photos.filter(photo => !downloadedPhotoIds.has(photo.id));
-
-      if (photosToDownload.length === 0) {
-        setIsDownloadingAll(false);
-        return;
-      }
+      // Download all photos (including already downloaded ones)
+      const photosToDownload = event.photos;
 
       // Download each photo sequentially
       // Note: On Android, we use MediaStore API (no permissions needed)
@@ -856,23 +904,22 @@ export default function Albums() {
                           resizeMode="cover"
                         />
                       </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => {
-                          if (!downloadedPhotoIds.has(photo.id)) {
-                            downloadPhoto(photo);
-                          }
-                        }}
-                        disabled={downloadingPhotoId === photo.id}
-                        className="absolute top-2 right-2 w-8 h-8 items-center justify-center rounded-full bg-black/60"
-                      >
-                        {downloadingPhotoId === photo.id ? (
-                          <ActivityIndicator size="small" color="#ffffff" />
-                        ) : downloadedPhotoIds.has(photo.id) ? (
-                          <Ionicons name="checkmark-circle" size={18} color="#10b981" />
-                        ) : (
-                          <Ionicons name="download" size={18} color="#ffffff" />
+                      <View className="absolute top-2 right-2 flex-row items-center gap-1">
+                        {downloadedPhotoIds.has(photo.id) && (
+                          <View className="w-2 h-2 bg-green-400 rounded-full" />
                         )}
-                      </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => downloadPhoto(photo)}
+                          disabled={downloadingPhotoId === photo.id}
+                          className="w-8 h-8 items-center justify-center rounded-full bg-black/60"
+                        >
+                          {downloadingPhotoId === photo.id ? (
+                            <ActivityIndicator size="small" color="#ffffff" />
+                          ) : (
+                            <Ionicons name="download" size={18} color="#ffffff" />
+                          )}
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   ))}
                 </View>
@@ -923,17 +970,13 @@ export default function Albums() {
                 <TouchableOpacity
                   onPress={() => {
                     const currentPhoto = selectedEvent.photos[currentPhotoIndex];
-                    if (!downloadedPhotoIds.has(currentPhoto.id)) {
-                      downloadPhoto(currentPhoto);
-                    }
+                    downloadPhoto(currentPhoto);
                   }}
                   disabled={downloadingPhotoId === selectedEvent.photos[currentPhotoIndex].id}
                   className="w-10 h-10 items-center justify-center rounded-full bg-black/50"
                 >
                   {downloadingPhotoId === selectedEvent.photos[currentPhotoIndex].id ? (
                     <ActivityIndicator size="small" color="#ffffff" />
-                  ) : downloadedPhotoIds.has(selectedEvent.photos[currentPhotoIndex].id) ? (
-                    <Ionicons name="checkmark-circle" size={24} color="#10b981" />
                   ) : (
                     <Ionicons name="download" size={24} color="#ffffff" />
                   )}

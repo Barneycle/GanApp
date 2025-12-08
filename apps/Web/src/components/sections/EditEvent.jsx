@@ -17,6 +17,7 @@ import { supabase } from '../../lib/supabaseClient';
 
 import { useAuth } from '../../contexts/AuthContext';
 import CertificateDesigner from '../CertificateDesigner';
+import { useToast } from '../Toast';
 
 // Lazy load RichTextEditor to prevent app-wide crashes
 const RichTextEditor = lazy(() => import('../RichTextEditor'));
@@ -218,7 +219,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
           if (file.size > maxSizeMB * 1024 * 1024) {
 
-            alert(`File ${file.name} is too large. Max size: ${maxSizeMB}MB`);
+            toast.error(`File ${file.name} is too large. Max size: ${maxSizeMB}MB`);
 
             setUploading(false);
 
@@ -1513,7 +1514,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
         // Upload failed
 
-        alert(`Upload failed: ${error.message}`);
+        toast.error(`Upload failed: ${error.message}`);
 
       } finally {
 
@@ -2014,6 +2015,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
 
 export const EditEvent = () => {
+  const toast = useToast();
 
   const navigate = useNavigate();
   const { eventId } = useParams();
@@ -2128,7 +2130,7 @@ export const EditEvent = () => {
 
             onClick={() => navigate('/login')}
 
-            className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
+            className="px-6 py-3 bg-blue-900 text-white rounded-xl hover:bg-blue-800 transition-colors"
 
           >
 
@@ -2162,7 +2164,7 @@ export const EditEvent = () => {
 
             onClick={() => navigate('/')}
 
-            className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
+            className="px-6 py-3 bg-blue-900 text-white rounded-xl hover:bg-blue-800 transition-colors"
 
           >
 
@@ -2971,7 +2973,7 @@ export const EditEvent = () => {
 
     if (!canManageEvents) {
 
-      alert('Access denied. Only administrators and organizers can edit events.');
+      toast.error('Access denied. Only administrators and organizers can edit events.');
 
       return;
 
@@ -4519,7 +4521,7 @@ export const EditEvent = () => {
                 <button
                   type="button"
                   onClick={addSponsor}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
+                  className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors duration-200 flex items-center space-x-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -4726,7 +4728,7 @@ export const EditEvent = () => {
                 <button
                   type="button"
                   onClick={addSpeaker}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
+                  className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors duration-200 flex items-center space-x-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -5125,7 +5127,7 @@ export const EditEvent = () => {
 
                 isValid
 
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  ? 'bg-blue-900 text-white hover:bg-blue-800'
 
                   : 'bg-slate-200 text-slate-500 cursor-not-allowed'
 

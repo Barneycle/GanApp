@@ -44,7 +44,7 @@ class RichTextEditorErrorBoundary extends Component {
   }
 }
 
-const RichTextEditor = ({ value, onChange, placeholder = "Enter text...", className = "" }) => {
+const RichTextEditor = ({ value, onChange, placeholder = "Enter text...", className = "", toast = null }) => {
   const [error, setError] = useState(null);
   
   const editor = useEditor({
@@ -143,7 +143,11 @@ const RichTextEditor = ({ value, onChange, placeholder = "Enter text...", classN
 
         if (uploadError) {
           console.error('Error uploading image:', uploadError);
-          alert('Failed to upload image. Please try again.');
+          if (toast) {
+            toast.error('Failed to upload image. Please try again.');
+          } else {
+            alert('Failed to upload image. Please try again.');
+          }
           return;
         }
 
@@ -156,7 +160,11 @@ const RichTextEditor = ({ value, onChange, placeholder = "Enter text...", classN
         }
       } catch (error) {
         console.error('Error handling image upload:', error);
-        alert('Failed to upload image. Please try again.');
+        if (toast) {
+          toast.error('Failed to upload image. Please try again.');
+        } else {
+          alert('Failed to upload image. Please try again.');
+        }
       }
     };
   }, [editor]);

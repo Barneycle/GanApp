@@ -407,6 +407,13 @@ export const Navbar = () => {
                        >
                          My Events
                        </Link>
+                       <Link
+                         to="/albums"
+                         className="block px-4 py-2 text-sm text-gray-300 hover:bg-blue-900 hover:text-white transition-colors"
+                         onClick={closeEventsDropdown}
+                       >
+                         Albums
+                       </Link>
                      </div>
                    )}
                  </div>
@@ -461,7 +468,7 @@ export const Navbar = () => {
                         <div className="flex items-center space-x-2">
                           <button
                             onClick={handleCreateTestNotification}
-                            className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                            className="flex-1 px-3 py-1.5 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-medium"
                           >
                             Test Notification
                           </button>
@@ -637,7 +644,7 @@ export const Navbar = () => {
             ) : (
                              <Link
                  to="/login"
-                 className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl transition-all duration-300 border border-blue-600/50 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-600/25 hover:scale-105"
+                 className="px-6 py-3 bg-blue-900 hover:bg-blue-800 text-white text-sm font-semibold rounded-xl transition-all duration-300 border border-blue-900/50 hover:border-blue-800 hover:shadow-lg hover:shadow-blue-900/25 hover:scale-105"
                >
                 Sign In
               </Link>
@@ -769,6 +776,13 @@ export const Navbar = () => {
                         >
                           My Events
                         </Link>
+                        <Link
+                          to="/albums"
+                          className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
+                          onClick={() => setIsMobileMenuOpen(false)}
+                        >
+                          Albums
+                        </Link>
                       </div>
                     </div>
                   </>
@@ -819,7 +833,7 @@ export const Navbar = () => {
                <div className="pt-4 border-t border-blue-800/50">
                                    <Link
                     to="/login"
-                    className="block w-full px-6 py-4 bg-blue-600 hover:bg-blue-500 text-white text-lg font-semibold rounded-xl transition-all duration-300 border border-blue-600/50 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-600/25 text-center"
+                    className="block w-full px-6 py-4 bg-blue-900 hover:bg-blue-800 text-white text-lg font-semibold rounded-xl transition-all duration-300 border border-blue-900/50 hover:border-blue-800 hover:shadow-lg hover:shadow-blue-900/25 text-center"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                    Sign In
