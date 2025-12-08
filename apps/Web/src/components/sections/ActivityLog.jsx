@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { ActivityLogService } from '../../services/activityLogService';
 import { usePageVisibility } from '../../hooks/usePageVisibility';
-import { Clock, User, FileText, Calendar, Search, Filter, Download, RefreshCw } from 'lucide-react';
+import { Clock, User, FileText, Calendar, Search, Filter, Download, RefreshCw, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
 
 export const ActivityLog = () => {
   const navigate = useNavigate();
@@ -78,7 +78,14 @@ export const ActivityLog = () => {
       );
 
       if (result.error) {
-        setError(result.error);
+        // Show user-friendly error message
+        if (result.error.includes('table not found') || result.error.includes('schema cache') || result.error.includes('does not exist')) {
+          setError('Activity logs feature is not available. The database table needs to be created. Please contact your administrator.');
+        } else if (result.error.includes('permission denied') || result.error.includes('row-level security')) {
+          setError('Permission denied. Please ensure RLS policies are correctly configured. You may need to run the SQL migration to create the necessary policies.');
+        } else {
+          setError(result.error);
+        }
       } else {
         if (isVisible) {
           setLogs(result.logs || []);
@@ -177,6 +184,11 @@ export const ActivityLog = () => {
   return (
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold text-slate-900">Activity Log</h1>
+        </div>
+
         {/* Filters */}
         <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -199,7 +211,7 @@ export const ActivityLog = () => {
               </button>
               <button
                 onClick={loadLogs}
-                className="p-2 text-slate-600 hover:text-slate-800"
+                className="p-2 text-slate-600 hover:text-slate-800 transition-transform hover:rotate-180"
                 title="Refresh"
               >
                 <RefreshCw className="w-5 h-5" />
@@ -279,28 +291,47 @@ export const ActivityLog = () => {
         </div>
 
         {/* Stats */}
-        <div className="mb-6">
-          <p className="text-sm text-slate-600">
-            Showing {logs.length} of {total} logs
-          </p>
-        </div>
+        {!error && (
+          <div className="mb-6">
+            <p className="text-sm text-slate-600">
+              Showing {logs.length} of {total} logs
+            </p>
+          </div>
+        )}
 
         {/* Error Message */}
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800">{error}</p>
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+              </div>
+              <div className="ml-3 flex-1">
+                <h3 className="text-sm font-medium text-red-800 mb-2">
+                  Error Loading Activity Logs
+                </h3>
+                <p className="text-sm text-red-700">
+                  {error}
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
         {/* Logs Table */}
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
-          {logs.length === 0 ? (
-            <div className="p-12 text-center">
-              <Clock className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-slate-800 mb-2">No Activity Logs</h3>
-              <p className="text-slate-600">No activity logs match your filters.</p>
-            </div>
-          ) : (
+        {!error && (
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
+            {logs.length === 0 ? (
+              <div className="p-12 text-center">
+                <Clock className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-slate-800 mb-2">No Activity Logs</h3>
+                <p className="text-slate-600">
+                  {total === 0 
+                    ? "No activity logs have been recorded yet." 
+                    : "No activity logs match your filters."}
+                </p>
+              </div>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gradient-to-r from-blue-50 to-slate-50">
@@ -334,10 +365,21 @@ export const ActivityLog = () => {
                             <User className="w-4 h-4 text-blue-600" />
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-slate-900">
-                              {log.user?.first_name} {log.user?.last_name}
-                            </p>
-                            <p className="text-xs text-slate-500">{log.user?.email}</p>
+                            {log.user?.first_name || log.user?.last_name ? (
+                              <>
+                                <p className="text-sm font-medium text-slate-900">
+                                  {log.user?.first_name} {log.user?.last_name}
+                                </p>
+                                <p className="text-xs text-slate-500">{log.user?.email || 'No email'}</p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-sm font-medium text-slate-900">
+                                  User {log.user_id.substring(0, 8)}...
+                                </p>
+                                <p className="text-xs text-slate-500">{log.user?.email || 'Unknown'}</p>
+                              </>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -372,18 +414,20 @@ export const ActivityLog = () => {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="mt-6 flex items-center justify-between">
+        {!error && totalPages > 1 && (
+          <div className="mt-6 flex items-center justify-center space-x-4">
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
-              Previous
+              <ChevronLeft className="w-5 h-5" />
+              <span>Previous</span>
             </button>
             <span className="text-sm text-slate-600">
               Page {page} of {totalPages}
@@ -391,9 +435,10 @@ export const ActivityLog = () => {
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
-              Next
+              <span>Next</span>
+              <ChevronRight className="w-5 h-5" />
             </button>
           </div>
         )}

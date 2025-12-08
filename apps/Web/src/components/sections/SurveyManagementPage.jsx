@@ -240,7 +240,7 @@ export default function SurveyManagementPage() {
         {/* Header */}
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-slate-900 mb-2">
-            Survey Management
+            Evaluation Management
           </h2>
           <p className="text-slate-600">
             Manage survey availability and settings for all events

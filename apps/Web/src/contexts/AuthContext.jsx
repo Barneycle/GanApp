@@ -336,6 +336,50 @@ export function AuthProvider({ children }) {
     return user;
   };
 
+  // Refresh user data from Supabase
+  const refreshUser = async () => {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      
+      if (session) {
+        const bannedMessage = await checkBannedStatus(session.user);
+        if (bannedMessage) {
+          return;
+        }
+        
+        // Fetch updated user profile
+        const userData = await UserService.getCurrentUser();
+        if (userData && !userData.error) {
+          setUser(userData);
+        } else {
+          // Fallback to metadata if getCurrentUser fails
+          const userDataFromMetadata = {
+            id: session.user.id,
+            email: session.user.email,
+            role: session.user.user_metadata?.role || 'participant',
+            prefix: session.user.user_metadata?.prefix || '',
+            first_name: session.user.user_metadata?.first_name || '',
+            middle_initial: session.user.user_metadata?.middle_initial || '',
+            last_name: session.user.user_metadata?.last_name || '',
+            affix: session.user.user_metadata?.affix || '',
+            avatar_url: session.user.user_metadata?.avatar_url || '',
+            affiliated_organization: session.user.user_metadata?.affiliated_organization || '',
+            created_at: session.user.created_at,
+            updated_at: session.user.updated_at || session.user.created_at
+          };
+          setUser(userDataFromMetadata);
+        }
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to refresh user data');
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -347,6 +391,7 @@ export function AuthProvider({ children }) {
     getCurrentUser,
     getRedirectPath,
     clearAuthData,
+    refreshUser,
     isAuthenticated: !!user
   };
 

@@ -385,17 +385,6 @@ export class AdminService {
         return { error: 'Only administrators can review cancellation requests' };
       }
 
-      // Additional check: verify admin role in users table
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      if (!userError && userData && userData.role !== 'admin') {
-        return { error: 'Only administrators can review cancellation requests' };
-      }
-
       const { error } = await supabase.rpc('review_cancellation_request', {
         request_uuid: requestId,
         new_status_text: status,

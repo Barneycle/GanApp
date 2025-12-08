@@ -135,8 +135,11 @@ export const Events = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const toast = useToast();
+  const [activeTab, setActiveTab] = useState('active'); // 'active' or 'archived'
   const [events, setEvents] = useState([]);
+  const [archivedEvents, setArchivedEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [archivedLoading, setArchivedLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [userRegistrations, setUserRegistrations] = useState(new Set());
@@ -170,9 +173,47 @@ export const Events = () => {
       loadEvents();
       if (user) {
         loadUserRegistrations();
+        // Load archived events for organizers and participants
+        if (user.role === 'organizer' || user.role === 'participant') {
+          loadArchivedEvents();
+        }
       }
     }
   }, [user?.id, user?.role]); // Only depend on user ID and role, not the entire user object
+
+  // Load archived events when switching to archived tab
+  useEffect(() => {
+    if (activeTab === 'archived' && archivedEvents.length === 0 && !archivedLoading && user) {
+      loadArchivedEvents();
+    }
+  }, [activeTab, user]);
+
+  const loadArchivedEvents = async () => {
+    if (!isVisible || archivedLoading) return;
+
+    try {
+      setArchivedLoading(true);
+      const result = await EventService.getArchivedEvents();
+      
+      if (isVisible) {
+        if (result.error) {
+          console.error('Error loading archived events:', result.error);
+          setArchivedEvents([]);
+        } else {
+          setArchivedEvents(result.events || []);
+        }
+      }
+    } catch (err) {
+      if (isVisible) {
+        console.error('Failed to load archived events:', err);
+        setArchivedEvents([]);
+      }
+    } finally {
+      if (isVisible) {
+        setArchivedLoading(false);
+      }
+    }
+  };
 
   const loadEvents = async () => {
     // Don't start loading if page is not visible
@@ -518,10 +559,13 @@ export const Events = () => {
     });
   };
 
-  // Get unique venues from events
+  // Get unique venues from events (for active events)
   const uniqueVenues = [...new Set(events.map(event => event.venue).filter(v => v && v !== 'Location TBD' && v.trim() !== ''))].sort();
 
-  // Filter and sort events
+  // Get unique venues from archived events
+  const uniqueArchivedVenues = [...new Set(archivedEvents.map(event => event.venue).filter(v => v && v !== 'Location TBD' && v.trim() !== ''))].sort();
+
+  // Filter and sort active events
   const filteredAndSortedEvents = events.filter(event => {
     // Search filter
     if (searchQuery.trim()) {
@@ -566,7 +610,56 @@ export const Events = () => {
     }
   });
 
-  if (loading) {
+  // Filter and sort archived events
+  const filteredAndSortedArchivedEvents = archivedEvents.filter(event => {
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = 
+        event.title.toLowerCase().includes(query) ||
+        (event.venue && event.venue.toLowerCase().includes(query)) ||
+        (event.rationale && event.rationale.toLowerCase().includes(query));
+      if (!matchesSearch) return false;
+    }
+
+    // Date filter
+    const now = new Date();
+    if (dateFilter === 'upcoming') {
+      if (new Date(event.start_date) < now) return false;
+    } else if (dateFilter === 'past') {
+      if (new Date(event.end_date) >= now) return false;
+    }
+
+    // Venue filter
+    if (venueFilter !== 'all' && event.venue !== venueFilter) {
+      return false;
+    }
+
+    return true;
+  }).sort((a, b) => {
+    switch (sortOption) {
+      case 'date-asc':
+        return new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
+      case 'date-desc':
+        return new Date(b.start_date).getTime() - new Date(a.start_date).getTime();
+      case 'title-asc':
+        return a.title.localeCompare(b.title);
+      case 'title-desc':
+        return b.title.localeCompare(a.title);
+      case 'participants-asc':
+        return (a.current_participants || 0) - (b.current_participants || 0);
+      case 'participants-desc':
+        return (b.current_participants || 0) - (a.current_participants || 0);
+      default:
+        return 0;
+    }
+  });
+
+  // Determine which events to display based on active tab
+  const displayEvents = activeTab === 'archived' ? filteredAndSortedArchivedEvents : filteredAndSortedEvents;
+  const isLoading = activeTab === 'archived' ? archivedLoading : loading;
+
+  if (isLoading && (activeTab === 'active' ? events.length === 0 : archivedEvents.length === 0)) {
     return (
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
         <div className="text-center">
@@ -673,6 +766,32 @@ export const Events = () => {
         <div className="text-center mb-8 sm:mb-12">
         </div>
 
+        {/* Tabs for Organizers and Participants */}
+        {(user?.role === 'organizer' || user?.role === 'participant') && (
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-2 mb-8 flex gap-2">
+            <button
+              onClick={() => setActiveTab('active')}
+              className={`flex-1 px-6 py-3 rounded-xl font-medium transition-colors ${
+                activeTab === 'active'
+                  ? 'bg-blue-900 text-white'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Active Events
+            </button>
+            <button
+              onClick={() => setActiveTab('archived')}
+              className={`flex-1 px-6 py-3 rounded-xl font-medium transition-colors ${
+                activeTab === 'archived'
+                  ? 'bg-blue-900 text-white'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Archived Events
+            </button>
+          </div>
+        )}
+
         {/* Search and Filter Bar */}
         <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8">
           <div className="flex flex-col lg:flex-row gap-4">
@@ -739,7 +858,7 @@ export const Events = () => {
                 </div>
 
                 {/* Venue Filter */}
-                {uniqueVenues.length > 0 && (
+                {(activeTab === 'active' ? uniqueVenues : uniqueArchivedVenues).length > 0 && (
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Venue</label>
                     <select
@@ -748,7 +867,7 @@ export const Events = () => {
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="all">All Venues</option>
-                      {uniqueVenues.map((venue) => (
+                      {(activeTab === 'active' ? uniqueVenues : uniqueArchivedVenues).map((venue) => (
                         <option key={venue} value={venue}>{venue}</option>
                       ))}
                     </select>
@@ -790,7 +909,7 @@ export const Events = () => {
 
               {/* Results Count */}
               <div className="mt-4 text-sm text-slate-600">
-                Showing {filteredAndSortedEvents.length} of {events.length} events
+                Showing {displayEvents.length} of {activeTab === 'archived' ? archivedEvents.length : events.length} {activeTab === 'archived' ? 'archived' : ''} events
               </div>
             </div>
           )}
@@ -819,7 +938,7 @@ export const Events = () => {
         )}
 
         {/* Events Grid */}
-        {filteredAndSortedEvents.length === 0 && events.length === 0 ? (
+        {displayEvents.length === 0 && (activeTab === 'archived' ? archivedEvents.length === 0 : events.length === 0) ? (
           <div className="text-center py-12">
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto mb-8">
               <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1027,13 +1146,15 @@ export const Events = () => {
               </div>
             ) : null}
           </div>
-        ) : filteredAndSortedEvents.length === 0 ? (
+        ) : displayEvents.length === 0 ? (
           <div className="text-center py-12">
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto">
               <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              <h3 className="text-xl font-semibold text-slate-800 mb-2">No Events Match Your Filters</h3>
+              <h3 className="text-xl font-semibold text-slate-800 mb-2">
+                {activeTab === 'archived' ? 'No Archived Events Match Your Filters' : 'No Events Match Your Filters'}
+              </h3>
               <p className="text-slate-600 mb-4">Try adjusting your search or filters.</p>
               <button
                 onClick={() => {
@@ -1050,7 +1171,7 @@ export const Events = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredAndSortedEvents.map((event) => (
+            {displayEvents.map((event) => (
               <div key={event.id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden">
                 {/* Event Banner */}
                 {event.banner_url && (
@@ -1075,12 +1196,16 @@ export const Events = () => {
                   <div className="flex items-start justify-between mb-4">
                     <h3 className="text-xl font-bold text-slate-800 flex-1">{event.title}</h3>
                     <span className={`ml-2 px-3 py-1 rounded-full text-xs font-medium ${
-                      event.status === 'published' ? 'bg-green-100 text-green-800' :
-                      event.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
-                      event.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
+                      activeTab === 'archived' 
+                        ? event.status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-800'
+                        : event.status === 'published' ? 'bg-green-100 text-green-800' :
+                          event.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+                          event.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
                     }`}>
-                      {event.status}
+                      {activeTab === 'archived' 
+                        ? event.status === 'cancelled' ? 'Cancelled' : 'Completed'
+                        : event.status}
                     </span>
                   </div>
                   
@@ -1156,7 +1281,21 @@ export const Events = () => {
                   
                   {/* Action Buttons */}
                   <div className="flex flex-col space-y-3 mt-6">
-                    {user?.role === 'organizer' || user?.role === 'admin' ? (
+                    {activeTab === 'archived' ? (
+                      <div className="w-full bg-slate-50 rounded-lg p-3 border border-slate-200 text-center">
+                        <p className="text-sm text-slate-600">
+                          {event.status === 'cancelled' ? 'This event was cancelled' : 'This event has been completed'}
+                        </p>
+                        {event.archive_reason && (
+                          <p className="text-xs text-slate-500 mt-1">{event.archive_reason}</p>
+                        )}
+                        {event.archived_at && (
+                          <p className="text-xs text-slate-500 mt-1">
+                            Archived on {new Date(event.archived_at).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    ) : user?.role === 'organizer' || user?.role === 'admin' ? (
                       <>
                         <div className="flex space-x-3">
                           <button 
@@ -1191,7 +1330,7 @@ export const Events = () => {
                           </button>
                         )}
                       </>
-                    ) : !user ? (
+                    ) : activeTab === 'archived' ? null : !user ? (
                       <div className="w-full text-center">
                         <button 
                           onClick={() => navigate('/login')}

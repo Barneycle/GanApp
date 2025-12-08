@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { AdminService } from '../../services/adminService';
+import { SystemSettingsService } from '../../services/systemSettingsService';
 
 export const Admin = () => {
   const navigate = useNavigate();
@@ -71,11 +72,6 @@ export const Admin = () => {
   return (
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-800 mb-2">Admin Dashboard</h1>
-          <p className="text-slate-600">Manage users, events, and system settings</p>
-        </div>
 
         {/* Error Messages */}
         {error && (
@@ -1673,6 +1669,7 @@ const AnalyticsTab = () => {
 
 // Settings Tab Component
 const SettingsTab = () => {
+  const { user } = useAuth();
   const [settings, setSettings] = useState({
     maintenance_mode: false,
     registration_enabled: true,
@@ -1694,9 +1691,18 @@ const SettingsTab = () => {
   const loadSettings = async () => {
     setLoading(true);
     setError('');
-    // In a real app, this would fetch from a settings table
-    // For now, we'll use default values
-    setLoading(false);
+    try {
+      const { settings: loadedSettings, error: loadError } = await SystemSettingsService.getSystemSettings();
+      if (loadError) {
+        setError(loadError);
+      } else if (loadedSettings) {
+        setSettings(loadedSettings);
+      }
+    } catch (err) {
+      setError('Failed to load settings');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSettingChange = (key, value) => {
@@ -1705,16 +1711,23 @@ const SettingsTab = () => {
   };
 
   const handleSave = async () => {
+    if (!user?.id) {
+      setError('User not authenticated');
+      return;
+    }
+
     setSaving(true);
     setError('');
     setSuccess('');
 
     try {
-      // In a real app, this would save to a settings table
-      // For now, we'll just simulate success
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setSuccess('Settings saved successfully!');
-      setTimeout(() => setSuccess(''), 3000);
+      const { success: saveSuccess, error: saveError } = await SystemSettingsService.updateSystemSettings(settings, user.id);
+      if (saveError) {
+        setError(saveError);
+      } else if (saveSuccess) {
+        setSuccess('Settings saved successfully!');
+        setTimeout(() => setSuccess(''), 3000);
+      }
     } catch (err) {
       setError('Failed to save settings');
     } finally {

@@ -6,7 +6,7 @@ import { Camera, X, Info } from 'lucide-react';
 
 export const SetupProfile = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated, loading: authLoading, refreshUser, setUser } = useAuth();
+  const { user, isAuthenticated, loading: authLoading, refreshUser } = useAuth();
   const fileInputRef = useRef(null);
   const [formData, setFormData] = useState({
     prefix: '',
@@ -186,13 +186,8 @@ export const SetupProfile = () => {
       if (result.error) {
         setError(result.error);
       } else {
-        // Update user context with the new data
-        if (result.user) {
-          setUser(result.user);
-        } else {
-          // Fallback: refresh user data
-          await refreshUser();
-        }
+        // Refresh user data from the server
+        await refreshUser();
         
         // Redirect based on role
         if (user?.role === 'admin') {

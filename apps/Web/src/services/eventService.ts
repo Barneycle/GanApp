@@ -647,4 +647,52 @@ export class EventService {
       return { error: 'An unexpected error occurred' };
     }
   }
+
+  /**
+   * Get all archived events (for organizers and participants)
+   */
+  static async getArchivedEvents(): Promise<{ events?: Event[]; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('archived_events')
+        .select('*')
+        .order('archived_at', { ascending: false });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      // Transform archived events to match Event interface
+      const events = (data || []).map((archived) => ({
+        id: archived.original_event_id || archived.id,
+        title: archived.title,
+        rationale: archived.rationale || archived.description || '',
+        start_date: archived.start_date,
+        end_date: archived.end_date,
+        start_time: archived.start_time,
+        end_time: archived.end_time,
+        venue: archived.venue,
+        status: archived.status === 'cancelled' ? 'cancelled' : 'completed',
+        is_featured: archived.is_featured || false,
+        max_participants: archived.max_participants,
+        current_participants: archived.final_participant_count || 0,
+        created_by: archived.created_by,
+        created_at: archived.original_created_at,
+        updated_at: archived.original_updated_at,
+        banner_url: archived.banner_url,
+        materials_url: archived.materials_url,
+        event_programmes_url: archived.programme_url,
+        certificate_templates_url: null,
+        event_kits_url: archived.event_kits_url,
+        sponsors: archived.sponsors,
+        guest_speakers: archived.guest_speakers,
+        archived_at: archived.archived_at,
+        archive_reason: archived.archive_reason,
+      }));
+
+      return { events };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
 }

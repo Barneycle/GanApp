@@ -1,35 +1,18 @@
 -- =====================================================
--- ACTIVITY LOGS / AUDIT TRAIL TABLE
+-- FIX ACTIVITY LOGS SETUP
 -- =====================================================
--- This table tracks all user actions for audit purposes
+-- This script adds missing RLS policies and functions
+-- for an existing activity_logs table
+-- =====================================================
 
-CREATE TABLE IF NOT EXISTS activity_logs (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL, -- References auth.users(id) - no FK constraint since auth.users is in different schema
-  action VARCHAR(50) NOT NULL, -- 'create', 'update', 'delete', 'view', 'login', 'logout', etc.
-  resource_type VARCHAR(50) NOT NULL, -- 'event', 'survey', 'user', 'registration', etc.
-  resource_id UUID, -- ID of the affected resource
-  resource_name TEXT, -- Human-readable name of the resource
-  details JSONB, -- Additional details about the action (before/after values, etc.)
-  ip_address INET,
-  user_agent TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
-);
-
--- Enable Row Level Security
-ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
-
--- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_activity_logs_user_id ON activity_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action);
-CREATE INDEX IF NOT EXISTS idx_activity_logs_resource_type ON activity_logs(resource_type);
-CREATE INDEX IF NOT EXISTS idx_activity_logs_resource_id ON activity_logs(resource_id);
-CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created_at DESC);
-
--- Composite indexes for common query patterns
-CREATE INDEX IF NOT EXISTS idx_activity_logs_user_created ON activity_logs(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_activity_logs_resource_created ON activity_logs(resource_type, resource_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_activity_logs_action_resource ON activity_logs(action, resource_type, created_at DESC);
+-- Drop ALL existing policies (including any variations)
+DROP POLICY IF EXISTS "Users can view their own activity logs" ON activity_logs;
+DROP POLICY IF EXISTS "Admins can view all activity logs" ON activity_logs;
+DROP POLICY IF EXISTS "Users can create their own activity logs" ON activity_logs;
+DROP POLICY IF EXISTS "Admins can delete activity logs" ON activity_logs;
+DROP POLICY IF EXISTS "Admins can update activity logs" ON activity_logs;
+DROP POLICY IF EXISTS "Admins can view activity logs" ON activity_logs;
+DROP POLICY IF EXISTS "Admins can insert activity logs" ON activity_logs;
 
 -- =====================================================
 -- HELPER FUNCTION: Check if user is admin
@@ -60,7 +43,7 @@ $$;
 GRANT EXECUTE ON FUNCTION is_admin(UUID) TO authenticated;
 
 -- =====================================================
--- ROW LEVEL SECURITY POLICIES
+-- ROW LEVEL SECURITY POLICIES - ADMIN ONLY
 -- =====================================================
 
 -- Only admins can view activity logs
@@ -88,7 +71,10 @@ CREATE POLICY "Admins can delete activity logs"
   FOR DELETE
   USING (is_admin(auth.uid()));
 
--- Function to automatically log activity
+-- =====================================================
+-- FUNCTION: Log Activity
+-- =====================================================
+
 CREATE OR REPLACE FUNCTION log_activity(
   p_user_id UUID,
   p_action VARCHAR,
@@ -129,11 +115,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Grant permission to authenticated users to call this function
+GRANT EXECUTE ON FUNCTION log_activity(UUID, VARCHAR, VARCHAR, UUID, TEXT, JSONB, INET, TEXT) TO authenticated;
+
 -- =====================================================
 -- HELPER FUNCTION: Get User Profile
 -- =====================================================
 -- This function allows fetching user profile from auth.users
--- It should already exist, but we'll create it if it doesn't
 
 CREATE OR REPLACE FUNCTION get_user_profile(user_id UUID)
 RETURNS JSON
@@ -163,5 +151,35 @@ $$;
 -- Grant permission to authenticated users to call this function
 GRANT EXECUTE ON FUNCTION get_user_profile(UUID) TO authenticated;
 
-COMMENT ON FUNCTION get_user_profile(UUID) IS 'Get user profile information from auth.users table';
+-- =====================================================
+-- VERIFY SETUP
+-- =====================================================
+
+-- Check if table exists and has RLS enabled
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'activity_logs') THEN
+    RAISE NOTICE '✓ activity_logs table exists';
+  ELSE
+    RAISE WARNING '✗ activity_logs table does NOT exist';
+  END IF;
+  
+  IF EXISTS (SELECT FROM pg_policies WHERE tablename = 'activity_logs') THEN
+    RAISE NOTICE '✓ RLS policies exist';
+  ELSE
+    RAISE WARNING '✗ RLS policies do NOT exist';
+  END IF;
+  
+  IF EXISTS (SELECT FROM pg_proc WHERE proname = 'log_activity') THEN
+    RAISE NOTICE '✓ log_activity function exists';
+  ELSE
+    RAISE WARNING '✗ log_activity function does NOT exist';
+  END IF;
+  
+  IF EXISTS (SELECT FROM pg_proc WHERE proname = 'get_user_profile') THEN
+    RAISE NOTICE '✓ get_user_profile function exists';
+  ELSE
+    RAISE WARNING '✗ get_user_profile function does NOT exist';
+  END IF;
+END $$;
 

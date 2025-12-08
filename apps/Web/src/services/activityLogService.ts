@@ -64,6 +64,11 @@ export class ActivityLogService {
       });
 
       if (error) {
+        // Handle missing table/function error gracefully - don't fail the operation
+        if (error.message?.includes('schema cache') || error.message?.includes('does not exist') || error.message?.includes('function') && error.message?.includes('log_activity')) {
+          console.warn('Activity logs table or function not found. Activity logging is disabled. Please run the database migration to create the activity_logs table.');
+          return { success: false, error: 'Activity logs table not found' };
+        }
         console.error('Error logging activity:', error);
         return { success: false, error: error.message };
       }
@@ -87,14 +92,7 @@ export class ActivityLogService {
       let query = supabase
         .from('activity_logs')
         .select(`
-          *,
-          user:users!activity_logs_user_id_fkey (
-            id,
-            first_name,
-            last_name,
-            email,
-            role
-          )
+          *
         `, { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -132,10 +130,57 @@ export class ActivityLogService {
       const { data, error, count } = await query;
 
       if (error) {
-        return { error: error.message };
+        // Handle missing table error gracefully
+        if (error.message?.includes('schema cache') || 
+            error.message?.includes('does not exist') ||
+            error.message?.includes('relation "activity_logs" does not exist')) {
+          return { error: 'Activity logs table not found. Please run the database migration to create the activity_logs table.' };
+        }
+        // Handle RLS/permission errors
+        if (error.message?.includes('permission denied') || 
+            error.message?.includes('new row violates row-level security')) {
+          return { error: 'Permission denied. Please ensure RLS policies are correctly configured for the activity_logs table.' };
+        }
+        // Return the actual error for debugging
+        console.error('Activity logs query error:', error);
+        return { error: error.message || 'Failed to load activity logs' };
       }
 
-      return { logs: data || [], total: count || 0 };
+      // Fetch user information for each log using RPC function (if available)
+      const logsWithUsers = await Promise.all((data || []).map(async (log) => {
+        try {
+          const { data: userData, error: rpcError } = await supabase.rpc('get_user_profile', { user_id: log.user_id });
+          if (!rpcError && userData) {
+            const profile = typeof userData === 'string' ? JSON.parse(userData) : userData;
+            return {
+              ...log,
+              user: {
+                id: log.user_id,
+                first_name: profile.first_name || '',
+                last_name: profile.last_name || '',
+                email: profile.email || '',
+                role: profile.role || 'participant'
+              }
+            };
+          }
+        } catch (err) {
+          // RPC function might not exist, that's okay - just show user_id
+          console.warn('Failed to fetch user for activity log:', err);
+        }
+        // Fallback: return log with minimal user info
+        return {
+          ...log,
+          user: {
+            id: log.user_id,
+            first_name: '',
+            last_name: '',
+            email: log.user_id.substring(0, 8) + '...', // Show partial ID as fallback
+            role: 'participant'
+          }
+        };
+      }));
+
+      return { logs: logsWithUsers, total: count || 0 };
     } catch (error: any) {
       return { error: error.message || 'An unexpected error occurred' };
     }
@@ -152,24 +197,55 @@ export class ActivityLogService {
       const { data, error } = await supabase
         .from('activity_logs')
         .select(`
-          *,
-          user:users!activity_logs_user_id_fkey (
-            id,
-            first_name,
-            last_name,
-            email,
-            role
-          )
+          *
         `)
         .eq('resource_type', resourceType)
         .eq('resource_id', resourceId)
         .order('created_at', { ascending: false });
 
       if (error) {
+        // Handle missing table error gracefully
+        if (error.message?.includes('schema cache') || error.message?.includes('does not exist')) {
+          return { error: 'Activity logs table not found. Please run the database migration to create the activity_logs table.' };
+        }
         return { error: error.message };
       }
 
-      return { logs: data || [] };
+      // Fetch user information for each log (if RPC function is available)
+      const logsWithUsers = await Promise.all((data || []).map(async (log) => {
+        try {
+          const { data: userData, error: rpcError } = await supabase.rpc('get_user_profile', { user_id: log.user_id });
+          if (!rpcError && userData) {
+            const profile = typeof userData === 'string' ? JSON.parse(userData) : userData;
+            return {
+              ...log,
+              user: {
+                id: log.user_id,
+                first_name: profile.first_name || '',
+                last_name: profile.last_name || '',
+                email: profile.email || '',
+                role: profile.role || 'participant'
+              }
+            };
+          }
+        } catch (err) {
+          // RPC function might not exist, that's okay - just show user_id
+          console.warn('Failed to fetch user for activity log:', err);
+        }
+        // Fallback: return log with minimal user info
+        return {
+          ...log,
+          user: {
+            id: log.user_id,
+            first_name: '',
+            last_name: '',
+            email: log.user_id.substring(0, 8) + '...', // Show partial ID as fallback
+            role: 'participant'
+          }
+        };
+      }));
+
+      return { logs: logsWithUsers };
     } catch (error: any) {
       return { error: error.message || 'An unexpected error occurred' };
     }
@@ -193,6 +269,10 @@ export class ActivityLogService {
         .gte('created_at', startDate.toISOString());
 
       if (error) {
+        // Handle missing table error gracefully
+        if (error.message?.includes('schema cache') || error.message?.includes('does not exist')) {
+          return { error: 'Activity logs table not found. Please run the database migration to create the activity_logs table.' };
+        }
         return { error: error.message };
       }
 
@@ -232,6 +312,10 @@ export class ActivityLogService {
         .select('id');
 
       if (error) {
+        // Handle missing table error gracefully
+        if (error.message?.includes('schema cache') || error.message?.includes('does not exist')) {
+          return { success: false, error: 'Activity logs table not found. Please run the database migration to create the activity_logs table.' };
+        }
         return { success: false, error: error.message };
       }
 
