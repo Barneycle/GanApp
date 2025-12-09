@@ -35,6 +35,7 @@ import { decodeHtml, getHtmlContentWidth, defaultHtmlStyles, stripHtmlTags } fro
 import RenderHTML from 'react-native-render-html';
 import TutorialOverlay from '../../components/TutorialOverlay';
 import { useToast } from '../../components/Toast';
+import CertificateGeneratorModal from '../../components/CertificateGeneratorModal';
 
 type DateFilter = 'all' | 'upcoming' | 'ongoing' | 'completed';
 type SortOption = 'date-asc' | 'date-desc' | 'title-asc' | 'title-desc' | 'registration-asc' | 'registration-desc';
@@ -59,6 +60,8 @@ export default function MyEvents() {
   const [qrError, setQrError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [expandedRationale, setExpandedRationale] = useState<Set<string>>(new Set());
+  const [isCertificateModalOpen, setIsCertificateModalOpen] = useState(false);
+  const [certificateEventId, setCertificateEventId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [venueFilter, setVenueFilter] = useState<string>('all');
@@ -952,6 +955,27 @@ export default function MyEvents() {
                       </Text>
                     </TouchableOpacity>
                     
+                    <TouchableOpacity
+                      onPress={() => {
+                        setCertificateEventId(event.id);
+                        setIsCertificateModalOpen(true);
+                      }}
+                      style={{
+                        width: '31%',
+                        margin: '1%',
+                        backgroundColor: '#1e40af',
+                        borderRadius: 10,
+                        padding: 12,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minHeight: 75,
+                      }}
+                    >
+                      <Ionicons name="document-text" size={24} color="#ffffff" />
+                      <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
+                        Generate Certificate
+                      </Text>
+                    </TouchableOpacity>
                           
                     <TouchableOpacity
                       onPress={() => handleSnapPhoto(event)}
@@ -1238,6 +1262,18 @@ export default function MyEvents() {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* Certificate Generator Modal */}
+      {isCertificateModalOpen && certificateEventId && (
+        <CertificateGeneratorModal
+          visible={isCertificateModalOpen}
+          eventId={certificateEventId}
+          onClose={() => {
+            setIsCertificateModalOpen(false);
+            setCertificateEventId(null);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }

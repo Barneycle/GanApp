@@ -1052,20 +1052,20 @@ export default function SetupProfileScreen() {
                         </View>
                       ) : (
                         <View>
-                          <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
-                            <Ionicons name="business-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
-                            <TextInput
-                              ref={orgRef}
-                              className="flex-1 h-12 text-base text-black"
+                  <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
+                    <Ionicons name="business-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
+                    <TextInput
+                      ref={orgRef}
+                      className="flex-1 h-12 text-base text-black"
                               placeholder="Enter your organization name"
-                              placeholderTextColor="#666"
+                      placeholderTextColor="#666"
                               value={customOrgName}
                               onChangeText={handleCustomOrgChange}
-                              autoCapitalize="words"
-                              returnKeyType="done"
-                              blurOnSubmit={true}
-                            />
-                          </View>
+                      autoCapitalize="words"
+                      returnKeyType="done"
+                      blurOnSubmit={true}
+                    />
+                  </View>
                           <TouchableOpacity
                             onPress={() => {
                               setShowCustomOrgInput(false);
