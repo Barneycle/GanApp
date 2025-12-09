@@ -21,6 +21,7 @@ import RenderHTML from 'react-native-render-html';
 import { Dimensions } from 'react-native';
 import { decodeHtml, getHtmlContentWidth, defaultHtmlStyles } from '../lib/htmlUtils';
 import TutorialOverlay from '../components/TutorialOverlay';
+import { useToast } from '../components/Toast';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -67,6 +68,7 @@ export default function EventDetails() {
   const router = useRouter();
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const { user } = useAuth();
+  const toast = useToast();
 
   const shouldCollapseRationale = (rationale: string): boolean => {
     if (!rationale) return false;
@@ -137,14 +139,10 @@ export default function EventDetails() {
 
   const handleRegister = async () => {
     if (!user) {
-      Alert.alert(
-        'Login Required',
-        'Please log in to register for this event.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Login', onPress: () => router.push('/login') }
-        ]
-      );
+      toast.warning('Please log in to register for this event.');
+      setTimeout(() => {
+        router.push('/login');
+      }, 1500);
       return;
     }
 
@@ -157,19 +155,15 @@ export default function EventDetails() {
       const result = await EventService.registerForEvent(eventId, user.id);
       
       if (result.error) {
-        Alert.alert('Registration Failed', result.error);
+        toast.error(result.error);
       } else if (result.registration) {
+        toast.success('Successfully registered for this event!');
         setIsRegistered(true);
         // Reload event to update participant count
         await loadEventDetails();
-        Alert.alert(
-          'Registration Successful!',
-          'You have successfully registered for this event.',
-          [{ text: 'OK' }]
-        );
       }
     } catch (err) {
-      Alert.alert('Error', 'Failed to register for event. Please try again.');
+      toast.error('Failed to register for event. Please try again.');
     } finally {
       setIsRegistering(false);
     }
@@ -230,10 +224,10 @@ export default function EventDetails() {
       if (canOpen) {
         await Linking.openURL(url);
       } else {
-        Alert.alert('Error', 'Cannot open this link');
+        toast.error('Cannot open this link');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to open link');
+      toast.error('Failed to open link');
     }
   };
 

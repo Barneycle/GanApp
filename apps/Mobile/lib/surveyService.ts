@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { logActivity } from './utils/activityLogger';
 
 export interface Survey {
   id: string;
@@ -465,6 +466,127 @@ export class SurveyService {
       return { hasResponse: !!data };
     } catch (error) {
       return { hasResponse: false, error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async getAllSurveys(): Promise<{ surveys?: Survey[]; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('surveys')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { surveys: data };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async createSurvey(surveyData: Partial<Survey>): Promise<{ survey?: Survey; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('surveys')
+        .insert([surveyData])
+        .select()
+        .single();
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      // Log activity
+      if (data && surveyData.created_by) {
+        logActivity(
+          surveyData.created_by,
+          'create',
+          'survey',
+          {
+            resourceId: data.id,
+            resourceName: data.title || 'Untitled Survey',
+            details: { survey_id: data.id, title: data.title, event_id: data.event_id }
+          }
+        ).catch(err => console.error('Failed to log survey creation:', err));
+      }
+
+      return { survey: data };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async updateSurvey(id: string, updates: Partial<Survey>): Promise<{ survey?: Survey; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('surveys')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { survey: data };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async deleteSurvey(id: string): Promise<{ error?: string }> {
+    try {
+      const { error } = await supabase
+        .from('surveys')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return {};
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async getSurveysByEvent(eventId: string): Promise<{ surveys?: Survey[]; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('surveys')
+        .select('*')
+        .eq('event_id', eventId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { surveys: data };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async getSurveysByCreator(creatorId: string): Promise<{ surveys?: Survey[]; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('surveys')
+        .select('*')
+        .eq('created_by', creatorId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { surveys: data };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
     }
   }
 }

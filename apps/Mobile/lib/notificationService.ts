@@ -135,6 +135,27 @@ export class NotificationService {
   }
 
   /**
+   * Delete all read notifications
+   */
+  static async deleteAllRead(userId: string): Promise<{ error?: string }> {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', userId)
+        .eq('read', true);
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return {};
+    } catch (error: any) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
    * Delete all notifications for a user
    */
   static async deleteAllNotifications(userId: string): Promise<{ error?: string }> {
@@ -269,6 +290,7 @@ export class NotificationService {
       }
     );
   }
+
 
   /**
    * Create certificate ready notification

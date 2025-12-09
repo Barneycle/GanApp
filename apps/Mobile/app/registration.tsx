@@ -17,6 +17,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import { useAuth } from '../lib/authContext';
+import { useToast } from '../components/Toast';
 
 interface RegistrationFormData {
   email: string;
@@ -42,6 +43,7 @@ export default function RegistrationScreen() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
   const { signUp } = useAuth();
+  const toast = useToast();
   
   // Refs for form inputs
   const emailRef = useRef<TextInput>(null);
@@ -225,6 +227,7 @@ export default function RegistrationScreen() {
     if (validationError) {
       console.log('Validation error:', validationError);
       setLocalError(validationError);
+      toast.error(validationError);
       return;
     }
 
@@ -246,10 +249,12 @@ export default function RegistrationScreen() {
       if (result.error) {
         console.log('SignUp error:', result.error);
         setLocalError(result.error);
+        toast.error(result.error);
         return;
       }
 
       if (result.user) {
+        toast.success('Account created successfully! Setting up your profile...');
         // Registration successful - wait a moment for auth state to fully update
         // Then redirect to profile setup (Facebook's approach: new users always go to setup-profile)
         setTimeout(() => {
@@ -259,10 +264,14 @@ export default function RegistrationScreen() {
       }
 
       console.log('No user returned from signUp');
-      setLocalError('Registration failed. Please try again.');
+      const errorMsg = 'Registration failed. Please try again.';
+      setLocalError(errorMsg);
+      toast.error(errorMsg);
     } catch (error) {
       console.error('Registration error:', error);
-      setLocalError('An unexpected error occurred. Please try again.');
+      const errorMsg = 'An unexpected error occurred. Please try again.';
+      setLocalError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setIsLoading(false);
     }

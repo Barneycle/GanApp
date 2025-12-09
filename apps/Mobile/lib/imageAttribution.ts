@@ -397,4 +397,3 @@ export async function addAttributionToImage(
 
 // Note: For component-based logo compositing when markImage fails,
 // use LogoCompositeView from './LogoCompositeView' with react-native-view-shot
-

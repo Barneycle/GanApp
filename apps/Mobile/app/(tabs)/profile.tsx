@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Ima
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../lib/authContext';
+import { useToast } from '../../components/Toast';
 import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -26,6 +27,7 @@ interface UserProfile {
 export default function Profile() {
   const { user, refreshUser } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const insets = useSafeAreaInsets();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -195,7 +197,7 @@ export default function Profile() {
         if (status !== 'granted') {
           InteractionManager.runAfterInteractions(() => {
             if (isMountedRef.current) {
-              Alert.alert('Permission Required', 'Please grant media library permissions to upload an avatar.');
+              toast.warning('Please grant media library permissions to upload an avatar.');
             }
           });
           return;
@@ -239,7 +241,7 @@ export default function Profile() {
         if (status !== 'granted') {
           InteractionManager.runAfterInteractions(() => {
             if (isMountedRef.current) {
-              Alert.alert('Permission Required', 'Please grant photo library access to upload an avatar.');
+              toast.warning('Please grant photo library access to upload an avatar.');
             }
           });
           return;
@@ -260,7 +262,7 @@ export default function Profile() {
           if (asset.fileSize && asset.fileSize > 50 * 1024 * 1024) {
             InteractionManager.runAfterInteractions(() => {
               if (isMountedRef.current) {
-                Alert.alert('Error', 'Image size must be less than 50MB');
+                toast.error('Image size must be less than 50MB');
               }
             });
             return;
@@ -275,7 +277,7 @@ export default function Profile() {
       console.error('Error picking image:', err);
       InteractionManager.runAfterInteractions(() => {
         if (isMountedRef.current) {
-          Alert.alert('Error', 'Failed to pick image. Please try again.');
+          toast.error('Failed to pick image. Please try again.');
         }
       });
       setLoadingAlbums(false);
@@ -331,7 +333,7 @@ export default function Profile() {
       }
       
       if (!imageUri) {
-        Alert.alert('Error', 'Failed to get image URI');
+        toast.error('Failed to get image URI');
         return;
       }
 
@@ -340,7 +342,7 @@ export default function Profile() {
         // Rough estimate: assume 3 bytes per pixel for uncompressed
         const estimatedSize = photo.width * photo.height * 3;
         if (estimatedSize > 50 * 1024 * 1024) {
-          Alert.alert('Error', 'Image size must be less than 50MB');
+          toast.error('Image size must be less than 50MB');
           return;
         }
       }
@@ -374,7 +376,7 @@ export default function Profile() {
       }
     } catch (err) {
       console.error('Error selecting photo:', err);
-      Alert.alert('Error', 'Failed to process image. Please try again.');
+      toast.error('Failed to process image. Please try again.');
     }
   }, [error]);
 
@@ -511,7 +513,7 @@ export default function Profile() {
 
   const handleSubmit = async () => {
     if (!user?.id) {
-      Alert.alert('Error', 'User not found. Please log in again.');
+      toast.error('User not found. Please log in again.');
       return;
     }
 
@@ -553,31 +555,13 @@ export default function Profile() {
 
       if (result.error) {
         setError(result.error);
-        InteractionManager.runAfterInteractions(() => {
-          if (isMountedRef.current) {
-            Alert.alert('Error', result.error);
-          }
-        });
+        toast.error(result.error);
       } else {
         setSuccess(true);
-        InteractionManager.runAfterInteractions(() => {
-          if (isMountedRef.current) {
-            Alert.alert(
-              'Success',
-              'Your profile has been updated successfully!',
-              [
-                {
-                  text: 'OK',
-                  onPress: async () => {
-                    await refreshUser();
-                    await loadUserProfile();
-                    setIsEditMode(false);
-                  }
-                }
-              ]
-            );
-          }
-        });
+        toast.success('Your profile has been updated successfully!');
+        await refreshUser();
+        await loadUserProfile();
+        setIsEditMode(false);
       }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');

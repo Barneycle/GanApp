@@ -28,6 +28,8 @@ import * as MediaLibrary from 'expo-media-library';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { addAttributionToImage } from '../../lib/imageAttribution';
 import { saveFileToGanApp } from '../../lib/mediaStoreSaver';
+import { useToast } from '../../components/Toast';
+import { Dialog } from '../../components/Dialog';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -53,10 +55,16 @@ export default function Albums() {
   const [venueFilter, setVenueFilter] = useState<string>('all');
   const [sortOption, setSortOption] = useState<SortOption>('date-asc');
   const [showFilters, setShowFilters] = useState(false);
+  const [showDownloadDialog, setShowDownloadDialog] = useState(false);
+  const [dialogPhoto, setDialogPhoto] = useState<EventPhoto | null>(null);
+  const [showBulkDownloadDialog, setShowBulkDownloadDialog] = useState(false);
+  const [dialogEvent, setDialogEvent] = useState<EventWithPhotos | null>(null);
+  const [bulkDownloadCount, setBulkDownloadCount] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  const toast = useToast();
 
   // Load downloaded photo IDs from storage
   useEffect(() => {
@@ -102,12 +110,15 @@ export default function Albums() {
       if (result.error) {
         setError(result.error);
         setEvents([]);
+        toast.error(result.error);
       } else {
         setEvents(result.events || []);
       }
     } catch (err) {
-      setError('Failed to load event albums');
+      const errorMsg = 'Failed to load event albums';
+      setError(errorMsg);
       setEvents([]);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -223,6 +234,7 @@ export default function Albums() {
       
       if (status === 'denied' && !canAskAgain) {
         // Permission permanently denied
+        toast.warning('Photo library access is required. Please enable it in your device settings.');
         return false;
       }
       
@@ -238,25 +250,11 @@ export default function Albums() {
   const downloadPhoto = async (photo: EventPhoto) => {
     if (downloadingPhotoId === photo.id) return;
     
-    // Check if already downloaded and show warning
+    // Check if already downloaded and show confirmation dialog
     const isAlreadyDownloaded = downloadedPhotoIds.has(photo.id);
     if (isAlreadyDownloaded) {
-      Alert.alert(
-        'Photo Already Downloaded',
-        'This photo has already been downloaded. Do you want to download it again?',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Download Again',
-            onPress: async () => {
-              await performDownload(photo);
-            },
-          },
-        ]
-      );
+      setDialogPhoto(photo);
+      setShowDownloadDialog(true);
       return;
     }
     
@@ -321,22 +319,42 @@ export default function Albums() {
           }
         }
         
-        // Add attribution overlay to the image
-        finalImageUri = await addAttributionToImage(fileUri, userName);
-        
-        // Verify the attributed image exists
-        if (finalImageUri !== fileUri) {
-          const checkPath = finalImageUri.startsWith('file://') 
-            ? finalImageUri 
-            : `file://${finalImageUri}`;
+        // Add attribution overlay to the image (wrapped in try-catch to prevent crashes)
+        // Use Promise.resolve to ensure it never throws
+        try {
+          const attributedUri = await Promise.resolve(addAttributionToImage(fileUri, userName)).catch((err) => {
+            console.error('Attribution promise rejected:', err);
+            return fileUri;
+          });
           
-          const fileInfo = await FileSystem.getInfoAsync(checkPath);
-          if (!fileInfo.exists) {
+          finalImageUri = attributedUri || fileUri;
+          
+          // Verify the attributed image exists
+          if (finalImageUri && finalImageUri !== fileUri) {
+            try {
+              const checkPath = finalImageUri.startsWith('file://') 
+                ? finalImageUri 
+                : `file://${finalImageUri}`;
+              
+              const fileInfo = await FileSystem.getInfoAsync(checkPath);
+              if (!fileInfo.exists) {
+                console.warn('Attributed image does not exist, using original');
+                finalImageUri = fileUri;
+              }
+            } catch (checkError) {
+              console.warn('Error checking attributed image, using original:', checkError);
+              finalImageUri = fileUri;
+            }
+          } else if (!finalImageUri) {
+            // If attribution returns null/undefined, use original
             finalImageUri = fileUri;
           }
+        } catch (attributionError: any) {
+          console.error('Error adding attribution, using original image:', attributionError?.message || attributionError);
+          finalImageUri = fileUri;
         }
-      } catch (attributionError) {
-        console.error('Error adding attribution, using original image:', attributionError);
+      } catch (attributionError: any) {
+        console.error('Error in attribution block, using original image:', attributionError?.message || attributionError);
         finalImageUri = fileUri;
       }
 
@@ -365,8 +383,10 @@ export default function Albums() {
       }
       
       await markPhotoAsDownloaded(photo.id);
+      toast.success('Photo downloaded successfully!');
     } catch (error: any) {
       console.error('Error downloading photo:', error);
+      toast.error('Failed to download photo. Please try again.');
     } finally {
       setDownloadingPhotoId(null);
     }
@@ -375,25 +395,12 @@ export default function Albums() {
   const downloadAllPhotos = async (event: EventWithPhotos) => {
     if (isDownloadingAll || !event.photos || event.photos.length === 0) return;
 
-    // Check if there are already downloaded photos and show warning
+    // Check if there are already downloaded photos and show confirmation dialog
     const alreadyDownloaded = event.photos.filter(photo => downloadedPhotoIds.has(photo.id));
     if (alreadyDownloaded.length > 0) {
-      Alert.alert(
-        'Some Photos Already Downloaded',
-        `${alreadyDownloaded.length} photo(s) have already been downloaded. Do you want to download all photos again (including already downloaded ones)?`,
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Download All',
-            onPress: async () => {
-              await performDownloadAll(event);
-            },
-          },
-        ]
-      );
+      setDialogEvent(event);
+      setBulkDownloadCount(alreadyDownloaded.length);
+      setShowBulkDownloadDialog(true);
       return;
     }
 
@@ -473,22 +480,42 @@ export default function Albums() {
                 }
               }
               
-              // Add attribution overlay to the image
-              finalImageUri = await addAttributionToImage(fileUri, userName);
-              
-              // Verify the attributed image exists
-              if (finalImageUri !== fileUri) {
-                const checkPath = finalImageUri.startsWith('file://') 
-                  ? finalImageUri 
-                  : `file://${finalImageUri}`;
+              // Add attribution overlay to the image (wrapped in try-catch to prevent crashes)
+              // Use Promise.resolve to ensure it never throws
+              try {
+                const attributedUri = await Promise.resolve(addAttributionToImage(fileUri, userName)).catch((err) => {
+                  console.error('Attribution promise rejected (bulk):', err);
+                  return fileUri;
+                });
                 
-                const fileInfo = await FileSystem.getInfoAsync(checkPath);
-                if (!fileInfo.exists) {
+                finalImageUri = attributedUri || fileUri;
+                
+                // Verify the attributed image exists
+                if (finalImageUri && finalImageUri !== fileUri) {
+                  try {
+                    const checkPath = finalImageUri.startsWith('file://') 
+                      ? finalImageUri 
+                      : `file://${finalImageUri}`;
+                    
+                    const fileInfo = await FileSystem.getInfoAsync(checkPath);
+                    if (!fileInfo.exists) {
+                      console.warn('Attributed image does not exist (bulk), using original');
+                      finalImageUri = fileUri;
+                    }
+                  } catch (checkError) {
+                    console.warn('Error checking attributed image (bulk), using original:', checkError);
+                    finalImageUri = fileUri;
+                  }
+                } else if (!finalImageUri) {
+                  // If attribution returns null/undefined, use original
                   finalImageUri = fileUri;
                 }
+              } catch (attributionError: any) {
+                console.error('Error adding attribution (bulk), using original image:', attributionError?.message || attributionError);
+                finalImageUri = fileUri;
               }
-            } catch (attributionError) {
-              console.error('Error adding attribution (bulk), using original image:', attributionError);
+            } catch (attributionError: any) {
+              console.error('Error in attribution block (bulk), using original image:', attributionError?.message || attributionError);
               finalImageUri = fileUri;
             }
             
@@ -529,8 +556,17 @@ export default function Albums() {
         }
       }
 
+      // Show completion message
+      if (successCount > 0 && failCount === 0) {
+        toast.success(`Successfully downloaded ${successCount} photo(s)!`);
+      } else if (successCount > 0 && failCount > 0) {
+        toast.warning(`Downloaded ${successCount} photo(s), ${failCount} failed.`);
+      } else if (failCount > 0) {
+        toast.error(`Failed to download ${failCount} photo(s). Please try again.`);
+      }
     } catch (error: any) {
       console.error('Error in downloadAllPhotos:', error);
+      toast.error('Failed to download photos. Please try again.');
     } finally {
       setIsDownloadingAll(false);
       setDownloadAllProgress({ current: 0, total: 0 });
@@ -1021,6 +1057,48 @@ export default function Albums() {
           </View>
         </SafeAreaView>
       </Modal>
+
+      {/* Download Confirmation Dialog */}
+      <Dialog
+        visible={showDownloadDialog}
+        title="Photo Already Downloaded"
+        message="This photo has already been downloaded. Do you want to download it again?"
+        onCancel={() => {
+          setShowDownloadDialog(false);
+          setDialogPhoto(null);
+        }}
+        onConfirm={async () => {
+          setShowDownloadDialog(false);
+          if (dialogPhoto) {
+            await performDownload(dialogPhoto);
+          }
+          setDialogPhoto(null);
+        }}
+        cancelText="Cancel"
+        confirmText="Download Again"
+      />
+
+      {/* Bulk Download Confirmation Dialog */}
+      <Dialog
+        visible={showBulkDownloadDialog}
+        title="Some Photos Already Downloaded"
+        message={`${bulkDownloadCount} photo(s) have already been downloaded. Do you want to download all photos again (including already downloaded ones)?`}
+        onCancel={() => {
+          setShowBulkDownloadDialog(false);
+          setDialogEvent(null);
+          setBulkDownloadCount(0);
+        }}
+        onConfirm={async () => {
+          setShowBulkDownloadDialog(false);
+          if (dialogEvent) {
+            await performDownloadAll(dialogEvent);
+          }
+          setDialogEvent(null);
+          setBulkDownloadCount(0);
+        }}
+        cancelText="Cancel"
+        confirmText="Download All"
+      />
       </SafeAreaView>
     </View>
   );

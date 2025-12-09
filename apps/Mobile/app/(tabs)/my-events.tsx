@@ -34,6 +34,7 @@ import { supabase } from '../../lib/supabase';
 import { decodeHtml, getHtmlContentWidth, defaultHtmlStyles, stripHtmlTags } from '../../lib/htmlUtils';
 import RenderHTML from 'react-native-render-html';
 import TutorialOverlay from '../../components/TutorialOverlay';
+import { useToast } from '../../components/Toast';
 
 type DateFilter = 'all' | 'upcoming' | 'ongoing' | 'completed';
 type SortOption = 'date-asc' | 'date-desc' | 'title-asc' | 'title-desc' | 'registration-asc' | 'registration-desc';
@@ -68,6 +69,7 @@ export default function MyEvents() {
   
   const router = useRouter();
   const { user } = useAuth();
+  const toast = useToast();
 
   const shouldCollapseRationale = (rationale: string): boolean => {
     if (!rationale) return false;
@@ -279,36 +281,20 @@ export default function MyEvents() {
   const handleUnregister = async (eventId: string) => {
     if (!user?.id) return;
 
-    Alert.alert(
-      'Confirm Unregistration',
-      'Are you sure you want to unregister from this event?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Unregister',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from('event_registrations')
-                .update({ status: 'cancelled' })
-                .eq('event_id', eventId)
-                .eq('user_id', user.id);
-
-              if (error) {
-                Alert.alert('Error', error.message || 'Failed to unregister from event');
-              } else {
-                // Remove the event from the list
-                setRegisteredEvents(prev => prev.filter(event => event.id !== eventId));
-                Alert.alert('Success', 'Successfully unregistered from event');
-              }
-            } catch (err) {
-              Alert.alert('Error', 'Failed to unregister from event');
-            }
-          },
-        },
-      ]
-    );
+    // Use EventService.unregisterFromEvent for consistency
+    try {
+      const result = await EventService.unregisterFromEvent(eventId, user.id);
+      
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        // Remove the event from the list
+        setRegisteredEvents(prev => prev.filter(event => event.id !== eventId));
+        toast.success('Successfully unregistered from event');
+      }
+    } catch (err) {
+      toast.error('Failed to unregister from event');
+    }
   };
 
   const handleTakeEvaluation = async (event: RegisteredEvent) => {
@@ -317,20 +303,20 @@ export default function MyEvents() {
       const surveyResult = await SurveyService.getSurveyByEventId(event.id, user?.id || '');
       
       if (surveyResult.error) {
-        Alert.alert('Survey Not Available', surveyResult.error);
+        toast.error(surveyResult.error);
       } else if (surveyResult.survey) {
         router.push(`/evaluation?id=${surveyResult.survey.id}`);
       } else {
-        Alert.alert('Survey Not Available', 'No survey is available for this event yet.');
+        toast.warning('No survey is available for this event yet.');
       }
     } catch (err) {
-      Alert.alert('Error', 'Failed to load survey. Please try again.');
+      toast.error('Failed to load survey. Please try again.');
     }
   };
 
   const handleGenerateQR = async (event: RegisteredEvent) => {
     if (!user?.id) {
-      Alert.alert('Error', 'You must be logged in to generate a QR code');
+      toast.error('You must be logged in to generate a QR code');
       return;
     }
 
@@ -454,7 +440,7 @@ export default function MyEvents() {
 
   const downloadQRCode = async () => {
     if (!qrCodeViewRef.current || !qrEvent) {
-      Alert.alert('Error', 'QR code not available');
+      toast.error('QR code not available');
       return;
     }
 
@@ -463,7 +449,7 @@ export default function MyEvents() {
 
       // Check if FileSystem is available
       if (!FileSystem.cacheDirectory) {
-        Alert.alert('Error', 'File system not available. Please rebuild the app.');
+        toast.error('File system not available. Please rebuild the app.');
         return;
       }
 
@@ -484,11 +470,7 @@ export default function MyEvents() {
 
       // Try to save directly to media library (Photos/Downloads)
       if (!MediaLibrary || !MediaLibrary.requestPermissionsAsync || !MediaLibrary.createAssetAsync) {
-        Alert.alert(
-          'Error', 
-          'Media library not available. Please rebuild the app with native modules enabled.',
-          [{ text: 'OK' }]
-        );
+        toast.error('Media library not available. Please rebuild the app with native modules enabled.');
         return;
       }
 
@@ -496,11 +478,7 @@ export default function MyEvents() {
       const permissionResult = await MediaLibrary.requestPermissionsAsync(true);
       
       if (!permissionResult.granted) {
-        Alert.alert(
-          'Permission Required',
-          'Please grant photo library access to save the QR code. You can enable it in your device settings.',
-          [{ text: 'OK' }]
-        );
+        toast.warning('Please grant photo library access to save the QR code. You can enable it in your device settings.');
         return;
       }
 
@@ -524,15 +502,11 @@ export default function MyEvents() {
         }
       }
       
-      Alert.alert('Success', 'QR code downloaded to your Photos/Downloads!');
+      toast.success('QR code downloaded to your Photos/Downloads!');
       
     } catch (err: any) {
       console.error('Error downloading QR code:', err);
-      Alert.alert(
-        'Download Failed', 
-        err.message || 'Unable to download QR code. Please make sure you have granted photo library permissions and rebuild the app if needed.',
-        [{ text: 'OK' }]
-      );
+      toast.error(err.message || 'Unable to download QR code. Please make sure you have granted photo library permissions.');
     } finally {
       setDownloading(false);
     }

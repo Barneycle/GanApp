@@ -119,5 +119,94 @@ export class AlbumService {
       return { photos: [], error: error instanceof Error ? error.message : 'Failed to load photos' };
     }
   }
+
+  /**
+   * Check how many photos a user has uploaded for an event
+   */
+  static async getUserPhotoCount(eventId: string, userId: string): Promise<{ count: number; error?: string }> {
+    try {
+      const { data: files, error } = await supabase.storage
+        .from('event-photos')
+        .list(eventId, {
+          limit: 100,
+          offset: 0,
+        });
+
+      if (error) {
+        return { count: 0, error: error.message };
+      }
+
+      // Count files that match the user ID pattern (userId_timestamp.jpg)
+      // Match mobile app pattern exactly: files starting with userId_ and ending with .jpg
+      const userPhotoCount = files?.filter(file => 
+        file.name.startsWith(`${userId}_`) && file.name.endsWith('.jpg')
+      ).length || 0;
+
+      return { count: userPhotoCount };
+    } catch (error) {
+      return { count: 0, error: error instanceof Error ? error.message : 'Failed to check photo count' };
+    }
+  }
+
+  /**
+   * Upload a photo to an event album
+   */
+  static async uploadPhoto(
+    fileUri: string,
+    eventId: string,
+    userId: string,
+    onProgress?: (progress: number) => void
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Convert file path to URI format for React Native
+      const imageUri = fileUri.startsWith('file://') ? fileUri : `file://${fileUri}`;
+      
+      onProgress?.(20);
+
+      // Read file as base64 using expo-file-system
+      const FileSystem = require('expo-file-system');
+      const base64 = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      onProgress?.(40);
+
+      // Convert base64 to Uint8Array
+      const byteCharacters = atob(base64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const bytes = new Uint8Array(byteNumbers);
+
+      // Generate unique filename (always .jpg to match mobile app)
+      const timestamp = Date.now();
+      const filename = `${eventId}/${userId}_${timestamp}.jpg`;
+
+      onProgress?.(60);
+
+      // Upload to Supabase storage
+      const { error: uploadError } = await supabase.storage
+        .from('event-photos')
+        .upload(filename, bytes, {
+          contentType: 'image/jpeg',
+          upsert: false,
+        });
+
+      onProgress?.(90);
+
+      if (uploadError) {
+        return { success: false, error: uploadError.message };
+      }
+
+      onProgress?.(100);
+      return { success: true };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to upload photo' 
+      };
+    }
+  }
 }
 

@@ -21,6 +21,7 @@ import { useRouter } from "expo-router";
 import { useAuth } from '../lib/authContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserService } from '../lib/userService';
+import { useToast } from '../components/Toast';
 
 // Storage keys for remember me functionality
 const REMEMBER_ME_KEY = 'remember_me';
@@ -47,6 +48,7 @@ export default function LoginDashboard() {
 
   const router = useRouter();
   const { signIn, user } = useAuth();
+  const toast = useToast();
   
   const scrollViewRef = useRef<ScrollView>(null);
   const emailRef = useRef<TextInput>(null);
@@ -173,7 +175,7 @@ export default function LoginDashboard() {
     const trimmedPassword = formData.password.trim();
     
     if (!trimmedEmail || !trimmedPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
+      toast.error('Please fill in all fields');
       return;
     }
 
@@ -183,8 +185,9 @@ export default function LoginDashboard() {
       const result = await signIn(trimmedEmail, trimmedPassword);
       
       if (result.error) {
-        Alert.alert('Error', result.error);
+        toast.error(result.error);
       } else if (result.user) {
+        toast.success('Successfully signed in!');
         // Save email if remember me is checked (non-blocking)
         try {
           if (rememberMe) {
@@ -205,7 +208,7 @@ export default function LoginDashboard() {
       // Navigation will be handled automatically by useEffect when user state updates
     } catch (error) {
       console.error('Login error:', error);
-      Alert.alert('Error', 'An unexpected error occurred');
+      toast.error('An unexpected error occurred');
     } finally {
       setIsLoading(false);
     }
@@ -223,14 +226,14 @@ export default function LoginDashboard() {
     const trimmedEmail = forgotPasswordEmail.trim();
     
     if (!trimmedEmail) {
-      Alert.alert('Error', 'Please enter your email address');
+      toast.error('Please enter your email address');
       return;
     }
 
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      toast.error('Please enter a valid email address');
       return;
     }
 
@@ -240,13 +243,14 @@ export default function LoginDashboard() {
       const result = await UserService.resetPassword(trimmedEmail);
       
       if (result.error) {
-        Alert.alert('Error', result.error);
+        toast.error(result.error);
       } else if (result.success) {
         setResetSent(true);
+        toast.success('Password reset email sent! Check your inbox.');
       }
     } catch (error) {
       console.error('Reset password error:', error);
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      toast.error('An unexpected error occurred. Please try again.');
     } finally {
       setIsSendingReset(false);
     }
@@ -259,11 +263,7 @@ export default function LoginDashboard() {
   };
 
   const handleSocialLogin = (provider: string) => {
-    Alert.alert(
-      'Social Login',
-      `Continue with ${provider}`,
-      [{ text: 'OK' }]
-    );
+    toast.info(`Social login with ${provider} is coming soon!`);
   };
 
   const handleRememberMeToggle = async () => {

@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useEffect } from 'react';
 import * as Notifications from 'expo-notifications';
 import { AuthProvider } from '../lib/authContext';
+import { ToastProvider } from '../components/Toast';
 import './global.css';
 
 // Configure notification behavior
@@ -45,13 +46,14 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AuthProvider>
-          <NotificationHandler />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-            }}
-          >
+        <ToastProvider>
+          <AuthProvider>
+            <NotificationHandler />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+              }}
+            >
             {/* Initial auth routing screen */}
             <Stack.Screen 
               name="index" 
@@ -168,9 +170,10 @@ export default function RootLayout() {
                 },
               }}
             />
-          </Stack>
-          <StatusBar style="light" />
-        </AuthProvider>
+            </Stack>
+            <StatusBar style="light" />
+          </AuthProvider>
+        </ToastProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

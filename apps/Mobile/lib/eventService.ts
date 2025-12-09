@@ -183,7 +183,7 @@ export class EventService {
       }
 
       const registrations = validRegistrations.map(registration => ({
-        events: registration.events as Event,
+        events: registration.events as unknown as Event,
         registration_date: registration.registration_date || registration.created_at,
         registration_id: registration.id
       }));

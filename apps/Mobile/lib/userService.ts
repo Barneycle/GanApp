@@ -90,6 +90,20 @@ export class UserService {
       }
 
       if (data.user) {
+        const metadata = data.user.user_metadata || {};
+        const bannedUntilRaw = metadata?.banned_until;
+        const isActiveMeta = metadata?.is_active;
+        const now = new Date();
+        const bannedUntil = bannedUntilRaw ? new Date(bannedUntilRaw) : null;
+
+        if ((bannedUntil && bannedUntil > now) || isActiveMeta === false) {
+          await supabase.auth.signOut();
+          if (bannedUntil && bannedUntil > now) {
+            return { error: `Your account is banned until ${bannedUntil.toLocaleString()}. Please contact support.` };
+          }
+          return { error: 'Your account is currently inactive. Please contact support.' };
+        }
+
         // Use Supabase Auth user metadata for role
         const role = data.user.user_metadata?.role || 'participant';
         
@@ -103,6 +117,8 @@ export class UserService {
           middle_initial: data.user.user_metadata?.middle_initial || '',
           last_name: data.user.user_metadata?.last_name || '',
           affix: data.user.user_metadata?.affix || '',
+          avatar_url: data.user.user_metadata?.avatar_url || '',
+          affiliated_organization: data.user.user_metadata?.affiliated_organization || '',
           created_at: data.user.created_at,
           updated_at: data.user.updated_at || data.user.created_at
         };
@@ -235,6 +251,8 @@ export class UserService {
         });
         
         // Check if email confirmation is needed
+        // If email was changed and data.user.email matches the new email, confirmation was NOT needed (email updated immediately)
+        // If email was changed but data.user.email still shows old email, confirmation IS needed
         const emailUpdatedImmediately = isEmailChanging && 
           data.user.email && 
           updates.email &&

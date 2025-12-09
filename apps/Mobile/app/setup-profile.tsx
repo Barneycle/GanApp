@@ -25,7 +25,9 @@ import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { UserService } from '../lib/userService';
+import { OrganizationService, OrganizationGroup } from '../lib/organizationService';
 import TutorialOverlay from '../components/TutorialOverlay';
+import { useToast } from '../components/Toast';
 
 interface SetupProfileFormData {
   prefix: string;
@@ -60,6 +62,7 @@ export default function SetupProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, refreshUser, setUser: setAuthUser, isLoading: authLoading } = useAuth();
+  const toast = useToast();
   const scrollViewRef = useRef<ScrollView>(null);
   
   // Refs for form inputs
@@ -73,6 +76,14 @@ export default function SetupProfileScreen() {
   // Dropdown states
   const [showPrefixDropdown, setShowPrefixDropdown] = useState(false);
   const [showAffixDropdown, setShowAffixDropdown] = useState(false);
+  
+  // Organization dropdown states
+  const [organizations, setOrganizations] = useState<OrganizationGroup[]>([]);
+  const [loadingOrganizations, setLoadingOrganizations] = useState(true);
+  const [orgSearchQuery, setOrgSearchQuery] = useState('');
+  const [showOrgDropdown, setShowOrgDropdown] = useState(false);
+  const [showCustomOrgInput, setShowCustomOrgInput] = useState(false);
+  const [customOrgName, setCustomOrgName] = useState('');
 
   // Store input Y positions for scrolling
   const inputYPositions = useRef<{ [key: string]: number }>({});
@@ -182,6 +193,44 @@ export default function SetupProfileScreen() {
     };
   }, []);
 
+  // Load organizations on mount
+  useEffect(() => {
+    const loadOrganizations = async () => {
+      setLoadingOrganizations(true);
+      const result = await OrganizationService.getOrganizationsGrouped();
+      if (result.error) {
+        console.error('Error loading organizations:', result.error);
+        setError('Failed to load organizations. Please refresh the page.');
+      } else {
+        setOrganizations(result.groups || []);
+      }
+      setLoadingOrganizations(false);
+    };
+    loadOrganizations();
+  }, []);
+
+  // Load existing user data and check if organization is custom
+  useEffect(() => {
+    if (user && organizations.length > 0) {
+      const orgExists = organizations.some(group => 
+        group.organizations.some(org => org.name === user.affiliated_organization)
+      );
+      
+      if (user.affiliated_organization && !orgExists) {
+        // Organization not in the list, show custom input
+        setShowCustomOrgInput(true);
+        setCustomOrgName(user.affiliated_organization);
+      } else if (user.affiliated_organization) {
+        // Set the search query to show the selected organization
+        setOrgSearchQuery(user.affiliated_organization);
+        setFormData(prev => ({
+          ...prev,
+          affiliatedOrganization: user.affiliated_organization || ''
+        }));
+      }
+    }
+  }, [user, organizations]);
+
   // Helper to store input Y position when layout changes
   const handleInputLayout = (field: string) => (event: any) => {
     const { y } = event.nativeEvent.layout;
@@ -194,6 +243,62 @@ export default function SetupProfileScreen() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleOrgSearchChange = (text: string) => {
+    setOrgSearchQuery(text);
+    setShowOrgDropdown(true);
+    if (error) setError(null);
+  };
+
+  const handleSelectOrganization = (orgName: string) => {
+    if (orgName === '__OTHER__') {
+      setShowCustomOrgInput(true);
+      setOrgSearchQuery('');
+      setFormData(prev => ({
+        ...prev,
+        affiliatedOrganization: ''
+      }));
+      setShowOrgDropdown(false);
+      Keyboard.dismiss();
+    } else {
+      setOrgSearchQuery(orgName);
+      setFormData(prev => ({
+        ...prev,
+        affiliatedOrganization: orgName
+      }));
+      setShowCustomOrgInput(false);
+      setCustomOrgName('');
+      setShowOrgDropdown(false);
+      Keyboard.dismiss();
+    }
+  };
+
+  const handleCustomOrgChange = (text: string) => {
+    setCustomOrgName(text);
+    setFormData(prev => ({
+      ...prev,
+      affiliatedOrganization: text
+    }));
+    if (error) setError(null);
+  };
+
+  // Filter organizations based on search query
+  const getFilteredOrganizations = (): OrganizationGroup[] => {
+    if (!orgSearchQuery.trim()) {
+      return organizations;
+    }
+
+    const query = orgSearchQuery.toLowerCase();
+    return organizations
+      .map(group => ({
+        ...group,
+        organizations: group.organizations.filter(org =>
+          org.name.toLowerCase().includes(query) ||
+          group.category.toLowerCase().includes(query)
+        )
+      }))
+      .filter(group => group.organizations.length > 0);
+  };
+
   const handlePickImage = async () => {
     try {
       if (Platform.OS === 'android') {
@@ -202,7 +307,7 @@ export default function SetupProfileScreen() {
         if (status !== 'granted') {
           InteractionManager.runAfterInteractions(() => {
             if (isMountedRef.current) {
-              Alert.alert('Permission Required', 'Please grant media library permissions to upload a profile photo.');
+              toast.warning('Please grant media library permissions to upload a profile photo.');
             }
           });
           return;
@@ -246,7 +351,7 @@ export default function SetupProfileScreen() {
         if (status !== 'granted') {
           InteractionManager.runAfterInteractions(() => {
             if (isMountedRef.current) {
-              Alert.alert('Permission Required', 'Please grant camera roll permissions to upload a profile photo.');
+              toast.warning('Please grant camera roll permissions to upload a profile photo.');
             }
           });
           return;
@@ -271,7 +376,7 @@ export default function SetupProfileScreen() {
       console.error('Error picking image:', err);
       InteractionManager.runAfterInteractions(() => {
         if (isMountedRef.current) {
-          Alert.alert('Error', 'Failed to pick image. Please try again.');
+          toast.error('Failed to pick image. Please try again.');
         }
       });
       setLoadingAlbums(false);
@@ -333,7 +438,7 @@ export default function SetupProfileScreen() {
       }
       
       if (!imageUri) {
-        Alert.alert('Error', 'Failed to get image URI');
+        toast.error('Failed to get image URI');
         return;
       }
 
@@ -364,7 +469,7 @@ export default function SetupProfileScreen() {
       }
     } catch (err) {
       console.error('Error selecting photo:', err);
-      Alert.alert('Error', 'Failed to process image. Please try again.');
+      toast.error('Failed to process image. Please try again.');
     }
   }, []);
 
@@ -423,7 +528,9 @@ export default function SetupProfileScreen() {
   const validateForm = () => {
     const trimmedFirstName = formData.firstName.trim();
     const trimmedLastName = formData.lastName.trim();
-    const trimmedOrg = formData.affiliatedOrganization.trim();
+    const trimmedOrg = showCustomOrgInput 
+      ? customOrgName.trim() 
+      : (formData.affiliatedOrganization.trim() || orgSearchQuery.trim());
 
     if (!trimmedFirstName || !trimmedLastName) {
       return 'First name and last name are required';
@@ -438,7 +545,7 @@ export default function SetupProfileScreen() {
 
   const handleSubmit = async () => {
     if (!user?.id) {
-      Alert.alert('Error', 'User not found. Please log in again.');
+      toast.error('User not found. Please log in again.');
       router.replace('/login');
       return;
     }
@@ -447,6 +554,7 @@ export default function SetupProfileScreen() {
     const validationError = validateForm();
     if (validationError) {
       setError(validationError);
+      toast.error(validationError);
       return;
     }
 
@@ -468,6 +576,23 @@ export default function SetupProfileScreen() {
         avatarUrl = uploadResult.url || '';
       }
 
+      // Handle custom organization
+      let orgName = showCustomOrgInput 
+        ? customOrgName.trim() 
+        : (formData.affiliatedOrganization.trim() || orgSearchQuery.trim());
+      
+      if (showCustomOrgInput && orgName) {
+        // Create or get custom organization
+        const orgResult = await OrganizationService.createCustomOrganization(orgName, user.id);
+        if (orgResult.error) {
+          setError(orgResult.error);
+          setIsLoading(false);
+          toast.error(orgResult.error);
+          return;
+        }
+        orgName = orgResult.organization?.name || orgName;
+      }
+
       // Prepare update data
       const updateData: any = {
         prefix: formData.prefix.trim() || '',
@@ -475,7 +600,7 @@ export default function SetupProfileScreen() {
         middle_initial: formData.middleInitial.trim() || '',
         last_name: formData.lastName.trim(),
         affix: formData.affix.trim() || '',
-        affiliated_organization: formData.affiliatedOrganization.trim(),
+        affiliated_organization: orgName,
       };
 
       if (avatarUrl) {
@@ -487,6 +612,7 @@ export default function SetupProfileScreen() {
 
       if (result.error) {
         setError(result.error);
+        toast.error(result.error);
         setIsLoading(false);
         return;
       }
@@ -510,20 +636,13 @@ export default function SetupProfileScreen() {
       }
 
       // Show success and redirect to main app
-      Alert.alert(
-        'Profile Setup Complete!',
-        'Your profile has been set up successfully.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              router.replace('/(tabs)');
-            },
-          },
-        ]
-      );
+      toast.success('Profile setup complete!');
+      setTimeout(() => {
+        router.replace('/(tabs)');
+      }, 1000);
     } catch (err: any) {
       console.error('Profile setup error:', err);
+      toast.error('An unexpected error occurred. Please try again.');
       setError('An unexpected error occurred. Please try again.');
       setIsLoading(false);
     }
@@ -841,34 +960,130 @@ export default function SetupProfileScreen() {
                   )}
                 </View>
 
-                {/* Affiliated Organization Input */}
+                {/* Affiliated Organization Searchable Dropdown */}
                 <View 
                   className="mb-6"
                   onLayout={handleInputLayout('org')}
                 >
                   <Text className="text-base font-semibold text-black mb-2">Affiliated Organization *</Text>
-                  <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
-                    <Ionicons name="business-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
-                    <TextInput
-                      ref={orgRef}
-                      className="flex-1 h-12 text-base text-black"
-                      placeholder="Enter your organization"
-                      placeholderTextColor="#666"
-                      value={formData.affiliatedOrganization}
-                      onChangeText={(text) => handleInputChange('affiliatedOrganization', text)}
-                      autoCapitalize="words"
-                      returnKeyType="done"
-                      blurOnSubmit={true}
-                      onSubmitEditing={() => {
-                        orgRef.current?.blur();
-                        Keyboard.dismiss();
-                        // Submit form if all fields are filled
-                        if (formData.firstName.trim() && formData.lastName.trim() && formData.affiliatedOrganization.trim()) {
-                          handleSubmit();
-                        }
-                      }}
-                    />
-                  </View>
+                  {loadingOrganizations ? (
+                    <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50 h-12 justify-center">
+                      <ActivityIndicator size="small" color="#1e3a8a" />
+                      <Text className="ml-2 text-gray-600">Loading organizations...</Text>
+                    </View>
+                  ) : (
+                    <>
+                      {!showCustomOrgInput ? (
+                        <View>
+                          <TouchableOpacity
+                            onPress={() => {
+                              setShowOrgDropdown(!showOrgDropdown);
+                              Keyboard.dismiss();
+                            }}
+                            className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50 h-12"
+                          >
+                            <Ionicons name="search-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
+                            <TextInput
+                              ref={orgRef}
+                              className="flex-1 h-12 text-base text-black"
+                              placeholder="Type to search organizations..."
+                              placeholderTextColor="#666"
+                              value={orgSearchQuery || formData.affiliatedOrganization}
+                              onChangeText={handleOrgSearchChange}
+                              onFocus={() => setShowOrgDropdown(true)}
+                              autoCapitalize="words"
+                              returnKeyType="done"
+                              blurOnSubmit={true}
+                            />
+                            <Ionicons 
+                              name={showOrgDropdown ? "chevron-up" : "chevron-down"} 
+                              size={20} 
+                              color="#666" 
+                            />
+                          </TouchableOpacity>
+                          
+                          {/* Dropdown List */}
+                          {showOrgDropdown && (
+                            <View className="mt-2 border border-gray-300 rounded-xl bg-white max-h-64" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 }}>
+                              <ScrollView nestedScrollEnabled>
+                                {getFilteredOrganizations().length > 0 ? (
+                                  <>
+                                    {getFilteredOrganizations().map((group) => (
+                                      <View key={group.category}>
+                                        <View className="px-4 py-2 bg-gray-100">
+                                          <Text className="text-gray-700 font-semibold text-sm">{group.category}</Text>
+                                        </View>
+                                        {group.organizations.map((org) => (
+                                          <TouchableOpacity
+                                            key={org.id}
+                                            onPress={() => handleSelectOrganization(org.name)}
+                                            className="px-4 py-3 border-b border-gray-100 active:bg-blue-50"
+                                          >
+                                            <Text className="text-black text-base">{org.name}</Text>
+                                          </TouchableOpacity>
+                                        ))}
+                                      </View>
+                                    ))}
+                                    <View className="border-t border-gray-200">
+                                      <TouchableOpacity
+                                        onPress={() => handleSelectOrganization('__OTHER__')}
+                                        className="px-4 py-3 active:bg-blue-50"
+                                      >
+                                        <Text className="text-blue-600 font-medium text-base">Other (specify below)</Text>
+                                      </TouchableOpacity>
+                                    </View>
+                                  </>
+                                ) : (
+                                  <View className="px-4 py-3">
+                                    <Text className="text-gray-500 text-center">
+                                      No organizations found.{' '}
+                                      <Text 
+                                        className="text-blue-600 underline"
+                                        onPress={() => handleSelectOrganization('__OTHER__')}
+                                      >
+                                        Add custom organization
+                                      </Text>
+                                    </Text>
+                                  </View>
+                                )}
+                              </ScrollView>
+                            </View>
+                          )}
+                        </View>
+                      ) : (
+                        <View>
+                          <View className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50">
+                            <Ionicons name="business-outline" size={18} color="#1e3a8a" style={{ marginRight: 6 }} />
+                            <TextInput
+                              ref={orgRef}
+                              className="flex-1 h-12 text-base text-black"
+                              placeholder="Enter your organization name"
+                              placeholderTextColor="#666"
+                              value={customOrgName}
+                              onChangeText={handleCustomOrgChange}
+                              autoCapitalize="words"
+                              returnKeyType="done"
+                              blurOnSubmit={true}
+                            />
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => {
+                              setShowCustomOrgInput(false);
+                              setCustomOrgName('');
+                              setOrgSearchQuery('');
+                              setFormData(prev => ({
+                                ...prev,
+                                affiliatedOrganization: ''
+                              }));
+                            }}
+                            className="mt-2 self-start"
+                          >
+                            <Text className="text-sm text-blue-600 underline">Select from list instead</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </>
+                  )}
                 </View>
 
                 {/* Required Fields Legend */}
