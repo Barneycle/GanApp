@@ -474,7 +474,7 @@ export class CertificateService {
           completion_date,
           certificate_pdf_url,
           certificate_png_url,
-          created_at,
+          generated_at,
           event_id
         `)
         .eq('certificate_number', certificateNumber)

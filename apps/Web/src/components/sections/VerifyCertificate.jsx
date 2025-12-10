@@ -160,7 +160,7 @@ export const VerifyCertificate = () => {
                 <Calendar className="w-5 h-5 text-slate-600 mr-2" />
                 <label className="text-sm font-medium text-slate-600">Issued On</label>
               </div>
-              <p className="text-lg text-slate-800">{formatDate(certificate.created_at)}</p>
+              <p className="text-lg text-slate-800">{formatDate(certificate.generated_at || certificate.created_at)}</p>
             </div>
           </div>
         </div>
