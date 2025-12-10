@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { CertificateService } from '../../services/certificateService';
-import { CheckCircle, XCircle, Calendar, User, Award, FileText, Download } from 'lucide-react';
+import { CheckCircle, XCircle, Calendar, User, Award } from 'lucide-react';
 
 export const VerifyCertificate = () => {
   const { certificateNumber } = useParams();
@@ -164,41 +164,6 @@ export const VerifyCertificate = () => {
             </div>
           </div>
         </div>
-
-        {/* Certificate Files */}
-        {(certificate.certificate_pdf_url || certificate.certificate_png_url) && (
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
-            <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center">
-              <Download className="w-6 h-6 mr-2 text-blue-600" />
-              Download Certificate
-            </h2>
-            
-            <div className="flex flex-wrap gap-4">
-              {certificate.certificate_pdf_url && (
-                <a
-                  href={certificate.certificate_pdf_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  <FileText className="w-5 h-5 mr-2" />
-                  Download PDF
-                </a>
-              )}
-              {certificate.certificate_png_url && (
-                <a
-                  href={certificate.certificate_png_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <FileText className="w-5 h-5 mr-2" />
-                  Download PNG
-                </a>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Back to Home */}
         <div className="text-center mt-6">
