@@ -915,7 +915,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
                 }}
               >
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=${Math.round((config.qr_code_size || 60) * scale)}x${Math.round((config.qr_code_size || 60) * scale)}&data=${encodeURIComponent(`${config.cert_id_prefix}-001`)}`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=${Math.round((config.qr_code_size || 60) * scale)}x${Math.round((config.qr_code_size || 60) * scale)}&data=${encodeURIComponent(`${window.location.origin || window.location.protocol + '//' + window.location.host}/verify-certificate/${config.cert_id_prefix}-001`)}`}
                   alt="Certificate QR Code"
                   style={{
                     width: '100%',

@@ -115,26 +115,7 @@ export const CreateSurvey = () => {
     mode: 'onChange',
     reValidateMode: 'onChange',
     defaultValues: {
-      sections: [
-        {
-          sectionTitle: '',
-          sectionDescription: '',
-          questions: [
-            {
-              questionText: '',
-              questionType: 'short-answer',
-              options: [''],
-              required: false,
-              scaleMin: 1,
-              scaleMax: 5,
-              lowestLabel: '',
-              highestLabel: '',
-              rows: [''],
-              columns: [''],
-            },
-          ],
-        },
-      ],
+      sections: []
     }
   });
 
@@ -1494,7 +1475,7 @@ export const CreateSurvey = () => {
             
             <button
               type="submit"
-              disabled={loading || !isValid}
+              disabled={loading || Object.keys(errors).length > 0 || !watchedSections || watchedSections.length === 0}
               className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-blue-800 text-white py-4 px-8 rounded-xl hover:from-blue-700 hover:to-blue-900 transition-all duration-200 font-semibold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
               <span className="flex items-center justify-center space-x-2">

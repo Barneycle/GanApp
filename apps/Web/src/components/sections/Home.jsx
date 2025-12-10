@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
@@ -97,16 +97,7 @@ export const Home = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
 
-  useEffect(() => {
-    // Only load once on mount, prevent reloading when switching tabs/windows
-    if (!hasLoadedRef.current) {
-      hasLoadedRef.current = true;
-      loadEvents();
-      loadFeaturedEvent();
-    }
-  }, []);
-
-  const loadEvents = async () => {
+  const loadEvents = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -116,24 +107,50 @@ export const Home = () => {
         setTimeout(() => reject(new Error('Loading timeout after 10 seconds')), 10000)
       );
       
-      // Fetch published events for the home page
-      const eventsPromise = EventService.getPublishedEvents();
+      let eventsPromise;
+      
+      // Load events based on user role
+      if (user?.role === 'admin') {
+        // Admins see all events
+        eventsPromise = EventService.getAllEvents();
+      } else if (user?.role === 'organizer') {
+        // Organizers see their own events (published and unpublished)
+        eventsPromise = EventService.getEventsByCreator(user.id);
+      } else {
+        // Participants and unauthenticated users see only published events
+        eventsPromise = EventService.getPublishedEvents();
+      }
       
       const result = await Promise.race([eventsPromise, timeoutPromise]);
       
       if (result.error) {
         setError(result.error);
       } else {
-        setEvents(result.events || []);
+        // Filter for upcoming events only (events that haven't ended yet)
+        const now = new Date();
+        const upcomingEvents = (result.events || []).filter(event => {
+          if (!event.end_date) return true; // Include events without end date
+          const endDate = new Date(event.end_date);
+          return endDate >= now;
+        });
+        
+        // Sort by start_date ascending (earliest first)
+        upcomingEvents.sort((a, b) => {
+          const dateA = new Date(a.start_date || a.created_at);
+          const dateB = new Date(b.start_date || b.created_at);
+          return dateA - dateB;
+        });
+        
+        setEvents(upcomingEvents);
       }
     } catch (err) {
       setError('Failed to load events from database');
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.role, user?.id]);
 
-  const loadFeaturedEvent = async () => {
+  const loadFeaturedEvent = useCallback(async () => {
     try {
       const result = await EventService.getFeaturedEvent();
       if (result.event) {
@@ -141,7 +158,13 @@ export const Home = () => {
       }
     } catch (err) {
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // Load events when component mounts or when user/auth state changes
+    loadEvents();
+    loadFeaturedEvent();
+  }, [loadEvents, loadFeaturedEvent]);
 
   // Use the featured event, or fallback to first event (no placeholder)
   const displayFeaturedEvent = featuredEvent ? {

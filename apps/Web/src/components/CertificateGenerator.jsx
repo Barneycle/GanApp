@@ -248,7 +248,7 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     return user?.email?.split('@')[0] || 'Participant';
   };
 
-  const generatePDF = async () => {
+  const generatePDF = async (certificateNumber = null) => {
     if (!config || !event) return null;
 
     const pdfDoc = await PDFDocument.create();
@@ -328,17 +328,32 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     // Embed MonteCarlo font for participant name
     let monteCarloFont = null;
     try {
-      const fontUrl = 'https://github.com/google/fonts/raw/main/ofl/montecarlo/MonteCarlo-Regular.ttf';
-      const fontResponse = await fetch(fontUrl);
+      // Try multiple sources for MonteCarlo font
+      const fontUrls = [
+        'https://fonts.gstatic.com/s/montecarlo/v1/sykz-yx80lwvRnfW2Nc4kgnFhTd3kXc.woff2',
+        'https://github.com/google/fonts/raw/main/ofl/montecarlo/MonteCarlo-Regular.ttf'
+      ];
       
-      if (!fontResponse.ok) {
-        throw new Error(`Font fetch failed: ${fontResponse.status}`);
+      let fontBytes = null;
+      for (const fontUrl of fontUrls) {
+        try {
+          const fontResponse = await fetch(fontUrl);
+          if (fontResponse.ok) {
+            fontBytes = await fontResponse.arrayBuffer();
+            break;
+          }
+        } catch (e) {
+          continue;
+        }
       }
       
-      const fontBytes = await fontResponse.arrayBuffer();
-      monteCarloFont = await pdfDoc.embedFont(fontBytes);
+      if (fontBytes) {
+        monteCarloFont = await pdfDoc.embedFont(fontBytes);
+      } else {
+        throw new Error('Could not load MonteCarlo font from any source');
+      }
     } catch (error) {
-      console.warn('Error loading MonteCarlo font:', error);
+      console.warn('Error loading MonteCarlo font, using fallback:', error);
       monteCarloFont = helveticaBoldFont;
     }
 
@@ -569,28 +584,56 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       const certIdX = (width * (config.cert_id_position?.x || 50)) / 100;
       const certIdY = height - (height * (config.cert_id_position?.y || 95)) / 100;
       
-      // Draw Certificate ID
-      page.drawText(certIdText, {
-        x: certIdX - certIdWidth / 2,
-        y: certIdY,
-        size: certIdSize,
-        font: helveticaFont,
-        color: hexToRgb(config.cert_id_color || '#000000')
-      });
-
       // Draw QR Code beside cert ID if enabled
       if (config.qr_code_enabled !== false) {
         try {
           const qrSize = config.qr_code_size || 60;
-          const qrGap = 10; // Gap between cert ID and QR code
-          const qrX = certIdX + certIdWidth / 2 + qrGap;
+          const qrGap = 15; // Gap between cert ID and QR code
+          // Position QR code to the right of the cert ID text (right edge + gap)
+          const certIdRightEdge = certIdX + certIdWidth / 2;
+          const qrX = certIdRightEdge + qrGap;
           const qrY = certIdY - qrSize / 2;
           
-          // Generate QR code as data URL
-          const qrDataUrl = await QRCode.toDataURL(certificateNumber, {
-            width: qrSize,
-            margin: 1
+          // Center cert ID vertically with QR code
+          const certIdYCentered = qrY + qrSize / 2;
+          
+          // Draw Certificate ID (centered vertically with QR code)
+          page.drawText(certIdText, {
+            x: certIdX - certIdWidth / 2,
+            y: certIdYCentered,
+            size: certIdSize,
+            font: helveticaFont,
+            color: hexToRgb(config.cert_id_color || '#000000')
           });
+          
+          // Generate QR code with verification URL
+          // Ensure we have a proper URL format (not just text)
+          if (!certificateNumber) {
+            console.error('Certificate number is missing for QR code');
+            throw new Error('Certificate number is required for QR code generation');
+          }
+          
+          const baseUrl = window.location.origin || (window.location.protocol + '//' + window.location.host);
+          const verificationUrl = `${baseUrl}/verify-certificate/${encodeURIComponent(certificateNumber)}`;
+          
+          // Debug log - check browser console to verify URL is correct
+          console.log('Generating QR code with URL:', verificationUrl);
+          console.log('Certificate Number:', certificateNumber);
+          
+          // Ensure we're passing the URL, not just the certificate number
+          if (!verificationUrl.startsWith('http://') && !verificationUrl.startsWith('https://')) {
+            console.error('Invalid URL format:', verificationUrl);
+            throw new Error('QR code URL must start with http:// or https://');
+          }
+          
+          const qrDataUrl = await QRCode.toDataURL(verificationUrl, {
+            width: qrSize,
+            margin: 1,
+            errorCorrectionLevel: 'M'
+          });
+          
+          // Verify QR code contains the URL (debug)
+          console.log('QR Code generated, data URL length:', qrDataUrl.length);
           
           // Convert data URL to image bytes
           const qrImageBytes = await fetch(qrDataUrl).then(res => res.arrayBuffer());
@@ -605,6 +648,15 @@ const CertificateGenerator = ({ eventId, onClose }) => {
         } catch (qrError) {
           console.warn('Failed to generate QR code for PDF:', qrError);
         }
+      } else {
+        // No QR code, draw cert ID at original position
+        page.drawText(certIdText, {
+          x: certIdX - certIdWidth / 2,
+          y: certIdY,
+          size: certIdSize,
+          font: helveticaFont,
+          color: hexToRgb(config.cert_id_color || '#000000')
+        });
       }
     }
 
@@ -789,6 +841,15 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     // Wait for all fonts to be ready before rendering
     await document.fonts.ready;
     
+    // Load MonteCarlo font if not already loaded
+    try {
+      if (fontFamily.includes('MonteCarlo')) {
+        await document.fonts.load(`${nameConfig.font_weight || 'normal'} ${nameConfig.font_size || 48}px MonteCarlo`);
+      }
+    } catch (e) {
+      console.warn('Could not load MonteCarlo font for canvas:', e);
+    }
+    
     // Set font and render
     ctx.font = `${nameConfig.font_weight || 'bold'} ${nameConfig.font_size || 48}px ${fontFamily}`;
     ctx.textAlign = 'center';
@@ -878,40 +939,82 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       const certIdX = (width * certIdPos.x) / 100;
       const certIdY = (height * certIdPos.y) / 100;
       
-      // Draw Certificate ID
-      ctx.fillStyle = config.cert_id_color || '#000000';
-      ctx.font = `${certIdSize}px Arial, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(certificateNumber, certIdX, certIdY);
-
       // Draw QR Code beside cert ID if enabled
       if (config.qr_code_enabled !== false) {
         try {
           const qrSize = config.qr_code_size || 60;
-          const qrGap = 10; // Gap between cert ID and QR code
-          const qrX = certIdX + qrGap;
-          const qrY = certIdY;
+          const qrGap = 15; // Gap between cert ID and QR code
+          // Calculate cert ID text width and position QR code to the right
+          ctx.save();
+          ctx.font = `${certIdSize}px Arial, sans-serif`;
+          const certIdTextWidth = ctx.measureText(certificateNumber).width;
+          ctx.restore();
+          // Position QR code to the right of cert ID text (center + half width + gap)
+          const qrX = certIdX + certIdTextWidth / 2 + qrGap;
+          const qrY = certIdY - qrSize / 2;
           
-          // Generate QR code as data URL
-          const qrDataUrl = await QRCode.toDataURL(certificateNumber, {
+          // Center cert ID vertically with QR code
+          const certIdYCentered = qrY + qrSize / 2;
+          
+          // Draw Certificate ID (centered vertically with QR code)
+          ctx.fillStyle = config.cert_id_color || '#000000';
+          ctx.font = `${certIdSize}px Arial, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(certificateNumber, certIdX, certIdYCentered);
+          
+          // Generate QR code with verification URL
+          // Ensure we have a proper URL format (not just text)
+          if (!certificateNumber) {
+            console.error('Certificate number is missing for QR code');
+            throw new Error('Certificate number is required for QR code generation');
+          }
+          
+          const baseUrl = window.location.origin || (window.location.protocol + '//' + window.location.host);
+          const verificationUrl = `${baseUrl}/verify-certificate/${encodeURIComponent(certificateNumber)}`;
+          
+          // Debug log - check browser console to verify URL is correct
+          console.log('Generating QR code with URL:', verificationUrl);
+          console.log('Certificate Number:', certificateNumber);
+          
+          // Ensure we're passing the URL, not just the certificate number
+          if (!verificationUrl.startsWith('http://') && !verificationUrl.startsWith('https://')) {
+            console.error('Invalid URL format:', verificationUrl);
+            throw new Error('QR code URL must start with http:// or https://');
+          }
+          
+          const qrDataUrl = await QRCode.toDataURL(verificationUrl, {
             width: qrSize,
-            margin: 1
+            margin: 1,
+            errorCorrectionLevel: 'M'
           });
+          
+          // Verify QR code contains the URL (debug)
+          console.log('QR Code generated for PNG, data URL length:', qrDataUrl.length);
           
           // Draw QR code image
           const qrImage = new Image();
           await new Promise((resolve, reject) => {
             qrImage.onload = () => {
-              ctx.drawImage(qrImage, qrX, qrY - qrSize / 2, qrSize, qrSize);
+              ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
               resolve();
             };
-            qrImage.onerror = reject;
+            qrImage.onerror = (err) => {
+              console.error('Error loading QR code image:', err);
+              reject(err);
+            };
             qrImage.src = qrDataUrl;
           });
         } catch (qrError) {
           console.warn('Failed to generate QR code for PNG:', qrError);
         }
+      } else {
+        // No QR code, draw cert ID at original position
+        ctx.fillStyle = config.cert_id_color || '#000000';
+        ctx.font = `${certIdSize}px Arial, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(certificateNumber, certIdX, certIdY);
       }
     }
 
@@ -935,20 +1038,23 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     setError(null);
 
     try {
-      // Get certificate number with prefix and auto-incrementing counter
+      // Get certificate number with prefix (without incrementing counter yet)
       let certificateNumber;
       if (config?.cert_id_prefix) {
-        const certNumberResult = await CertificateService.getNextCertificateNumber(eventId, config.cert_id_prefix);
-        if (certNumberResult.error) {
-          throw new Error(`Failed to generate certificate number: ${certNumberResult.error}`);
+        // Get current count without incrementing
+        const countResult = await CertificateService.getCurrentCertificateCount(eventId);
+        if (countResult.error) {
+          throw new Error(`Failed to get certificate count: ${countResult.error}`);
         }
-        certificateNumber = certNumberResult.number || CertificateService.generateCertificateNumber(eventId, user.id);
+        const nextCount = (countResult.count || 0) + 1;
+        const formattedNumber = String(nextCount).padStart(3, '0');
+        certificateNumber = `${config.cert_id_prefix}-${formattedNumber}`;
       } else {
         certificateNumber = CertificateService.generateCertificateNumber(eventId, user.id);
       }
       
-      // Generate PDF
-      const pdfBytes = await generatePDF();
+      // Generate PDF (pass certificate number for cert ID display)
+      const pdfBytes = await generatePDF(certificateNumber);
       if (!pdfBytes) {
         throw new Error('Failed to generate PDF');
       }
@@ -992,6 +1098,15 @@ const CertificateGenerator = ({ eventId, onClose }) => {
 
       if (saveResult.error) {
         throw new Error(`Failed to save certificate: ${saveResult.error}`);
+      }
+
+      // Only increment counter AFTER successful certificate generation
+      if (config?.cert_id_prefix) {
+        const incrementResult = await CertificateService.incrementCertificateCounter(eventId);
+        if (incrementResult.error) {
+          console.warn('Failed to increment certificate counter:', incrementResult.error);
+          // Don't throw error here - certificate is already saved
+        }
       }
 
       setCertificate(saveResult.certificate);

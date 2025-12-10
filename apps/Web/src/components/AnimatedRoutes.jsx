@@ -26,6 +26,7 @@ import { Notifications } from "./sections/Notifications";
 import { Settings } from "./sections/Settings";
 import { Albums } from "./sections/Albums";
 import { CertificatePage } from "./sections/CertificatePage";
+import { VerifyCertificate } from "./sections/VerifyCertificate";
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -61,6 +62,7 @@ function AnimatedRoutes() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/albums" element={<Albums />} />
         <Route path="/certificate" element={<CertificatePage />} />
+        <Route path="/verify-certificate/:certificateNumber" element={<VerifyCertificate />} />
       </Routes>
     </div>
   );

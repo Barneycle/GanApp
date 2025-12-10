@@ -2086,6 +2086,8 @@ export const CreateEvent = () => {
     resolver: zodResolver(createEventSchema),
 
     mode: 'onChange',
+    reValidateMode: 'onChange',
+    criteriaMode: 'all',
 
     defaultValues: {
 
@@ -4532,11 +4534,11 @@ export const CreateEvent = () => {
 
               type="submit"
 
-              disabled={!isValid}
+              disabled={Object.keys(errors).length > 0}
 
               className={`w-full px-6 py-3 rounded-xl text-lg font-semibold shadow-md transition-all duration-200 flex items-center justify-center space-x-2 ${
 
-                isValid
+                Object.keys(errors).length === 0
 
                   ? 'bg-blue-900 text-white hover:bg-blue-800'
 

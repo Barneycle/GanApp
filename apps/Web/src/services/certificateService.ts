@@ -392,7 +392,50 @@ export class CertificateService {
   }
 
   /**
+   * Get current certificate counter without incrementing
+   */
+  static async getCurrentCertificateCount(eventId: string): Promise<{ count?: number; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('certificate_counters')
+        .select('current_count')
+        .eq('event_id', eventId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        return { error: error.message };
+      }
+
+      const currentCount = data?.current_count || 0;
+      return { count: currentCount };
+    } catch (err: any) {
+      return { error: err.message || 'Failed to get certificate count' };
+    }
+  }
+
+  /**
+   * Increment certificate counter (call this only after successful certificate generation)
+   */
+  static async incrementCertificateCounter(eventId: string): Promise<{ success?: boolean; error?: string }> {
+    try {
+      // Call the database function to increment the counter
+      const { data, error } = await supabase.rpc('get_next_certificate_number', {
+        event_uuid: eventId
+      });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return { error: err.message || 'Failed to increment certificate counter' };
+    }
+  }
+
+  /**
    * Get next certificate number for an event (with prefix and auto-incrementing counter)
+   * @deprecated Use getCurrentCertificateCount + incrementCertificateCounter instead
    */
   static async getNextCertificateNumber(eventId: string, prefix: string = ''): Promise<{ number?: string; error?: string }> {
     try {
@@ -413,6 +456,44 @@ export class CertificateService {
       return { number: certId };
     } catch (err: any) {
       return { error: err.message || 'Failed to generate certificate number' };
+    }
+  }
+
+  /**
+   * Verify certificate by certificate number (public method, no auth required)
+   */
+  static async verifyCertificate(certificateNumber: string): Promise<{ certificate?: any; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('certificates')
+        .select(`
+          id,
+          certificate_number,
+          participant_name,
+          event_title,
+          completion_date,
+          certificate_pdf_url,
+          certificate_png_url,
+          created_at,
+          event_id
+        `)
+        .eq('certificate_number', certificateNumber)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return { error: 'Certificate not found. This certificate number does not exist in our database.' };
+        }
+        return { error: error.message };
+      }
+
+      if (!data) {
+        return { error: 'Certificate not found' };
+      }
+
+      return { certificate: data };
+    } catch (err: any) {
+      return { error: err.message || 'Failed to verify certificate' };
     }
   }
 

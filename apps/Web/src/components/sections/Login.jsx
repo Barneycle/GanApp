@@ -6,7 +6,36 @@ import TermsModal from '../TermsModal';
 
 export const Login = () => {
   const navigate = useNavigate();
-  const { signIn, loading, error, clearError, isAuthenticated, getRedirectPath, user } = useAuth();
+  let authContext;
+  try {
+    authContext = useAuth();
+  } catch (err) {
+    console.error('Error accessing auth context:', err);
+    return (
+      <section className="fixed inset-0 bg-white flex items-center justify-center z-[9999]">
+        <div className="text-center p-8">
+          <h1 className="text-2xl font-bold text-slate-800 mb-4">Error Loading Login</h1>
+          <p className="text-slate-600 mb-4">Please refresh the page.</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
+          >
+            Refresh Page
+          </button>
+        </div>
+      </section>
+    );
+  }
+  
+  const { signIn, loading, error, clearError, isAuthenticated, getRedirectPath, user } = authContext || {
+    signIn: null,
+    loading: false,
+    error: null,
+    clearError: () => {},
+    isAuthenticated: false,
+    getRedirectPath: () => '/',
+    user: null
+  };
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -42,34 +71,43 @@ export const Login = () => {
 
   // Check for account lockout
   useEffect(() => {
-    const lockoutEnd = localStorage.getItem('accountLockoutEnd');
-    if (lockoutEnd) {
-      const endTime = new Date(lockoutEnd);
-      if (endTime > new Date()) {
-        setIsLocked(true);
-        setLockoutTime(endTime);
-        const interval = setInterval(() => {
-          if (new Date() >= endTime) {
-            setIsLocked(false);
-            setLockoutTime(null);
-            localStorage.removeItem('accountLockoutEnd');
-            clearInterval(interval);
-          }
-        }, 1000);
-        return () => clearInterval(interval);
-      } else {
-        localStorage.removeItem('accountLockoutEnd');
+    try {
+      const lockoutEnd = localStorage.getItem('accountLockoutEnd');
+      if (lockoutEnd) {
+        const endTime = new Date(lockoutEnd);
+        if (endTime > new Date()) {
+          setIsLocked(true);
+          setLockoutTime(endTime);
+          const interval = setInterval(() => {
+            if (new Date() >= endTime) {
+              setIsLocked(false);
+              setLockoutTime(null);
+              localStorage.removeItem('accountLockoutEnd');
+              clearInterval(interval);
+            }
+          }, 1000);
+          return () => clearInterval(interval);
+        } else {
+          localStorage.removeItem('accountLockoutEnd');
+        }
       }
+    } catch (err) {
+      console.error('Error checking account lockout:', err);
     }
   }, []);
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated && user) {
-      // Get redirect path based on user role
-      const redirectPath = getRedirectPath(user);
-      if (redirectPath) {
-        navigate(redirectPath);
+    if (isAuthenticated && user && getRedirectPath) {
+      try {
+        // Get redirect path based on user role
+        const redirectPath = getRedirectPath(user);
+        if (redirectPath) {
+          navigate(redirectPath);
+        }
+      } catch (err) {
+        console.error('Error getting redirect path:', err);
+        // Don't block rendering if redirect fails
       }
     }
   }, [isAuthenticated, user, navigate, getRedirectPath]);
@@ -81,71 +119,75 @@ export const Login = () => {
 
   // Prevent body and html scrolling when login page is mounted
   useEffect(() => {
-    const root = document.getElementById('root');
-    const preventScroll = (e) => {
-      // Allow scrolling within modal elements
-      const target = e.target;
-      const modalContent = target.closest('[data-modal-content]');
-      if (modalContent) {
-        // Allow scrolling within modal - don't prevent the event
-        return;
-      }
+    try {
+      const root = document.getElementById('root');
+      const preventScroll = (e) => {
+        // Allow scrolling within modal elements
+        const target = e.target;
+        const modalContent = target.closest('[data-modal-content]');
+        if (modalContent) {
+          // Allow scrolling within modal - don't prevent the event
+          return;
+        }
+        
+        // Prevent scroll on the page itself
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      };
       
-      // Prevent scroll on the page itself
-      e.preventDefault();
-      e.stopPropagation();
-      return false;
-    };
-    
-    // Add no-scroll class to html and body
-    document.documentElement.classList.add('no-scroll');
-    document.body.classList.add('no-scroll');
-    
-    // Also set inline styles as backup
-    document.documentElement.style.setProperty('overflow', 'hidden', 'important');
-    document.documentElement.style.setProperty('height', '100%', 'important');
-    document.documentElement.style.setProperty('max-height', '100vh', 'important');
-    document.body.style.setProperty('overflow', 'hidden', 'important');
-    document.body.style.setProperty('height', '100%', 'important');
-    document.body.style.setProperty('max-height', '100vh', 'important');
-    document.body.style.setProperty('position', 'fixed', 'important');
-    document.body.style.setProperty('width', '100%', 'important');
-    if (root) {
-      root.style.setProperty('height', '100%', 'important');
-      root.style.setProperty('overflow', 'hidden', 'important');
-      root.style.setProperty('max-height', '100vh', 'important');
-    }
-    
-    // Prevent scroll events
-    document.addEventListener('wheel', preventScroll, { passive: false });
-    document.addEventListener('touchmove', preventScroll, { passive: false });
-    document.addEventListener('scroll', preventScroll, { passive: false });
-    
-    return () => {
-      // Remove no-scroll class
-      document.documentElement.classList.remove('no-scroll');
-      document.body.classList.remove('no-scroll');
+      // Add no-scroll class to html and body
+      document.documentElement.classList.add('no-scroll');
+      document.body.classList.add('no-scroll');
       
-      // Remove inline styles
-      document.documentElement.style.removeProperty('overflow');
-      document.documentElement.style.removeProperty('height');
-      document.documentElement.style.removeProperty('max-height');
-      document.body.style.removeProperty('overflow');
-      document.body.style.removeProperty('height');
-      document.body.style.removeProperty('max-height');
-      document.body.style.removeProperty('position');
-      document.body.style.removeProperty('width');
+      // Also set inline styles as backup
+      document.documentElement.style.setProperty('overflow', 'hidden', 'important');
+      document.documentElement.style.setProperty('height', '100%', 'important');
+      document.documentElement.style.setProperty('max-height', '100vh', 'important');
+      document.body.style.setProperty('overflow', 'hidden', 'important');
+      document.body.style.setProperty('height', '100%', 'important');
+      document.body.style.setProperty('max-height', '100vh', 'important');
+      document.body.style.setProperty('position', 'fixed', 'important');
+      document.body.style.setProperty('width', '100%', 'important');
       if (root) {
-        root.style.removeProperty('height');
-        root.style.removeProperty('overflow');
-        root.style.removeProperty('max-height');
+        root.style.setProperty('height', '100%', 'important');
+        root.style.setProperty('overflow', 'hidden', 'important');
+        root.style.setProperty('max-height', '100vh', 'important');
       }
       
-      // Remove event listeners
-      document.removeEventListener('wheel', preventScroll);
-      document.removeEventListener('touchmove', preventScroll);
-      document.removeEventListener('scroll', preventScroll);
-    };
+      // Prevent scroll events
+      document.addEventListener('wheel', preventScroll, { passive: false });
+      document.addEventListener('touchmove', preventScroll, { passive: false });
+      document.addEventListener('scroll', preventScroll, { passive: false });
+      
+      return () => {
+        // Remove no-scroll class
+        document.documentElement.classList.remove('no-scroll');
+        document.body.classList.remove('no-scroll');
+        
+        // Remove inline styles
+        document.documentElement.style.removeProperty('overflow');
+        document.documentElement.style.removeProperty('height');
+        document.documentElement.style.removeProperty('max-height');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('height');
+        document.body.style.removeProperty('max-height');
+        document.body.style.removeProperty('position');
+        document.body.style.removeProperty('width');
+        if (root) {
+          root.style.removeProperty('height');
+          root.style.removeProperty('overflow');
+          root.style.removeProperty('max-height');
+        }
+        
+        // Remove event listeners
+        document.removeEventListener('wheel', preventScroll);
+        document.removeEventListener('touchmove', preventScroll);
+        document.removeEventListener('scroll', preventScroll);
+      };
+    } catch (err) {
+      console.error('Error setting up scroll prevention:', err);
+    }
   }, []);
 
   const handleInputChange = (e) => {
@@ -348,6 +390,18 @@ export const Login = () => {
   const closeTermsModal = () => {
     setIsTermsModalOpen(false);
   };
+
+  // Safety check - ensure we have required functions
+  if (!signIn || typeof signIn !== 'function') {
+    return (
+      <section className="fixed inset-0 bg-white flex items-center justify-center z-[9999]">
+        <div className="text-center p-8">
+          <h1 className="text-2xl font-bold text-slate-800 mb-4">Loading Login Page...</h1>
+          <p className="text-slate-600">Please wait while we initialize.</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section 
