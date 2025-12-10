@@ -7,6 +7,20 @@ import { supabase } from '../../lib/supabaseClient';
 import { Calendar, MapPin, Clock, ArrowLeft, Star, CheckCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
+// Helper function to check if user profile is complete
+const isProfileComplete = (user) => {
+  if (!user) return false;
+  const firstName = user.first_name;
+  const lastName = user.last_name;
+  const affiliatedOrg = user.affiliated_organization;
+  
+  const hasFirstName = firstName !== undefined && firstName !== null && String(firstName).trim() !== '';
+  const hasLastName = lastName !== undefined && lastName !== null && String(lastName).trim() !== '';
+  const hasAffiliatedOrg = affiliatedOrg !== undefined && affiliatedOrg !== null && String(affiliatedOrg).trim() !== '';
+  
+  return hasFirstName && hasLastName && hasAffiliatedOrg;
+};
+
 export const Evaluation = () => {
   const navigate = useNavigate();
   const { surveyId } = useParams();
@@ -84,23 +98,34 @@ export const Evaluation = () => {
     // Check authentication after loading is complete
     if (!isAuthenticated) {
       navigate('/login');
+      setHasCheckedSubmission(true);
+      setLoading(false);
+      hasLoadedRef.current = true;
       return;
     }
 
     if (user?.role !== 'participant') {
       navigate('/');
+      setHasCheckedSubmission(true);
+      setLoading(false);
+      hasLoadedRef.current = true;
       return;
     }
 
     // Check if profile is complete
     if (!isProfileComplete(user)) {
       navigate('/setup-profile');
+      setHasCheckedSubmission(true);
+      setLoading(false);
+      hasLoadedRef.current = true;
       return;
     }
 
     if (!surveyId) {
       setError('Survey ID is missing');
       setLoading(false);
+      setHasCheckedSubmission(true);
+      hasLoadedRef.current = true;
       return;
     }
 
@@ -108,12 +133,15 @@ export const Evaluation = () => {
 
     // Timeout to ensure form shows even if loading takes too long (5 seconds max)
     const timeout = setTimeout(() => {
-      setLoading(false);
+      if (!hasLoadedRef.current) {
+        setLoading(false);
+        setHasCheckedSubmission(true);
+      }
     }, 5000);
 
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [surveyId]);
+  }, [surveyId, authLoading, isAuthenticated, user]);
 
   const loadData = async () => {
     if (!surveyId) {
@@ -237,6 +265,8 @@ export const Evaluation = () => {
       hasLoadedRef.current = true;
     } finally {
       setLoading(false);
+      setHasCheckedSubmission(true);
+      hasLoadedRef.current = true;
       console.log('Loading complete. Survey:', survey, 'Error:', error);
     }
   };

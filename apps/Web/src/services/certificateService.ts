@@ -77,11 +77,17 @@ export interface CertificateConfig {
     psu_logo_url?: string | null;
     psu_logo_size?: { width: number; height: number };
     psu_logo_position?: { x: number; y: number };
+    logos?: Array<{
+      url: string;
+      size: { width: number; height: number };
+      position: { x: number; y: number };
+    }>;
     sponsor_logos?: string[];
     sponsor_logo_size?: { width: number; height: number };
     sponsor_logo_position?: { x: number; y: number };
     sponsor_logo_spacing?: number;
   };
+  background_image_size?: { width: number; height: number } | null;
   participation_text_config?: {
     text_template?: string;
     font_size?: number;
@@ -192,7 +198,17 @@ export class CertificateService {
         // Ensure signature_blocks is properly serialized as JSONB
         const updateData = {
           ...config,
-          signature_blocks: config.signature_blocks || [],
+          signature_blocks: Array.isArray(config.signature_blocks) ? config.signature_blocks : [],
+          logo_config: config.logo_config || {},
+          background_image_url: config.background_image_url !== undefined ? config.background_image_url : null,
+          background_image_size: config.background_image_size !== undefined ? config.background_image_size : null,
+          cert_id_prefix: config.cert_id_prefix !== undefined ? config.cert_id_prefix : '',
+          cert_id_position: config.cert_id_position || { x: 50, y: 95 },
+          cert_id_font_size: config.cert_id_font_size !== undefined ? config.cert_id_font_size : 14,
+          cert_id_color: config.cert_id_color || '#000000',
+          qr_code_enabled: config.qr_code_enabled !== undefined ? config.qr_code_enabled : true,
+          qr_code_position: config.qr_code_position || { x: 60, y: 95 },
+          qr_code_size: config.qr_code_size !== undefined ? config.qr_code_size : 60,
           updated_at: new Date().toISOString()
         };
         
@@ -217,7 +233,17 @@ export class CertificateService {
           event_id: eventId,
           ...configWithoutCreatedBy,
           created_by: userId, // Always set created_by to the authenticated user
-          signature_blocks: config.signature_blocks || []
+          signature_blocks: Array.isArray(config.signature_blocks) ? config.signature_blocks : [],
+          logo_config: config.logo_config || {},
+          background_image_url: config.background_image_url !== undefined ? config.background_image_url : null,
+          background_image_size: config.background_image_size !== undefined ? config.background_image_size : null,
+          cert_id_prefix: config.cert_id_prefix !== undefined ? config.cert_id_prefix : '',
+          cert_id_position: config.cert_id_position || { x: 50, y: 95 },
+          cert_id_font_size: config.cert_id_font_size !== undefined ? config.cert_id_font_size : 14,
+          cert_id_color: config.cert_id_color || '#000000',
+          qr_code_enabled: config.qr_code_enabled !== undefined ? config.qr_code_enabled : true,
+          qr_code_position: config.qr_code_position || { x: 60, y: 95 },
+          qr_code_size: config.qr_code_size !== undefined ? config.qr_code_size : 60
         };
         
         const { data, error } = await supabase

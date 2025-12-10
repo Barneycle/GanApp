@@ -648,7 +648,7 @@ export const MyEvents = () => {
                           if (surveyResult.surveys && surveyResult.surveys.length > 0) {
                             // Get the first active survey
                             const activeSurvey = surveyResult.surveys.find(e => e.is_active) || surveyResult.surveys[0];
-                            navigate(`/survey/${activeSurvey.id}`);
+                            navigate(`/evaluation/${activeSurvey.id}`);
                           } else {
                             toast.info('No survey is available for this event yet.');
                           }

@@ -39,10 +39,15 @@ const sectionSchema = z.object({
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = val;
       const plainText = tempDiv.textContent || tempDiv.innerText || '';
-      return plainText.trim().length > 0;
+      // Check if there's actual content (not just whitespace or empty tags)
+      const trimmed = plainText.trim();
+      // Also check if HTML contains actual content (not just <p></p> or <p><br></p>)
+      const hasContent = trimmed.length > 0 && !/^[\s\n\r]*$/.test(trimmed);
+      return hasContent;
     }
-    // Fallback for server-side validation
-    return val.trim().length > 0;
+    // Fallback for server-side validation - strip HTML tags
+    const stripped = val.replace(/<[^>]*>/g, '').trim();
+    return stripped.length > 0;
   }, 'Section title is required'),
   sectionDescription: z.string().optional(),
   questions: z.array(questionSchema).min(1, 'At least one question is required in each section'),
@@ -103,10 +108,12 @@ export const CreateSurvey = () => {
     handleSubmit,
     formState: { errors, isValid },
     watch,
-    setValue
+    setValue,
+    trigger
   } = useForm({
     resolver: zodResolver(createSurveySchema),
     mode: 'onChange',
+    reValidateMode: 'onChange',
     defaultValues: {
       sections: [
         {
@@ -137,6 +144,16 @@ export const CreateSurvey = () => {
   });
 
   const watchedSections = watch("sections");
+
+  // Trigger validation when sections change (debounced to avoid excessive calls)
+  useEffect(() => {
+    if (watchedSections && watchedSections.length > 0) {
+      const timeoutId = setTimeout(() => {
+        trigger(); // Trigger validation for all fields
+      }, 300); // Debounce validation by 300ms
+      return () => clearTimeout(timeoutId);
+    }
+  }, [watchedSections, trigger]);
 
   // Check for pending event data on component mount
   useEffect(() => {
@@ -176,16 +193,18 @@ export const CreateSurvey = () => {
     const savedData = getSavedFormData();
     if (savedData && savedData.sections && savedData.sections.length > 0) {
       // Set the saved sections directly using setValue
-      setValue('sections', savedData.sections);
+      setValue('sections', savedData.sections, { shouldValidate: true });
+      trigger(); // Trigger validation after loading saved data
     } else if (savedData && savedData.questions && savedData.questions.length > 0) {
       // Migrate old format (questions only) to new format (sections with questions)
       setValue('sections', [{
         sectionTitle: '',
         sectionDescription: '',
         questions: savedData.questions
-      }]);
+      }], { shouldValidate: true });
+      trigger(); // Trigger validation after loading saved data
     }
-  }, [setValue]); // Only depend on setValue
+  }, [setValue, trigger]); // Depend on setValue and trigger
 
   // Watch form changes and save to session storage
   useEffect(() => {
@@ -327,7 +346,8 @@ export const CreateSurvey = () => {
         rows: [''],
         columns: [''],
       },
-    ]);
+    ], { shouldValidate: true });
+    trigger(`sections.${sectionIndex}.questions`);
   };
 
   const removeQuestion = (sectionIndex, questionIndex) => {
@@ -1071,7 +1091,8 @@ export const CreateSurvey = () => {
                             value={field.value || ''}
                             onChange={(html) => {
                               field.onChange(html);
-                              setValue(`sections.${sectionIndex}.sectionTitle`, html);
+                              setValue(`sections.${sectionIndex}.sectionTitle`, html, { shouldValidate: true });
+                              trigger(`sections.${sectionIndex}.sectionTitle`);
                             }}
                             placeholder="Enter section title (e.g., Event Feedback, Speaker Evaluation)"
                             className={errors.sections?.[sectionIndex]?.sectionTitle ? 'border-red-300' : ''}
@@ -1170,7 +1191,11 @@ export const CreateSurvey = () => {
                             <input
                               type="text"
                               placeholder="What would you like to ask?"
-                              {...control.register(`sections.${sectionIndex}.questions.${qIndex}.questionText`)}
+                              {...control.register(`sections.${sectionIndex}.questions.${qIndex}.questionText`, {
+                                onChange: () => {
+                                  trigger(`sections.${sectionIndex}.questions.${qIndex}.questionText`);
+                                }
+                              })}
                               className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
                             />
                             {errors.sections?.[sectionIndex]?.questions?.[qIndex]?.questionText && (

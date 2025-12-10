@@ -111,7 +111,15 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       font_family: 'Libre Baskerville, serif',
       font_weight: 'normal'
     },
-    signature_blocks: []
+    signature_blocks: [],
+    cert_id_prefix: '',
+    cert_id_position: { x: 50, y: 75 },
+    cert_id_font_size: 16,
+    cert_id_color: '#000000',
+    qr_code_enabled: false,
+    qr_code_size: 60,
+    qr_code_position: { x: 60, y: 75 },
+    background_image_size: { width: 2000, height: 1200 }
   });
 
   const loadData = async () => {
@@ -142,7 +150,11 @@ const CertificateGenerator = ({ eventId, onClose }) => {
           ...defaultConfig,
           ...configResult.config,
           header_config: { ...defaultConfig.header_config, ...(configResult.config.header_config || {}) },
-          logo_config: { ...defaultConfig.logo_config, ...(configResult.config.logo_config || {}) },
+          logo_config: { 
+            ...defaultConfig.logo_config, 
+            ...(configResult.config.logo_config || {}),
+            logos: configResult.config.logo_config?.logos || defaultConfig.logo_config.logos || []
+          },
           participation_text_config: { 
             ...defaultConfig.participation_text_config, 
             ...(configResult.config.participation_text_config || {}),
@@ -155,7 +167,15 @@ const CertificateGenerator = ({ eventId, onClose }) => {
           name_config: { ...defaultConfig.name_config, ...(configResult.config.name_config || {}) },
           event_title_config: { ...defaultConfig.event_title_config, ...(configResult.config.event_title_config || {}) },
           date_config: { ...defaultConfig.date_config, ...(configResult.config.date_config || {}) },
-          signature_blocks: configResult.config.signature_blocks || defaultConfig.signature_blocks
+          signature_blocks: configResult.config.signature_blocks || defaultConfig.signature_blocks,
+          cert_id_prefix: configResult.config.cert_id_prefix || defaultConfig.cert_id_prefix,
+          cert_id_position: configResult.config.cert_id_position || defaultConfig.cert_id_position,
+          cert_id_font_size: configResult.config.cert_id_font_size || defaultConfig.cert_id_font_size,
+          cert_id_color: configResult.config.cert_id_color || defaultConfig.cert_id_color,
+          qr_code_enabled: configResult.config.qr_code_enabled !== undefined ? configResult.config.qr_code_enabled : defaultConfig.qr_code_enabled,
+          qr_code_size: configResult.config.qr_code_size || defaultConfig.qr_code_size,
+          qr_code_position: configResult.config.qr_code_position || defaultConfig.qr_code_position,
+          background_image_size: configResult.config.background_image_size || defaultConfig.background_image_size
         };
         setConfig(mergedConfig);
       }
