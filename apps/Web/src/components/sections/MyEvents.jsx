@@ -10,6 +10,7 @@ import { SurveyService } from '../../services/surveyService';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePageVisibility } from '../../hooks/usePageVisibility';
 import { useToast } from '../Toast';
+import { ConfirmationDialog } from '../ConfirmationDialog';
 
 export const MyEvents = () => {
   const navigate = useNavigate();
@@ -32,6 +33,12 @@ export const MyEvents = () => {
   const [venueFilter, setVenueFilter] = useState('all');
   const [sortOption, setSortOption] = useState('date-asc'); // 'date-asc', 'date-desc', 'title-asc', 'title-desc', 'registration-asc', 'registration-desc'
   const [showFilters, setShowFilters] = useState(false);
+  const [unregisterDialog, setUnregisterDialog] = useState({
+    isOpen: false,
+    eventId: null,
+    eventTitle: '',
+  });
+  const [isUnregistering, setIsUnregistering] = useState(false);
 
   // Helper function to check if user profile is complete
   const isProfileComplete = (user) => {
@@ -229,22 +236,34 @@ export const MyEvents = () => {
     }
   });
 
-  const handleUnregister = async (eventId) => {
-    if (!user?.id) return;
+  const handleUnregisterClick = (eventId, eventTitle) => {
+    setUnregisterDialog({
+      isOpen: true,
+      eventId,
+      eventTitle,
+    });
+  };
 
+  const handleUnregister = async () => {
+    const { eventId } = unregisterDialog;
+    if (!user?.id || !eventId) return;
+
+    setIsUnregistering(true);
     try {
       const result = await EventService.unregisterFromEvent(eventId, user.id);
       
       if (result.error) {
-        setError(result.error);
+        toast.error(result.error || 'Failed to unregister from event');
       } else {
         // Remove the event from the list
         setRegisteredEvents(prev => prev.filter(event => event.id !== eventId));
-        
-        // Show success message (you might want to add a success modal here)
+        toast.success('Successfully unregistered from event');
+        setUnregisterDialog({ isOpen: false, eventId: null, eventTitle: '' });
       }
     } catch (err) {
-      setError('Failed to unregister from event');
+      toast.error('Failed to unregister from event');
+    } finally {
+      setIsUnregistering(false);
     }
   };
 
@@ -670,7 +689,7 @@ export const MyEvents = () => {
                       Generate Certificate
                     </button>
                     <button
-                      onClick={() => handleUnregister(event.id)}
+                      onClick={() => handleUnregisterClick(event.id, event.title)}
                       className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm col-span-2"
                     >
                       Unregister
@@ -708,6 +727,23 @@ export const MyEvents = () => {
           }}
         />
       )}
+
+      {/* Unregister Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={unregisterDialog.isOpen}
+        onClose={() => {
+          if (!isUnregistering) {
+            setUnregisterDialog({ isOpen: false, eventId: null, eventTitle: '' });
+          }
+        }}
+        onConfirm={handleUnregister}
+        title="Unregister from Event"
+        message={`Are you sure you want to unregister from "${unregisterDialog.eventTitle}"? This action cannot be undone.`}
+        confirmText="Unregister"
+        cancelText="Cancel"
+        type="danger"
+        loading={isUnregistering}
+      />
     </section>
     </>
   );

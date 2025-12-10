@@ -1,11 +1,11 @@
 import React from 'react';
-import { X, AlertCircle } from 'lucide-react';
+import { X, AlertCircle, Loader2 } from 'lucide-react';
 
-export const ConfirmationDialog = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', cancelText = 'Cancel', type = 'warning' }) => {
+export const ConfirmationDialog = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', cancelText = 'Cancel', type = 'warning', loading = false }) => {
   if (!isOpen) return null;
 
   const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget) {
+    if (e.target === e.currentTarget && !loading) {
       onClose();
     }
   };
@@ -55,19 +55,21 @@ export const ConfirmationDialog = ({ isOpen, onClose, onConfirm, title, message,
         <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
           <button
             onClick={onClose}
-            className="px-6 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+            disabled={loading}
+            className="px-6 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {cancelText}
           </button>
           <button
             onClick={() => {
-              if (onConfirm) {
+              if (onConfirm && !loading) {
                 onConfirm();
               }
-              onClose();
             }}
-            className={`px-6 py-2.5 text-white rounded-lg font-medium transition-colors ${buttonColors[type]}`}
+            disabled={loading}
+            className={`px-6 py-2.5 text-white rounded-lg font-medium transition-colors ${buttonColors[type]} disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
           >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {confirmText}
           </button>
         </div>
