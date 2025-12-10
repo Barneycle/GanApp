@@ -320,6 +320,25 @@ export const Login = () => {
     const trimmedEmail = formData.email.trim();
     const trimmedPassword = formData.password.trim();
     
+    // Rate limiting check
+    try {
+      const { RateLimitService } = await import('../../services/rateLimitService');
+      const rateLimitResult = await RateLimitService.checkRateLimit(
+        trimmedEmail || 'anonymous',
+        '/login',
+        RateLimitService.limits.login.maxRequests,
+        RateLimitService.limits.login.windowSeconds
+      );
+      
+      if (!rateLimitResult.allowed) {
+        setError(`Too many login attempts. Please try again after ${new Date(rateLimitResult.resetAt).toLocaleTimeString()}.`);
+        return;
+      }
+    } catch (rateLimitError) {
+      // Fail open - allow login if rate limit check fails
+      console.warn('Rate limit check failed, allowing login:', rateLimitError);
+    }
+    
     try {
       const result = await signIn(trimmedEmail, trimmedPassword, formData.rememberMe);
       

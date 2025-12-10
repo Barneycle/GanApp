@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { CertificateService } from '../../services/certificateService';
 import { CheckCircle, XCircle, Calendar, User, Award, FileText } from 'lucide-react';
 
@@ -80,12 +80,6 @@ export const VerifyCertificate = () => {
                 <li>Have an incorrect certificate number</li>
               </ul>
             </div>
-            <Link
-              to="/"
-              className="inline-block mt-6 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Go to Home
-            </Link>
           </div>
         </div>
       </section>
@@ -170,16 +164,6 @@ export const VerifyCertificate = () => {
               <p className="text-lg text-slate-800">{formatDate(certificate.generated_at || certificate.created_at)}</p>
             </div>
           </div>
-        </div>
-
-        {/* Back to Home */}
-        <div className="text-center mt-6">
-          <Link
-            to="/"
-            className="inline-block text-blue-600 hover:text-blue-800 font-medium transition-colors"
-          >
-            ← Back to Home
-          </Link>
         </div>
       </div>
     </section>

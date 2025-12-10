@@ -20,6 +20,7 @@
     "@tiptap/extension-underline": "^3.10.2",
     "@tiptap/react": "^3.10.2",
     "@tiptap/starter-kit": "^3.10.2",
+    "@upstash/redis": "^1.35.7",
     "framer-motion": "^12.23.12",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.542.0",

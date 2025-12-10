@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { logActivity } from '../utils/activityLogger';
+import { CacheService } from './cacheService';
 
 export interface Event {
   id: string;
@@ -79,6 +80,13 @@ export class EventService {
 
   static async getEventById(id: string): Promise<{ event?: Event; error?: string }> {
     try {
+      // Check cache first
+      const cacheKey = CacheService.keys.event(id);
+      const cached = await CacheService.get<Event>(cacheKey);
+      if (cached) {
+        return { event: cached };
+      }
+
       const { data, error } = await supabase
         .from('events')
         .select('*')
@@ -92,6 +100,9 @@ export class EventService {
       if (!data) {
         return { error: 'Event not found' };
       }
+
+      // Cache the result
+      await CacheService.set(cacheKey, data, CacheService.TTL.MEDIUM);
 
       return { event: data };
     } catch (error) {
@@ -125,6 +136,9 @@ export class EventService {
         ).catch(err => console.error('Failed to log event creation:', err));
       }
 
+      // Invalidate cache
+      await CacheService.deletePattern('events:*');
+
       return { event: data };
     } catch (error) {
       return { error: 'An unexpected error occurred' };
@@ -144,6 +158,10 @@ export class EventService {
         return { error: error.message };
       }
 
+      // Invalidate cache
+      await CacheService.delete(CacheService.keys.event(id));
+      await CacheService.deletePattern('events:*');
+
       return { event: data };
     } catch (error) {
       return { error: 'An unexpected error occurred' };
@@ -161,6 +179,10 @@ export class EventService {
         return { error: error.message };
       }
 
+      // Invalidate cache
+      await CacheService.delete(CacheService.keys.event(id));
+      await CacheService.deletePattern('events:*');
+
       return {};
     } catch (error) {
       return { error: 'An unexpected error occurred' };
@@ -169,6 +191,13 @@ export class EventService {
 
   static async getEventsByCreator(creatorId: string): Promise<{ events?: Event[]; error?: string }> {
     try {
+      // Check cache first
+      const cacheKey = CacheService.keys.eventList('organizer', creatorId);
+      const cached = await CacheService.get<Event[]>(cacheKey);
+      if (cached) {
+        return { events: cached };
+      }
+
       const { data, error } = await supabase
         .from('events')
         .select('*')
@@ -179,6 +208,9 @@ export class EventService {
         return { error: error.message };
       }
 
+      // Cache the result
+      await CacheService.set(cacheKey, data, CacheService.TTL.SHORT);
+
       return { events: data };
     } catch (error) {
       return { error: 'An unexpected error occurred' };
@@ -187,6 +219,12 @@ export class EventService {
 
   static async getPublishedEvents(): Promise<{ events?: Event[]; error?: string }> {
     try {
+      // Check cache first
+      const cacheKey = CacheService.keys.events('published');
+      const cached = await CacheService.get<Event[]>(cacheKey);
+      if (cached) {
+        return { events: cached };
+      }
       
       const { data, error } = await supabase
         .from('events')
@@ -239,6 +277,8 @@ export class EventService {
         })
       );
 
+      // Cache the result
+      await CacheService.set(cacheKey, eventsWithParticipants, CacheService.TTL.SHORT);
 
       return { events: eventsWithParticipants };
     } catch (error) {

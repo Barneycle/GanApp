@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { CacheService } from './cacheService';
 
 export interface CertificateConfig {
   id?: string;
@@ -161,6 +162,13 @@ export class CertificateService {
    */
   static async getCertificateConfig(eventId: string): Promise<{ config?: CertificateConfig; error?: string }> {
     try {
+      // Check cache first
+      const cacheKey = CacheService.keys.certificateConfig(eventId);
+      const cached = await CacheService.get<CertificateConfig>(cacheKey);
+      if (cached) {
+        return { config: cached };
+      }
+
       const { data, error } = await supabase
         .from('certificate_configs')
         .select('*')
@@ -174,6 +182,9 @@ export class CertificateService {
         }
         return { error: error.message };
       }
+
+      // Cache the result
+      await CacheService.set(cacheKey, data, CacheService.TTL.MEDIUM);
 
       return { config: data as CertificateConfig };
     } catch (err: any) {
@@ -223,6 +234,9 @@ export class CertificateService {
           return { error: error.message };
         }
 
+        // Invalidate cache
+        await CacheService.delete(CacheService.keys.certificateConfig(eventId));
+
         return { config: data as CertificateConfig };
       } else {
         // Create new config
@@ -259,6 +273,9 @@ export class CertificateService {
           console.error('User ID:', userId);
           return { error: error.message || 'Failed to create certificate config' };
         }
+
+        // Invalidate cache
+        await CacheService.delete(CacheService.keys.certificateConfig(eventId));
 
         return { config: data as CertificateConfig };
       }

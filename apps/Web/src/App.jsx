@@ -6,11 +6,15 @@ import { MobileMenu } from "./components/MobileMenu";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "./contexts/AuthContext";
 import { ToastProvider } from "./components/Toast";
+import { useJobWorker } from "./hooks/useJobWorker";
 
 function App() {
     const [menuOpen, setMenuOpen] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false);
     const location = useLocation();
+    
+    // Start background job worker (processes jobs every 10 seconds)
+    useJobWorker(true, 10000);
     let authLoading = false;
     try {
         const auth = useAuth();
@@ -22,28 +26,26 @@ function App() {
 
     // Pages that should skip loading screen and hide navbar
     const authPages = ['/login', '/registration', '/reset-password'];
-    const publicPages = ['/verify-certificate'];
     const isAuthPage = authPages.includes(location.pathname);
-    const isPublicPage = publicPages.some(page => location.pathname.startsWith(page));
-    const shouldHideNavbar = isAuthPage || isPublicPage;
+    const shouldHideNavbar = isAuthPage;
 
     const handleLoadingComplete = () => {
         setIsLoaded(true);
     };
 
-    // Skip loading screen for auth pages and public pages
+    // Skip loading screen for auth pages
     useEffect(() => {
-        if ((isAuthPage || isPublicPage) && !isLoaded) {
+        if (isAuthPage && !isLoaded) {
             setIsLoaded(true);
         }
-    }, [isAuthPage, isPublicPage, isLoaded]);
+    }, [isAuthPage, isLoaded]);
 
     return (
         <ToastProvider>
-            {!isLoaded && !isAuthPage && !isPublicPage && <LoadingScreen onComplete={handleLoadingComplete} />}
+            {!isLoaded && !isAuthPage && <LoadingScreen onComplete={handleLoadingComplete} />}
 
             <div className={`${shouldHideNavbar ? 'h-screen overflow-hidden' : 'min-h-screen'} bg-white text-gray-900`}>
-                {(isLoaded || isAuthPage || isPublicPage) ? (
+                {(isLoaded || isAuthPage) ? (
                     <>
                         {!shouldHideNavbar && !authLoading && (
                             <>

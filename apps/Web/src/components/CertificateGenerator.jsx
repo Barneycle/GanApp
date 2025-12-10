@@ -3,6 +3,7 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import QRCode from 'qrcode';
 import { CertificateService } from '../services/certificateService';
 import { EventService } from '../services/eventService';
+import { JobQueueService } from '../services/jobQueueService';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './Toast';
 
@@ -18,6 +19,8 @@ const CertificateGenerator = ({ eventId, onClose }) => {
   const [config, setConfig] = useState(null);
   const [certificate, setCertificate] = useState(null);
   const [previewData, setPreviewData] = useState(null);
+  const [jobStatus, setJobStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle');
+  const [jobId, setJobId] = useState<string | null>(null);
 
   useEffect(() => {
     if (eventId && user?.id) {
@@ -1034,94 +1037,119 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       return;
     }
 
+    // Rate limiting check
+    try {
+      const { RateLimitService } = await import('../services/rateLimitService');
+      const rateLimitResult = await RateLimitService.checkRateLimit(
+        user.id,
+        '/certificate-generate',
+        RateLimitService.limits.certificateGenerate.maxRequests,
+        RateLimitService.limits.certificateGenerate.windowSeconds
+      );
+      
+      if (!rateLimitResult.allowed) {
+        toast.error(`Too many certificate generation attempts. Please try again after ${new Date(rateLimitResult.resetAt).toLocaleTimeString()}.`);
+        return;
+      }
+    } catch (rateLimitError) {
+      // Fail open - allow generation if rate limit check fails
+      console.warn('Rate limit check failed, allowing certificate generation:', rateLimitError);
+    }
+
     setGenerating(true);
     setError(null);
+    setJobStatus('queued');
 
     try {
-      // Get certificate number with prefix (without incrementing counter yet)
-      let certificateNumber;
-      if (config?.cert_id_prefix) {
-        // Get current count without incrementing
-        const countResult = await CertificateService.getCurrentCertificateCount(eventId);
-        if (countResult.error) {
-          throw new Error(`Failed to get certificate count: ${countResult.error}`);
-        }
-        const nextCount = (countResult.count || 0) + 1;
-        const formattedNumber = String(nextCount).padStart(3, '0');
-        certificateNumber = `${config.cert_id_prefix}-${formattedNumber}`;
-      } else {
-        certificateNumber = CertificateService.generateCertificateNumber(eventId, user.id);
-      }
-      
-      // Generate PDF (pass certificate number for cert ID display)
-      const pdfBytes = await generatePDF(certificateNumber);
-      if (!pdfBytes) {
-        throw new Error('Failed to generate PDF');
+      // Queue certificate generation job
+      const jobResult = await JobQueueService.queueCertificateGeneration(
+        {
+          eventId,
+          userId: user.id,
+          participantName: getUserName(),
+          eventTitle: event.title,
+          completionDate: event.start_date || new Date().toISOString().split('T')[0]
+        },
+        user.id,
+        5 // Normal priority
+      );
+
+      if (jobResult.error || !jobResult.job) {
+        throw new Error(jobResult.error || 'Failed to queue certificate generation');
       }
 
-      // Generate PNG (pass certificate number for cert ID display)
-      const pngBlob = await generatePNG(certificateNumber);
-      if (!pngBlob) {
-        throw new Error('Failed to generate PNG');
+      if (jobResult.job && jobResult.job.id) {
+        setJobId(jobResult.job.id);
+        setJobStatus('processing');
+        toast.info('Certificate generation queued. Processing in background...');
+
+        // Start polling for job status
+        pollJobStatus(jobResult.job.id);
       }
-
-      // Upload files
-      const pdfFileName = `${certificateNumber}.pdf`;
-      const pngFileName = `${certificateNumber}.png`;
-
-      // Convert PDF bytes to Blob
-      const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-
-      const [pdfResult, pngResult] = await Promise.all([
-        CertificateService.uploadCertificateFile(pdfBlob, pdfFileName, 'pdf', eventId, user.id),
-        CertificateService.uploadCertificateFile(pngBlob, pngFileName, 'png', eventId, user.id)
-      ]);
-
-      if (pdfResult.error) {
-        throw new Error(`PDF upload failed: ${pdfResult.error}`);
-      }
-      if (pngResult.error) {
-        throw new Error(`PNG upload failed: ${pngResult.error}`);
-      }
-
-      // Save to database
-      const saveResult = await CertificateService.saveCertificate({
-        event_id: eventId,
-        user_id: user.id,
-        certificate_number: certificateNumber,
-        participant_name: getUserName(),
-        event_title: event.title,
-        completion_date: event.start_date || new Date().toISOString().split('T')[0],
-        certificate_pdf_url: pdfResult.url,
-        certificate_png_url: pngResult.url
-      });
-
-      if (saveResult.error) {
-        throw new Error(`Failed to save certificate: ${saveResult.error}`);
-      }
-
-      // Only increment counter AFTER successful certificate generation
-      if (config?.cert_id_prefix) {
-        const incrementResult = await CertificateService.incrementCertificateCounter(eventId);
-        if (incrementResult.error) {
-          console.warn('Failed to increment certificate counter:', incrementResult.error);
-          // Don't throw error here - certificate is already saved
-        }
-      }
-
-      setCertificate(saveResult.certificate);
-      setPreviewData({
-        type: 'png',
-        url: pngResult.url
-      });
-      toast.success('Certificate generated successfully!');
     } catch (err) {
-      const errorMessage = err.message || 'Failed to generate certificate';
+      const errorMessage = err.message || 'Failed to queue certificate generation';
       setError(errorMessage);
+      setJobStatus('failed');
       toast.error(errorMessage);
-    } finally {
       setGenerating(false);
     }
+  };
+
+  // Poll job status until completion
+  const pollJobStatus = async (jobId) => {
+    const maxAttempts = 60; // Poll for up to 5 minutes (5 second intervals)
+    let attempts = 0;
+
+    const poll = async () => {
+      if (attempts >= maxAttempts) {
+        setError('Certificate generation timed out. Please check back later.');
+        setJobStatus('failed');
+        setGenerating(false);
+        return;
+      }
+
+      attempts++;
+
+      try {
+        const statusResult = await JobQueueService.getJobStatus(jobId);
+        
+        if (statusResult.error || !statusResult.job) {
+          setError('Failed to check job status. Please refresh the page.');
+          setJobStatus('failed');
+          setGenerating(false);
+          return;
+        }
+
+        const job = statusResult.job;
+
+        if (job.status === 'completed') {
+          setJobStatus('completed');
+          setGenerating(false);
+          
+          // Reload certificate data
+          const certResult = await CertificateService.getUserCertificate(user.id, eventId);
+          if (certResult.certificate) {
+            setCertificate(certResult.certificate);
+            toast.success('Certificate generated successfully!');
+          } else {
+            toast.success('Certificate generated! Please refresh to view.');
+          }
+        } else if (job.status === 'failed') {
+          setError(job.error_message || 'Certificate generation failed');
+          setJobStatus('failed');
+          setGenerating(false);
+          toast.error('Certificate generation failed. Please try again.');
+        } else {
+          // Still processing, poll again
+          setTimeout(poll, 5000); // Poll every 5 seconds
+        }
+      } catch (err) {
+        console.error('Error polling job status:', err);
+        setTimeout(poll, 5000); // Retry polling
+      }
+    };
+
+    poll();
   };
 
   const handleDownload = async (format) => {
