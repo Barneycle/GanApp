@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { CertificateService } from '../../services/certificateService';
-import { CheckCircle, XCircle, Calendar, User, Award } from 'lucide-react';
+import { CheckCircle, XCircle, Calendar, User, Award, FileText } from 'lucide-react';
 
 export const VerifyCertificate = () => {
   const { certificateNumber } = useParams();
@@ -93,7 +93,14 @@ export const VerifyCertificate = () => {
   }
 
   if (!certificate) {
-    return null;
+    return (
+      <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 max-w-2xl w-full text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Loading certificate details...</p>
+        </div>
+      </section>
+    );
   }
 
   return (

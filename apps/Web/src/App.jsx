@@ -22,33 +22,36 @@ function App() {
 
     // Pages that should skip loading screen and hide navbar
     const authPages = ['/login', '/registration', '/reset-password'];
+    const publicPages = ['/verify-certificate'];
     const isAuthPage = authPages.includes(location.pathname);
+    const isPublicPage = publicPages.some(page => location.pathname.startsWith(page));
+    const shouldHideNavbar = isAuthPage || isPublicPage;
 
     const handleLoadingComplete = () => {
         setIsLoaded(true);
     };
 
-    // Skip loading screen for auth pages
+    // Skip loading screen for auth pages and public pages
     useEffect(() => {
-        if (isAuthPage && !isLoaded) {
+        if ((isAuthPage || isPublicPage) && !isLoaded) {
             setIsLoaded(true);
         }
-    }, [isAuthPage, isLoaded]);
+    }, [isAuthPage, isPublicPage, isLoaded]);
 
     return (
         <ToastProvider>
-            {!isLoaded && !isAuthPage && <LoadingScreen onComplete={handleLoadingComplete} />}
+            {!isLoaded && !isAuthPage && !isPublicPage && <LoadingScreen onComplete={handleLoadingComplete} />}
 
-            <div className={`${isAuthPage ? 'h-screen overflow-hidden' : 'min-h-screen'} bg-white text-gray-900`}>
-                {(isLoaded || isAuthPage) ? (
+            <div className={`${shouldHideNavbar ? 'h-screen overflow-hidden' : 'min-h-screen'} bg-white text-gray-900`}>
+                {(isLoaded || isAuthPage || isPublicPage) ? (
                     <>
-                        {!isAuthPage && !authLoading && (
+                        {!shouldHideNavbar && !authLoading && (
                             <>
                                 <Navbar />
                                 <MobileMenu menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
                             </>
                         )}
-                        <div className={isAuthPage ? 'h-full overflow-hidden' : ''}>
+                        <div className={shouldHideNavbar ? 'h-full overflow-hidden' : ''}>
                             <AnimatedRoutes />
                         </div>
                     </>
