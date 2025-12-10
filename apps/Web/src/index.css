@@ -1,9 +1,9 @@
+/* MonteCarlo font for certificates - @import must be first */
+@import url('https://fonts.googleapis.com/css2?family=MonteCarlo&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* MonteCarlo font for certificates */
-@import url('https://fonts.googleapis.com/css2?family=MonteCarlo&display=swap');
 
 @font-face {
   font-family: 'MonteCarlo';

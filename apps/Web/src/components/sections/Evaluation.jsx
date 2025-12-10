@@ -395,7 +395,19 @@ export const Evaluation = () => {
   // Helper function to render HTML content safely
   const renderHTML = (html) => {
     if (!html) return '';
-    return { __html: html };
+    // Sanitize HTML to prevent XSS attacks
+    try {
+      const { sanitizeHTML } = require('../../utils/securityUtils');
+      const sanitized = sanitizeHTML(html);
+      return { __html: sanitized };
+    } catch (error) {
+      // Fallback: basic sanitization if securityUtils not available
+      const basicSanitized = html
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/javascript:/gi, '')
+        .replace(/on\w+\s*=/gi, '');
+      return { __html: basicSanitized };
+    }
   };
 
   const renderQuestion = (question, index) => {
