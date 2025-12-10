@@ -16,7 +16,6 @@ import { VenueService } from '../../services/venueService';
 import { supabase } from '../../lib/supabaseClient';
 
 import { useAuth } from '../../contexts/AuthContext';
-import CertificateDesigner from '../CertificateDesigner';
 import { useToast } from '../Toast';
 
 // Lazy load RichTextEditor to prevent app-wide crashes
@@ -83,7 +82,6 @@ const createEventSchema = z.object({
   maxParticipants: z.string().optional(),
 
   registrationDeadlineDate: z.string().optional(),
-  registrationDeadlineTime: z.string().optional(),
 
   sponsors: z.string().optional(),
 
@@ -97,8 +95,10 @@ const createEventSchema = z.object({
   bannerFile: z.any().optional(),
 
   eventKitsFile: z.any().optional(),
+  eventKitsLink: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
 
   eventProgrammeFile: z.any().optional(),
+  eventProgrammeLink: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
 
   certificatesFile: z.any().optional(),
 
@@ -129,14 +129,8 @@ const createEventSchema = z.object({
     const deadlineDate = new Date(data.registrationDeadlineDate);
     const eventDate = new Date(data.startDate);
 
-    // If time is provided, combine date and time for deadline
-    if (data.registrationDeadlineTime) {
-      const [hours, minutes] = data.registrationDeadlineTime.split(':');
-      deadlineDate.setHours(parseInt(hours), parseInt(minutes));
-    } else {
-      // If no time provided, set to end of day
-      deadlineDate.setHours(23, 59, 59);
-    }
+    // Always set registration deadline to 11:59 PM
+    deadlineDate.setHours(23, 59, 59);
 
     // If event start time is provided, combine with event date
     if (data.startTime) {
@@ -185,7 +179,7 @@ const validatePhilippinePhone = (phone) => {
   return cleaned.length === 11 && cleaned.startsWith('09');
 };
 
-const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onUpload, uploadType, maxSizeMB = 35, error, control, uploadedFiles = [], onRemoveFile }) => {
+const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onUpload, uploadType, maxSizeMB = 1024, error, control, uploadedFiles = [], onRemoveFile }) => {
 
   const fileInputRef = useRef(null);
 
@@ -1840,12 +1834,14 @@ export const CreateEvent = () => {
 
   }));
 
+  // Track whether user wants to upload or use link for event materials
+  const [eventKitsMode, setEventKitsMode] = useState('upload'); // 'upload' or 'link'
+  const [eventProgrammeMode, setEventProgrammeMode] = useState('upload'); // 'upload' or 'link'
+
 
 
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
   
-  // Track created event ID for certificate designer
-  const [createdEventId, setCreatedEventId] = useState(null);
 
 
 
@@ -2112,7 +2108,6 @@ export const CreateEvent = () => {
       guestSpeakers: '',
 
       registrationDeadlineDate: '',
-      registrationDeadlineTime: '',
 
       checkInBeforeMinutes: 60,
 
@@ -2122,8 +2117,10 @@ export const CreateEvent = () => {
       bannerFile: null,
 
       eventKitsFile: null,
+      eventKitsLink: '',
 
       eventProgrammeFile: null,
+      eventProgrammeLink: '',
 
       certificatesFile: null,
 
@@ -2180,10 +2177,8 @@ export const CreateEvent = () => {
         if (eventData.registration_deadline) {
           const deadlineDate = new Date(eventData.registration_deadline);
           setValue('registrationDeadlineDate', deadlineDate.toISOString().split('T')[0]);
-          setValue('registrationDeadlineTime', deadlineDate.toTimeString().slice(0, 5));
         } else {
           setValue('registrationDeadlineDate', '');
-          setValue('registrationDeadlineTime', '');
         }
 
         
@@ -2701,10 +2696,8 @@ export const CreateEvent = () => {
 
       registration_deadline: data.registrationDeadlineDate ? (() => {
         const date = new Date(data.registrationDeadlineDate);
-        if (data.registrationDeadlineTime) {
-          const [hours, minutes] = data.registrationDeadlineTime.split(':');
-          date.setHours(parseInt(hours), parseInt(minutes));
-        }
+        // Always set to 11:59 PM
+        date.setHours(23, 59, 59);
         return date.toISOString();
       })() : null,
 
@@ -2839,23 +2832,18 @@ export const CreateEvent = () => {
     }
     
 
-    // Handle event programmes
-
-    if (uploadedFiles.eventProgrammes && uploadedFiles.eventProgrammes.length > 0) {
-
+    // Handle event programmes - use link if provided, otherwise use uploaded files
+    if (data.eventProgrammeLink && data.eventProgrammeLink.trim()) {
+      eventData.event_programmes_url = data.eventProgrammeLink.trim();
+    } else if (uploadedFiles.eventProgrammes && uploadedFiles.eventProgrammes.length > 0) {
       eventData.event_programmes_url = uploadedFiles.eventProgrammes.map(f => f.url).join(',');
-
     }
 
-
-    
-
-    // Handle event kits
-
-    if (uploadedFiles.eventKits && uploadedFiles.eventKits.length > 0) {
-
+    // Handle event kits - use link if provided, otherwise use uploaded files
+    if (data.eventKitsLink && data.eventKitsLink.trim()) {
+      eventData.event_kits_url = data.eventKitsLink.trim();
+    } else if (uploadedFiles.eventKits && uploadedFiles.eventKits.length > 0) {
       eventData.event_kits_url = uploadedFiles.eventKits.map(f => f.url).join(',');
-
     }
 
 
@@ -2881,8 +2869,8 @@ export const CreateEvent = () => {
     sessionStorage.setItem('pending-event-speakers', JSON.stringify(speakersWithImages));
     sessionStorage.setItem('pending-event-sponsors', JSON.stringify(sponsorsWithImages));
     
-    // Navigate to survey creation immediately
-    navigate('/create-survey');
+    // Navigate to certificate design step
+    navigate('/design-certificate');
 
   };
 
@@ -2913,7 +2901,6 @@ export const CreateEvent = () => {
     setValue('maxParticipants', '');
 
     setValue('registrationDeadlineDate', '');
-    setValue('registrationDeadlineTime', '');
 
     setValue('sponsors', '');
 
@@ -2953,7 +2940,7 @@ export const CreateEvent = () => {
 
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
 
-      <div className="w-full max-w-5xl mx-auto">
+      <div className="w-full max-w-7xl mx-auto">
 
         {/* Header Section */}
 
@@ -3147,7 +3134,7 @@ export const CreateEvent = () => {
 
                 uploadType="banner"
 
-                maxSizeMB={35}
+                maxSizeMB={1024}
 
                 control={control}
 
@@ -3567,93 +3554,45 @@ export const CreateEvent = () => {
 
                  </label>
 
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                 <div className="space-y-2">
 
-                   {/* Date Input */}
-                   <div className="space-y-2">
+                   <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide">
 
-                     <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide">
+                     Date (Time will be set to 11:59 PM)
 
-                       Date
+                   </label>
 
-                     </label>
+                   <Controller
 
-                     <Controller
+                     name="registrationDeadlineDate"
 
-                       name="registrationDeadlineDate"
+                     control={control}
 
-                       control={control}
+                     render={({ field }) => (
 
-                       render={({ field }) => (
+                       <input
 
-                         <input
+                         {...field}
 
-                           {...field}
+                         type="date"
 
-                           type="date"
+                         className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
 
-                           className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
+                           errors.registrationDeadlineDate ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
 
-                             errors.registrationDeadlineDate ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                         }`}
 
-                           }`}
+                       />
 
-                         />
+                     )}
 
-                       )}
-
-                     />
-
-                   </div>
-
-                   {/* Time Input */}
-                   <div className="space-y-2">
-
-                     <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide">
-
-                       Time
-
-                     </label>
-
-                     <Controller
-
-                       name="registrationDeadlineTime"
-
-                       control={control}
-
-                       render={({ field }) => (
-
-                         <input
-
-                           {...field}
-
-                           type="time"
-
-                           className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
-
-                             errors.registrationDeadlineTime ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-
-                           }`}
-
-                         />
-
-                       )}
-
-                     />
-
-                   </div>
+                   />
 
                  </div>
 
                  {errors.registrationDeadlineDate && (
 
                    <p className="text-sm text-red-600">{errors.registrationDeadlineDate.message}</p>
-
-                 )}
-
-                 {errors.registrationDeadlineTime && (
-
-                   <p className="text-sm text-red-600">{errors.registrationDeadlineTime.message}</p>
 
                  )}
 
@@ -3988,7 +3927,7 @@ export const CreateEvent = () => {
                           onFileChange={() => {}}
                           onUpload={(results) => handleFileUpload('logo', results)}
                           uploadType="logo"
-                          maxSizeMB={35}
+                          maxSizeMB={1024}
                           control={control}
                           uploadedFiles={uploadedFiles.sponsorLogos || []}
                           onRemoveFile={(fileId) => handleRemoveFile('logo', fileId)}
@@ -4200,7 +4139,7 @@ export const CreateEvent = () => {
                           onFileChange={() => {}}
                           onUpload={(results) => handleFileUpload('photo', results)}
                           uploadType="photo"
-                          maxSizeMB={35}
+                          maxSizeMB={1024}
                           control={control}
                           uploadedFiles={uploadedFiles.speakerPhotos || []}
                           onRemoveFile={(fileId) => handleRemoveFile('photo', fileId)}
@@ -4428,94 +4367,162 @@ export const CreateEvent = () => {
 
             <div className="p-6 space-y-6">
 
-              <FileDropzone
-
-                label="Event Kits"
-
-                name="eventKitsFile"
-
-                accept=".pdf"
-
-                onFileChange={() => {}}
-
-                onUpload={(results) => handleFileUpload('event-kits', results)}
-
-                uploadType="event-kits"
-
-                multiple
-
-                maxSizeMB={35}
-
-                control={control}
-
-                error={errors.eventKitsFile}
-
-                uploadedFiles={uploadedFiles.eventKits || []}
-
-                onRemoveFile={(fileId) => handleRemoveFile('event-kits', fileId)}
-
-              />
-
-
-
-              <FileDropzone
-
-                label="Event Programme"
-
-                name="eventProgrammeFile"
-
-                accept=".pdf"
-
-                onFileChange={() => {}}
-
-                onUpload={(results) => handleFileUpload('event-programmes', results)}
-
-                uploadType="event-programmes"
-
-                multiple
-
-                maxSizeMB={35}
-
-                control={control}
-
-                error={errors.eventProgrammeFile}
-
-                uploadedFiles={uploadedFiles.eventProgrammes || []}
-
-                onRemoveFile={(fileId) => handleRemoveFile('event-programmes', fileId)}
-
-              />
-
-            </div>
-
-          </div>
-
-          {/* Certificate Configuration Section */}
-          <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden">
-            <div className="bg-gradient-to-r from-purple-50 to-blue-50 px-6 py-4 border-b border-slate-100">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                  </svg>
+              {/* Event Kits */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-semibold text-slate-700">Event Kits</label>
+                  <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEventKitsMode('upload');
+                        setValue('eventKitsLink', ''); // Clear link when switching to upload
+                      }}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                        eventKitsMode === 'upload'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-800'
+                      }`}
+                    >
+                      Upload
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEventKitsMode('link');
+                        // Clear uploaded files when switching to link
+                        setUploadedFiles(prev => ({ ...prev, eventKits: [] }));
+                      }}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                        eventKitsMode === 'link'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-800'
+                      }`}
+                    >
+                      Link
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-800">Certificate Configuration</h3>
-                  <p className="text-sm text-slate-600">Design and customize the certificate layout for this event</p>
-                </div>
+
+                {eventKitsMode === 'upload' ? (
+                  <FileDropzone
+                    label=""
+                    name="eventKitsFile"
+                    accept=".pdf"
+                    onFileChange={() => {}}
+                    onUpload={(results) => handleFileUpload('event-kits', results)}
+                    uploadType="event-kits"
+                    multiple
+                    maxSizeMB={1024}
+                    control={control}
+                    error={errors.eventKitsFile}
+                    uploadedFiles={uploadedFiles.eventKits || []}
+                    onRemoveFile={(fileId) => handleRemoveFile('event-kits', fileId)}
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    <Controller
+                      name="eventKitsLink"
+                      control={control}
+                      render={({ field }) => (
+                        <input
+                          {...field}
+                          type="url"
+                          placeholder="https://example.com/event-kits.pdf"
+                          className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
+                            errors.eventKitsLink ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                          }`}
+                        />
+                      )}
+                    />
+                    {errors.eventKitsLink && (
+                      <p className="text-sm text-red-600">{errors.eventKitsLink.message}</p>
+                    )}
+                    <p className="text-xs text-slate-500">Enter a direct link to the PDF file</p>
+                  </div>
+                )}
               </div>
+
+              {/* Event Programme */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-semibold text-slate-700">Event Programme</label>
+                  <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEventProgrammeMode('upload');
+                        setValue('eventProgrammeLink', ''); // Clear link when switching to upload
+                      }}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                        eventProgrammeMode === 'upload'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-800'
+                      }`}
+                    >
+                      Upload
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEventProgrammeMode('link');
+                        // Clear uploaded files when switching to link
+                        setUploadedFiles(prev => ({ ...prev, eventProgrammes: [] }));
+                      }}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                        eventProgrammeMode === 'link'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-800'
+                      }`}
+                    >
+                      Link
+                    </button>
+                  </div>
+                </div>
+
+                {eventProgrammeMode === 'upload' ? (
+                  <FileDropzone
+                    label=""
+                    name="eventProgrammeFile"
+                    accept=".pdf"
+                    onFileChange={() => {}}
+                    onUpload={(results) => handleFileUpload('event-programmes', results)}
+                    uploadType="event-programmes"
+                    multiple
+                    maxSizeMB={1024}
+                    control={control}
+                    error={errors.eventProgrammeFile}
+                    uploadedFiles={uploadedFiles.eventProgrammes || []}
+                    onRemoveFile={(fileId) => handleRemoveFile('event-programmes', fileId)}
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    <Controller
+                      name="eventProgrammeLink"
+                      control={control}
+                      render={({ field }) => (
+                        <input
+                          {...field}
+                          type="url"
+                          placeholder="https://example.com/event-programme.pdf"
+                          className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
+                            errors.eventProgrammeLink ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                          }`}
+                        />
+                      )}
+                    />
+                    {errors.eventProgrammeLink && (
+                      <p className="text-sm text-red-600">{errors.eventProgrammeLink.message}</p>
+                    )}
+                    <p className="text-xs text-slate-500">Enter a direct link to the PDF file</p>
+                  </div>
+                )}
+              </div>
+
             </div>
-            <div className="p-6">
-              <CertificateDesigner 
-                draftMode={true}
-                draftStorageKey="pending-certificate-config"
-                onSave={(config) => {
-                  // Config is automatically saved to sessionStorage in draft mode
-                  console.log('Certificate config saved as draft');
-                }}
-              />
-            </div>
+
           </div>
+
 
           {/* Action Button */}
 

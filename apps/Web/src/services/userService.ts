@@ -131,9 +131,6 @@ export class UserService {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
-      }, {
-        // Note: Supabase handles session persistence automatically
-        // but we can store the preference for future sessions
       });
       
       // Store rememberMe preference
@@ -145,6 +142,23 @@ export class UserService {
 
       if (error) {
         return { error: error.message };
+      }
+
+      if (!data.session || !data.user) {
+        return { error: 'Failed to establish session. Please try again.' };
+      }
+
+      // Small delay to ensure session is fully established
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Verify session is properly established
+      const { data: { session: verifySession }, error: verifyError } = await supabase.auth.getSession();
+      if (verifyError) {
+        return { error: verifyError.message || 'Session could not be verified. Please try again.' };
+      }
+      
+      if (!verifySession || !verifySession.user) {
+        return { error: 'Session could not be verified. Please try again.' };
       }
 
       if (data.user) {
@@ -185,17 +199,25 @@ export class UserService {
       }
 
       return { error: 'Failed to sign in' };
-    } catch (error) {
-      return { error: 'An unexpected error occurred' };
+    } catch (error: any) {
+      return { error: error?.message || 'An unexpected error occurred' };
     }
   }
 
   static async signOut(): Promise<{ error?: string }> {
     try {
+      // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
       
       if (error) {
         return { error: error.message };
+      }
+
+      // Verify session is cleared
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        // Force another sign out if session still exists
+        await supabase.auth.signOut();
       }
 
       return {};

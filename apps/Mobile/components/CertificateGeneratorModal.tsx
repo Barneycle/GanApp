@@ -235,7 +235,7 @@ const CertificateContentView = ({
           color: nameConfig.color || '#000000',
           fontWeight: nameConfig.font_weight === 'bold' ? 'bold' : 'normal',
           fontStyle: 'italic',
-          fontFamily: fontsLoaded ? 'MonteCarlo' : 'serif', // Use MonteCarlo font for participant name
+          fontFamily: 'MonteCarlo', // Use MonteCarlo font for participant name
         }}
       >
         {userName}
@@ -372,14 +372,21 @@ export default function CertificateGeneratorModal({
   const toast = useToast();
   const certificateViewRef = useRef<any>(null);
 
-  // Load MonteCarlo font
+  // Load MonteCarlo font - try different font name variations
   const [fontsLoaded, fontError] = useFonts({
     'MonteCarlo': require('../assets/fonts/MonteCarlo-Regular.ttf'),
   });
 
-  if (fontError) {
-    console.warn('Error loading MonteCarlo font:', fontError);
-  }
+  useEffect(() => {
+    if (fontError) {
+      console.error('❌ Error loading MonteCarlo font:', fontError);
+    }
+    if (fontsLoaded) {
+      console.log('✅ MonteCarlo font loaded successfully, fontsLoaded:', fontsLoaded);
+    } else {
+      console.log('⏳ MonteCarlo font still loading, fontsLoaded:', fontsLoaded);
+    }
+  }, [fontsLoaded, fontError]);
 
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);

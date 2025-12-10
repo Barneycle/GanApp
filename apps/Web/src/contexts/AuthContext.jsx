@@ -117,13 +117,28 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const getInitialSession = async () => {
       try {
+        // Small delay to ensure any pending sign out operations complete
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
+          // If there's an error getting session, clear any stale storage
+          clearSupabaseStorage();
           setError(error.message);
           setLoading(false);
           isInitializing.current = false;
-        } else if (session) {
+        } else if (session && session.user) {
+          // Verify the session is valid by checking if user exists
+          if (!session.user.id || !session.user.email) {
+            // Invalid session, clear it
+            await supabase.auth.signOut();
+            clearSupabaseStorage();
+            setLoading(false);
+            isInitializing.current = false;
+            return;
+          }
+          
           const bannedMessage = await checkBannedStatus(session.user);
           if (bannedMessage) {
             setLoading(false);
@@ -150,11 +165,15 @@ export function AuthProvider({ children }) {
           setLoading(false);
           isInitializing.current = false;
         } else {
+          // No session found, ensure storage is clear
+          clearSupabaseStorage();
           setLoading(false);
           isInitializing.current = false;
         }
       } catch (err) {
-        setError(err.message);
+        // On error, clear storage and reset
+        clearSupabaseStorage();
+        setError(err.message || 'Failed to check authentication session');
         setLoading(false);
         isInitializing.current = false;
       }
@@ -311,6 +330,7 @@ export function AuthProvider({ children }) {
       // Clear user state first
       setUser(null);
       hasFetchedUser.current = false;
+      isInitializing.current = true;
       
       // Sign out from Supabase with timeout
       const signOutPromise = UserService.signOut();
@@ -325,9 +345,21 @@ export function AuthProvider({ children }) {
         result = { error: 'SignOut timed out' };
       }
       
+      // Always clear storage, even if signOut had an error
+      clearSupabaseStorage();
+      
+      // Double-check session is cleared
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        // Force sign out again if session still exists
+        await supabase.auth.signOut();
+        clearSupabaseStorage();
+      }
+      
       if (result.error) {
         setError(result.error);
         setLoading(false);
+        isInitializing.current = false;
         return { success: false, error: result.error };
       }
 
@@ -345,11 +377,15 @@ export function AuthProvider({ children }) {
         ).catch(err => console.error('Failed to log logout:', err));
       }
 
+      isInitializing.current = false;
       return { success: true };
     } catch (err) {
+      // Even on error, clear storage
+      clearSupabaseStorage();
       const errorMessage = err.message || 'An unexpected error occurred';
       setError(errorMessage);
       setLoading(false);
+      isInitializing.current = false;
       return { success: false, error: errorMessage };
     } finally {
       setLoading(false);

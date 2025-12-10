@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import QRCode from 'qrcode';
 import { CertificateService } from '../services/certificateService';
 import { EventService } from '../services/eventService';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from './Toast';
 
 const CertificateGenerator = ({ eventId, onClose }) => {
-  const navigate = useNavigate();
   const { user } = useAuth();
+  const toast = useToast();
   const canvasRef = useRef(null);
-  
+
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(null);
@@ -25,8 +26,10 @@ const CertificateGenerator = ({ eventId, onClose }) => {
   }, [eventId, user?.id]);
 
   // Default config (same as CertificateDesigner)
-  const defaultConfig = {
+  const getDefaultConfig = () => ({
+    event_id: eventId,
     background_color: '#ffffff',
+    background_image_url: null,
     border_color: '#1e40af',
     border_width: 5,
     title_text: 'CERTIFICATE',
@@ -85,9 +88,7 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       }
     },
     logo_config: {
-      psu_logo_url: null,
-      psu_logo_size: { width: 120, height: 120 },
-      psu_logo_position: { x: 15, y: 10 },
+      logos: [], // Array of logo objects: { url, size: {width, height}, position: {x, y} }
       sponsor_logos: [],
       sponsor_logo_size: { width: 80, height: 80 },
       sponsor_logo_position: { x: 90, y: 5 },
@@ -111,7 +112,7 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       font_weight: 'normal'
     },
     signature_blocks: []
-  };
+  });
 
   const loadData = async () => {
     setLoading(true);
@@ -122,17 +123,18 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       const eventResult = await EventService.getEventById(eventId);
       if (eventResult.error) {
         setError(eventResult.error);
+        toast.error(eventResult.error);
         return;
       }
       setEvent(eventResult.event);
 
       // Load certificate config
       const configResult = await CertificateService.getCertificateConfig(eventId);
+      const defaultConfig = getDefaultConfig();
+      
       if (configResult.error) {
-        // Use default config if there's an error loading
         setConfig(defaultConfig);
       } else if (!configResult.config) {
-        // Use default config if no config exists
         setConfig(defaultConfig);
       } else {
         // Deep merge with default config to ensure all fields are present
@@ -163,47 +165,47 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       if (certResult.certificate) {
         setCertificate(certResult.certificate);
         // Load preview
-        loadPreview(certResult.certificate);
+        if (certResult.certificate.certificate_png_url) {
+          setPreviewData({
+            type: 'png',
+            url: certResult.certificate.certificate_png_url
+          });
+        } else if (certResult.certificate.certificate_pdf_url) {
+          setPreviewData({
+            type: 'pdf',
+            url: certResult.certificate.certificate_pdf_url
+          });
+        }
       }
     } catch (err) {
-      setError(err.message || 'Failed to load certificate data');
+      const errorMessage = err.message || 'Failed to load certificate data';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadPreview = (cert) => {
-    if (cert.certificate_png_url) {
-      setPreviewData({
-        type: 'png',
-        url: cert.certificate_png_url
-      });
-    } else if (cert.certificate_pdf_url) {
-      setPreviewData({
-        type: 'pdf',
-        url: cert.certificate_pdf_url
+  const formatDate = (dateString) => {
+    if (!dateString) {
+      return new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
       });
     }
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return new Date().toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
 
     const date = new Date(dateString);
     const format = config?.date_config?.date_format || 'MMMM DD, YYYY';
-    
+
     if (format === 'MMMM DD, YYYY') {
-      return date.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
       });
     }
-    
+
     return date.toLocaleDateString();
   };
 
@@ -211,18 +213,18 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     if (!user) {
       return user?.email?.split('@')[0] || 'Participant';
     }
-    
+
     const parts = [];
     if (user.prefix) parts.push(user.prefix);
     if (user.first_name) parts.push(user.first_name);
     if (user.middle_initial) parts.push(user.middle_initial);
     if (user.last_name) parts.push(user.last_name);
     if (user.affix) parts.push(user.affix);
-    
+
     if (parts.length > 0) {
       return parts.join(' ');
     }
-    
+
     return user?.email?.split('@')[0] || 'Participant';
   };
 
@@ -233,19 +235,54 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     const page = pdfDoc.addPage([config.width || 2000, config.height || 1200]);
     const { width, height } = page.getSize();
 
-    // Background
-    const bgColor = config.background_color || '#ffffff';
-    page.drawRectangle({
-      x: 0,
-      y: 0,
-      width: width,
-      height: height,
-      color: rgb(
-        parseInt(bgColor.substring(1, 3) || 'ff', 16) / 255,
-        parseInt(bgColor.substring(3, 5) || 'ff', 16) / 255,
-        parseInt(bgColor.substring(5, 7) || 'ff', 16) / 255
-      )
-    });
+    // Helper function to load and embed image
+    const embedImage = async (url) => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) return null;
+        const imageBytes = await response.arrayBuffer();
+        // Try PNG first, then JPG
+        try {
+          return await pdfDoc.embedPng(imageBytes);
+        } catch {
+          return await pdfDoc.embedJpg(imageBytes);
+        }
+      } catch (error) {
+        console.warn('Error embedding image:', url, error);
+        return null;
+      }
+    };
+
+    // Background - use image only
+    if (config.background_image_url) {
+      const bgImage = await embedImage(config.background_image_url);
+      if (bgImage) {
+        page.drawImage(bgImage, {
+          x: 0,
+          y: 0,
+          width: width,
+          height: height,
+        });
+      } else {
+        // Fallback to white if image fails to load
+        page.drawRectangle({
+          x: 0,
+          y: 0,
+          width: width,
+          height: height,
+          color: rgb(1, 1, 1) // White
+        });
+      }
+    } else {
+      // Default white background if no image
+      page.drawRectangle({
+        x: 0,
+        y: 0,
+        width: width,
+        height: height,
+        color: rgb(1, 1, 1) // White
+      });
+    }
 
     // Border
     if (config.border_width && config.border_width > 0) {
@@ -271,8 +308,6 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     // Embed MonteCarlo font for participant name
     let monteCarloFont = null;
     try {
-      // Fetch MonteCarlo font TTF from Google Fonts GitHub repository
-      // This is the most reliable source for the font file
       const fontUrl = 'https://github.com/google/fonts/raw/main/ofl/montecarlo/MonteCarlo-Regular.ttf';
       const fontResponse = await fetch(fontUrl);
       
@@ -284,7 +319,6 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       monteCarloFont = await pdfDoc.embedFont(fontBytes);
     } catch (error) {
       console.warn('Error loading MonteCarlo font:', error);
-      // Fallback to Helvetica Bold if font loading fails
       monteCarloFont = helveticaBoldFont;
     }
 
@@ -301,6 +335,41 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       const b = parseInt(hex.substring(5, 7), 16) / 255;
       return rgb(r, g, b);
     };
+
+    // Logos
+    if (config.logo_config?.logos && config.logo_config.logos.length > 0) {
+      for (const logo of config.logo_config.logos) {
+        const logoSize = logo.size || { width: 120, height: 120 };
+        const logoPos = logo.position || { x: 15, y: 10 };
+        const logoImage = await embedImage(logo.url);
+        if (logoImage) {
+          page.drawImage(logoImage, {
+            x: (width * logoPos.x) / 100,
+            y: height - (height * logoPos.y) / 100 - logoSize.height,
+            width: logoSize.width,
+            height: logoSize.height,
+          });
+        }
+      }
+    }
+
+    // Sponsor Logos
+    if (config.logo_config?.sponsor_logos && config.logo_config.sponsor_logos.length > 0) {
+      const sponsorSize = config.logo_config.sponsor_logo_size || { width: 80, height: 80 };
+      const sponsorPos = config.logo_config.sponsor_logo_position || { x: 90, y: 5 };
+      const spacing = config.logo_config.sponsor_logo_spacing || 10;
+      for (let i = 0; i < config.logo_config.sponsor_logos.length; i++) {
+        const sponsorImage = await embedImage(config.logo_config.sponsor_logos[i]);
+        if (sponsorImage) {
+          page.drawImage(sponsorImage, {
+            x: (width * sponsorPos.x) / 100,
+            y: height - (height * sponsorPos.y) / 100 - sponsorSize.height - (i * (sponsorSize.height + spacing)),
+            width: sponsorSize.width,
+            height: sponsorSize.height,
+          });
+        }
+      }
+    }
 
     // Header - Republic
     if (header.republic_text && header.republic_config) {
@@ -400,7 +469,7 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       color: rgb(0, 0, 0)
     });
 
-    // Participation Text
+    // Participation Text - Handle multi-line
     if (participation.text_template) {
       const participationText = participation.text_template
         .replace('{EVENT_NAME}', event.title)
@@ -408,13 +477,19 @@ const CertificateGenerator = ({ eventId, onClose }) => {
         .replace('{VENUE}', event.venue || '[Venue]');
       
       const textSize = participation.font_size || 18;
-      const textWidth = helveticaFont.widthOfTextAtSize(participationText, textSize);
-      page.drawText(participationText, {
-        x: (width * participation.position.x) / 100 - textWidth / 2,
-        y: height - (height * participation.position.y) / 100,
-        size: textSize,
-        font: helveticaFont,
-        color: hexToRgb(participation.color || '#000000')
+      const lineHeight = textSize * (participation.line_height || 1.5);
+      const lines = participationText.split('\n');
+      const startY = height - (height * participation.position.y) / 100 + ((lines.length - 1) * lineHeight) / 2;
+      
+      lines.forEach((line, index) => {
+        const textWidth = helveticaFont.widthOfTextAtSize(line, textSize);
+        page.drawText(line, {
+          x: (width * participation.position.x) / 100 - textWidth / 2,
+          y: startY - (index * lineHeight),
+          size: textSize,
+          font: helveticaFont,
+          color: hexToRgb(participation.color || '#000000')
+        });
       });
     }
 
@@ -423,6 +498,21 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     for (const signature of signatures) {
       const sigX = (width * (signature.position_config?.x || 50)) / 100;
       const sigY = height - (height * (signature.position_config?.y || 92)) / 100;
+
+      // Signature Image
+      if (signature.signature_image_url) {
+        const imgWidth = signature.signature_image_width || 300;
+        const imgHeight = signature.signature_image_height || 100;
+        const sigImage = await embedImage(signature.signature_image_url);
+        if (sigImage) {
+          page.drawImage(sigImage, {
+            x: sigX - imgWidth / 2,
+            y: sigY - imgHeight - 20,
+            width: imgWidth,
+            height: imgHeight,
+          });
+        }
+      }
 
       // Name
       if (signature.name) {
@@ -451,11 +541,58 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       }
     }
 
+    // Certificate ID and QR Code
+    if (config.cert_id_prefix && certificateNumber) {
+      const certIdSize = config.cert_id_font_size || 14;
+      const certIdText = certificateNumber;
+      const certIdWidth = helveticaFont.widthOfTextAtSize(certIdText, certIdSize);
+      const certIdX = (width * (config.cert_id_position?.x || 50)) / 100;
+      const certIdY = height - (height * (config.cert_id_position?.y || 95)) / 100;
+      
+      // Draw Certificate ID
+      page.drawText(certIdText, {
+        x: certIdX - certIdWidth / 2,
+        y: certIdY,
+        size: certIdSize,
+        font: helveticaFont,
+        color: hexToRgb(config.cert_id_color || '#000000')
+      });
+
+      // Draw QR Code beside cert ID if enabled
+      if (config.qr_code_enabled !== false) {
+        try {
+          const qrSize = config.qr_code_size || 60;
+          const qrGap = 10; // Gap between cert ID and QR code
+          const qrX = certIdX + certIdWidth / 2 + qrGap;
+          const qrY = certIdY - qrSize / 2;
+          
+          // Generate QR code as data URL
+          const qrDataUrl = await QRCode.toDataURL(certificateNumber, {
+            width: qrSize,
+            margin: 1
+          });
+          
+          // Convert data URL to image bytes
+          const qrImageBytes = await fetch(qrDataUrl).then(res => res.arrayBuffer());
+          const qrImage = await pdfDoc.embedPng(qrImageBytes);
+          
+          page.drawImage(qrImage, {
+            x: qrX,
+            y: qrY,
+            width: qrSize,
+            height: qrSize
+          });
+        } catch (qrError) {
+          console.warn('Failed to generate QR code for PDF:', qrError);
+        }
+      }
+    }
+
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
   };
 
-  const generatePNG = async () => {
+  const generatePNG = async (certificateNumber = null) => {
     if (!config || !event) return null;
 
     // Ensure fonts are loaded before creating canvas
@@ -468,9 +605,32 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     canvas.height = height;
     const ctx = canvas.getContext('2d');
 
-    // Background
-    ctx.fillStyle = config.background_color || '#ffffff';
-    ctx.fillRect(0, 0, width, height);
+    // Helper function to load and draw image
+    const drawImage = async (url, x, y, imgWidth, imgHeight) => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          ctx.drawImage(img, x, y, imgWidth, imgHeight);
+          resolve();
+        };
+        img.onerror = () => resolve();
+        img.src = url;
+      });
+    };
+
+    // Background - use image only
+    if (config.background_image_url) {
+      // Fill with white first as fallback
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      // Draw background image on top
+      await drawImage(config.background_image_url, 0, 0, width, height);
+    } else {
+      // Default white background if no image
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+    }
 
     // Border
     if (config.border_width && config.border_width > 0) {
@@ -490,35 +650,23 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     const nameConfig = config.name_config || {};
     const participantName = getUserName();
 
-    // Helper function to load and draw image
-    const drawImage = async (url, x, y, imgWidth, imgHeight) => {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          ctx.drawImage(img, x, y, imgWidth, imgHeight);
-          resolve();
-        };
-        img.onerror = () => resolve();
-        img.src = url;
-      });
-    };
-
-    // PSU Logo
-    if (config.logo_config?.psu_logo_url) {
-      const logoSize = config.logo_config.psu_logo_size || { width: 120, height: 120 };
-      const logoPos = config.logo_config.psu_logo_position || { x: 15, y: 10 };
-      await drawImage(
-        config.logo_config.psu_logo_url,
-        (width * logoPos.x) / 100,
-        (height * logoPos.y) / 100,
-        logoSize.width,
-        logoSize.height
-      );
+    // Logos
+    if (config.logo_config?.logos && config.logo_config.logos.length > 0) {
+      for (const logo of config.logo_config.logos) {
+        const logoSize = logo.size || { width: 120, height: 120 };
+        const logoPos = logo.position || { x: 15, y: 10 };
+        await drawImage(
+          logo.url,
+          (width * logoPos.x) / 100,
+          (height * logoPos.y) / 100,
+          logoSize.width,
+          logoSize.height
+        );
+      }
     }
 
     // Sponsor Logos
-    if (config.logo_config?.sponsor_logos) {
+    if (config.logo_config?.sponsor_logos && config.logo_config.sponsor_logos.length > 0) {
       const sponsorSize = config.logo_config.sponsor_logo_size || { width: 80, height: 80 };
       const sponsorPos = config.logo_config.sponsor_logo_position || { x: 90, y: 5 };
       const spacing = config.logo_config.sponsor_logo_spacing || 10;
@@ -616,7 +764,6 @@ const CertificateGenerator = ({ eventId, onClose }) => {
 
     // Participant Name
     ctx.fillStyle = nameConfig.color || '#000000';
-    // Ensure MonteCarlo font is loaded before rendering
     const fontFamily = nameConfig.font_family || 'MonteCarlo, cursive';
     
     // Wait for all fonts to be ready before rendering
@@ -641,7 +788,7 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     ctx.lineTo(width * 0.8, (height * (nameConfig.position.y + 3)) / 100);
     ctx.stroke();
 
-    // Participation Text
+    // Participation Text - Handle multi-line
     if (participation.text_template) {
       const participationText = participation.text_template
         .replace('{EVENT_NAME}', event.title)
@@ -653,7 +800,6 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
-      // Handle multi-line text
       const lines = participationText.split('\n');
       const lineHeight = (participation.font_size || 18) * (participation.line_height || 1.5);
       const startY = (height * participation.position.y) / 100 - ((lines.length - 1) * lineHeight) / 2;
@@ -705,22 +851,81 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       }
     }
 
+    // Certificate ID and QR Code
+    if (config.cert_id_prefix && certificateNumber) {
+      const certIdSize = config.cert_id_font_size || 14;
+      const certIdPos = config.cert_id_position || { x: 50, y: 95 };
+      const certIdX = (width * certIdPos.x) / 100;
+      const certIdY = (height * certIdPos.y) / 100;
+      
+      // Draw Certificate ID
+      ctx.fillStyle = config.cert_id_color || '#000000';
+      ctx.font = `${certIdSize}px Arial, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(certificateNumber, certIdX, certIdY);
+
+      // Draw QR Code beside cert ID if enabled
+      if (config.qr_code_enabled !== false) {
+        try {
+          const qrSize = config.qr_code_size || 60;
+          const qrGap = 10; // Gap between cert ID and QR code
+          const qrX = certIdX + qrGap;
+          const qrY = certIdY;
+          
+          // Generate QR code as data URL
+          const qrDataUrl = await QRCode.toDataURL(certificateNumber, {
+            width: qrSize,
+            margin: 1
+          });
+          
+          // Draw QR code image
+          const qrImage = new Image();
+          await new Promise((resolve, reject) => {
+            qrImage.onload = () => {
+              ctx.drawImage(qrImage, qrX, qrY - qrSize / 2, qrSize, qrSize);
+              resolve();
+            };
+            qrImage.onerror = reject;
+            qrImage.src = qrDataUrl;
+          });
+        } catch (qrError) {
+          console.warn('Failed to generate QR code for PNG:', qrError);
+        }
+      }
+    }
+
     return new Promise((resolve) => {
       canvas.toBlob((blob) => {
         resolve(blob);
-      }, 'image/png');
+      }, 'image/png', 1.0); // Best quality
     });
   };
 
   const handleGenerate = async () => {
     if (!eventId || !user?.id || !config || !event) return;
 
+    // Check if certificate already exists
+    if (certificate) {
+      alert('You have already generated a certificate for this event. Each user can only generate a certificate once.');
+      return;
+    }
+
     setGenerating(true);
     setError(null);
 
     try {
-      // Generate certificate number
-      const certificateNumber = CertificateService.generateCertificateNumber(eventId, user.id);
+      // Get certificate number with prefix and auto-incrementing counter
+      let certificateNumber;
+      if (config?.cert_id_prefix) {
+        const certNumberResult = await CertificateService.getNextCertificateNumber(eventId, config.cert_id_prefix);
+        if (certNumberResult.error) {
+          throw new Error(`Failed to generate certificate number: ${certNumberResult.error}`);
+        }
+        certificateNumber = certNumberResult.number || CertificateService.generateCertificateNumber(eventId, user.id);
+      } else {
+        certificateNumber = CertificateService.generateCertificateNumber(eventId, user.id);
+      }
       
       // Generate PDF
       const pdfBytes = await generatePDF();
@@ -728,8 +933,8 @@ const CertificateGenerator = ({ eventId, onClose }) => {
         throw new Error('Failed to generate PDF');
       }
 
-      // Generate PNG
-      const pngBlob = await generatePNG();
+      // Generate PNG (pass certificate number for cert ID display)
+      const pngBlob = await generatePNG(certificateNumber);
       if (!pngBlob) {
         throw new Error('Failed to generate PNG');
       }
@@ -738,8 +943,11 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       const pdfFileName = `${certificateNumber}.pdf`;
       const pngFileName = `${certificateNumber}.png`;
 
+      // Convert PDF bytes to Blob
+      const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+
       const [pdfResult, pngResult] = await Promise.all([
-        CertificateService.uploadCertificateFile(pdfBytes, pdfFileName, 'pdf', eventId, user.id),
+        CertificateService.uploadCertificateFile(pdfBlob, pdfFileName, 'pdf', eventId, user.id),
         CertificateService.uploadCertificateFile(pngBlob, pngFileName, 'png', eventId, user.id)
       ]);
 
@@ -767,9 +975,15 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       }
 
       setCertificate(saveResult.certificate);
-      loadPreview(saveResult.certificate);
+      setPreviewData({
+        type: 'png',
+        url: pngResult.url
+      });
+      toast.success('Certificate generated successfully!');
     } catch (err) {
-      setError(err.message || 'Failed to generate certificate');
+      const errorMessage = err.message || 'Failed to generate certificate';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setGenerating(false);
     }
@@ -783,7 +997,7 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       : certificate.certificate_png_url;
 
     if (!url) {
-      setError(`${format.toUpperCase()} certificate not available`);
+      toast.error(`${format.toUpperCase()} certificate not available`);
       return;
     }
 
@@ -798,8 +1012,9 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(downloadUrl);
+      toast.success('Certificate downloaded successfully!');
     } catch (err) {
-      setError(`Failed to download certificate: ${err.message}`);
+      toast.error(`Failed to download certificate: ${err.message || 'Unknown error'}`);
     }
   };
 
@@ -815,7 +1030,6 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       </div>
     );
   }
-
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -841,9 +1055,9 @@ const CertificateGenerator = ({ eventId, onClose }) => {
 
           {certificate ? (
             <div className="space-y-6">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-green-800 font-medium">Certificate already generated!</p>
-                <p className="text-green-600 text-sm mt-1">You can download it anytime below.</p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-blue-800 font-medium">Certificate already generated!</p>
+                <p className="text-blue-600 text-sm mt-1">Your certificate has been saved. You can download it below.</p>
               </div>
 
               {/* Preview */}
@@ -906,7 +1120,17 @@ const CertificateGenerator = ({ eventId, onClose }) => {
                       : 'bg-blue-600 hover:bg-blue-700'
                   }`}
                 >
-                  {generating ? 'Generating Certificate...' : 'Generate Certificate'}
+                  {generating ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Generating Certificate...
+                    </span>
+                  ) : (
+                    'Generate Certificate'
+                  )}
                 </button>
               </div>
             </div>

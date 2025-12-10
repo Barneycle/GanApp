@@ -4,6 +4,7 @@ export interface CertificateConfig {
   id?: string;
   event_id: string;
   background_color?: string;
+  background_image_url?: string | null;
   border_color?: string;
   border_width?: number;
   title_text?: string;
@@ -119,6 +120,15 @@ export interface CertificateConfig {
     position_color?: string;
     font_family?: string;
   }>;
+  // Certificate ID configuration
+  cert_id_prefix?: string; // User-defined prefix for certificate ID (format: prefix-001)
+  cert_id_position?: { x: number; y: number }; // Position for certificate ID display
+  cert_id_font_size?: number;
+  cert_id_color?: string;
+  // QR Code configuration
+  qr_code_enabled?: boolean; // Enable/disable QR code
+  qr_code_size?: number; // Size in pixels
+  qr_code_position?: { x: number; y: number }; // Position beside cert ID
   width?: number;
   height?: number;
   created_by?: string;
@@ -356,7 +366,32 @@ export class CertificateService {
   }
 
   /**
-   * Generate certificate number
+   * Get next certificate number for an event (with prefix and auto-incrementing counter)
+   */
+  static async getNextCertificateNumber(eventId: string, prefix: string = ''): Promise<{ number?: string; error?: string }> {
+    try {
+      // Call the database function to get and increment the counter
+      const { data, error } = await supabase.rpc('get_next_certificate_number', {
+        event_uuid: eventId
+      });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      // Format the number with prefix
+      const counter = data || 1;
+      const formattedNumber = String(counter).padStart(3, '0');
+      const certId = prefix ? `${prefix}-${formattedNumber}` : formattedNumber;
+
+      return { number: certId };
+    } catch (err: any) {
+      return { error: err.message || 'Failed to generate certificate number' };
+    }
+  }
+
+  /**
+   * Generate certificate number (legacy method - kept for backward compatibility)
    */
   static generateCertificateNumber(eventId: string, userId: string): string {
     const timestamp = Date.now();

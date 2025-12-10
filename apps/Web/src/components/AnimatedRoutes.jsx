@@ -6,6 +6,7 @@ import { Participants } from "./sections/Participants";
 import { Login } from "./sections/Login";
 import { CreateEvent } from "./sections/CreateEvent";
 import { EditEvent } from "./sections/EditEvent";
+import { DesignCertificate } from "./sections/DesignCertificate";
 import { CreateSurvey } from "./sections/CreateSurvey";
 import { EditSurvey } from "./sections/EditSurvey";
 import { EventStatistics } from "./sections/EventStatistics";
@@ -40,6 +41,7 @@ function AnimatedRoutes() {
         <Route path="/events" element={<Events />} />
         <Route path="/create-event" element={<CreateEvent />} />
         <Route path="/edit-event/:eventId" element={<EditEvent />} />
+        <Route path="/design-certificate" element={<DesignCertificate />} />
         <Route path="/create-survey" element={<CreateSurvey />} />
         <Route path="/edit-survey/:surveyId" element={<EditSurvey />} />
         <Route path="/event-statistics" element={<EventStatistics />} />

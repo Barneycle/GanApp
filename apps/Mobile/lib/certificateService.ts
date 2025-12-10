@@ -5,6 +5,7 @@ export interface CertificateConfig {
   id?: string;
   event_id: string;
   background_color?: string;
+  background_image_url?: string | null;
   border_color?: string;
   border_width?: number;
   title_text?: string;

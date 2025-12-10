@@ -11,6 +11,8 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
   // Default config
   const defaultConfig = {
     background_color: '#ffffff',
+    background_image_url: null,
+    background_image_size: null, // { width, height } - if null, uses canvas size
     border_color: '#1e40af',
     border_width: 5,
     title_text: 'CERTIFICATE',
@@ -71,9 +73,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
     },
     // Logo configuration
     logo_config: {
-      psu_logo_url: null,
-      psu_logo_size: { width: 120, height: 120 },
-      psu_logo_position: { x: 15, y: 10 },
+      logos: [], // Array of logo objects: { url, size: {width, height}, position: {x, y} }
       sponsor_logos: [],
       sponsor_logo_size: { width: 80, height: 80 },
       sponsor_logo_position: { x: 90, y: 5 },
@@ -99,7 +99,16 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
       font_weight: 'normal'
     },
     // Signature blocks (array)
-    signature_blocks: []
+    signature_blocks: [],
+    // Certificate ID configuration
+    cert_id_prefix: '', // User-defined prefix for certificate ID (format: prefix-001)
+    cert_id_position: { x: 50, y: 95 }, // Position for certificate ID display
+    cert_id_font_size: 14,
+    cert_id_color: '#000000',
+    // QR Code configuration
+    qr_code_enabled: true, // Enable/disable QR code
+    qr_code_size: 60, // Size in pixels
+    qr_code_position: { x: 60, y: 95 } // Position beside cert ID
   };
 
   const [config, setConfig] = useState(defaultConfig);
@@ -108,10 +117,60 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [uploadingSignature, setUploadingSignature] = useState({});
+  const [uploadingBackground, setUploadingBackground] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [existingLogos, setExistingLogos] = useState([]);
+  const [loadingLogos, setLoadingLogos] = useState(false);
+  const [existingBackgrounds, setExistingBackgrounds] = useState([]);
+  const [loadingBackgrounds, setLoadingBackgrounds] = useState(false);
 
   useEffect(() => {
     loadConfig();
+    fetchExistingLogos();
+    fetchExistingBackgrounds();
   }, [eventId]);
+
+  // Fetch existing logos from database
+  const fetchExistingLogos = async () => {
+    if (!user?.id) return;
+    
+    setLoadingLogos(true);
+    try {
+      const { data, error } = await supabase
+        .from('logos')
+        .select('*')
+        .order('uploaded_at', { ascending: false });
+      
+      if (error) throw error;
+      setExistingLogos(data || []);
+    } catch (err) {
+      console.error('Error fetching logos:', err);
+      setError('Failed to load existing logos');
+    } finally {
+      setLoadingLogos(false);
+    }
+  };
+
+  // Fetch existing background images from database
+  const fetchExistingBackgrounds = async () => {
+    if (!user?.id) return;
+    
+    setLoadingBackgrounds(true);
+    try {
+      const { data, error } = await supabase
+        .from('background_images')
+        .select('*')
+        .order('uploaded_at', { ascending: false });
+      
+      if (error) throw error;
+      setExistingBackgrounds(data || []);
+    } catch (err) {
+      console.error('Error fetching background images:', err);
+      setError('Failed to load existing background images');
+    } finally {
+      setLoadingBackgrounds(false);
+    }
+  };
 
   const loadConfig = async () => {
     if (draftMode) {
@@ -277,6 +336,188 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
     });
   };
 
+  // Upload background image to Supabase Storage and database
+  const handleBackgroundImageUpload = async (file) => {
+    if (!file || !user?.id) return;
+    
+    // Validate file type - PNG only
+    const fileExt = file.name.split('.').pop().toLowerCase();
+    if (fileExt !== 'png') {
+      setError('Only PNG files are allowed for background images');
+      return;
+    }
+    
+    setUploadingBackground(true);
+    setError(null);
+    
+    try {
+      // Upload to storage
+      const fileName = `background_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+      const bucketName = 'certificate-backgrounds';
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from(bucketName)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+      
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
+      
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from(bucketName)
+        .getPublicUrl(filePath);
+      
+      // Save to database
+      const { data: bgData, error: dbError } = await supabase
+        .from('background_images')
+        .insert({
+          file_url: publicUrl,
+          file_path: filePath,
+          file_name: file.name,
+          file_size: file.size,
+          mime_type: file.type,
+          name: file.name.replace(/\.[^/.]+$/, ''), // Remove extension for name
+          uploaded_by: user.id
+        })
+        .select()
+        .single();
+      
+      if (dbError) {
+        throw new Error(`Database error: ${dbError.message}`);
+      }
+      
+      // Update config with the uploaded URL and default size
+      updateConfig('background_image_url', publicUrl);
+      updateConfig('background_image_size', config.background_image_size || { width: config.width || 2000, height: config.height || 1200 });
+      
+      // Refresh backgrounds list
+      await fetchExistingBackgrounds();
+      setSuccess('Background image uploaded successfully!');
+      setTimeout(() => setSuccess(false), 3000);
+      
+    } catch (err) {
+      setError(err.message || 'Failed to upload background image');
+    } finally {
+      setUploadingBackground(false);
+    }
+  };
+
+  // Select existing background image from database
+  const handleSelectExistingBackground = (bgUrl) => {
+    updateConfig('background_image_url', bgUrl);
+    updateConfig('background_image_size', config.background_image_size || { width: config.width || 2000, height: config.height || 1200 });
+  };
+
+  // Upload logo to Supabase Storage and database
+  const handleLogoUpload = async (file) => {
+    if (!file || !user?.id) return;
+    
+    // Validate file type - PNG only
+    const fileExt = file.name.split('.').pop().toLowerCase();
+    if (fileExt !== 'png') {
+      setError('Only PNG files are allowed for logos');
+      return;
+    }
+    
+    setUploadingLogo(true);
+    setError(null);
+    
+    try {
+      // Upload to storage
+      const fileName = `logo_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+      const bucketName = 'certificate-logos';
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from(bucketName)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+      
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
+      
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from(bucketName)
+        .getPublicUrl(filePath);
+      
+      // Save to database
+      const { data: logoData, error: dbError } = await supabase
+        .from('logos')
+        .insert({
+          file_url: publicUrl,
+          file_path: filePath,
+          file_name: file.name,
+          file_size: file.size,
+          mime_type: file.type,
+          name: file.name.replace(/\.[^/.]+$/, ''), // Remove extension for name
+          uploaded_by: user.id
+        })
+        .select()
+        .single();
+      
+      if (dbError) {
+        throw new Error(`Database error: ${dbError.message}`);
+      }
+      
+      // Add logo to logos array
+      const currentLogos = config.logo_config?.logos || [];
+      updateConfig('logo_config', {
+        ...config.logo_config,
+        logos: [
+          ...currentLogos,
+          {
+            url: publicUrl,
+            size: { width: 120, height: 120 },
+            position: { x: 15 + (currentLogos.length * 5), y: 10 }
+          }
+        ]
+      });
+      
+      // Refresh logos list
+      await fetchExistingLogos();
+      setSuccess('Logo uploaded successfully!');
+      
+    } catch (err) {
+      setError(err.message || 'Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  // Add existing logo to logos array
+  const handleAddExistingLogo = (logoUrl) => {
+    const currentLogos = config.logo_config?.logos || [];
+    updateConfig('logo_config', {
+      ...config.logo_config,
+      logos: [
+        ...currentLogos,
+        {
+          url: logoUrl,
+          size: { width: 120, height: 120 },
+          position: { x: 15 + (currentLogos.length * 5), y: 10 }
+        }
+      ]
+    });
+  };
+
+  // Remove logo from array
+  const handleRemoveLogo = (index) => {
+    const currentLogos = config.logo_config?.logos || [];
+    updateConfig('logo_config', {
+      ...config.logo_config,
+      logos: currentLogos.filter((_, i) => i !== index)
+    });
+  };
+
   // Upload signature image to Supabase Storage
   const handleSignatureImageUpload = async (file, blockIndex) => {
     if (!file || !user?.id) return;
@@ -343,14 +584,10 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
       return <div className="text-center text-slate-500 p-8">Loading certificate preview...</div>;
     }
     
-    // Maintain landscape aspect ratio (wider than tall)
-    const aspectRatio = config.width / config.height;
-    // Calculate preview size - use larger size for better readability
-    // Max width of 1400px for large displays, but will scale down to fit container
-    const maxPreviewWidth = 1400;
-    const previewWidth = Math.min(maxPreviewWidth, config.width);
-    const previewHeight = previewWidth / aspectRatio; // Height calculated to maintain aspect ratio
-    const scale = previewWidth / config.width;
+    // Use actual certificate dimensions for preview (no scaling)
+    const actualWidth = config.width;
+    const actualHeight = config.height;
+    const scale = 1; // Always use scale of 1 for actual size
     const header = config.header_config || defaultConfig.header_config;
     const logos = config.logo_config || defaultConfig.logo_config;
     const participation = config.participation_text_config || defaultConfig.participation_text_config;
@@ -368,34 +605,40 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
       <div
         ref={previewRef}
         style={{
-          width: `${previewWidth}px`,
-          height: `${previewHeight}px`,
-          maxWidth: '95%',
-          maxHeight: '90vh',
-          backgroundColor: config.background_color,
+          width: `${actualWidth}px`,
+          height: `${actualHeight}px`,
+          backgroundColor: config.background_image_url ? 'transparent' : '#ffffff',
+          backgroundImage: config.background_image_url ? `url(${config.background_image_url})` : 'none',
+          backgroundSize: config.background_image_size 
+            ? `${(config.background_image_size.width * scale)}px ${(config.background_image_size.height * scale)}px`
+            : 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
           border: `${config.border_width * scale}px solid ${config.border_color}`,
           position: 'relative',
           margin: '0 auto',
           boxSizing: 'border-box',
           overflow: 'hidden',
-          display: 'block'
+          display: 'block',
+          flexShrink: 0
         }}
       >
-        {/* PSU Logo - Top Left */}
-        {logos?.psu_logo_url && (
+        {/* Logos */}
+        {logos?.logos && logos.logos.length > 0 && logos.logos.map((logo, index) => (
           <img
-            src={logos.psu_logo_url}
-            alt="PSU Logo"
+            key={index}
+            src={logo.url}
+            alt={`Logo ${index + 1}`}
             style={{
               position: 'absolute',
-              left: `${logos.psu_logo_position.x}%`,
-              top: `${logos.psu_logo_position.y}%`,
-              width: `${(logos.psu_logo_size.width * scale)}px`,
-              height: `${(logos.psu_logo_size.height * scale)}px`,
+              left: `${logo.position?.x || 15}%`,
+              top: `${logo.position?.y || 10}%`,
+              width: `${((logo.size?.width || 120) * scale)}px`,
+              height: `${((logo.size?.height || 120) * scale)}px`,
               objectFit: 'contain'
             }}
           />
-        )}
+        ))}
 
         {/* Sponsor Logos - Top Right */}
         {logos?.sponsor_logos && logos.sponsor_logos.length > 0 && logos.sponsor_logos.map((logoUrl, index) => (
@@ -597,6 +840,56 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
 
 
 
+        {/* Certificate ID and QR Code Container */}
+        {config.cert_id_prefix && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${config.cert_id_position?.x || 50}%`,
+              top: `${config.cert_id_position?.y || 95}%`,
+              transform: 'translate(-50%, -50%)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: `${10 * scale}px`,
+              width: 'auto'
+            }}
+          >
+            {/* Certificate ID */}
+            <div
+              style={{
+                fontSize: `${((config.cert_id_font_size || 14) * scale)}px`,
+                color: config.cert_id_color || '#000000',
+                fontFamily: 'Arial, sans-serif',
+                textAlign: 'center',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {config.cert_id_prefix}-001
+            </div>
+            
+            {/* QR Code */}
+            {config.qr_code_enabled !== false && (
+              <div
+                style={{
+                  width: `${(config.qr_code_size || 60) * scale}px`,
+                  height: `${(config.qr_code_size || 60) * scale}px`,
+                  position: 'relative'
+                }}
+              >
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=${Math.round((config.qr_code_size || 60) * scale)}x${Math.round((config.qr_code_size || 60) * scale)}&data=${encodeURIComponent(`${config.cert_id_prefix}-001`)}`}
+                  alt="Certificate QR Code"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain'
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Signature Blocks */}
         {signatures.map((signature, index) => (
           <div
@@ -674,117 +967,727 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
-      <div className="mb-6">
-        <h3 className="text-2xl font-bold text-slate-800 mb-2">Certificate Designer</h3>
-        <p className="text-slate-600">Customize the certificate layout for this event</p>
-      </div>
-
-      {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-800 text-sm">{error}</p>
-        </div>
-      )}
-
-      {success && (
-        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-          <p className="text-green-800 text-sm">
-            {draftMode ? 'Certificate configuration saved as draft!' : 'Certificate configuration saved successfully!'}
-          </p>
-        </div>
-      )}
-      
-      {draftMode && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-blue-800 text-sm">
-            <strong>Draft Mode:</strong> Certificate configuration is being saved automatically. It will be finalized when you create the event.
-          </p>
-        </div>
-      )}
-
-      {/* Preview - Landscape orientation */}
-      <div className="mb-6">
-        <h4 className="text-lg font-semibold text-slate-700 mb-4">Preview</h4>
-        <div className="bg-slate-100 p-6 rounded-lg w-full overflow-hidden">
-          <div className="flex justify-center items-center w-full" key={JSON.stringify(config.signature_blocks?.map(s => ({ 
-            width: s.signature_image_width, 
-            height: s.signature_image_height 
-          })))}>
-            {renderPreview()}
+    <div className="w-full bg-gradient-to-br from-slate-50 via-white to-slate-50 min-h-screen">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow-lg">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-3xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">Certificate Designer</h3>
+              <p className="text-slate-500 text-sm mt-1">Create and customize professional certificates</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Configuration Panel */}
-      <div>
-          <h4 className="text-lg font-semibold text-slate-700 mb-4">Configuration</h4>
-          <div className="space-y-6 max-h-[600px] overflow-y-auto pr-2">
+        {/* Alerts */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50/80 backdrop-blur-sm border border-red-200/50 rounded-xl shadow-sm animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-red-800 text-sm font-medium">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-6 p-4 bg-emerald-50/80 backdrop-blur-sm border border-emerald-200/50 rounded-xl shadow-sm animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-emerald-800 text-sm font-medium">
+                {typeof success === 'string' ? success : (draftMode ? 'Certificate configuration saved as draft!' : 'Certificate configuration saved successfully!')}
+              </p>
+            </div>
+          </div>
+        )}
+        
+        {draftMode && (
+          <div className="mb-6 p-4 bg-blue-50/80 backdrop-blur-sm border border-blue-200/50 rounded-xl shadow-sm">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              <p className="text-blue-800 text-sm font-medium">
+                <strong>Draft Mode:</strong> Changes are saved automatically and will be finalized when you create the event.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-8">
+          {/* Preview Section */}
+          <div className="flex justify-center w-full overflow-x-auto">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200/50 overflow-hidden flex-shrink-0" style={{
+              width: '2200px',
+              minWidth: '2200px'
+            }}>
+              <div className="bg-gradient-to-r from-slate-50 to-slate-100/50 px-6 py-4 border-b border-slate-200/50">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    Live Preview
+                  </h4>
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                    Real-time updates
+                  </div>
+                </div>
+              </div>
+              <div className="p-10 bg-gradient-to-br from-slate-100 to-slate-50 flex justify-center items-start">
+                <div className="bg-white rounded-xl shadow-lg" key={JSON.stringify(config.signature_blocks?.map(s => ({ 
+                  width: s.signature_image_width, 
+                  height: s.signature_image_height 
+                })))}>
+                  {renderPreview()}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Configuration Panel */}
+          <div className="flex justify-center">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200/50 overflow-hidden" style={{ maxWidth: '800px', width: '100%' }}>
+              <div className="bg-gradient-to-r from-slate-50 to-slate-100/50 px-6 py-4 border-b border-slate-200/50">
+                <h4 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  </svg>
+                  Settings
+                </h4>
+              </div>
+              <div className="p-6 max-h-[800px] overflow-y-auto" style={{
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#cbd5e1 #f1f5f9'
+              }}>
+                <style>{`
+                  .custom-scrollbar::-webkit-scrollbar {
+                    width: 6px;
+                  }
+                  .custom-scrollbar::-webkit-scrollbar-track {
+                    background: #f1f5f9;
+                    border-radius: 10px;
+                  }
+                  .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: #cbd5e1;
+                    border-radius: 10px;
+                  }
+                  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: #94a3b8;
+                  }
+                `}</style>
+                <div className="space-y-8 custom-scrollbar">
             {/* Background & Border */}
-            <div className="space-y-4">
-              <h5 className="font-medium text-slate-700">Background & Border</h5>
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200/50">
+                <div className="w-1 h-6 bg-gradient-to-b from-blue-500 to-purple-500 rounded-full"></div>
+                <h5 className="font-semibold text-slate-800 text-sm uppercase tracking-wide">Background & Border</h5>
+              </div>
               
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">
-                  Background Color
+              <div className="space-y-3">
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-3">
+                  Background Image
                 </label>
-                <input
-                  type="color"
-                  value={config.background_color}
-                  onChange={(e) => updateConfig('background_color', e.target.value)}
-                  className="w-full h-10 rounded-lg border border-slate-300"
-                />
+
+                {/* Upload New Background */}
+                <div className="mb-4">
+                  <input
+                    type="file"
+                    accept="image/png"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        handleBackgroundImageUpload(file);
+                      }
+                    }}
+                    className="hidden"
+                    id="background-image-upload"
+                    disabled={uploadingBackground}
+                  />
+                  <label
+                    htmlFor="background-image-upload"
+                    className={`group flex flex-col items-center justify-center w-full px-4 py-6 text-sm text-center rounded-xl border-2 border-dashed cursor-pointer transition-all ${
+                      uploadingBackground
+                        ? 'bg-slate-100 cursor-not-allowed opacity-50 border-slate-300'
+                        : 'border-slate-300 hover:border-blue-400 hover:bg-blue-50/50 hover:shadow-md'
+                    }`}
+                  >
+                    {uploadingBackground ? (
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Uploading...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <svg className="w-8 h-8 text-slate-400 group-hover:text-blue-500 mb-2 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <span className="text-slate-600 font-medium group-hover:text-blue-600 transition-colors">Upload New Background</span>
+                        <span className="text-xs text-slate-400 mt-1">PNG format only</span>
+                      </>
+                    )}
+                  </label>
+                </div>
+
+                {/* Remove Background Button */}
+                {config.background_image_url && (
+                  <div className="mb-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateConfig('background_image_url', null);
+                        updateConfig('background_image_size', null);
+                      }}
+                      className="w-full px-4 py-2.5 text-sm font-medium bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition-all shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                    >
+                      Remove Background
+                    </button>
+                  </div>
+                )}
+
+                {/* Select Existing Background */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                    Select Existing Background
+                  </label>
+                  {loadingBackgrounds ? (
+                    <div className="flex items-center justify-center py-4">
+                      <div className="flex items-center gap-2 text-slate-400">
+                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span className="text-sm">Loading...</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <select
+                      value={config.background_image_url || ''}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          handleSelectExistingBackground(e.target.value);
+                        } else {
+                          updateConfig('background_image_url', null);
+                          updateConfig('background_image_size', null);
+                        }
+                      }}
+                      className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white text-slate-800 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">-- Select Background --</option>
+                      {existingBackgrounds.map((bg) => (
+                        <option key={bg.id} value={bg.file_url}>
+                          {bg.name || bg.file_name || 'Background'}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {/* Background Size Controls */}
+                {config.background_image_url && (
+                  <div className="mt-5 space-y-4 pt-5 border-t border-slate-200/50">
+                    <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-4">Size Controls</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-medium text-slate-600">Width</label>
+                          <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                            {config.background_image_size?.width || config.width || 2000}px
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="500"
+                          max="4000"
+                          step="100"
+                          value={config.background_image_size?.width || config.width || 2000}
+                          onChange={(e) => updateConfig('background_image_size', {
+                            ...config.background_image_size,
+                            width: parseInt(e.target.value),
+                            height: config.background_image_size?.height || config.height || 1200
+                          })}
+                          className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-medium text-slate-600">Height</label>
+                          <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                            {config.background_image_size?.height || config.height || 1200}px
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="300"
+                          max="2400"
+                          step="100"
+                          value={config.background_image_size?.height || config.height || 1200}
+                          onChange={(e) => updateConfig('background_image_size', {
+                            ...config.background_image_size,
+                            width: config.background_image_size?.width || config.width || 2000,
+                            height: parseInt(e.target.value)
+                          })}
+                          className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">
-                  Border Color
-                </label>
-                <input
-                  type="color"
-                  value={config.border_color}
-                  onChange={(e) => updateConfig('border_color', e.target.value)}
-                  className="w-full h-10 rounded-lg border border-slate-300"
-                />
-              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    Border Color
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="color"
+                      value={config.border_color}
+                      onChange={(e) => updateConfig('border_color', e.target.value)}
+                      className="w-full h-12 rounded-xl border-2 border-slate-200 cursor-pointer hover:border-slate-300 transition-colors"
+                    />
+                  </div>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">
-                  Border Width: {config.border_width}px
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Border Width
+                    </label>
+                    <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                      {config.border_width}px
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="20"
+                    value={config.border_width}
+                    onChange={(e) => updateConfig('border_width', parseInt(e.target.value))}
+                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Logo Configuration */}
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200/50">
+                <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-pink-500 rounded-full"></div>
+                <h5 className="font-semibold text-slate-800 text-sm uppercase tracking-wide">Logo</h5>
+              </div>
+              
+              <div className="space-y-3">
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-3">
+                  Logo Image
                 </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="20"
-                  value={config.border_width}
-                  onChange={(e) => updateConfig('border_width', parseInt(e.target.value))}
-                  className="w-full"
-                />
+
+                {/* Upload New Logo */}
+                <div className="mb-4">
+                  <input
+                    type="file"
+                    accept="image/png"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        handleLogoUpload(file);
+                      }
+                    }}
+                    className="hidden"
+                    id="logo-upload"
+                    disabled={uploadingLogo}
+                  />
+                  <label
+                    htmlFor="logo-upload"
+                    className={`group flex flex-col items-center justify-center w-full px-4 py-6 text-sm text-center rounded-xl border-2 border-dashed cursor-pointer transition-all ${
+                      uploadingLogo
+                        ? 'bg-slate-100 cursor-not-allowed opacity-50 border-slate-300'
+                        : 'border-slate-300 hover:border-purple-400 hover:bg-purple-50/50 hover:shadow-md'
+                    }`}
+                  >
+                    {uploadingLogo ? (
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Uploading...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <svg className="w-8 h-8 text-slate-400 group-hover:text-purple-500 mb-2 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <span className="text-slate-600 font-medium group-hover:text-purple-600 transition-colors">Upload New Logo</span>
+                        <span className="text-xs text-slate-400 mt-1">PNG format only</span>
+                      </>
+                    )}
+                  </label>
+                </div>
+
+                {/* Current Logos List */}
+                {config.logo_config?.logos && config.logo_config.logos.length > 0 && (
+                  <div className="mb-4 space-y-2">
+                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Current Logos ({config.logo_config.logos.length})
+                    </label>
+                    {config.logo_config.logos.map((logo, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-200">
+                        <span className="text-sm text-slate-700">Logo {index + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveLogo(index)}
+                          className="px-3 py-1 text-xs font-medium bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Select Existing Logo */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                    Select Existing Logo
+                  </label>
+                  {loadingLogos ? (
+                    <div className="flex items-center justify-center py-4">
+                      <div className="flex items-center gap-2 text-slate-400">
+                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span className="text-sm">Loading...</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            handleAddExistingLogo(e.target.value);
+                            e.target.value = ''; // Reset dropdown
+                          }
+                        }}
+                        className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white text-slate-800 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      >
+                        <option value="">-- Add Logo --</option>
+                        {existingLogos.map((logo) => (
+                          <option key={logo.id} value={logo.file_url}>
+                            {logo.name || logo.file_name || 'Logo'}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-slate-500">Select a logo to add it to the certificate</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Logo Position and Size Controls */}
+                {config.logo_config?.logos && config.logo_config.logos.length > 0 && (
+                  <div className="mt-4 space-y-4 pt-4 border-t border-slate-200">
+                    {config.logo_config.logos.map((logo, logoIndex) => (
+                      <div key={logoIndex} className="space-y-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <h6 className="text-sm font-semibold text-slate-700">Logo {logoIndex + 1}</h6>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                              X Position: {logo.position?.x || 15}%
+                            </label>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={logo.position?.x || 15}
+                              onChange={(e) => {
+                                const newLogos = [...(config.logo_config?.logos || [])];
+                                newLogos[logoIndex] = {
+                                  ...newLogos[logoIndex],
+                                  position: {
+                                    ...newLogos[logoIndex].position,
+                                    x: parseInt(e.target.value)
+                                  }
+                                };
+                                updateConfig('logo_config', {
+                                  ...config.logo_config,
+                                  logos: newLogos
+                                });
+                              }}
+                              className="w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                              Y Position: {logo.position?.y || 10}%
+                            </label>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={logo.position?.y || 10}
+                              onChange={(e) => {
+                                const newLogos = [...(config.logo_config?.logos || [])];
+                                newLogos[logoIndex] = {
+                                  ...newLogos[logoIndex],
+                                  position: {
+                                    ...newLogos[logoIndex].position,
+                                    y: parseInt(e.target.value)
+                                  }
+                                };
+                                updateConfig('logo_config', {
+                                  ...config.logo_config,
+                                  logos: newLogos
+                                });
+                              }}
+                              className="w-full"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                              Width: {logo.size?.width || 120}px
+                            </label>
+                            <input
+                              type="range"
+                              min="50"
+                              max="500"
+                              step="10"
+                              value={logo.size?.width || 120}
+                              onChange={(e) => {
+                                const newLogos = [...(config.logo_config?.logos || [])];
+                                newLogos[logoIndex] = {
+                                  ...newLogos[logoIndex],
+                                  size: {
+                                    ...newLogos[logoIndex].size,
+                                    width: parseInt(e.target.value)
+                                  }
+                                };
+                                updateConfig('logo_config', {
+                                  ...config.logo_config,
+                                  logos: newLogos
+                                });
+                              }}
+                              className="w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                              Height: {logo.size?.height || 120}px
+                            </label>
+                            <input
+                              type="range"
+                              min="50"
+                              max="500"
+                              step="10"
+                              value={logo.size?.height || 120}
+                              onChange={(e) => {
+                                const newLogos = [...(config.logo_config?.logos || [])];
+                                newLogos[logoIndex] = {
+                                  ...newLogos[logoIndex],
+                                  size: {
+                                    ...newLogos[logoIndex].size,
+                                    height: parseInt(e.target.value)
+                                  }
+                                };
+                                updateConfig('logo_config', {
+                                  ...config.logo_config,
+                                  logos: newLogos
+                                });
+                              }}
+                              className="w-full"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Certificate ID Configuration */}
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200/50">
+                <div className="w-1 h-6 bg-gradient-to-b from-indigo-500 to-blue-500 rounded-full"></div>
+                <h5 className="font-semibold text-slate-800 text-sm uppercase tracking-wide">Certificate ID</h5>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                    ID Prefix
+                  </label>
+                  <input
+                    type="text"
+                    value={config.cert_id_prefix || ''}
+                    onChange={(e) => updateConfig('cert_id_prefix', e.target.value)}
+                    placeholder="Enter prefix (e.g., CERT)"
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white text-slate-800 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Format: prefix-001 (001 will auto-increment)</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-2">
+                      X Position: {config.cert_id_position?.x || 50}%
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={config.cert_id_position?.x || 50}
+                      onChange={(e) => updateConfig('cert_id_position', {
+                        ...config.cert_id_position,
+                        x: parseInt(e.target.value),
+                        y: config.cert_id_position?.y || 95
+                      })}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-2">
+                      Y Position: {config.cert_id_position?.y || 95}%
+                    </label>
+                    <input
+                      type="range"
+                      min="80"
+                      max="100"
+                      value={config.cert_id_position?.y || 95}
+                      onChange={(e) => updateConfig('cert_id_position', {
+                        ...config.cert_id_position,
+                        x: config.cert_id_position?.x || 50,
+                        y: parseInt(e.target.value)
+                      })}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-medium text-slate-600">
+                        Font Size
+                      </label>
+                      <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                        {config.cert_id_font_size || 14}px
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="10"
+                      max="24"
+                      value={config.cert_id_font_size || 14}
+                      onChange={(e) => updateConfig('cert_id_font_size', parseInt(e.target.value))}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-2">
+                      Color
+                    </label>
+                    <input
+                      type="color"
+                      value={config.cert_id_color || '#000000'}
+                      onChange={(e) => updateConfig('cert_id_color', e.target.value)}
+                      className="w-full h-10 rounded-lg border border-slate-300 cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                {/* QR Code Settings */}
+                <div className="mt-4 pt-4 border-t border-slate-200/50 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Enable QR Code
+                    </label>
+                    <input
+                      type="checkbox"
+                      checked={config.qr_code_enabled !== false}
+                      onChange={(e) => updateConfig('qr_code_enabled', e.target.checked)}
+                      className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  {config.qr_code_enabled !== false && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-xs font-medium text-slate-600">
+                          QR Code Size
+                        </label>
+                        <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                          {config.qr_code_size || 60}px
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="30"
+                        max="150"
+                        step="5"
+                        value={config.qr_code_size || 60}
+                        onChange={(e) => updateConfig('qr_code_size', parseInt(e.target.value))}
+                        className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Name Configuration - Font Size Only */}
-            <div className="space-y-4">
-              <h5 className="font-medium text-slate-700">Participant Name</h5>
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200/50">
+                <div className="w-1 h-6 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full"></div>
+                <h5 className="font-semibold text-slate-800 text-sm uppercase tracking-wide">Participant Name</h5>
+              </div>
               
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">
-                  Font Size: {config.name_config.font_size}px
-                </label>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    Font Size
+                  </label>
+                  <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                    {config.name_config.font_size}px
+                  </span>
+                </div>
                 <input
                   type="range"
                   min="16"
                   max="60"
                   value={config.name_config.font_size}
                   onChange={(e) => updateConfig('name_config.font_size', parseInt(e.target.value))}
-                  className="w-full"
+                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                 />
               </div>
             </div>
 
             {/* Signature Blocks Configuration */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h5 className="font-medium text-slate-700">Signature Blocks</h5>
+            <div className="space-y-5">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/50">
+                <div className="flex items-center gap-2">
+                  <div className="w-1 h-6 bg-gradient-to-b from-amber-500 to-orange-500 rounded-full"></div>
+                  <h5 className="font-semibold text-slate-800 text-sm uppercase tracking-wide">Signature Blocks</h5>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
@@ -805,9 +1708,12 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
                       }
                     ]);
                   }}
-                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-4 py-2 text-xs font-semibold bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm hover:shadow-md transform hover:-translate-y-0.5 flex items-center gap-1.5"
                 >
-                  + Add Signature Block
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Block
                 </button>
               </div>
 
@@ -1074,23 +1980,42 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
                 </div>
               )}
             </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-      {/* Save Button */}
-      <div className="mt-6 flex justify-end">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving || loading}
-          className={`px-6 py-3 rounded-lg font-medium text-white transition-colors ${
-            saving || loading
-              ? 'bg-blue-400 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700'
-          }`}
-        >
-          {saving ? 'Saving...' : draftMode ? 'Save Draft' : 'Save Certificate Configuration'}
-        </button>
+        {/* Save Button */}
+        <div className="mt-8 flex justify-end">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || loading}
+            className={`px-8 py-3.5 rounded-xl font-semibold text-white transition-all shadow-lg ${
+              saving || loading
+                ? 'bg-slate-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 hover:shadow-xl transform hover:-translate-y-0.5'
+            } flex items-center gap-2`}
+          >
+            {saving ? (
+              <>
+                <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Saving...</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <span>{draftMode ? 'Save Draft' : 'Save Configuration'}</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
