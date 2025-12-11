@@ -7,7 +7,7 @@
 import { useEffect, useRef } from 'react';
 import { CertificateJobProcessor } from '../services/certificateJobProcessor';
 
-export const useJobWorker = (enabled: boolean = true, intervalMs: number = 10000) => {
+export const useJobWorker = (enabled: boolean = true, intervalMs: number = 5000) => {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isProcessingRef = useRef(false);
 
@@ -38,7 +38,7 @@ export const useJobWorker = (enabled: boolean = true, intervalMs: number = 10000
     // Process jobs immediately
     processJobs();
 
-    // Then process every interval
+    // Then process every interval (reduced to 5 seconds for faster processing)
     intervalRef.current = setInterval(processJobs, intervalMs);
 
     return () => {

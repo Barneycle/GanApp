@@ -25,8 +25,54 @@ const CertificateGenerator = ({ eventId, onClose }) => {
   useEffect(() => {
     if (eventId && user?.id) {
       loadData();
+      // Check for pending job after page refresh
+      checkPendingJob();
     }
   }, [eventId, user?.id]);
+
+  // Check for pending job in sessionStorage
+  const checkPendingJob = async () => {
+    if (!eventId || !user?.id) return;
+    
+    const storageKey = `cert_job_${eventId}_${user.id}`;
+    const storedJobId = sessionStorage.getItem(storageKey);
+    
+    if (storedJobId) {
+      setJobId(storedJobId);
+      setGenerating(true);
+      setJobStatus('processing');
+      
+      // Check current status
+      const statusResult = await JobQueueService.getJobStatus(storedJobId);
+      if (statusResult.job) {
+        const job = statusResult.job;
+        if (job.status === 'completed') {
+          setJobStatus('completed');
+          setGenerating(false);
+          sessionStorage.removeItem(storageKey);
+          // Reload certificate
+          const certResult = await CertificateService.getUserCertificate(user.id, eventId);
+          if (certResult.certificate) {
+            setCertificate(certResult.certificate);
+            toast.success('Certificate generated successfully!');
+          }
+        } else if (job.status === 'failed') {
+          setError(job.error_message || 'Certificate generation failed');
+          setJobStatus('failed');
+          setGenerating(false);
+          sessionStorage.removeItem(storageKey);
+        } else {
+          // Still processing, resume polling
+          pollJobStatus(storedJobId);
+        }
+      } else {
+        // Job not found, clear storage
+        sessionStorage.removeItem(storageKey);
+        setGenerating(false);
+        setJobStatus('idle');
+      }
+    }
+  };
 
   // Default config (same as CertificateDesigner)
   const getDefaultConfig = () => ({
@@ -1079,12 +1125,23 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       }
 
       if (jobResult.job && jobResult.job.id) {
-        setJobId(jobResult.job.id);
-        setJobStatus('processing');
+        const jobId = jobResult.job.id;
+        setJobId(jobId);
+        setJobStatus('queued');
+        
+        // Save job ID to sessionStorage for persistence
+        const storageKey = `cert_job_${eventId}_${user.id}`;
+        sessionStorage.setItem(storageKey, jobId);
+        
         toast.info('Certificate generation queued. Processing in background...');
 
-        // Start polling for job status
-        pollJobStatus(jobResult.job.id);
+        // Trigger immediate job processing
+        triggerJobProcessing();
+
+        // Start polling for job status (with small initial delay to allow processing to start)
+        setTimeout(() => {
+          pollJobStatus(jobId);
+        }, 500);
       }
     } catch (err) {
       const errorMessage = err.message || 'Failed to queue certificate generation';
@@ -1095,16 +1152,38 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     }
   };
 
+  // Trigger immediate job processing
+  const triggerJobProcessing = async () => {
+    try {
+      // Import and trigger job processor directly for immediate processing
+      const { CertificateJobProcessor } = await import('../services/certificateJobProcessor');
+      // Process jobs immediately (this will pick up our queued job)
+      // Use setTimeout to avoid blocking the UI
+      setTimeout(async () => {
+        try {
+          await CertificateJobProcessor.processPendingJobs();
+        } catch (err) {
+          console.warn('Job processing error:', err);
+        }
+      }, 100);
+    } catch (err) {
+      console.warn('Failed to trigger immediate job processing:', err);
+      // Continue with polling - worker will pick it up
+    }
+  };
+
   // Poll job status until completion
   const pollJobStatus = async (jobId) => {
-    const maxAttempts = 60; // Poll for up to 5 minutes (5 second intervals)
+    const maxAttempts = 120; // Poll for up to 10 minutes (5 second intervals)
     let attempts = 0;
+    const storageKey = `cert_job_${eventId}_${user.id}`;
 
     const poll = async () => {
       if (attempts >= maxAttempts) {
         setError('Certificate generation timed out. Please check back later.');
         setJobStatus('failed');
         setGenerating(false);
+        sessionStorage.removeItem(storageKey);
         return;
       }
 
@@ -1117,6 +1196,7 @@ const CertificateGenerator = ({ eventId, onClose }) => {
           setError('Failed to check job status. Please refresh the page.');
           setJobStatus('failed');
           setGenerating(false);
+          sessionStorage.removeItem(storageKey);
           return;
         }
 
@@ -1125,6 +1205,7 @@ const CertificateGenerator = ({ eventId, onClose }) => {
         if (job.status === 'completed') {
           setJobStatus('completed');
           setGenerating(false);
+          sessionStorage.removeItem(storageKey);
           
           // Reload certificate data
           const certResult = await CertificateService.getUserCertificate(user.id, eventId);
@@ -1138,14 +1219,21 @@ const CertificateGenerator = ({ eventId, onClose }) => {
           setError(job.error_message || 'Certificate generation failed');
           setJobStatus('failed');
           setGenerating(false);
+          sessionStorage.removeItem(storageKey);
           toast.error('Certificate generation failed. Please try again.');
         } else {
+          // Update status
+          if (job.status === 'processing') {
+            setJobStatus('processing');
+          } else {
+            setJobStatus('queued');
+          }
           // Still processing, poll again
-          setTimeout(poll, 5000); // Poll every 5 seconds
+          setTimeout(poll, 2000); // Poll every 2 seconds for faster updates
         }
       } catch (err) {
         console.error('Error polling job status:', err);
-        setTimeout(poll, 5000); // Retry polling
+        setTimeout(poll, 2000); // Retry polling
       }
     };
 
@@ -1289,12 +1377,33 @@ const CertificateGenerator = ({ eventId, onClose }) => {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Generating Certificate...
+                      {jobStatus === 'queued' && 'Queuing Certificate...'}
+                      {jobStatus === 'processing' && 'Generating Certificate...'}
+                      {jobStatus === 'completed' && 'Certificate Generated!'}
+                      {!jobStatus || jobStatus === 'idle' ? 'Generating Certificate...' : ''}
                     </span>
                   ) : (
                     'Generate Certificate'
                   )}
                 </button>
+                
+                {generating && jobStatus && (
+                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                      <p className="text-sm font-medium text-blue-800">
+                        {jobStatus === 'queued' && 'Certificate is queued and will be processed shortly...'}
+                        {jobStatus === 'processing' && 'Certificate is being generated. This may take a few moments...'}
+                        {jobStatus === 'completed' && 'Certificate generation completed!'}
+                      </p>
+                    </div>
+                    {jobStatus === 'processing' && (
+                      <p className="text-xs text-blue-600 mt-1">
+                        Please wait while we generate your certificate. You can close this window and check back later.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}

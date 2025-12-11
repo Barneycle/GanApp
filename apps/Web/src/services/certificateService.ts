@@ -319,7 +319,7 @@ export class CertificateService {
    */
   static async saveCertificate(
     certificateData: {
-      event_id: string;
+      event_id: string | null;
       user_id: string;
       certificate_number: string;
       participant_name: string;
@@ -330,8 +330,11 @@ export class CertificateService {
     }
   ): Promise<{ certificate?: Certificate; error?: string }> {
     try {
-      // Check if certificate already exists
-      const existing = await this.getUserCertificate(certificateData.user_id, certificateData.event_id);
+      // Check if certificate already exists (skip check for standalone certificates with null event_id)
+      let existing: { certificate?: Certificate; error?: string } = { certificate: undefined };
+      if (certificateData.event_id) {
+        existing = await this.getUserCertificate(certificateData.user_id, certificateData.event_id);
+      }
 
       if (existing.certificate) {
         // Update existing certificate

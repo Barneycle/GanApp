@@ -27,6 +27,7 @@ import { Settings } from "./sections/Settings";
 import { Albums } from "./sections/Albums";
 import { CertificatePage } from "./sections/CertificatePage";
 import { VerifyCertificate } from "./sections/VerifyCertificate";
+import { StandaloneCertificateGenerator } from "./sections/StandaloneCertificateGenerator";
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -63,6 +64,7 @@ function AnimatedRoutes() {
         <Route path="/albums" element={<Albums />} />
         <Route path="/certificate" element={<CertificatePage />} />
         <Route path="/verify-certificate/:certificateNumber" element={<VerifyCertificate />} />
+        <Route path="/standalone-certificate-generator" element={<StandaloneCertificateGenerator />} />
       </Routes>
     </div>
   );

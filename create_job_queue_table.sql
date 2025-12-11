@@ -57,6 +57,11 @@ $$;
 -- Grant execute permission (idempotent - safe to run multiple times)
 GRANT EXECUTE ON FUNCTION is_admin(UUID) TO authenticated;
 
+-- Drop existing policies if they exist (idempotent)
+DROP POLICY IF EXISTS "Users can view their own jobs" ON job_queue;
+DROP POLICY IF EXISTS "Users can create jobs" ON job_queue;
+DROP POLICY IF EXISTS "Users can update their own jobs" ON job_queue;
+
 -- Policy: Users can view their own jobs
 CREATE POLICY "Users can view their own jobs"
   ON job_queue
@@ -69,7 +74,8 @@ CREATE POLICY "Users can create jobs"
   FOR INSERT
   WITH CHECK (auth.uid() = created_by);
 
--- Policy: Users can update their own jobs (for status polling)
+-- Policy: Users can update their own jobs (for status polling and worker updates)
+-- Note: SECURITY DEFINER functions bypass RLS, but this allows direct updates as fallback
 CREATE POLICY "Users can update their own jobs"
   ON job_queue
   FOR UPDATE
@@ -78,22 +84,37 @@ CREATE POLICY "Users can update their own jobs"
 
 -- Note: System updates (via service role) will bypass RLS automatically
 
+-- Drop existing functions if they exist (needed when return type changes)
+DROP FUNCTION IF EXISTS get_next_job();
+DROP FUNCTION IF EXISTS complete_job(UUID, JSONB);
+DROP FUNCTION IF EXISTS fail_job(UUID, TEXT);
+
 -- Function: Get next pending job
 CREATE OR REPLACE FUNCTION get_next_job()
 RETURNS TABLE (
-  job_id UUID,
+  id UUID,
   job_type VARCHAR,
   job_data JSONB,
-  created_by UUID
+  status VARCHAR,
+  priority INTEGER,
+  attempts INTEGER,
+  max_attempts INTEGER,
+  error_message TEXT,
+  result_data JSONB,
+  created_by UUID,
+  created_at TIMESTAMP WITH TIME ZONE,
+  started_at TIMESTAMP WITH TIME ZONE,
+  completed_at TIMESTAMP WITH TIME ZONE
 ) AS $$
 DECLARE
   v_job_id UUID;
+  v_current_attempts INTEGER;
 BEGIN
   -- Lock and get the next pending job (highest priority, oldest first)
-  SELECT id INTO v_job_id
+  SELECT job_queue.id, job_queue.attempts INTO v_job_id, v_current_attempts
   FROM job_queue
-  WHERE status = 'pending'
-  ORDER BY priority ASC, created_at ASC
+  WHERE job_queue.status = 'pending'
+  ORDER BY job_queue.priority ASC, job_queue.created_at ASC
   LIMIT 1
   FOR UPDATE SKIP LOCKED; -- Prevents multiple workers from picking the same job
   
@@ -102,19 +123,29 @@ BEGIN
   END IF;
   
   -- Update job status to processing
+  -- Use variable to avoid ambiguity with RETURNS TABLE columns
   UPDATE job_queue
   SET status = 'processing',
       started_at = NOW(),
-      attempts = attempts + 1
-  WHERE id = v_job_id;
+      attempts = v_current_attempts + 1
+  WHERE job_queue.id = v_job_id;
   
-  -- Return job details
+  -- Return job details (include all fields needed)
   RETURN QUERY
   SELECT 
     j.id,
     j.job_type,
     j.job_data,
-    j.created_by
+    j.status,
+    j.priority,
+    j.attempts,
+    j.max_attempts,
+    j.error_message,
+    j.result_data,
+    j.created_by,
+    j.created_at,
+    j.started_at,
+    j.completed_at
   FROM job_queue j
   WHERE j.id = v_job_id;
 END;
@@ -171,11 +202,54 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Function: Get job status (bypasses RLS for job owner)
+-- This ensures users can always check status of their own jobs
+CREATE OR REPLACE FUNCTION get_job_status(p_job_id UUID)
+RETURNS TABLE (
+  id UUID,
+  job_type VARCHAR,
+  job_data JSONB,
+  status VARCHAR,
+  priority INTEGER,
+  attempts INTEGER,
+  max_attempts INTEGER,
+  error_message TEXT,
+  result_data JSONB,
+  created_by UUID,
+  created_at TIMESTAMP WITH TIME ZONE,
+  started_at TIMESTAMP WITH TIME ZONE,
+  completed_at TIMESTAMP WITH TIME ZONE
+) AS $$
+BEGIN
+  -- Return job if user is the creator or is admin
+  RETURN QUERY
+  SELECT 
+    j.id,
+    j.job_type,
+    j.job_data,
+    j.status,
+    j.priority,
+    j.attempts,
+    j.max_attempts,
+    j.error_message,
+    j.result_data,
+    j.created_by,
+    j.created_at,
+    j.started_at,
+    j.completed_at
+  FROM job_queue j
+  WHERE j.id = p_job_id
+  AND (j.created_by = auth.uid() OR is_admin(auth.uid()));
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Grant permissions
 GRANT EXECUTE ON FUNCTION get_next_job() TO authenticated;
 GRANT EXECUTE ON FUNCTION complete_job(UUID, JSONB) TO authenticated;
 GRANT EXECUTE ON FUNCTION fail_job(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_job_status(UUID) TO authenticated;
 
--- Grant SELECT, INSERT on job_queue to authenticated users
-GRANT SELECT, INSERT ON job_queue TO authenticated;
+-- Grant SELECT, INSERT, UPDATE on job_queue to authenticated users
+-- UPDATE is needed for direct updates (fallback when RPC fails)
+GRANT SELECT, INSERT, UPDATE ON job_queue TO authenticated;
 

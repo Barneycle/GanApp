@@ -337,6 +337,13 @@ export const Navbar = () => {
                       >
                         Albums
                       </Link>
+                      <Link
+                        to="/standalone-certificate-generator"
+                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-blue-900 hover:text-white transition-colors"
+                        onClick={closeEventsDropdown}
+                      >
+                        Certificate Generator
+                      </Link>
                     </div>
                   )}
                 </div>

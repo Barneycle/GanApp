@@ -13,8 +13,8 @@ function App() {
     const [isLoaded, setIsLoaded] = useState(false);
     const location = useLocation();
     
-    // Start background job worker (processes jobs every 10 seconds)
-    useJobWorker(true, 10000);
+    // Start background job worker (processes jobs every 5 seconds for faster response)
+    useJobWorker(true, 5000);
     let authLoading = false;
     try {
         const auth = useAuth();
