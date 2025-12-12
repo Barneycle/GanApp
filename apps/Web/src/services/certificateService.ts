@@ -11,6 +11,7 @@ export interface CertificateConfig {
   title_text?: string;
   title_subtitle?: string;
   title_font_size?: number;
+  title_font_family?: string;
   title_color?: string;
   title_position?: {
     x: number; // percentage from left (0-100)

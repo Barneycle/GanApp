@@ -111,52 +111,84 @@ export async function generatePDFCertificate(
     });
   }
 
-  // Embed fonts
+  // Embed standard fonts
   const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const timesRomanFont = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+  const timesRomanBoldFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+  const courierFont = await pdfDoc.embedFont(StandardFonts.Courier);
+  const courierBoldFont = await pdfDoc.embedFont(StandardFonts.CourierBold);
   
-  // Embed MonteCarlo font for participant name
-  let monteCarloFont = null;
-  try {
-    // Try multiple sources for MonteCarlo font (local first, then CDN)
-    const fontUrls = [
-      // Try local font file first (served from public folder)
-      '/fonts/MonteCarlo-Regular.ttf',
-      // Try Google Fonts CDN (direct TTF link)
-      'https://fonts.gstatic.com/s/montecarlo/v1/MonteCarlo-Regular.ttf',
-      // Try jsDelivr CDN (mirror of Google Fonts)
-      'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/montecarlo/MonteCarlo-Regular.ttf',
-      // Try raw.githubusercontent (fallback)
-      'https://raw.githubusercontent.com/google/fonts/main/ofl/montecarlo/MonteCarlo-Regular.ttf'
-    ];
+  // Helper function to map font family to PDF standard font
+  const getPDFFont = (fontFamily: string, isBold: boolean = false): any => {
+    if (!fontFamily) return isBold ? helveticaBoldFont : helveticaFont;
     
-    let fontBytes = null;
-    for (const fontUrl of fontUrls) {
-      try {
-        const fontResponse = await fetch(fontUrl, {
-          mode: 'cors',
-          cache: 'default'
-        });
-        if (fontResponse.ok) {
-          fontBytes = await fontResponse.arrayBuffer();
-          console.log('Successfully loaded MonteCarlo font from:', fontUrl);
-          break;
+    const fontLower = fontFamily.toLowerCase();
+    
+    // Map serif fonts to TimesRoman
+    if (fontLower.includes('times') || fontLower.includes('serif') || 
+        fontLower.includes('garamond') || fontLower.includes('baskerville') ||
+        fontLower.includes('georgia') || fontLower.includes('playfair') ||
+        fontLower.includes('lora') || fontLower.includes('merriweather') ||
+        fontLower.includes('crimson') || fontLower.includes('eb garamond')) {
+      return isBold ? timesRomanBoldFont : timesRomanFont;
+    }
+    
+    // Map monospace fonts to Courier
+    if (fontLower.includes('courier') || fontLower.includes('mono') || 
+        fontLower.includes('consolas') || fontLower.includes('menlo')) {
+      return isBold ? courierBoldFont : courierFont;
+    }
+    
+    // Default to Helvetica for sans-serif and other fonts
+    return isBold ? helveticaBoldFont : helveticaFont;
+  };
+  
+  // Load custom font for participant name if configured (only if it's MonteCarlo or a custom font)
+  let customNameFont = null;
+  const nameConfigForFont = config.name_config || {};
+  const nameFontFamily = nameConfigForFont.font_family || 'MonteCarlo, cursive';
+  
+  // Only try to load custom font if it's specifically MonteCarlo
+  if (nameFontFamily.includes('MonteCarlo')) {
+    try {
+      const fontUrls = [
+        '/fonts/MonteCarlo-Regular.ttf',
+        'https://fonts.gstatic.com/s/montecarlo/v1/MonteCarlo-Regular.ttf',
+        'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/montecarlo/MonteCarlo-Regular.ttf',
+        'https://raw.githubusercontent.com/google/fonts/main/ofl/montecarlo/MonteCarlo-Regular.ttf'
+      ];
+      
+      let fontBytes = null;
+      for (const fontUrl of fontUrls) {
+        try {
+          const fontResponse = await fetch(fontUrl, {
+            mode: 'cors',
+            cache: 'default'
+          });
+          if (fontResponse.ok) {
+            fontBytes = await fontResponse.arrayBuffer();
+            console.log('Successfully loaded custom name font from:', fontUrl);
+            break;
+          }
+        } catch (e) {
+          console.warn('Failed to load font from', fontUrl, e);
+          continue;
         }
-      } catch (e) {
-        console.warn('Failed to load font from', fontUrl, e);
-        continue;
       }
+      
+      if (fontBytes) {
+        try {
+          customNameFont = await pdfDoc.embedFont(fontBytes);
+          console.log('Custom name font embedded successfully');
+        } catch (error) {
+          console.warn('Error embedding custom font (fontkit not available), using mapped font:', error);
+          customNameFont = null;
+        }
+      }
+    } catch (error) {
+      console.warn('Error loading custom name font, using mapped font:', error);
     }
-    
-    if (fontBytes) {
-      monteCarloFont = await pdfDoc.embedFont(fontBytes);
-      console.log('MonteCarlo font embedded successfully');
-    } else {
-      throw new Error('Could not load MonteCarlo font from any source');
-    }
-  } catch (error) {
-    console.warn('Error loading MonteCarlo font, using fallback:', error);
-    monteCarloFont = helveticaBoldFont;
   }
 
   const header = config.header_config || {};
@@ -202,12 +234,13 @@ export async function generatePDFCertificate(
   // Header - Republic
   if (header.republic_text && header.republic_config) {
     const repConfig = header.republic_config;
-    const textWidth = helveticaFont.widthOfTextAtSize(header.republic_text, repConfig.font_size || 14);
+    const font = getPDFFont(repConfig.font_family, repConfig.font_weight === 'bold');
+    const textWidth = font.widthOfTextAtSize(header.republic_text, repConfig.font_size || 20);
     page.drawText(header.republic_text, {
       x: (width * repConfig.position.x) / 100 - textWidth / 2,
       y: height - (height * repConfig.position.y) / 100,
-      size: repConfig.font_size || 14,
-      font: repConfig.font_weight === 'bold' ? helveticaBoldFont : helveticaFont,
+      size: repConfig.font_size || 20,
+      font: font,
       color: hexToRgb(repConfig.color || '#000000')
     });
   }
@@ -215,12 +248,13 @@ export async function generatePDFCertificate(
   // Header - University
   if (header.university_text && header.university_config) {
     const uniConfig = header.university_config;
-    const textWidth = helveticaBoldFont.widthOfTextAtSize(header.university_text, uniConfig.font_size || 20);
+    const font = getPDFFont(uniConfig.font_family, uniConfig.font_weight === 'bold');
+    const textWidth = font.widthOfTextAtSize(header.university_text, uniConfig.font_size || 28);
     page.drawText(header.university_text, {
       x: (width * uniConfig.position.x) / 100 - textWidth / 2,
       y: height - (height * uniConfig.position.y) / 100,
-      size: uniConfig.font_size || 20,
-      font: helveticaBoldFont,
+      size: uniConfig.font_size || 28,
+      font: font,
       color: hexToRgb(uniConfig.color || '#000000')
     });
   }
@@ -228,12 +262,13 @@ export async function generatePDFCertificate(
   // Header - Location
   if (header.location_text && header.location_config) {
     const locConfig = header.location_config;
-    const textWidth = helveticaFont.widthOfTextAtSize(header.location_text, locConfig.font_size || 14);
+    const font = getPDFFont(locConfig.font_family, locConfig.font_weight === 'bold');
+    const textWidth = font.widthOfTextAtSize(header.location_text, locConfig.font_size || 20);
     page.drawText(header.location_text, {
       x: (width * locConfig.position.x) / 100 - textWidth / 2,
       y: height - (height * locConfig.position.y) / 100,
-      size: locConfig.font_size || 14,
-      font: helveticaFont,
+      size: locConfig.font_size || 20,
+      font: font,
       color: hexToRgb(locConfig.color || '#000000')
     });
   }
@@ -241,12 +276,13 @@ export async function generatePDFCertificate(
   // Title
   if (config.title_text) {
     const titleSize = config.title_font_size || 56;
-    const titleWidth = helveticaBoldFont.widthOfTextAtSize(config.title_text, titleSize);
+    const titleFont = getPDFFont(config.title_font_family, true);
+    const titleWidth = titleFont.widthOfTextAtSize(config.title_text, titleSize);
     page.drawText(config.title_text, {
       x: (width * config.title_position.x) / 100 - titleWidth / 2,
       y: height - (height * (config.title_position.y - 4)) / 100,
       size: titleSize,
-      font: helveticaBoldFont,
+      font: titleFont,
       color: hexToRgb(config.title_color || '#000000')
     });
   }
@@ -254,12 +290,13 @@ export async function generatePDFCertificate(
   // Title Subtitle
   if (config.title_subtitle) {
     const subtitleSize = (config.title_font_size || 56) * 0.4;
-    const subtitleWidth = helveticaFont.widthOfTextAtSize(config.title_subtitle, subtitleSize);
+    const subtitleFont = getPDFFont(config.title_font_family, false);
+    const subtitleWidth = subtitleFont.widthOfTextAtSize(config.title_subtitle, subtitleSize);
     page.drawText(config.title_subtitle, {
       x: (width * config.title_position.x) / 100 - subtitleWidth / 2,
       y: height - (height * (config.title_position.y + 2)) / 100,
       size: subtitleSize,
-      font: helveticaFont,
+      font: subtitleFont,
       color: hexToRgb(config.title_color || '#000000')
     });
   }
@@ -267,19 +304,20 @@ export async function generatePDFCertificate(
   // "is given to" Text
   if (isGivenTo.text) {
     const textSize = isGivenTo.font_size || 16;
-    const textWidth = helveticaFont.widthOfTextAtSize(isGivenTo.text, textSize);
+    const font = getPDFFont(isGivenTo.font_family, isGivenTo.font_weight === 'bold');
+    const textWidth = font.widthOfTextAtSize(isGivenTo.text, textSize);
     page.drawText(isGivenTo.text, {
       x: (width * isGivenTo.position.x) / 100 - textWidth / 2,
       y: height - (height * isGivenTo.position.y) / 100,
       size: textSize,
-      font: helveticaFont,
+      font: font,
       color: hexToRgb(isGivenTo.color || '#000000')
     });
   }
 
-  // Participant Name - Use MonteCarlo font if available
+  // Participant Name - Use configured font
   const nameSize = nameConfig.font_size || 48;
-  const nameFont = monteCarloFont || helveticaBoldFont;
+  const nameFont = customNameFont || getPDFFont(nameFontFamily, nameConfig.font_weight === 'bold');
   const nameWidth = nameFont.widthOfTextAtSize(data.participantName, nameSize);
   page.drawText(data.participantName, {
     x: (width * nameConfig.position.x) / 100 - nameWidth / 2,
@@ -309,13 +347,14 @@ export async function generatePDFCertificate(
     const lines = participationText.split('\n');
     const startY = height - (height * participation.position.y) / 100 + ((lines.length - 1) * lineHeight) / 2;
     
+    const participationFont = getPDFFont(participation.font_family, participation.font_weight === 'bold');
     lines.forEach((line, index) => {
-      const textWidth = helveticaFont.widthOfTextAtSize(line, textSize);
+      const textWidth = participationFont.widthOfTextAtSize(line, textSize);
       page.drawText(line, {
         x: (width * participation.position.x) / 100 - textWidth / 2,
         y: startY - (index * lineHeight),
         size: textSize,
-        font: helveticaFont,
+        font: participationFont,
         color: hexToRgb(participation.color || '#000000')
       });
     });
@@ -345,12 +384,13 @@ export async function generatePDFCertificate(
     // Name
     if (signature.name) {
       const nameSize = signature.name_font_size || 14;
-      const nameWidth = helveticaBoldFont.widthOfTextAtSize(signature.name, nameSize);
+      const sigNameFont = getPDFFont(signature.font_family, true);
+      const nameWidth = sigNameFont.widthOfTextAtSize(signature.name, nameSize);
       page.drawText(signature.name, {
         x: sigX - nameWidth / 2,
         y: sigY,
         size: nameSize,
-        font: helveticaBoldFont,
+        font: sigNameFont,
         color: hexToRgb(signature.name_color || '#000000')
       });
     }
@@ -358,12 +398,13 @@ export async function generatePDFCertificate(
     // Position
     if (signature.position) {
       const posSize = signature.position_font_size || 12;
-      const posWidth = helveticaFont.widthOfTextAtSize(signature.position, posSize);
+      const sigPosFont = getPDFFont(signature.font_family, false);
+      const posWidth = sigPosFont.widthOfTextAtSize(signature.position, posSize);
       page.drawText(signature.position, {
         x: sigX - posWidth / 2,
         y: sigY - 20,
         size: posSize,
-        font: helveticaFont,
+        font: sigPosFont,
         color: hexToRgb(signature.position_color || '#000000')
       });
     }
@@ -373,7 +414,10 @@ export async function generatePDFCertificate(
   if (config.cert_id_prefix && certificateNumber) {
     const certIdSize = config.cert_id_font_size || 14;
     const certIdText = certificateNumber;
-    const certIdWidth = helveticaFont.widthOfTextAtSize(certIdText, certIdSize);
+    // Use global font for certificate ID (from header config as fallback)
+    const certIdFontFamily = config.header_config?.republic_config?.font_family || 'Libre Baskerville, serif';
+    const certIdFont = getPDFFont(certIdFontFamily, false);
+    const certIdWidth = certIdFont.widthOfTextAtSize(certIdText, certIdSize);
     const certIdX = (width * (config.cert_id_position?.x || 50)) / 100;
     const certIdY = height - (height * (config.cert_id_position?.y || 95)) / 100;
     
@@ -392,7 +436,7 @@ export async function generatePDFCertificate(
           x: certIdX - certIdWidth / 2,
           y: certIdYCentered,
           size: certIdSize,
-          font: helveticaFont,
+          font: certIdFont,
           color: hexToRgb(config.cert_id_color || '#000000')
         });
         
@@ -423,7 +467,7 @@ export async function generatePDFCertificate(
           x: certIdX - certIdWidth / 2,
           y: certIdY,
           size: certIdSize,
-          font: helveticaFont,
+          font: certIdFont,
           color: hexToRgb(config.cert_id_color || '#000000')
         });
       }
@@ -433,7 +477,7 @@ export async function generatePDFCertificate(
         x: certIdX - certIdWidth / 2,
         y: certIdY,
         size: certIdSize,
-        font: helveticaFont,
+        font: certIdFont,
         color: hexToRgb(config.cert_id_color || '#000000')
       });
     }
@@ -545,7 +589,7 @@ export async function generatePNGCertificate(
   if (header.republic_text && header.republic_config) {
     const repConfig = header.republic_config;
     ctx.fillStyle = repConfig.color || '#000000';
-    ctx.font = `${repConfig.font_weight || 'normal'} ${repConfig.font_size || 14}px ${repConfig.font_family || 'Libre Baskerville, serif'}`;
+    ctx.font = `${repConfig.font_weight || 'normal'} ${repConfig.font_size || 20}px ${repConfig.font_family || 'Libre Baskerville, serif'}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(
@@ -559,7 +603,7 @@ export async function generatePNGCertificate(
   if (header.university_text && header.university_config) {
     const uniConfig = header.university_config;
     ctx.fillStyle = uniConfig.color || '#000000';
-    ctx.font = `${uniConfig.font_weight || 'bold'} ${uniConfig.font_size || 20}px ${uniConfig.font_family || 'Libre Baskerville, serif'}`;
+    ctx.font = `${uniConfig.font_weight || 'bold'} ${uniConfig.font_size || 28}px ${uniConfig.font_family || 'Libre Baskerville, serif'}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(
@@ -573,7 +617,7 @@ export async function generatePNGCertificate(
   if (header.location_text && header.location_config) {
     const locConfig = header.location_config;
     ctx.fillStyle = locConfig.color || '#000000';
-    ctx.font = `${locConfig.font_weight || 'normal'} ${locConfig.font_size || 14}px ${locConfig.font_family || 'Libre Baskerville, serif'}`;
+    ctx.font = `${locConfig.font_weight || 'normal'} ${locConfig.font_size || 20}px ${locConfig.font_family || 'Libre Baskerville, serif'}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(
@@ -586,7 +630,7 @@ export async function generatePNGCertificate(
   // Title
   if (config.title_text) {
     ctx.fillStyle = config.title_color || '#000000';
-    ctx.font = `bold ${config.title_font_size || 56}px Libre Baskerville, serif`;
+    ctx.font = `bold ${config.title_font_size || 56}px ${config.title_font_family || 'Libre Baskerville, serif'}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(
@@ -599,7 +643,7 @@ export async function generatePNGCertificate(
   // Title Subtitle
   if (config.title_subtitle) {
     ctx.fillStyle = config.title_color || '#000000';
-    ctx.font = `normal ${(config.title_font_size || 56) * 0.4}px Libre Baskerville, serif`;
+    ctx.font = `normal ${(config.title_font_size || 56) * 0.4}px ${config.title_font_family || 'Libre Baskerville, serif'}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(
@@ -624,20 +668,16 @@ export async function generatePNGCertificate(
 
   // Participant Name
   ctx.fillStyle = nameConfig.color || '#000000';
-  const fontFamily = nameConfig.font_family || 'MonteCarlo, cursive';
+  const nameFontFamily = nameConfig.font_family || 'MonteCarlo, cursive';
   
-  // Load MonteCarlo font for canvas using FontFace API
-  if (fontFamily.includes('MonteCarlo')) {
+  // Load custom font for participant name if it's a web font (not system font)
+  // Only try to load if it's a specific web font like MonteCarlo
+  if (nameFontFamily.includes('MonteCarlo')) {
     try {
-      // Try multiple sources for the font (local first, then CDN)
       const fontUrls = [
-        // Try local font file first (served from public folder)
         '/fonts/MonteCarlo-Regular.ttf',
-        // Try Google Fonts CDN
         'https://fonts.gstatic.com/s/montecarlo/v1/MonteCarlo-Regular.ttf',
-        // Try jsDelivr CDN (mirror of Google Fonts)
         'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/montecarlo/MonteCarlo-Regular.ttf',
-        // Try raw.githubusercontent (fallback)
         'https://raw.githubusercontent.com/google/fonts/main/ofl/montecarlo/MonteCarlo-Regular.ttf'
       ];
       
@@ -668,7 +708,7 @@ export async function generatePNGCertificate(
   await document.fonts.ready;
   
   // Set font and render
-  ctx.font = `${nameConfig.font_weight || 'bold'} ${nameConfig.font_size || 48}px ${fontFamily}`;
+  ctx.font = `${nameConfig.font_weight || 'bold'} ${nameConfig.font_size || 48}px ${nameFontFamily}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   

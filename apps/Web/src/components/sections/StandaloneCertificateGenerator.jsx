@@ -35,7 +35,8 @@ export const StandaloneCertificateGenerator = () => {
   const [dismissedCertIds, setDismissedCertIds] = useState(new Set());
   const [downloadingCertId, setDownloadingCertId] = useState(null);
   const [downloadingFormat, setDownloadingFormat] = useState(null);
-  const [downloadingAll, setDownloadingAll] = useState(false);
+  const [downloadingAllPDF, setDownloadingAllPDF] = useState(false);
+  const [downloadingAllPNG, setDownloadingAllPNG] = useState(false);
 
   // Check status of existing jobs
   const checkJobStatuses = async (jobIdsToCheck) => {
@@ -347,70 +348,111 @@ export const StandaloneCertificateGenerator = () => {
     }
   };
 
-  const handleDownloadAll = async () => {
+  const handleDownloadAllPDF = async () => {
     if (completedCertificates.length === 0) {
       toast.info('No certificates to download');
       return;
     }
 
-    setDownloadingAll(true);
+    const pdfCerts = completedCertificates.filter(cert => cert.pdfUrl);
+    if (pdfCerts.length === 0) {
+      toast.info('No PDF certificates available to download');
+      return;
+    }
+
+    setDownloadingAllPDF(true);
 
     try {
-      // Download all certificates sequentially to avoid browser blocking
-      for (let i = 0; i < completedCertificates.length; i++) {
-        const cert = completedCertificates[i];
+      let successCount = 0;
+      // Download all PDF certificates sequentially to avoid browser blocking
+      for (let i = 0; i < pdfCerts.length; i++) {
+        const cert = pdfCerts[i];
         
-        // Download PDF if available
-        if (cert.pdfUrl) {
-          try {
-            const response = await fetch(cert.pdfUrl);
-            if (response.ok) {
-              const blob = await response.blob();
-              const downloadUrl = window.URL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.href = downloadUrl;
-              link.download = `certificate-${cert.certificateNumber || `cert-${i + 1}`}.pdf`;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              window.URL.revokeObjectURL(downloadUrl);
-              // Small delay between downloads
-              await new Promise(resolve => setTimeout(resolve, 300));
-            }
-          } catch (err) {
-            console.error(`Failed to download PDF for ${cert.participantName}:`, err);
+        try {
+          const response = await fetch(cert.pdfUrl);
+          if (response.ok) {
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `certificate-${cert.certificateNumber || `cert-${i + 1}`}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(downloadUrl);
+            successCount++;
+            // Small delay between downloads
+            await new Promise(resolve => setTimeout(resolve, 300));
           }
-        }
-
-        // Download PNG if available
-        if (cert.pngUrl) {
-          try {
-            const response = await fetch(cert.pngUrl);
-            if (response.ok) {
-              const blob = await response.blob();
-              const downloadUrl = window.URL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.href = downloadUrl;
-              link.download = `certificate-${cert.certificateNumber || `cert-${i + 1}`}.png`;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              window.URL.revokeObjectURL(downloadUrl);
-              // Small delay between downloads
-              await new Promise(resolve => setTimeout(resolve, 300));
-            }
-          } catch (err) {
-            console.error(`Failed to download PNG for ${cert.participantName}:`, err);
-          }
+        } catch (err) {
+          console.error(`Failed to download PDF for ${cert.participantName}:`, err);
         }
       }
 
-      toast.success(`Downloaded ${completedCertificates.length} certificate(s)`);
+      if (successCount > 0) {
+        toast.success(`Downloaded ${successCount} PDF certificate(s)`);
+      } else {
+        toast.error('Failed to download PDF certificates');
+      }
     } catch (err) {
-      console.error('Download all error:', err);
-      toast.error(`Failed to download some certificates: ${err.message || 'Unknown error'}`);
+      console.error('Download all PDF error:', err);
+      toast.error(`Failed to download some PDF certificates: ${err.message || 'Unknown error'}`);
     } finally {
-      setDownloadingAll(false);
+      setDownloadingAllPDF(false);
+    }
+  };
+
+  const handleDownloadAllPNG = async () => {
+    if (completedCertificates.length === 0) {
+      toast.info('No certificates to download');
+      return;
+    }
+
+    const pngCerts = completedCertificates.filter(cert => cert.pngUrl);
+    if (pngCerts.length === 0) {
+      toast.info('No PNG certificates available to download');
+      return;
+    }
+
+    setDownloadingAllPNG(true);
+
+    try {
+      let successCount = 0;
+      // Download all PNG certificates sequentially to avoid browser blocking
+      for (let i = 0; i < pngCerts.length; i++) {
+        const cert = pngCerts[i];
+        
+        try {
+          const response = await fetch(cert.pngUrl);
+          if (response.ok) {
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `certificate-${cert.certificateNumber || `cert-${i + 1}`}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(downloadUrl);
+            successCount++;
+            // Small delay between downloads
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+        } catch (err) {
+          console.error(`Failed to download PNG for ${cert.participantName}:`, err);
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Downloaded ${successCount} PNG certificate(s)`);
+      } else {
+        toast.error('Failed to download PNG certificates');
+      }
+    } catch (err) {
+      console.error('Download all PNG error:', err);
+      toast.error(`Failed to download some PNG certificates: ${err.message || 'Unknown error'}`);
+    } finally {
+      setDownloadingAllPNG(false);
     }
   };
 
@@ -454,21 +496,21 @@ export const StandaloneCertificateGenerator = () => {
       university_text: 'Partido State University',
       location_text: 'Goa, Camarines Sur',
       republic_config: {
-        font_size: 14,
+        font_size: 20,
         color: '#000000',
         position: { x: 50, y: 8 },
         font_family: 'Libre Baskerville, serif',
         font_weight: 'normal'
       },
       university_config: {
-        font_size: 20,
+        font_size: 28,
         color: '#000000',
         position: { x: 50, y: 11 },
         font_family: 'Libre Baskerville, serif',
         font_weight: 'bold'
       },
       location_config: {
-        font_size: 14,
+        font_size: 20,
         color: '#000000',
         position: { x: 50, y: 14 },
         font_family: 'Libre Baskerville, serif',
@@ -776,17 +818,54 @@ export const StandaloneCertificateGenerator = () => {
               </div>
             </div>
 
-            {/* Certificate Customizer */}
+            {/* Certificate Customizer Modal */}
             {showCustomizer && selectedEventId && (
-              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
-                <CertificateDesigner
-                  eventId={selectedEventId}
-                  onSave={(newConfig) => {
-                    setConfig(newConfig);
-                    toast.success('Certificate design updated');
-                  }}
-                  draftMode={false}
+              <div className="fixed inset-0 z-50 overflow-hidden">
+                {/* Backdrop */}
+                <div 
+                  className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                  onClick={() => setShowCustomizer(false)}
                 />
+                
+                {/* Modal Container - Full Screen */}
+                <div className="absolute inset-0 flex items-center justify-center p-4">
+                  <div 
+                    className="bg-white rounded-2xl shadow-2xl w-full h-full max-w-[98vw] max-h-[98vh] flex flex-col overflow-hidden"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-slate-100 flex-shrink-0">
+                      <div>
+                        <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                          <Settings className="w-6 h-6 text-blue-600" />
+                          Certificate Designer
+                        </h2>
+                        <p className="text-sm text-slate-600 mt-1">Customize your certificate design with live preview</p>
+                      </div>
+                      <button
+                        onClick={() => setShowCustomizer(false)}
+                        className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
+                        title="Close customizer"
+                      >
+                        <X className="w-6 h-6" />
+                      </button>
+                    </div>
+
+                    {/* Certificate Designer Content - Full Height with Scroll */}
+                    <div className="flex-1 overflow-auto bg-slate-50">
+                      <div className="w-full min-h-full py-6">
+                        <CertificateDesigner
+                          eventId={selectedEventId}
+                          onSave={(newConfig) => {
+                            setConfig(newConfig);
+                            toast.success('Certificate design updated');
+                          }}
+                          draftMode={false}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1017,45 +1096,75 @@ export const StandaloneCertificateGenerator = () => {
             {/* Download Certificates Section */}
             {completedCertificates.length > 0 && (
               <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
-                    <Download className="w-5 h-5 text-blue-600" />
-                    Download Certificates ({completedCertificates.length})
-                  </h2>
-                  <div className="flex gap-2">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-800 flex items-center gap-2 mb-1">
+                      <Download className="w-5 h-5 text-blue-600" />
+                      Download Certificates
+                    </h2>
+                    <p className="text-sm text-slate-500 ml-7">
+                      {completedCertificates.length} certificate{completedCertificates.length !== 1 ? 's' : ''} ready
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={handleDownloadAll}
-                      disabled={downloadingAll || completedCertificates.length === 0}
-                      className="px-3 py-1.5 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-                      title="Download all certificates"
+                      onClick={() => loadCompletedCertificates()}
+                      disabled={loadingCompleted}
+                      className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                      title="Refresh list"
                     >
-                      {downloadingAll ? (
+                      <Loader2 className={`w-4 h-4 ${loadingCompleted ? 'animate-spin' : ''}`} />
+                    </button>
+                    <button
+                      onClick={clearAllCertificates}
+                      className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Clear all certificates from list"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Bulk Download Actions */}
+                <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                  <p className="text-sm font-medium text-slate-700 mb-3">Bulk Download</p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleDownloadAllPDF}
+                      disabled={downloadingAllPDF || downloadingAllPNG || completedCertificates.length === 0}
+                      className="flex-1 px-4 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
+                      title="Download all PDF certificates"
+                    >
+                      {downloadingAllPDF ? (
                         <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          Downloading...
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Downloading PDFs...</span>
                         </>
                       ) : (
                         <>
-                          <Download className="w-3.5 h-3.5" />
-                          Download All
+                          <Download className="w-4 h-4" />
+                          <span>Download All PDF</span>
                         </>
                       )}
                     </button>
                     <button
-                      onClick={() => loadCompletedCertificates()}
-                      disabled={loadingCompleted}
-                      className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                      title="Refresh list"
+                      onClick={handleDownloadAllPNG}
+                      disabled={downloadingAllPDF || downloadingAllPNG || completedCertificates.length === 0}
+                      className="flex-1 px-4 py-2.5 bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
+                      title="Download all PNG certificates"
                     >
-                      Refresh
-                    </button>
-                    <button
-                      onClick={clearAllCertificates}
-                      className="px-3 py-1.5 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1.5"
-                      title="Clear all certificates from list"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Clear All
+                      {downloadingAllPNG ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Downloading PNGs...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4" />
+                          <span>Download All PNG</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -1077,7 +1186,7 @@ export const StandaloneCertificateGenerator = () => {
                           {cert.pdfUrl && (
                             <button
                               onClick={() => handleDownload(cert.pdfUrl, 'pdf', cert.certificateNumber, cert.id)}
-                              disabled={downloadingCertId === cert.id && downloadingFormat === 'pdf' || downloadingAll}
+                              disabled={downloadingCertId === cert.id && downloadingFormat === 'pdf' || downloadingAllPDF || downloadingAllPNG}
                               className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                               title="Download PDF"
                             >
@@ -1097,7 +1206,7 @@ export const StandaloneCertificateGenerator = () => {
                           {cert.pngUrl && (
                             <button
                               onClick={() => handleDownload(cert.pngUrl, 'png', cert.certificateNumber, cert.id)}
-                              disabled={downloadingCertId === cert.id && downloadingFormat === 'png' || downloadingAll}
+                              disabled={downloadingCertId === cert.id && downloadingFormat === 'png' || downloadingAllPDF || downloadingAllPNG}
                               className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                               title="Download PNG"
                             >
@@ -1116,7 +1225,7 @@ export const StandaloneCertificateGenerator = () => {
                           )}
                           <button
                             onClick={() => dismissCertificate(cert.id)}
-                            disabled={downloadingCertId === cert.id || downloadingAll}
+                            disabled={downloadingCertId === cert.id || downloadingAllPDF || downloadingAllPNG}
                             className="px-2 py-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Remove from list"
                           >

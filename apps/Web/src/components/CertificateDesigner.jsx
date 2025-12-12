@@ -18,6 +18,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
     title_text: 'CERTIFICATE',
     title_subtitle: 'OF PARTICIPATION',
     title_font_size: 56,
+    title_font_family: 'Libre Baskerville, serif',
     title_color: '#000000',
     title_position: { x: 50, y: 28 },
     width: 2000,
@@ -50,21 +51,21 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
       university_text: 'Partido State University',
       location_text: 'Goa, Camarines Sur',
       republic_config: {
-        font_size: 14,
+        font_size: 20,
         color: '#000000',
         position: { x: 50, y: 8 },
         font_family: 'Libre Baskerville, serif',
         font_weight: 'normal'
       },
       university_config: {
-        font_size: 20,
+        font_size: 28,
         color: '#000000',
         position: { x: 50, y: 11 },
         font_family: 'Libre Baskerville, serif',
         font_weight: 'bold'
       },
       location_config: {
-        font_size: 14,
+        font_size: 20,
         color: '#000000',
         position: { x: 50, y: 14 },
         font_family: 'Libre Baskerville, serif',
@@ -703,7 +704,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
               left: `${header.republic_config.position.x}%`,
               top: `${header.republic_config.position.y}%`,
               transform: 'translate(-50%, -50%)',
-              fontSize: `${(header.republic_config.font_size || 14) * scale}px`,
+              fontSize: `${(header.republic_config.font_size || 20) * scale}px`,
               color: header.republic_config.color || '#000000',
               fontFamily: header.republic_config.font_family || 'Libre Baskerville, serif',
               fontWeight: header.republic_config.font_weight || 'normal',
@@ -723,7 +724,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
               left: `${header.university_config.position.x}%`,
               top: `${header.university_config.position.y}%`,
               transform: 'translate(-50%, -50%)',
-              fontSize: `${(header.university_config.font_size || 20) * scale}px`,
+              fontSize: `${(header.university_config.font_size || 28) * scale}px`,
               color: header.university_config.color || '#000000',
               fontFamily: header.university_config.font_family || 'Libre Baskerville, serif',
               fontWeight: header.university_config.font_weight || 'bold',
@@ -743,7 +744,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
               left: `${header.location_config.position.x}%`,
               top: `${header.location_config.position.y}%`,
               transform: 'translate(-50%, -50%)',
-              fontSize: `${(header.location_config.font_size || 14) * scale}px`,
+              fontSize: `${(header.location_config.font_size || 20) * scale}px`,
               color: header.location_config.color || '#000000',
               fontFamily: header.location_config.font_family || 'Libre Baskerville, serif',
               fontWeight: header.location_config.font_weight || 'normal',
@@ -765,7 +766,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
             fontSize: `${config.title_font_size * scale}px`,
             color: config.title_color,
             fontWeight: 'bold',
-            fontFamily: 'Libre Baskerville, serif',
+            fontFamily: config.title_font_family || 'Libre Baskerville, serif',
             textAlign: 'center',
             width: '100%',
             letterSpacing: '3px'
@@ -785,7 +786,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
               fontSize: `${(config.title_font_size * 0.4) * scale}px`,
               color: config.title_color,
               fontWeight: 'normal',
-              fontFamily: 'Libre Baskerville, serif',
+              fontFamily: config.title_font_family || 'Libre Baskerville, serif',
               textAlign: 'center',
               width: '100%',
               letterSpacing: '2px'
@@ -1692,30 +1693,279 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
               </div>
             </div>
 
-            {/* Name Configuration - Font Size Only */}
+            {/* Title Configuration */}
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200/50">
+                <div className="w-1 h-6 bg-gradient-to-b from-blue-500 to-indigo-500 rounded-full"></div>
+                <h5 className="font-semibold text-slate-800 text-sm uppercase tracking-wide">Certificate Title</h5>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                    Title Text
+                  </label>
+                  <input
+                    type="text"
+                    value={config.title_text || 'CERTIFICATE'}
+                    onChange={(e) => updateConfig('title_text', e.target.value)}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white text-slate-800 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="CERTIFICATE"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                    Title Subtitle
+                  </label>
+                  <input
+                    type="text"
+                    value={config.title_subtitle || ''}
+                    onChange={(e) => updateConfig('title_subtitle', e.target.value)}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white text-slate-800 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="OF PARTICIPATION"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Text that appears below the main title (e.g., "OF PARTICIPATION", "OF COMPLETION", etc.)</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Global Font Configuration */}
+            <div className="space-y-5">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200/50">
+                <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-pink-500 rounded-full"></div>
+                <h5 className="font-semibold text-slate-800 text-sm uppercase tracking-wide">Global Font (All Text Except Name)</h5>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                    Font Family
+                  </label>
+                  <select
+                    value={config.title_font_family || config.header_config?.republic_config?.font_family || 'Libre Baskerville, serif'}
+                    onChange={(e) => {
+                      const fontFamily = e.target.value;
+                      // Update all fonts except name
+                      const newConfig = {
+                        ...config,
+                        title_font_family: fontFamily,
+                        header_config: {
+                          ...config.header_config,
+                          republic_config: {
+                            ...config.header_config?.republic_config,
+                            font_family: fontFamily
+                          },
+                          university_config: {
+                            ...config.header_config?.university_config,
+                            font_family: fontFamily
+                          },
+                          location_config: {
+                            ...config.header_config?.location_config,
+                            font_family: fontFamily
+                          }
+                        },
+                        participation_text_config: {
+                          ...config.participation_text_config,
+                          font_family: fontFamily
+                        },
+                        is_given_to_config: {
+                          ...config.is_given_to_config,
+                          font_family: fontFamily
+                        },
+                        event_title_config: {
+                          ...config.event_title_config,
+                          font_family: fontFamily
+                        },
+                        date_config: {
+                          ...config.date_config,
+                          font_family: fontFamily
+                        },
+                        signature_blocks: (config.signature_blocks || []).map(sig => ({
+                          ...sig,
+                          font_family: fontFamily
+                        }))
+                      };
+                      setConfig(newConfig);
+                    }}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white text-slate-800 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  >
+                    <optgroup label="Serif Fonts">
+                      <option value="Libre Baskerville, serif">Libre Baskerville</option>
+                      <option value="Times New Roman, serif">Times New Roman</option>
+                      <option value="Georgia, serif">Georgia</option>
+                      <option value="Garamond, serif">Garamond</option>
+                      <option value="Palatino, serif">Palatino</option>
+                      <option value="Book Antiqua, serif">Book Antiqua</option>
+                      <option value="Baskerville, serif">Baskerville</option>
+                      <option value="Bodoni, serif">Bodoni</option>
+                      <option value="Caslon, serif">Caslon</option>
+                      <option value="Century Schoolbook, serif">Century Schoolbook</option>
+                      <option value="Didot, serif">Didot</option>
+                      <option value="Hoefler Text, serif">Hoefler Text</option>
+                      <option value="Minion Pro, serif">Minion Pro</option>
+                      <option value="Playfair Display, serif">Playfair Display</option>
+                      <option value="Lora, serif">Lora</option>
+                      <option value="Merriweather, serif">Merriweather</option>
+                      <option value="Crimson Text, serif">Crimson Text</option>
+                      <option value="PT Serif, serif">PT Serif</option>
+                      <option value="Source Serif Pro, serif">Source Serif Pro</option>
+                      <option value="EB Garamond, serif">EB Garamond</option>
+                      <option value="Cormorant Garamond, serif">Cormorant Garamond</option>
+                    </optgroup>
+                    <optgroup label="Sans-serif Fonts">
+                      <option value="Arial, sans-serif">Arial</option>
+                      <option value="Helvetica, sans-serif">Helvetica</option>
+                      <option value="Verdana, sans-serif">Verdana</option>
+                      <option value="Tahoma, sans-serif">Tahoma</option>
+                      <option value="Trebuchet MS, sans-serif">Trebuchet MS</option>
+                      <option value="Lucida Grande, sans-serif">Lucida Grande</option>
+                      <option value="Century Gothic, sans-serif">Century Gothic</option>
+                      <option value="Futura, sans-serif">Futura</option>
+                      <option value="Gill Sans, sans-serif">Gill Sans</option>
+                      <option value="Roboto, sans-serif">Roboto</option>
+                      <option value="Open Sans, sans-serif">Open Sans</option>
+                      <option value="Lato, sans-serif">Lato</option>
+                      <option value="Montserrat, sans-serif">Montserrat</option>
+                      <option value="Raleway, sans-serif">Raleway</option>
+                      <option value="Poppins, sans-serif">Poppins</option>
+                      <option value="Nunito, sans-serif">Nunito</option>
+                      <option value="Ubuntu, sans-serif">Ubuntu</option>
+                      <option value="Source Sans Pro, sans-serif">Source Sans Pro</option>
+                      <option value="Inter, sans-serif">Inter</option>
+                      <option value="Work Sans, sans-serif">Work Sans</option>
+                      <option value="DM Sans, sans-serif">DM Sans</option>
+                      <option value="Noto Sans, sans-serif">Noto Sans</option>
+                    </optgroup>
+                    <optgroup label="Monospace Fonts">
+                      <option value="Courier New, monospace">Courier New</option>
+                      <option value="Monaco, monospace">Monaco</option>
+                      <option value="Consolas, monospace">Consolas</option>
+                      <option value="Menlo, monospace">Menlo</option>
+                      <option value="Roboto Mono, monospace">Roboto Mono</option>
+                      <option value="Source Code Pro, monospace">Source Code Pro</option>
+                      <option value="Fira Code, monospace">Fira Code</option>
+                    </optgroup>
+                    <optgroup label="Display/Decorative Fonts">
+                      <option value="Impact, sans-serif">Impact</option>
+                      <option value="Comic Sans MS, cursive">Comic Sans MS</option>
+                      <option value="Papyrus, fantasy">Papyrus</option>
+                      <option value="Copperplate, fantasy">Copperplate</option>
+                      <option value="Oswald, sans-serif">Oswald</option>
+                      <option value="Bebas Neue, sans-serif">Bebas Neue</option>
+                      <option value="Anton, sans-serif">Anton</option>
+                      <option value="Righteous, cursive">Righteous</option>
+                      <option value="Lobster, cursive">Lobster</option>
+                      <option value="Pacifico, cursive">Pacifico</option>
+                    </optgroup>
+                  </select>
+                  <p className="text-xs text-slate-500 mt-1">This font applies to all text elements except the participant name</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Name Configuration */}
             <div className="space-y-5">
               <div className="flex items-center gap-2 pb-2 border-b border-slate-200/50">
                 <div className="w-1 h-6 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full"></div>
                 <h5 className="font-semibold text-slate-800 text-sm uppercase tracking-wide">Participant Name</h5>
               </div>
               
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                    Font Size
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                    Font Family
                   </label>
-                  <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
-                    {config.name_config.font_size}px
-                  </span>
+                  <select
+                    value={config.name_config?.font_family || 'MonteCarlo, cursive'}
+                    onChange={(e) => updateConfig('name_config.font_family', e.target.value)}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white text-slate-800 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  >
+                    <optgroup label="Cursive/Script Fonts">
+                      <option value="MonteCarlo, cursive">MonteCarlo</option>
+                      <option value="Brush Script MT, cursive">Brush Script MT</option>
+                      <option value="Lucida Handwriting, cursive">Lucida Handwriting</option>
+                      <option value="Comic Sans MS, cursive">Comic Sans MS</option>
+                      <option value="Pacifico, cursive">Pacifico</option>
+                      <option value="Lobster, cursive">Lobster</option>
+                      <option value="Dancing Script, cursive">Dancing Script</option>
+                      <option value="Great Vibes, cursive">Great Vibes</option>
+                      <option value="Allura, cursive">Allura</option>
+                      <option value="Satisfy, cursive">Satisfy</option>
+                      <option value="Kalam, cursive">Kalam</option>
+                      <option value="Caveat, cursive">Caveat</option>
+                      <option value="Permanent Marker, cursive">Permanent Marker</option>
+                      <option value="Indie Flower, cursive">Indie Flower</option>
+                      <option value="Shadows Into Light, cursive">Shadows Into Light</option>
+                      <option value="Amatic SC, cursive">Amatic SC</option>
+                      <option value="Kaushan Script, cursive">Kaushan Script</option>
+                      <option value="Parisienne, cursive">Parisienne</option>
+                      <option value="Sacramento, cursive">Sacramento</option>
+                      <option value="Tangerine, cursive">Tangerine</option>
+                    </optgroup>
+                    <optgroup label="Serif Fonts">
+                      <option value="Libre Baskerville, serif">Libre Baskerville</option>
+                      <option value="Times New Roman, serif">Times New Roman</option>
+                      <option value="Georgia, serif">Georgia</option>
+                      <option value="Garamond, serif">Garamond</option>
+                      <option value="Palatino, serif">Palatino</option>
+                      <option value="Book Antiqua, serif">Book Antiqua</option>
+                      <option value="Baskerville, serif">Baskerville</option>
+                      <option value="Bodoni, serif">Bodoni</option>
+                      <option value="Playfair Display, serif">Playfair Display</option>
+                      <option value="Lora, serif">Lora</option>
+                      <option value="Merriweather, serif">Merriweather</option>
+                      <option value="Crimson Text, serif">Crimson Text</option>
+                      <option value="PT Serif, serif">PT Serif</option>
+                      <option value="EB Garamond, serif">EB Garamond</option>
+                      <option value="Cormorant Garamond, serif">Cormorant Garamond</option>
+                    </optgroup>
+                    <optgroup label="Sans-serif Fonts">
+                      <option value="Arial, sans-serif">Arial</option>
+                      <option value="Helvetica, sans-serif">Helvetica</option>
+                      <option value="Verdana, sans-serif">Verdana</option>
+                      <option value="Tahoma, sans-serif">Tahoma</option>
+                      <option value="Roboto, sans-serif">Roboto</option>
+                      <option value="Open Sans, sans-serif">Open Sans</option>
+                      <option value="Lato, sans-serif">Lato</option>
+                      <option value="Montserrat, sans-serif">Montserrat</option>
+                      <option value="Raleway, sans-serif">Raleway</option>
+                      <option value="Poppins, sans-serif">Poppins</option>
+                      <option value="Nunito, sans-serif">Nunito</option>
+                      <option value="Ubuntu, sans-serif">Ubuntu</option>
+                      <option value="Inter, sans-serif">Inter</option>
+                      <option value="Work Sans, sans-serif">Work Sans</option>
+                    </optgroup>
+                    <optgroup label="Display/Decorative Fonts">
+                      <option value="Oswald, sans-serif">Oswald</option>
+                      <option value="Bebas Neue, sans-serif">Bebas Neue</option>
+                      <option value="Anton, sans-serif">Anton</option>
+                      <option value="Righteous, cursive">Righteous</option>
+                      <option value="Impact, sans-serif">Impact</option>
+                      <option value="Copperplate, fantasy">Copperplate</option>
+                    </optgroup>
+                  </select>
+                  <p className="text-xs text-slate-500 mt-1">Font specifically for the participant name</p>
                 </div>
-                <input
-                  type="range"
-                  min="16"
-                  max="60"
-                  value={config.name_config.font_size}
-                  onChange={(e) => updateConfig('name_config.font_size', parseInt(e.target.value))}
-                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                />
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Font Size
+                    </label>
+                    <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                      {config.name_config.font_size}px
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="16"
+                    max="60"
+                    value={config.name_config.font_size}
+                    onChange={(e) => updateConfig('name_config.font_size', parseInt(e.target.value))}
+                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  />
+                </div>
               </div>
             </div>
 

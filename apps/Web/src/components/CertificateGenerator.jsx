@@ -115,21 +115,21 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       university_text: 'Partido State University',
       location_text: 'Goa, Camarines Sur',
       republic_config: {
-        font_size: 14,
+        font_size: 20,
         color: '#000000',
         position: { x: 50, y: 8 },
         font_family: 'Libre Baskerville, serif',
         font_weight: 'normal'
       },
       university_config: {
-        font_size: 20,
+        font_size: 28,
         color: '#000000',
         position: { x: 50, y: 11 },
         font_family: 'Libre Baskerville, serif',
         font_weight: 'bold'
       },
       location_config: {
-        font_size: 14,
+        font_size: 20,
         color: '#000000',
         position: { x: 50, y: 14 },
         font_family: 'Libre Baskerville, serif',
@@ -458,11 +458,11 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     // Header - Republic
     if (header.republic_text && header.republic_config) {
       const repConfig = header.republic_config;
-      const textWidth = helveticaFont.widthOfTextAtSize(header.republic_text, repConfig.font_size || 14);
+      const textWidth = helveticaFont.widthOfTextAtSize(header.republic_text, repConfig.font_size || 20);
       page.drawText(header.republic_text, {
         x: (width * repConfig.position.x) / 100 - textWidth / 2,
         y: height - (height * repConfig.position.y) / 100,
-        size: repConfig.font_size || 14,
+        size: repConfig.font_size || 20,
         font: repConfig.font_weight === 'bold' ? helveticaBoldFont : helveticaFont,
         color: hexToRgb(repConfig.color || '#000000')
       });
@@ -471,11 +471,11 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     // Header - University
     if (header.university_text && header.university_config) {
       const uniConfig = header.university_config;
-      const textWidth = helveticaBoldFont.widthOfTextAtSize(header.university_text, uniConfig.font_size || 20);
+      const textWidth = helveticaBoldFont.widthOfTextAtSize(header.university_text, uniConfig.font_size || 28);
       page.drawText(header.university_text, {
         x: (width * uniConfig.position.x) / 100 - textWidth / 2,
         y: height - (height * uniConfig.position.y) / 100,
-        size: uniConfig.font_size || 20,
+        size: uniConfig.font_size || 28,
         font: helveticaBoldFont,
         color: hexToRgb(uniConfig.color || '#000000')
       });
@@ -484,11 +484,11 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     // Header - Location
     if (header.location_text && header.location_config) {
       const locConfig = header.location_config;
-      const textWidth = helveticaFont.widthOfTextAtSize(header.location_text, locConfig.font_size || 14);
+      const textWidth = helveticaFont.widthOfTextAtSize(header.location_text, locConfig.font_size || 20);
       page.drawText(header.location_text, {
         x: (width * locConfig.position.x) / 100 - textWidth / 2,
         y: height - (height * locConfig.position.y) / 100,
-        size: locConfig.font_size || 14,
+        size: locConfig.font_size || 20,
         font: helveticaFont,
         color: hexToRgb(locConfig.color || '#000000')
       });
@@ -806,7 +806,7 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     if (header.republic_text && header.republic_config) {
       const repConfig = header.republic_config;
       ctx.fillStyle = repConfig.color || '#000000';
-      ctx.font = `${repConfig.font_weight || 'normal'} ${repConfig.font_size || 14}px ${repConfig.font_family || 'Libre Baskerville, serif'}`;
+      ctx.font = `${repConfig.font_weight || 'normal'} ${repConfig.font_size || 20}px ${repConfig.font_family || 'Libre Baskerville, serif'}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(
@@ -820,7 +820,7 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     if (header.university_text && header.university_config) {
       const uniConfig = header.university_config;
       ctx.fillStyle = uniConfig.color || '#000000';
-      ctx.font = `${uniConfig.font_weight || 'bold'} ${uniConfig.font_size || 20}px ${uniConfig.font_family || 'Libre Baskerville, serif'}`;
+      ctx.font = `${uniConfig.font_weight || 'bold'} ${uniConfig.font_size || 28}px ${uniConfig.font_family || 'Libre Baskerville, serif'}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(
@@ -834,7 +834,7 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     if (header.location_text && header.location_config) {
       const locConfig = header.location_config;
       ctx.fillStyle = locConfig.color || '#000000';
-      ctx.font = `${locConfig.font_weight || 'normal'} ${locConfig.font_size || 14}px ${locConfig.font_family || 'Libre Baskerville, serif'}`;
+      ctx.font = `${locConfig.font_weight || 'normal'} ${locConfig.font_size || 20}px ${locConfig.font_family || 'Libre Baskerville, serif'}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(
