@@ -620,28 +620,41 @@ export class EventService {
 
   static async getEventParticipants(eventId: string): Promise<{ participants?: any[]; error?: string }> {
     try {
-      const { data, error } = await supabase
-        .from('event_registrations')
-        .select(`
-          *,
-          users (
-            id,
-            email,
-            first_name,
-            last_name,
-            user_type,
-            organization
-          )
-        `)
-        .eq('event_id', eventId)
-        .eq('status', 'registered')
-        .order('registration_date', { ascending: false });
+      // Use RPC function to get participants with user data from auth.users
+      const { data, error } = await supabase.rpc('get_event_participants', {
+        event_uuid: eventId
+      });
 
       if (error) {
-        return { error: error.message };
+        // Fallback: Get registrations and fetch user data separately
+        const { data: registrations, error: regError } = await supabase
+          .from('event_registrations')
+          .select('*')
+          .eq('event_id', eventId)
+          .eq('status', 'registered')
+          .order('registration_date', { ascending: false });
+
+        if (regError) {
+          return { error: regError.message };
+        }
+
+        // Fetch user data for each registration using get_user_profile
+        const participantsWithUsers = await Promise.all(
+          (registrations || []).map(async (reg) => {
+            const { data: userData } = await supabase.rpc('get_user_profile', {
+              user_id: reg.user_id
+            });
+            return {
+              ...reg,
+              users: userData || null
+            };
+          })
+        );
+
+        return { participants: participantsWithUsers };
       }
 
-      return { participants: data };
+      return { participants: data || [] };
     } catch (error) {
       return { error: 'An unexpected error occurred' };
     }

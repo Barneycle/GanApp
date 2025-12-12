@@ -7,6 +7,30 @@
 import { CertificateService } from './certificateService';
 import { JobQueueService, CertificateGenerationJobData } from './jobQueueService';
 import { generatePDFCertificate, generatePNGCertificate, CertificateData } from '../utils/certificateGenerator';
+import { supabase } from '../lib/supabaseClient';
+
+/**
+ * Generate a deterministic UUID for a participant based on their name and event
+ * This allows multiple certificates for the same organizer on the same event
+ */
+function generateParticipantUserId(participantName: string, eventId: string): string {
+  // Create a deterministic UUID v5-like hash from participant name + event ID
+  // This ensures each participant gets a unique but consistent user_id
+  const input = `${eventId}-${participantName.toLowerCase().trim()}`;
+  
+  // Simple hash function to generate a UUID-like string
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    const char = input.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  
+  // Convert to a UUID-like format (not a real UUID, but unique enough for our purposes)
+  const hex = Math.abs(hash).toString(16).padStart(8, '0');
+  const uuid = `00000000-0000-4000-8000-${hex.padStart(12, '0')}`;
+  return uuid;
+}
 
 export class CertificateJobProcessor {
   /**
@@ -157,26 +181,99 @@ export class CertificateJobProcessor {
         }
       }
 
+      // Get certificate template ID for this event
+      // If an event is selected (not 'standalone'), get its template ID
+      // If no event is selected, create a template for standalone certificates
+      let templateId: string | undefined;
+      let actualEventId: string | null = null;
+      
+      if (eventId !== 'standalone') {
+        // Event is selected - use the event's template
+        actualEventId = eventId;
+        const { data: templates, error: templateError } = await supabase
+          .from('certificate_templates')
+          .select('id')
+          .eq('event_id', eventId)
+          .eq('is_active', true)
+          .limit(1)
+          .maybeSingle(); // Use maybeSingle instead of single to handle no results gracefully
+
+        if (templateError) {
+          console.error('[Job Processor] Error fetching template:', templateError);
+          // Continue anyway - saveCertificate will try to find one
+        } else if (templates) {
+          templateId = templates.id;
+          console.log('[Job Processor] Found template ID:', templateId);
+        } else {
+          console.warn('[Job Processor] No certificate template found for event:', eventId);
+          // Continue anyway - saveCertificate will try to find one
+        }
+      } else {
+        // True standalone (no event selected) - create a template for it
+        console.log('[Job Processor] Standalone certificate - creating template');
+        const createTemplateResult = await CertificateService.createStandaloneTemplate(userId, eventTitle);
+        if (createTemplateResult.error || !createTemplateResult.templateId) {
+          console.error('[Job Processor] Failed to create standalone template:', createTemplateResult.error);
+          return {
+            success: false,
+            error: `Failed to create certificate template: ${createTemplateResult.error || 'Unknown error'}`
+          };
+        }
+        templateId = createTemplateResult.templateId;
+        actualEventId = createTemplateResult.eventId || null;
+      }
+
+      // Determine the user_id to use for the certificate
+      // For standalone certificates or when organizer generates for participants,
+      // use a deterministic UUID based on participant name to allow multiple certificates
+      let certificateUserId = userId;
+      
+      // If this is a standalone certificate or organizer is generating for a participant,
+      // generate a deterministic user_id based on participant name to avoid unique constraint violation
+      if (eventId === 'standalone' || (actualEventId && participantName)) {
+        // Generate deterministic user_id for the participant
+        certificateUserId = generateParticipantUserId(participantName, actualEventId || eventId);
+        console.log('[Job Processor] Using participant-specific user_id:', certificateUserId, 'for participant:', participantName);
+      }
+
       // Save to database
-      // For standalone certificates, use null event_id (may require database migration to allow null)
+      console.log('[Job Processor] Saving certificate to database with:', {
+        event_id: actualEventId,
+        template_id: templateId,
+        certificate_number: certificateNumber,
+        user_id: certificateUserId
+      });
+      
       const saveResult = await CertificateService.saveCertificate({
-        event_id: eventId === 'standalone' ? null : eventId,
-        user_id: userId,
+        event_id: actualEventId,
+        user_id: certificateUserId, // Use participant-specific user_id for standalone certs
         certificate_number: certificateNumber,
         participant_name: participantName,
         event_title: eventTitle,
         completion_date: completionDate,
         certificate_pdf_url: pdfResult.url,
-        certificate_png_url: pngResult.url
+        certificate_png_url: pngResult.url,
+        certificate_template_id: templateId
       });
 
       if (saveResult.error) {
         console.error('[Job Processor] Failed to save certificate:', saveResult.error);
+        console.error('[Job Processor] Save result details:', saveResult);
         return {
           success: false,
           error: `Failed to save certificate: ${saveResult.error}`
         };
       }
+
+      if (!saveResult.certificate) {
+        console.error('[Job Processor] Certificate save returned no certificate object');
+        return {
+          success: false,
+          error: 'Certificate save completed but no certificate was returned'
+        };
+      }
+
+      console.log('[Job Processor] Certificate saved successfully with ID:', saveResult.certificate.id);
 
       console.log('[Job Processor] Certificate generation completed successfully:', {
         certificateNumber,

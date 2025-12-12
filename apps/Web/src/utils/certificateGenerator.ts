@@ -118,26 +118,39 @@ export async function generatePDFCertificate(
   // Embed MonteCarlo font for participant name
   let monteCarloFont = null;
   try {
+    // Try multiple sources for MonteCarlo font (local first, then CDN)
     const fontUrls = [
-      'https://fonts.gstatic.com/s/montecarlo/v1/sykz-yx80lwvRnfW2Nc4kgnFhTd3kXc.woff2',
-      'https://github.com/google/fonts/raw/main/ofl/montecarlo/MonteCarlo-Regular.ttf'
+      // Try local font file first (served from public folder)
+      '/fonts/MonteCarlo-Regular.ttf',
+      // Try Google Fonts CDN (direct TTF link)
+      'https://fonts.gstatic.com/s/montecarlo/v1/MonteCarlo-Regular.ttf',
+      // Try jsDelivr CDN (mirror of Google Fonts)
+      'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/montecarlo/MonteCarlo-Regular.ttf',
+      // Try raw.githubusercontent (fallback)
+      'https://raw.githubusercontent.com/google/fonts/main/ofl/montecarlo/MonteCarlo-Regular.ttf'
     ];
     
     let fontBytes = null;
     for (const fontUrl of fontUrls) {
       try {
-        const fontResponse = await fetch(fontUrl);
+        const fontResponse = await fetch(fontUrl, {
+          mode: 'cors',
+          cache: 'default'
+        });
         if (fontResponse.ok) {
           fontBytes = await fontResponse.arrayBuffer();
+          console.log('Successfully loaded MonteCarlo font from:', fontUrl);
           break;
         }
       } catch (e) {
+        console.warn('Failed to load font from', fontUrl, e);
         continue;
       }
     }
     
     if (fontBytes) {
       monteCarloFont = await pdfDoc.embedFont(fontBytes);
+      console.log('MonteCarlo font embedded successfully');
     } else {
       throw new Error('Could not load MonteCarlo font from any source');
     }
@@ -613,17 +626,46 @@ export async function generatePNGCertificate(
   ctx.fillStyle = nameConfig.color || '#000000';
   const fontFamily = nameConfig.font_family || 'MonteCarlo, cursive';
   
+  // Load MonteCarlo font for canvas using FontFace API
+  if (fontFamily.includes('MonteCarlo')) {
+    try {
+      // Try multiple sources for the font (local first, then CDN)
+      const fontUrls = [
+        // Try local font file first (served from public folder)
+        '/fonts/MonteCarlo-Regular.ttf',
+        // Try Google Fonts CDN
+        'https://fonts.gstatic.com/s/montecarlo/v1/MonteCarlo-Regular.ttf',
+        // Try jsDelivr CDN (mirror of Google Fonts)
+        'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/montecarlo/MonteCarlo-Regular.ttf',
+        // Try raw.githubusercontent (fallback)
+        'https://raw.githubusercontent.com/google/fonts/main/ofl/montecarlo/MonteCarlo-Regular.ttf'
+      ];
+      
+      let fontLoaded = false;
+      for (const fontUrl of fontUrls) {
+        try {
+          const fontFace = new FontFace('MonteCarlo', `url(${fontUrl})`);
+          await fontFace.load();
+          document.fonts.add(fontFace);
+          fontLoaded = true;
+          console.log('MonteCarlo font loaded for canvas from:', fontUrl);
+          break;
+        } catch (e) {
+          console.warn('Failed to load MonteCarlo font from', fontUrl, e);
+          continue;
+        }
+      }
+      
+      if (!fontLoaded) {
+        console.warn('Could not load MonteCarlo font from any source, using fallback');
+      }
+    } catch (e) {
+      console.warn('Error loading MonteCarlo font for canvas:', e);
+    }
+  }
+  
   // Wait for all fonts to be ready before rendering
   await document.fonts.ready;
-  
-  // Load MonteCarlo font if not already loaded
-  try {
-    if (fontFamily.includes('MonteCarlo')) {
-      await document.fonts.load(`${nameConfig.font_weight || 'normal'} ${nameConfig.font_size || 48}px MonteCarlo`);
-    }
-  } catch (e) {
-    console.warn('Could not load MonteCarlo font for canvas:', e);
-  }
   
   // Set font and render
   ctx.font = `${nameConfig.font_weight || 'bold'} ${nameConfig.font_size || 48}px ${fontFamily}`;

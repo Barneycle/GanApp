@@ -327,24 +327,43 @@ export class CertificateService {
       completion_date: string;
       certificate_pdf_url?: string;
       certificate_png_url?: string;
+      certificate_template_id?: string;
     }
   ): Promise<{ certificate?: Certificate; error?: string }> {
     try {
-      // Check if certificate already exists (skip check for standalone certificates with null event_id)
+      // Check if certificate already exists by certificate_number (unique constraint)
+      // This handles both event-based and standalone certificates correctly
       let existing: { certificate?: Certificate; error?: string } = { certificate: undefined };
-      if (certificateData.event_id) {
-        existing = await this.getUserCertificate(certificateData.user_id, certificateData.event_id);
-      }
+      
+      // First check by certificate_number (most reliable, works for all cases)
+      const { data: existingByNumber, error: numberError } = await supabase
+        .from('certificates')
+        .select('*')
+        .eq('certificate_number', certificateData.certificate_number)
+        .maybeSingle();
 
-      if (existing.certificate) {
-        // Update existing certificate
-        const { data, error } = await supabase
+      if (numberError && numberError.code !== 'PGRST116') {
+        // Error other than "not found" - log but continue to create new certificate
+        console.error('Error checking certificate by number:', numberError);
+        // Fall through to create new certificate
+      }
+      
+      if (existingByNumber) {
+        // Certificate with this number already exists - update it
+        const updateData: any = {
+          certificate_pdf_url: certificateData.certificate_pdf_url,
+          certificate_png_url: certificateData.certificate_png_url
+        };
+        
+        // Only update template_id if provided
+        if (certificateData.certificate_template_id) {
+          updateData.certificate_template_id = certificateData.certificate_template_id;
+        }
+        
+        const { data: updatedCert, error } = await supabase
           .from('certificates')
-          .update({
-            certificate_pdf_url: certificateData.certificate_pdf_url,
-            certificate_png_url: certificateData.certificate_png_url
-          })
-          .eq('id', existing.certificate.id)
+          .update(updateData)
+          .eq('id', existingByNumber.id)
           .select()
           .single();
 
@@ -352,19 +371,113 @@ export class CertificateService {
           return { error: error.message };
         }
 
-        return { certificate: data as Certificate };
+        console.log('[saveCertificate] Updated existing certificate by number:', existingByNumber.id);
+        return { certificate: updatedCert as Certificate };
       } else {
+        // No certificate with this number exists - check if there's one with same (event_id, user_id)
+        // This handles the UNIQUE(event_id, user_id) constraint
+        let existingByEventUser: any = null;
+        if (certificateData.event_id) {
+          const { data: existing, error: eventUserError } = await supabase
+            .from('certificates')
+            .select('*')
+            .eq('event_id', certificateData.event_id)
+            .eq('user_id', certificateData.user_id)
+            .maybeSingle();
+
+          if (!eventUserError && existing) {
+            existingByEventUser = existing;
+            console.log('[saveCertificate] Found existing certificate by (event_id, user_id), will update:', existing.id);
+          }
+        }
+
+        // Get certificate template ID if not provided
+        let templateId = certificateData.certificate_template_id;
+        
+        // If template ID not provided but event_id exists, get template from event
+        if (!templateId && certificateData.event_id) {
+          console.log('[saveCertificate] Attempting to fetch template for event:', certificateData.event_id);
+          const { data: templates, error: templateError } = await supabase
+            .from('certificate_templates')
+            .select('id')
+            .eq('event_id', certificateData.event_id)
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle(); // Use maybeSingle to handle no results gracefully
+
+          if (templateError) {
+            console.error('[saveCertificate] Error fetching template:', templateError);
+            return { error: `Failed to fetch certificate template: ${templateError.message || 'Unknown error'}` };
+          } else if (templates) {
+            templateId = templates.id;
+            console.log('[saveCertificate] Found template ID:', templateId);
+          } else {
+            // No template found - create one automatically
+            // This happens because events using certificate configs don't have template records
+            console.log('[saveCertificate] No template found, creating placeholder template for event:', certificateData.event_id);
+            const createResult = await CertificateService.createTemplateForEvent(certificateData.event_id, certificateData.user_id);
+            if (createResult.error || !createResult.templateId) {
+              console.error('[saveCertificate] Failed to create template:', createResult.error);
+              return { error: `Failed to create certificate template: ${createResult.error || 'Unknown error'}` };
+            }
+            templateId = createResult.templateId;
+            console.log('[saveCertificate] Created placeholder template ID:', templateId);
+          }
+        }
+
+        // If there's an existing certificate with same (event_id, user_id), update it
+        // This handles the UNIQUE(event_id, user_id) constraint for organizer-generated certificates
+        if (existingByEventUser) {
+          const updateData: any = {
+            certificate_number: certificateData.certificate_number,
+            participant_name: certificateData.participant_name,
+            event_title: certificateData.event_title,
+            completion_date: certificateData.completion_date,
+            certificate_pdf_url: certificateData.certificate_pdf_url,
+            certificate_png_url: certificateData.certificate_png_url
+          };
+          
+          // Only update template_id if provided
+          if (templateId) {
+            updateData.certificate_template_id = templateId;
+          }
+
+          const { data: updatedCert, error: updateError } = await supabase
+            .from('certificates')
+            .update(updateData)
+            .eq('id', existingByEventUser.id)
+            .select()
+            .single();
+
+          if (updateError) {
+            console.error('Error updating certificate:', updateError);
+            return { error: updateError.message };
+          }
+
+          console.log('[saveCertificate] Updated existing certificate by (event_id, user_id):', existingByEventUser.id);
+          return { certificate: updatedCert as Certificate };
+        }
+
         // Create new certificate
+        // Note: certificate_template_id is nullable in the database (for events using configs)
+        const insertData: any = {
+          ...certificateData,
+          generated_by: certificateData.user_id
+        };
+        
+        // Only include template_id if we have one (it's nullable)
+        if (templateId) {
+          insertData.certificate_template_id = templateId;
+        }
+
         const { data, error } = await supabase
           .from('certificates')
-          .insert({
-            ...certificateData,
-            generated_by: certificateData.user_id
-          })
+          .insert(insertData)
           .select()
           .single();
 
         if (error) {
+          console.error('Error saving certificate:', error);
           return { error: error.message };
         }
 
@@ -372,6 +485,121 @@ export class CertificateService {
       }
     } catch (err: any) {
       return { error: err.message || 'Failed to save certificate' };
+    }
+  }
+
+  /**
+   * Create a template for an existing event (when template is missing)
+   * This is needed because events using certificate configs don't have template records
+   */
+  static async createTemplateForEvent(eventId: string, userId: string): Promise<{ templateId?: string; error?: string }> {
+    try {
+      // Get event details
+      const { data: event, error: eventError } = await supabase
+        .from('events')
+        .select('title')
+        .eq('id', eventId)
+        .single();
+
+      if (eventError || !event) {
+        return { error: 'Event not found' };
+      }
+
+      // Create a placeholder template for this event
+      // This is needed because the database requires certificate_template_id
+      const { data: newTemplate, error: createTemplateError } = await supabase
+        .from('certificate_templates')
+        .insert({
+          event_id: eventId,
+          title: `Certificate Template for ${event.title}`,
+          description: `Auto-generated template for ${event.title} (uses certificate config)`,
+          template_url: 'https://placeholder-url-for-certificate-templates',
+          template_type: 'document',
+          content_fields: {
+            participant_name: '{{name}}',
+            event_title: '{{event}}',
+            date: '{{date}}'
+          },
+          requires_attendance: false,
+          requires_survey_completion: false,
+          is_active: true,
+          created_by: userId
+        })
+        .select('id')
+        .single();
+
+      if (createTemplateError || !newTemplate) {
+        console.error('Failed to create template for event:', createTemplateError);
+        return { error: createTemplateError?.message || 'Failed to create template' };
+      }
+
+      return { templateId: newTemplate.id };
+    } catch (err: any) {
+      console.error('Error creating template for event:', err);
+      return { error: err.message || 'Failed to create template' };
+    }
+  }
+
+  /**
+   * Create a template for standalone certificates (when no event is selected)
+   * Creates a minimal event and template for standalone certificate generation
+   */
+  static async createStandaloneTemplate(userId: string, eventTitle: string): Promise<{ templateId?: string; eventId?: string; error?: string }> {
+    try {
+      // Create a minimal event for standalone certificates
+      const { data: newEvent, error: createEventError } = await supabase
+        .from('events')
+        .insert({
+          title: eventTitle || 'Standalone Certificate',
+          description: 'Event created for standalone certificate generation',
+          start_date: new Date().toISOString().split('T')[0],
+          end_date: new Date().toISOString().split('T')[0],
+          venue: 'Standalone',
+          created_by: userId,
+          is_active: false, // Mark as inactive so it doesn't show in event lists
+          event_type: 'standalone'
+        })
+        .select('id')
+        .single();
+
+      if (createEventError || !newEvent) {
+        console.error('Failed to create standalone event:', createEventError);
+        return { error: createEventError?.message || 'Failed to create event for standalone certificate' };
+      }
+
+      const eventId = newEvent.id;
+
+      // Create a template for this standalone event
+      const { data: newTemplate, error: createTemplateError } = await supabase
+        .from('certificate_templates')
+        .insert({
+          event_id: eventId,
+          title: 'Standalone Certificate Template',
+          description: `Template for standalone certificate: ${eventTitle}`,
+          template_url: 'https://placeholder-url-for-standalone-certificates',
+          template_type: 'document',
+          content_fields: {
+            participant_name: '{{name}}',
+            event_title: '{{event}}',
+            date: '{{date}}'
+          },
+          requires_attendance: false,
+          requires_survey_completion: false,
+          is_active: true,
+          created_by: userId
+        })
+        .select('id')
+        .single();
+
+      if (createTemplateError || !newTemplate) {
+        console.error('Failed to create standalone template:', createTemplateError);
+        return { error: createTemplateError?.message || 'Failed to create template for standalone certificate' };
+      }
+
+      return { templateId: newTemplate.id, eventId: eventId };
+    } catch (err: any) {
+      console.error('Error creating standalone template:', err);
+      return { error: err.message || 'Failed to create standalone template' };
     }
   }
 

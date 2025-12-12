@@ -4,6 +4,9 @@ import { EventService } from '../../services/eventService';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePageVisibility } from '../../hooks/usePageVisibility';
 import { useToast } from '../Toast';
+import { exportToCSV, exportToExcel } from '../../utils/exportUtils';
+import { BulkQRCodeGenerator } from './BulkQRCodeGenerator';
+import { CertificateGenerationsView } from './CertificateGenerationsView';
 
 // Sample events data for placeholders
 const sampleEvents = [
@@ -151,6 +154,11 @@ export const Events = () => {
   const [successModalMessage, setSuccessModalMessage] = useState('');
   const [showManageModal, setShowManageModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [showRegistrationsModal, setShowRegistrationsModal] = useState(false);
+  const [registrations, setRegistrations] = useState([]);
+  const [loadingRegistrations, setLoadingRegistrations] = useState(false);
+  const [showBulkQRModal, setShowBulkQRModal] = useState(false);
+  const [showCertificateGenerationsModal, setShowCertificateGenerationsModal] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [eventToCancel, setEventToCancel] = useState(null);
   const [cancellationReason, setCancellationReason] = useState('');
@@ -453,6 +461,45 @@ export const Events = () => {
     if (event) {
       setSelectedEvent(event);
       setShowManageModal(true);
+    }
+  };
+
+  const handleViewRegistrations = async (eventId) => {
+    try {
+      setLoadingRegistrations(true);
+      setError('');
+      
+      const result = await EventService.getEventParticipants(eventId);
+      
+      if (result.error) {
+        setError(result.error);
+        toast.error(result.error);
+      } else {
+        setRegistrations(result.participants || []);
+        setShowRegistrationsModal(true);
+      }
+    } catch (err) {
+      const errorMsg = 'Failed to load registrations. Please try again.';
+      setError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setLoadingRegistrations(false);
+    }
+  };
+
+  const handleGenerateQRCode = (eventId) => {
+    const event = events.find(e => e.id === eventId);
+    if (event) {
+      setSelectedEvent(event);
+      setShowBulkQRModal(true);
+    }
+  };
+
+  const handleViewCertificateGenerations = (eventId) => {
+    const event = events.find(e => e.id === eventId);
+    if (event) {
+      setSelectedEvent(event);
+      setShowCertificateGenerationsModal(true);
     }
   };
 
@@ -1490,14 +1537,30 @@ export const Events = () => {
               <div className="bg-green-50 rounded-lg p-4">
                 <h4 className="font-semibold text-green-900 mb-2">Quick Actions</h4>
                 <div className="space-y-2">
-                  <button className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors">
-                    View Registrations
+                  <button 
+                    onClick={() => handleViewRegistrations(selectedEvent.id)}
+                    disabled={loadingRegistrations}
+                    className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loadingRegistrations ? 'Loading...' : 'View Registrations'}
                   </button>
-                  <button className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors">
+                  <button 
+                    onClick={() => handleGenerateQRCode(selectedEvent.id)}
+                    className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors"
+                  >
                     Generate QR Code
                   </button>
-                  <button className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors">
+                  <button 
+                    onClick={() => navigate(`/event-statistics/${selectedEvent.id}`)}
+                    className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors"
+                  >
                     View Analytics
+                  </button>
+                  <button 
+                    onClick={() => handleViewCertificateGenerations(selectedEvent.id)}
+                    className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors"
+                  >
+                    View Certificate Generations
                   </button>
                 </div>
               </div>
@@ -1535,6 +1598,197 @@ export const Events = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* View Registrations Modal */}
+      {showRegistrationsModal && selectedEvent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-2xl font-semibold text-slate-900 mb-2">
+                  Event Registrations
+                </h3>
+                <p className="text-slate-600">
+                  {selectedEvent.title}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowRegistrationsModal(false);
+                  setRegistrations([]);
+                }}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {loadingRegistrations ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-slate-600">Loading registrations...</p>
+              </div>
+            ) : registrations.length === 0 ? (
+              <div className="text-center py-12">
+                <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <h4 className="text-xl font-semibold text-slate-800 mb-2">No Registrations Yet</h4>
+                <p className="text-slate-600">No participants have registered for this event.</p>
+              </div>
+            ) : (
+              <>
+                <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-blue-900">
+                      Total Registrations: <span className="font-bold">{registrations.length}</span>
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          const eventTitle = selectedEvent?.title || 'event';
+                          const sanitizedTitle = eventTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                          exportToCSV(registrations, `${sanitizedTitle}_participants_${new Date().toISOString().split('T')[0]}`);
+                        }}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                        title="Export to CSV"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        CSV
+                      </button>
+                      <button
+                        onClick={() => {
+                          const eventTitle = selectedEvent?.title || 'event';
+                          const sanitizedTitle = eventTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                          exportToExcel(registrations, `${sanitizedTitle}_participants_${new Date().toISOString().split('T')[0]}`, 'Participants');
+                        }}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                        title="Export to Excel"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Excel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="space-y-3">
+                  {registrations.map((registration) => {
+                    const user = registration.users;
+                    const userName = user?.first_name && user?.last_name 
+                      ? `${user.first_name} ${user.last_name}`
+                      : user?.email || 'Unknown User';
+                    
+                    return (
+                      <div 
+                        key={registration.id} 
+                        className="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:bg-slate-100 transition-colors"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                                {userName.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <h4 className="font-semibold text-slate-900">{userName}</h4>
+                                {user?.email && (
+                                  <p className="text-sm text-slate-600">{user.email}</p>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="ml-12 space-y-1 text-sm text-slate-600">
+                              {user?.organization && (
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                  </svg>
+                                  <span>{user.organization}</span>
+                                </div>
+                              )}
+                              {user?.user_type && (
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                  </svg>
+                                  <span className="capitalize">{user.user_type}</span>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span>
+                                  Registered on {formatRegistrationDate(registration.registration_date || registration.created_at)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="ml-4">
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              registration.status === 'registered' 
+                                ? 'bg-green-100 text-green-800'
+                                : registration.status === 'cancelled'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {registration.status || 'registered'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            <div className="mt-6 pt-4 border-t border-slate-200">
+              <button
+                onClick={() => {
+                  setShowRegistrationsModal(false);
+                  setRegistrations([]);
+                }}
+                className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk QR Code Generator Modal */}
+      {showBulkQRModal && selectedEvent && (
+        <BulkQRCodeGenerator
+          isOpen={showBulkQRModal}
+          onClose={() => {
+            setShowBulkQRModal(false);
+            setSelectedEvent(null);
+          }}
+          event={selectedEvent}
+        />
+      )}
+
+      {/* Certificate Generations View Modal */}
+      {showCertificateGenerationsModal && selectedEvent && (
+        <CertificateGenerationsView
+          isOpen={showCertificateGenerationsModal}
+          onClose={() => {
+            setShowCertificateGenerationsModal(false);
+            setSelectedEvent(null);
+          }}
+          event={selectedEvent}
+        />
       )}
 
       {/* Cancellation Request Modal */}

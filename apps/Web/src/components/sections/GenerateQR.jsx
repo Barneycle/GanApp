@@ -40,12 +40,13 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
       const qrDataString = `EVENT_${event.id}_USER_${user?.id}_${Date.now()}`;
 
       // Check if QR code already exists for this user+event combination
+      // Check both: QR codes created by the user AND QR codes created by organizers for this user
       const { data: existingQRs, error: fetchError } = await supabase
         .from('qr_codes')
         .select('*')
         .eq('event_id', event.id)
         .eq('code_type', 'event_checkin')
-        .eq('created_by', user?.id)
+        .eq('owner_id', user?.id) // Check by owner_id to find organizer-generated QR codes too
         .limit(1);
 
       if (fetchError) {
@@ -56,18 +57,13 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
 
       let qrRecord;
       if (existingQR) {
-        // Update existing QR code
-        const { data, error } = await supabase
-          .from('qr_codes')
-          .update({
-            qr_data: qrData,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingQR.id)
-          .select();
-
-        if (error) throw error;
-        qrRecord = data && data.length > 0 ? data[0] : null;
+        // Reuse existing QR code (whether created by user or organizer)
+        // Generate QR code URL from existing qr_data
+        const existingQrData = existingQR.qr_data || qrData;
+        const qrCodeData = JSON.stringify(existingQrData);
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData)}`;
+        setQrCodeUrl(qrUrl);
+        return; // Exit early - reuse existing QR code
       } else {
         // Create new QR code
         const { data, error } = await supabase
