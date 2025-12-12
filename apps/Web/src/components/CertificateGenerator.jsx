@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import QRCode from 'qrcode';
 import { CertificateService } from '../services/certificateService';
@@ -19,8 +20,8 @@ const CertificateGenerator = ({ eventId, onClose }) => {
   const [config, setConfig] = useState(null);
   const [certificate, setCertificate] = useState(null);
   const [previewData, setPreviewData] = useState(null);
-  const [jobStatus, setJobStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle');
-  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobStatus, setJobStatus] = useState('idle');
+  const [jobId, setJobId] = useState(null);
 
   useEffect(() => {
     if (eventId && user?.id) {
@@ -29,6 +30,15 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       checkPendingJob();
     }
   }, [eventId, user?.id]);
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalStyle;
+    };
+  }, []);
 
   // Check for pending job in sessionStorage
   const checkPendingJob = async () => {
@@ -1269,22 +1279,59 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-xl p-8 max-w-md mx-4">
-          <div className="flex items-center justify-center mb-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
-          <p className="text-center text-slate-600">Loading certificate data...</p>
-        </div>
-      </div>
-    );
+  // Don't render if no eventId
+  if (!eventId) {
+    return null;
   }
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+  // Render modal content
+  const modalContent = (
+    <>
+      {loading ? (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
+          }}
+        >
+          <div className="bg-white rounded-xl p-8 max-w-md mx-4 shadow-2xl">
+            <div className="flex items-center justify-center mb-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            </div>
+            <p className="text-center text-slate-600">Loading certificate data...</p>
+          </div>
+        </div>
+      ) : (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              onClose();
+            }
+          }}
+        >
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex justify-between items-center">
           <h2 className="text-2xl font-bold text-slate-800">Certificate</h2>
           <button
@@ -1408,9 +1455,16 @@ const CertificateGenerator = ({ eventId, onClose }) => {
             </div>
           )}
         </div>
-      </div>
-    </div>
+          </div>
+        </div>
+      )}
+    </>
   );
+
+  // Use portal to render outside the normal DOM hierarchy
+  const modalRoot = document.getElementById('root') || document.body;
+  
+  return createPortal(modalContent, modalRoot);
 };
 
 export default CertificateGenerator;

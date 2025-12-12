@@ -224,16 +224,22 @@ export class CertificateJobProcessor {
       }
 
       // Determine the user_id to use for the certificate
-      // For standalone certificates or when organizer generates for participants,
-      // use a deterministic UUID based on participant name to allow multiple certificates
+      // For standalone certificates, use a deterministic UUID based on participant name
+      // For event-based certificates, use the actual userId (from job data) to satisfy RLS policies
       let certificateUserId = userId;
       
-      // If this is a standalone certificate or organizer is generating for a participant,
-      // generate a deterministic user_id based on participant name to avoid unique constraint violation
-      if (eventId === 'standalone' || (actualEventId && participantName)) {
-        // Generate deterministic user_id for the participant
-        certificateUserId = generateParticipantUserId(participantName, actualEventId || eventId);
-        console.log('[Job Processor] Using participant-specific user_id:', certificateUserId, 'for participant:', participantName);
+      // Only generate a deterministic user_id for standalone certificates
+      // For event-based certificates, use the authenticated user's ID (userId from job)
+      // This satisfies RLS policy: user_id = auth.uid()
+      if (eventId === 'standalone') {
+        // Generate deterministic user_id for standalone certificates
+        certificateUserId = generateParticipantUserId(participantName, eventId);
+        console.log('[Job Processor] Using participant-specific user_id for standalone certificate:', certificateUserId);
+      } else {
+        // For event-based certificates, use the authenticated user's ID
+        // This allows participants to generate their own certificates (satisfies RLS: user_id = auth.uid())
+        certificateUserId = userId;
+        console.log('[Job Processor] Using authenticated user_id for event certificate:', certificateUserId);
       }
 
       // Save to database

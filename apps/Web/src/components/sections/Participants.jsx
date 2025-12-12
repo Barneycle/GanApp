@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import EventModal from './EventModal';
 import { EventService } from '../../services/eventService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -17,12 +17,25 @@ export const Participants = () => {
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRationaleExpanded, setIsRationaleExpanded] = useState(false);
+  const [expandedCards, setExpandedCards] = useState(new Set());
 
   const shouldCollapseRationale = (rationale) => {
     if (!rationale) return false;
     const textContent = rationale.replace(/<[^>]*>/g, '');
     const hasMultipleParagraphs = (rationale.match(/<p>/g) || []).length > 1;
-    return textContent.length > 300 || hasMultipleParagraphs;
+    return textContent.length > 150 || hasMultipleParagraphs;
+  };
+
+  const toggleCardExpansion = (eventId) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId);
+      } else {
+        newSet.add(eventId);
+      }
+      return newSet;
+    });
   };
 
   // Helper function to check if user profile is complete
@@ -78,10 +91,25 @@ export const Participants = () => {
       if (result.error) {
         setError(result.error);
       } else {
-        setEvents(result.events || []);
+        // Filter for upcoming events only (events that haven't ended yet)
+        const now = new Date();
+        const upcomingEvents = (result.events || []).filter(event => {
+          if (!event.end_date) return true; // Include events without end date
+          const endDate = new Date(event.end_date);
+          return endDate >= now;
+        });
+        
+        // Sort by start_date ascending (earliest first)
+        upcomingEvents.sort((a, b) => {
+          const dateA = new Date(a.start_date || a.created_at);
+          const dateB = new Date(b.start_date || b.created_at);
+          return dateA - dateB;
+        });
+        
+        setEvents(upcomingEvents);
         // Set the first event as selected by default
-        if (result.events && result.events.length > 0) {
-          setSelectedEvent(result.events[0]);
+        if (upcomingEvents && upcomingEvents.length > 0) {
+          setSelectedEvent(upcomingEvents[0]);
         }
       }
     } catch (err) {
@@ -142,7 +170,8 @@ export const Participants = () => {
 
   // Use real events from database for carousel, no placeholders
   const carouselEvents = events.map(event => ({
-    ...event
+    ...event,
+    guest_speakers: parseGuestSpeakers(event.guest_speakers)
   }));
 
   const decodeHtml = (value) => {
@@ -417,11 +446,65 @@ export const Participants = () => {
                     border-radius: 4px;
                     overflow-x: auto;
                   }
-                  .rich-text-content img {
-                    max-width: 100%;
-                    height: auto;
-                    margin: 16px 0;
-                  }
+                    .rich-text-content img {
+                      max-width: 100%;
+                      height: auto;
+                      margin: 16px 0;
+                    }
+                    .carousel-rationale {
+                      contain: layout style paint;
+                    }
+                    .carousel-rationale p,
+                    .carousel-rationale div,
+                    .carousel-rationale span {
+                      margin: 0 !important;
+                      padding: 0 !important;
+                      max-width: 100% !important;
+                      word-break: break-word !important;
+                      overflow-wrap: break-word !important;
+                    }
+                    .carousel-rationale p:first-child {
+                      margin-top: 0 !important;
+                    }
+                    .carousel-rationale p:last-child {
+                      margin-bottom: 0 !important;
+                    }
+                    .carousel-rationale p + p {
+                      margin-top: 0.5em !important;
+                    }
+                    .carousel-rationale img {
+                      max-width: 100% !important;
+                      height: auto !important;
+                      display: block !important;
+                      margin: 0.5em 0 !important;
+                    }
+                    .carousel-rationale h1,
+                    .carousel-rationale h2,
+                    .carousel-rationale h3,
+                    .carousel-rationale h4,
+                    .carousel-rationale h5,
+                    .carousel-rationale h6 {
+                      margin: 0.25em 0 !important;
+                      padding: 0 !important;
+                      max-width: 100% !important;
+                      word-break: break-word !important;
+                      font-size: inherit !important;
+                    }
+                    .carousel-rationale ul,
+                    .carousel-rationale ol {
+                      margin: 0.25em 0 !important;
+                      padding-left: 1.25em !important;
+                      max-width: 100% !important;
+                    }
+                    .carousel-rationale blockquote {
+                      margin: 0.25em 0 !important;
+                      padding: 0.5em 0 0.5em 0.75em !important;
+                      max-width: 100% !important;
+                    }
+                    .carousel-rationale * {
+                      max-width: 100% !important;
+                      box-sizing: border-box !important;
+                    }
                 `}</style>
               </div>
             )}
@@ -480,46 +563,83 @@ export const Participants = () => {
                   width: `${carouselEvents.length * 300 + (carouselEvents.length - 1) * 24}px`
                 }}
               >
-                {carouselEvents.map((event, index) => (
-                  <div
-                    key={`${event.id}-${index}`}
-                    onClick={() => {
-                      setSelectedEvent(event);
-                      setIsModalOpen(true);
-                    }}
-                    className="min-w-[300px] rounded-lg overflow-hidden cursor-pointer hover:scale-110 transition-transform duration-300 flex-shrink-0 bg-white shadow-sm hover:shadow-lg"
-                  >
-                    <img
-                      src={event.banner_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center'}
-                      alt={event.title}
-                      className="w-full h-48 object-cover"
-                      onError={(e) => handleImageError(e, 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center')}
-                    />
-                    <div className="p-4">
-                      <h3 className="font-semibold text-lg text-gray-800">{event.title}</h3>
-                      <div
-                        className="text-gray-600 text-sm mt-2 rich-text-content"
-                        dangerouslySetInnerHTML={{
-                          __html: decodeHtml(event.description || event.rationale || 'Experience something amazing')
-                        }}
+                {carouselEvents.map((event, index) => {
+                  const rationale = event.description || event.rationale || 'Experience something amazing';
+                  const isExpanded = expandedCards.has(event.id);
+                  const shouldCollapse = shouldCollapseRationale(rationale);
+                  
+                  return (
+                    <div
+                      key={`${event.id}-${index}`}
+                      onClick={() => {
+                        setSelectedEvent(event);
+                        setIsModalOpen(true);
+                      }}
+                      className="min-w-[300px] max-w-[300px] h-[500px] rounded-lg overflow-hidden cursor-pointer hover:scale-110 transition-transform duration-300 flex-shrink-0 bg-white shadow-sm hover:shadow-lg flex flex-col"
+                      style={{ height: '500px', maxHeight: '500px', minHeight: '500px' }}
+                    >
+                      <img
+                        src={event.banner_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center'}
+                        alt={event.title}
+                        className="w-full h-48 object-cover flex-shrink-0"
+                        onError={(e) => handleImageError(e, 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop&crop=center')}
                       />
-                      <div className="mt-3 text-xs text-gray-500">
-                        <div className="flex items-center space-x-1">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          <span>{formatDate(event.start_date)}</span>
+                      <div className="p-4 flex flex-col overflow-hidden" style={{ height: 'calc(500px - 192px)', maxHeight: 'calc(500px - 192px)' }}>
+                        <h3 className="font-semibold text-lg text-gray-800 mb-2 flex-shrink-0 line-clamp-2" style={{ height: '44px', minHeight: '44px', maxHeight: '44px' }}>{event.title}</h3>
+                        <div className="flex-1 overflow-hidden flex flex-col min-h-0" style={{ height: 'calc(308px - 44px - 44px)', maxHeight: 'calc(308px - 44px - 44px)' }}>
+                          <div
+                            className="text-gray-600 text-sm rich-text-content carousel-rationale"
+                            style={{
+                              height: shouldCollapse && !isExpanded ? '100px' : shouldCollapse ? '156px' : '180px',
+                              maxHeight: shouldCollapse && !isExpanded ? '100px' : shouldCollapse ? '156px' : '180px',
+                              minHeight: shouldCollapse && !isExpanded ? '100px' : shouldCollapse ? '156px' : '180px',
+                              overflow: 'auto',
+                              transition: 'max-height 0.3s ease, height 0.3s ease',
+                              wordWrap: 'break-word',
+                              overflowWrap: 'break-word',
+                              WebkitOverflowScrolling: 'touch',
+                              flexShrink: 0,
+                              boxSizing: 'border-box',
+                              position: 'relative'
+                            }}
+                            dangerouslySetInnerHTML={{
+                              __html: decodeHtml(rationale)
+                            }}
+                          />
+                          {shouldCollapse && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleCardExpansion(event.id);
+                              }}
+                              className="mt-2 w-full flex items-center justify-center text-blue-600 font-semibold text-xs hover:text-blue-700 transition-colors flex-shrink-0"
+                              style={{ height: '24px', minHeight: '24px', maxHeight: '24px', marginTop: '8px' }}
+                            >
+                              <span>{isExpanded ? 'Read Less' : 'Read More'}</span>
+                              <ChevronDown 
+                                className={`w-4 h-4 ml-1 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                              />
+                            </button>
+                          )}
                         </div>
-                        <div className="flex items-center space-x-1 mt-1">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <span>{formatTime(event.start_time)} - {formatTime(event.end_time)}</span>
+                        <div className="mt-3 text-xs text-gray-500 flex-shrink-0" style={{ height: '44px', minHeight: '44px', maxHeight: '44px' }}>
+                          <div className="flex items-center space-x-1">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span>{formatDate(event.start_date)}</span>
+                          </div>
+                          <div className="flex items-center space-x-1 mt-1">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>{formatTime(event.start_time)} - {formatTime(event.end_time)}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </motion.div>
             </div>
           </div>

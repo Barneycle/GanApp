@@ -413,16 +413,11 @@ export class CertificateService {
             templateId = templates.id;
             console.log('[saveCertificate] Found template ID:', templateId);
           } else {
-            // No template found - create one automatically
-            // This happens because events using certificate configs don't have template records
-            console.log('[saveCertificate] No template found, creating placeholder template for event:', certificateData.event_id);
-            const createResult = await CertificateService.createTemplateForEvent(certificateData.event_id, certificateData.user_id);
-            if (createResult.error || !createResult.templateId) {
-              console.error('[saveCertificate] Failed to create template:', createResult.error);
-              return { error: `Failed to create certificate template: ${createResult.error || 'Unknown error'}` };
-            }
-            templateId = createResult.templateId;
-            console.log('[saveCertificate] Created placeholder template ID:', templateId);
+            // No template found - this is OK for events using certificate configs
+            // The certificate_template_id column should be nullable to support this
+            // Don't try to create a template automatically as participants don't have permission
+            console.log('[saveCertificate] No template found for event:', certificateData.event_id, '- proceeding without template_id (using certificate config)');
+            templateId = undefined; // Leave as undefined so it's not included in the insert
           }
         }
 
