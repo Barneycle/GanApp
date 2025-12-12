@@ -413,6 +413,45 @@ export const Events = () => {
     });
   };
 
+  // Helper function to check if registration is allowed for an event
+  const canRegisterForEvent = useMemo(() => {
+    return (event) => {
+      // Must be published
+      if (event.status !== 'published') {
+        return { allowed: false, reason: 'Event is not available for registration' };
+      }
+
+      const now = new Date();
+      
+      // Check if event is past (ended)
+      const endDateTime = new Date(`${event.end_date}T${event.end_time || '23:59:59'}`);
+      if (endDateTime < now) {
+        return { allowed: false, reason: 'Registration closed: Event has ended' };
+      }
+
+      // Check if event is ongoing (started but not ended)
+      const startDateTime = new Date(`${event.start_date}T${event.start_time || '00:00:00'}`);
+      if (startDateTime <= now && endDateTime >= now) {
+        return { allowed: false, reason: 'Registration closed: Event is ongoing' };
+      }
+
+      // Check registration deadline
+      if (event.registration_deadline) {
+        const deadline = new Date(event.registration_deadline);
+        if (deadline < now) {
+          return { allowed: false, reason: 'Registration closed: Deadline has passed' };
+        }
+      }
+
+      // Check if event is full
+      if (event.max_participants && event.current_participants >= event.max_participants) {
+        return { allowed: false, reason: 'Registration closed: Event is full' };
+      }
+
+      return { allowed: true };
+    };
+  }, []);
+
   const handleRegisterForEvent = async (eventId) => {
     if (!user) {
       navigate('/login');
@@ -422,6 +461,13 @@ export const Events = () => {
     // Find the event to register for
     const event = events.find(e => e.id === eventId) || sampleEvents.find(e => e.id === eventId);
     if (event) {
+      // Check if registration is allowed
+      const registrationCheck = canRegisterForEvent(event);
+      if (!registrationCheck.allowed) {
+        toast.error(registrationCheck.reason);
+        return;
+      }
+      
       setEventToRegister(event);
       setShowConfirmationModal(true);
     }
@@ -440,6 +486,15 @@ export const Events = () => {
       setShowSuccessModal(true);
       setUserRegistrations(prev => new Set(prev).add(eventId));
       
+      setShowConfirmationModal(false);
+      setEventToRegister(null);
+      return;
+    }
+
+    // Double-check if registration is still allowed (in case event status changed)
+    const registrationCheck = canRegisterForEvent(eventToRegister);
+    if (!registrationCheck.allowed) {
+      toast.error(registrationCheck.reason);
       setShowConfirmationModal(false);
       setEventToRegister(null);
       return;
@@ -1601,15 +1656,29 @@ export const Events = () => {
                                 </div>
                               </div>
                             </div>
-                          ) : (
-                            <button 
-                              onClick={() => handleRegisterForEvent(event.id)}
-                              disabled={registeringEvents.has(event.id)}
-                              className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {registeringEvents.has(event.id) ? 'Registering...' : 'Register'}
-                            </button>
-                          )}
+                          ) : (() => {
+                            const registrationCheck = canRegisterForEvent(event);
+                            const isDisabled = !registrationCheck.allowed || registeringEvents.has(event.id);
+                            
+                            return (
+                              <button 
+                                onClick={() => handleRegisterForEvent(event.id)}
+                                disabled={isDisabled}
+                                className={`w-full px-4 py-2 rounded-lg transition-colors text-sm ${
+                                  isDisabled 
+                                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
+                                    : 'bg-blue-900 text-white hover:bg-blue-800'
+                                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                title={!registrationCheck.allowed ? registrationCheck.reason : ''}
+                              >
+                                {registeringEvents.has(event.id) 
+                                  ? 'Registering...' 
+                                  : !registrationCheck.allowed 
+                                    ? 'Registration Closed' 
+                                    : 'Register'}
+                              </button>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -1845,15 +1914,29 @@ export const Events = () => {
                           </div>
                         </div>
                       </div>
-                    ) : (
-                      <button 
-                        onClick={() => handleRegisterForEvent(event.id)}
-                        disabled={registeringEvents.has(event.id)}
-                        className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {registeringEvents.has(event.id) ? 'Registering...' : 'Register'}
-                      </button>
-                    )}
+                    ) : (() => {
+                      const registrationCheck = canRegisterForEvent(event);
+                      const isDisabled = !registrationCheck.allowed || registeringEvents.has(event.id);
+                      
+                      return (
+                        <button 
+                          onClick={() => handleRegisterForEvent(event.id)}
+                          disabled={isDisabled}
+                          className={`w-full px-4 py-2 rounded-lg transition-colors text-sm ${
+                            isDisabled 
+                              ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
+                              : 'bg-blue-900 text-white hover:bg-blue-800'
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                          title={!registrationCheck.allowed ? registrationCheck.reason : ''}
+                        >
+                          {registeringEvents.has(event.id) 
+                            ? 'Registering...' 
+                            : !registrationCheck.allowed 
+                              ? 'Registration Closed' 
+                              : 'Register'}
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -1969,13 +2052,29 @@ export const Events = () => {
                 >
                   Cancel
                 </button>
-                <button
-                  onClick={confirmRegistration}
-                  disabled={registeringEvents.has(eventToRegister.id)}
-                  className="flex-1 px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {registeringEvents.has(eventToRegister.id) ? 'Registering...' : 'Confirm Registration'}
-                </button>
+                {(() => {
+                  const registrationCheck = eventToRegister ? canRegisterForEvent(eventToRegister) : { allowed: false };
+                  const isDisabled = !registrationCheck.allowed || registeringEvents.has(eventToRegister.id);
+                  
+                  return (
+                    <button
+                      onClick={confirmRegistration}
+                      disabled={isDisabled}
+                      className={`flex-1 px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                        isDisabled 
+                          ? 'bg-gray-400 text-gray-600' 
+                          : 'bg-blue-900 text-white hover:bg-blue-800'
+                      }`}
+                      title={!registrationCheck.allowed ? registrationCheck.reason : ''}
+                    >
+                      {registeringEvents.has(eventToRegister.id) 
+                        ? 'Registering...' 
+                        : !registrationCheck.allowed 
+                          ? 'Registration Closed' 
+                          : 'Confirm Registration'}
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           </div>

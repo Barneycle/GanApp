@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -137,6 +137,45 @@ export default function EventDetails() {
     }
   };
 
+  // Helper function to check if registration is allowed
+  const canRegister = useMemo(() => {
+    if (!event) return { allowed: false, reason: 'Event not loaded' };
+    
+    // Must be published
+    if (event.status !== 'published') {
+      return { allowed: false, reason: 'Event is not available for registration' };
+    }
+
+    const now = new Date();
+    
+    // Check if event is past (ended)
+    const endDateTime = new Date(`${event.end_date}T${event.end_time || '23:59:59'}`);
+    if (endDateTime < now) {
+      return { allowed: false, reason: 'Registration closed: Event has ended' };
+    }
+
+    // Check if event is ongoing (started but not ended)
+    const startDateTime = new Date(`${event.start_date}T${event.start_time || '00:00:00'}`);
+    if (startDateTime <= now && endDateTime >= now) {
+      return { allowed: false, reason: 'Registration closed: Event is ongoing' };
+    }
+
+    // Check registration deadline
+    if (event.registration_deadline) {
+      const deadline = new Date(event.registration_deadline);
+      if (deadline < now) {
+        return { allowed: false, reason: 'Registration closed: Deadline has passed' };
+      }
+    }
+
+    // Check if event is full
+    if (event.max_participants && event.current_participants >= event.max_participants) {
+      return { allowed: false, reason: 'Registration closed: Event is full' };
+    }
+
+    return { allowed: true };
+  }, [event]);
+
   const handleRegister = async () => {
     if (!user) {
       toast.warning('Please log in to register for this event.');
@@ -147,6 +186,12 @@ export default function EventDetails() {
     }
 
     if (!eventId || !event) return;
+
+    // Check if registration is allowed
+    if (!canRegister.allowed) {
+      toast.error(canRegister.reason);
+      return;
+    }
 
     setIsRegistering(true);
     setError(null);
@@ -330,31 +375,52 @@ export default function EventDetails() {
                       You are registered for this event
                     </Text>
                   </View>
-                ) : (
-                  <TouchableOpacity
-                    className={`bg-blue-700 rounded-2xl py-4 px-6 shadow-lg ${isRegistering ? 'opacity-50' : ''}`}
-                    onPress={handleRegister}
-                    disabled={isRegistering}
-                  >
-                    <View className="flex-row items-center justify-center">
-                      {isRegistering ? (
-                        <>
-                          <ActivityIndicator size="small" color="#ffffff" />
-                          <Text className="text-white font-bold text-lg ml-3">
-                            Registering...
-                          </Text>
-                        </>
-                      ) : (
-                        <>
-                          <Ionicons name="person-add" size={24} color="#ffffff" />
-                          <Text className="text-white font-bold text-lg ml-3">
-                            Register for Event
-                          </Text>
-                        </>
+                ) : (() => {
+                  const registrationAllowed = canRegister.allowed;
+                  const isDisabled = !registrationAllowed || isRegistering;
+                  
+                  return (
+                    <TouchableOpacity
+                      className={`rounded-2xl py-4 px-6 shadow-lg ${
+                        isDisabled 
+                          ? 'bg-gray-400 opacity-60' 
+                          : 'bg-blue-700'
+                      } ${isRegistering ? 'opacity-50' : ''}`}
+                      onPress={handleRegister}
+                      disabled={isDisabled}
+                    >
+                      <View className="flex-row items-center justify-center">
+                        {isRegistering ? (
+                          <>
+                            <ActivityIndicator size="small" color="#ffffff" />
+                            <Text className="text-white font-bold text-lg ml-3">
+                              Registering...
+                            </Text>
+                          </>
+                        ) : !registrationAllowed ? (
+                          <>
+                            <Ionicons name="lock-closed" size={24} color="#ffffff" />
+                            <Text className="text-white font-bold text-lg ml-3">
+                              Registration Closed
+                            </Text>
+                          </>
+                        ) : (
+                          <>
+                            <Ionicons name="person-add" size={24} color="#ffffff" />
+                            <Text className="text-white font-bold text-lg ml-3">
+                              Register for Event
+                            </Text>
+                          </>
+                        )}
+                      </View>
+                      {!registrationAllowed && canRegister.reason && (
+                        <Text className="text-white text-center mt-2 text-sm opacity-90">
+                          {canRegister.reason}
+                        </Text>
                       )}
-                    </View>
-                  </TouchableOpacity>
-                )}
+                    </TouchableOpacity>
+                  );
+                })()}
               </View>
 
               {/* Event Rationale */}

@@ -271,6 +271,27 @@ export class EventService {
         return { error: 'This event is not available for registration' };
       }
 
+      // Check if event is past (ended)
+      const now = new Date();
+      const endDateTime = new Date(`${eventResult.event.end_date}T${eventResult.event.end_time || '23:59:59'}`);
+      if (endDateTime < now) {
+        return { error: 'Registration closed: Event has ended' };
+      }
+
+      // Check if event is ongoing (started but not ended)
+      const startDateTime = new Date(`${eventResult.event.start_date}T${eventResult.event.start_time || '00:00:00'}`);
+      if (startDateTime <= now && endDateTime >= now) {
+        return { error: 'Registration closed: Event is ongoing' };
+      }
+
+      // Check registration deadline
+      if (eventResult.event.registration_deadline) {
+        const deadline = new Date(eventResult.event.registration_deadline);
+        if (deadline < now) {
+          return { error: 'Registration closed: Deadline has passed' };
+        }
+      }
+
       // Check if event has reached max participants
       if (eventResult.event.max_participants && eventResult.event.current_participants && eventResult.event.current_participants >= eventResult.event.max_participants) {
         return { error: 'This event has reached maximum capacity' };
