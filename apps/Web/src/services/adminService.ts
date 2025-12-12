@@ -490,6 +490,42 @@ export class AdminService {
   }
 
   /**
+   * Get all archived events (admin only)
+   */
+  static async getArchivedEvents(): Promise<{ events?: any[]; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('archived_events')
+        .select('*')
+        .order('archived_at', { ascending: false });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      // Transform archived events to match AdminEvent interface
+      const events = (data || []).map((archived) => ({
+        id: archived.original_event_id || archived.id, // Keep original_event_id for display
+        archive_id: archived.id, // Store the archive record ID for unarchiving
+        title: archived.title,
+        venue: archived.venue,
+        start_date: archived.start_date,
+        end_date: archived.end_date,
+        status: archived.status === 'cancelled' ? 'cancelled' : 'completed',
+        current_participants: archived.final_participant_count || 0,
+        max_participants: archived.max_participants,
+        archived_at: archived.archived_at,
+        archive_reason: archived.archive_reason,
+        is_archived: true
+      }));
+
+      return { events };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
    * Cancel an event
    */
   static async cancelEvent(eventId: string, reason?: string): Promise<{ success?: boolean; error?: string }> {
@@ -513,22 +549,67 @@ export class AdminService {
   }
 
   /**
-   * Archive an event
+   * Archive an event (admin only)
    */
   static async archiveEvent(eventId: string, reason?: string): Promise<{ success?: boolean; error?: string }> {
     try {
-      const { error } = await supabase.rpc('archive_event', {
+      const { data, error } = await supabase.rpc('archive_event', {
         event_uuid: eventId,
-        archive_reason_text: reason || 'Archived by admin'
+        archive_reason_text: reason || 'Archived by admin',
+        archived_by_uuid: null // Will use auth.uid() in the function
       });
 
       if (error) {
         return { error: error.message };
       }
 
+      // Check if the function returned an error in the JSON response
+      if (data && typeof data === 'object' && 'success' in data) {
+        if (data.success === false) {
+          return { error: data.error || 'Failed to archive event' };
+        }
+      }
+
       return { success: true };
-    } catch (error) {
-      return { error: 'An unexpected error occurred' };
+    } catch (error: any) {
+      return { error: error?.message || 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Unarchive an event (admin only)
+   */
+  static async unarchiveEvent(archiveId: string, reason?: string): Promise<{ success?: boolean; error?: string }> {
+    try {
+      // Build parameters object - only include unarchive_reason_text if it has a value
+      const params: any = {
+        archive_id_uuid: archiveId
+      };
+      
+      // Only include unarchive_reason_text if it's provided and not empty
+      if (reason && reason.trim()) {
+        params.unarchive_reason_text = reason.trim();
+      }
+      
+      // unarchived_by_uuid is optional and defaults to auth.uid() in the function
+      // We can omit it or pass null
+      
+      const { data, error } = await supabase.rpc('unarchive_event', params);
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      // Check if the function returned an error in the JSON response
+      if (data && typeof data === 'object' && 'success' in data) {
+        if (data.success === false) {
+          return { error: data.error || 'Failed to unarchive event' };
+        }
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      return { error: error?.message || 'An unexpected error occurred' };
     }
   }
 

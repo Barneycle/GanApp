@@ -138,7 +138,7 @@ export const Events = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState('active'); // 'active' or 'archived'
+  const [activeTab, setActiveTab] = useState('published'); // 'published', 'past', 'cancelled', or 'archived' (admin only)
   const [events, setEvents] = useState([]);
   const [archivedEvents, setArchivedEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -200,20 +200,20 @@ export const Events = () => {
       loadEvents();
       if (user) {
         loadUserRegistrations();
-        // Load archived events for organizers and participants
-        if (user.role === 'organizer' || user.role === 'participant') {
+        // Load archived events for admins only
+        if (user.role === 'admin') {
           loadArchivedEvents();
         }
       }
     }
   }, [user?.id, user?.role]); // Only depend on user ID and role, not the entire user object
 
-  // Load archived events when switching to archived tab
+  // Load archived events when switching to archived tab (admin only)
   useEffect(() => {
-    if (activeTab === 'archived' && archivedEvents.length === 0 && !archivedLoading && user) {
+    if (activeTab === 'archived' && archivedEvents.length === 0 && !archivedLoading && user?.role === 'admin') {
       loadArchivedEvents();
     }
-  }, [activeTab, user]);
+  }, [activeTab, archivedEvents.length, archivedLoading, user?.role]);
 
   const loadArchivedEvents = async () => {
     if (!isVisible || archivedLoading) return;
@@ -699,8 +699,49 @@ export const Events = () => {
     return true;
   };
 
-  // Filter and sort active events
+  // Helper function to determine event category
+  const getEventCategory = useMemo(() => {
+    return (event) => {
+      if (event.status === 'cancelled') {
+        return 'cancelled';
+      }
+      
+      const now = new Date();
+      const endDateTime = new Date(`${event.end_date}T${event.end_time || '23:59:59'}`);
+      
+      if (event.status === 'published' && endDateTime >= now) {
+        return 'published'; // Published/Ongoing
+      } else if (event.status === 'published' && endDateTime < now) {
+        return 'past';
+      }
+      
+      return null; // Draft or other statuses
+    };
+  }, []);
+
+  // Count events by category for tab badges
+  const categoryCounts = useMemo(() => {
+    if (!Array.isArray(events)) return { published: 0, past: 0, cancelled: 0 };
+    
+    const counts = { published: 0, past: 0, cancelled: 0 };
+    events.forEach(event => {
+      const category = getEventCategory(event);
+      if (category === 'published') counts.published++;
+      else if (category === 'past') counts.past++;
+      else if (category === 'cancelled') counts.cancelled++;
+    });
+    return counts;
+  }, [events, getEventCategory]);
+
+  // Filter and sort events by category
   const filteredAndSortedEvents = (Array.isArray(events) ? events : []).filter(event => {
+    // Category filter based on active tab
+    const eventCategory = getEventCategory(event);
+    if (activeTab === 'published' && eventCategory !== 'published') return false;
+    if (activeTab === 'past' && eventCategory !== 'past') return false;
+    if (activeTab === 'cancelled' && eventCategory !== 'cancelled') return false;
+    if (activeTab === 'archived') return false; // Archived events are handled separately
+
     // Basic search filter
     if (!useAdvancedSearch && searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -716,7 +757,7 @@ export const Events = () => {
       return false;
     }
 
-    // Date filter
+    // Date filter (only applies within category)
     const now = new Date();
     if (dateFilter === 'upcoming') {
       if (new Date(event.start_date) < now) return false;
@@ -866,7 +907,7 @@ export const Events = () => {
     };
   }, [useInfiniteScroll, isLoading, currentPage, itemsPerPage, allFilteredEvents.length]);
 
-  if (isLoading && (activeTab === 'active' ? events.length === 0 : archivedEvents.length === 0)) {
+  if (isLoading && (activeTab !== 'archived' ? events.length === 0 : archivedEvents.length === 0)) {
     return (
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
         <div className="text-center">
@@ -973,31 +1014,67 @@ export const Events = () => {
         <div className="text-center mb-8 sm:mb-12">
         </div>
 
-        {/* Tabs for Organizers and Participants */}
-        {(user?.role === 'organizer' || user?.role === 'participant') && (
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-2 mb-8 flex gap-2">
-            <button
-              onClick={() => setActiveTab('active')}
-              className={`flex-1 px-6 py-3 rounded-xl font-medium transition-colors ${
-                activeTab === 'active'
-                  ? 'bg-blue-900 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              Active Events
-            </button>
+        {/* Category Tabs */}
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-2 mb-8 flex gap-2 flex-wrap">
+          <button
+            onClick={() => setActiveTab('published')}
+            className={`flex-1 min-w-[120px] px-6 py-3 rounded-xl font-medium transition-colors ${
+              activeTab === 'published'
+                ? 'bg-blue-900 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            Published/Ongoing
+            {categoryCounts.published > 0 && (
+              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-700 text-white">
+                {categoryCounts.published}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('past')}
+            className={`flex-1 min-w-[120px] px-6 py-3 rounded-xl font-medium transition-colors ${
+              activeTab === 'past'
+                ? 'bg-blue-900 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            Past Events
+            {categoryCounts.past > 0 && (
+              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-700 text-white">
+                {categoryCounts.past}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('cancelled')}
+            className={`flex-1 min-w-[120px] px-6 py-3 rounded-xl font-medium transition-colors ${
+              activeTab === 'cancelled'
+                ? 'bg-blue-900 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            Cancelled
+            {categoryCounts.cancelled > 0 && (
+              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-700 text-white">
+                {categoryCounts.cancelled}
+              </span>
+            )}
+          </button>
+          {/* Archived tab - Admin only */}
+          {user?.role === 'admin' && (
             <button
               onClick={() => setActiveTab('archived')}
-              className={`flex-1 px-6 py-3 rounded-xl font-medium transition-colors ${
+              className={`flex-1 min-w-[120px] px-6 py-3 rounded-xl font-medium transition-colors ${
                 activeTab === 'archived'
                   ? 'bg-blue-900 text-white'
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              Archived Events
+              Archived
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Search and Filter Bar */}
         <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8">
@@ -1065,7 +1142,7 @@ export const Events = () => {
                 </div>
 
                 {/* Venue Filter */}
-                {(activeTab === 'active' ? uniqueVenues : uniqueArchivedVenues).length > 0 && (
+                {(activeTab !== 'archived' ? uniqueVenues : uniqueArchivedVenues).length > 0 && (
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Venue</label>
                     <select
@@ -1074,7 +1151,7 @@ export const Events = () => {
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="all">All Venues</option>
-                      {(activeTab === 'active' ? uniqueVenues : uniqueArchivedVenues).map((venue) => (
+                      {(activeTab !== 'archived' ? uniqueVenues : uniqueArchivedVenues).map((venue) => (
                         <option key={venue} value={venue}>{venue}</option>
                       ))}
                     </select>

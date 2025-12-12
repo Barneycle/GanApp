@@ -1772,8 +1772,12 @@ const CreateUserModal = ({ onCreate, onClose, loading }) => {
 
 // Events Tab Component
 const EventsTab = () => {
+  const toast = useToast();
   const [events, setEvents] = useState([]);
+  const [archivedEvents, setArchivedEvents] = useState([]);
+  const [activeView, setActiveView] = useState('active'); // 'active' or 'archived'
   const [loading, setLoading] = useState(false);
+  const [archivedLoading, setArchivedLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [actionType, setActionType] = useState(null);
@@ -1784,6 +1788,7 @@ const EventsTab = () => {
 
   useEffect(() => {
     loadEvents();
+    loadArchivedEvents();
   }, []);
 
   const loadEvents = async () => {
@@ -1802,20 +1807,56 @@ const EventsTab = () => {
     setLoading(false);
   };
 
+  const loadArchivedEvents = async () => {
+    setArchivedLoading(true);
+    const result = await AdminService.getArchivedEvents();
+    if (result.error) {
+      console.error('Error loading archived events:', result.error);
+      setArchivedEvents([]);
+    } else {
+      setArchivedEvents(result.events || []);
+    }
+    setArchivedLoading(false);
+  };
+
   const handleArchiveEvent = async (eventId, reason) => {
     setActionLoading(true);
+    setError('');
     const result = await AdminService.archiveEvent(eventId, reason);
     if (result.error) {
       setError(result.error);
+      toast.error(result.error);
     } else {
+      toast.success('Event archived successfully');
       await loadEvents();
+      await loadArchivedEvents(); // Reload archived events after archiving
       setSelectedEvent(null);
       setActionType(null);
     }
     setActionLoading(false);
   };
 
-  const filteredEvents = events.filter((event) => {
+  const handleUnarchiveEvent = async (archiveId, reason) => {
+    setActionLoading(true);
+    setError('');
+    const result = await AdminService.unarchiveEvent(archiveId, reason);
+    if (result.error) {
+      setError(result.error);
+      toast.error(result.error);
+    } else {
+      toast.success('Event unarchived successfully');
+      await loadEvents();
+      await loadArchivedEvents(); // Reload archived events after unarchiving
+      setSelectedEvent(null);
+      setActionType(null);
+    }
+    setActionLoading(false);
+  };
+
+  const currentEvents = activeView === 'archived' ? archivedEvents : events;
+  const isLoading = activeView === 'archived' ? archivedLoading : loading;
+
+  const filteredEvents = currentEvents.filter((event) => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     return (
@@ -1866,11 +1907,11 @@ const EventsTab = () => {
     }
   };
 
-  if (loading) {
+  if (isLoading && currentEvents.length === 0) {
     return (
       <div className="text-center py-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="text-slate-600 mt-4">Loading events...</p>
+        <p className="text-slate-600 mt-4">Loading {activeView === 'archived' ? 'archived ' : ''}events...</p>
       </div>
     );
   }
@@ -1879,13 +1920,38 @@ const EventsTab = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-semibold text-slate-800">Event Management</h2>
-        <button
-          onClick={loadEvents}
-          disabled={loading}
-          className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50"
-        >
-          Refresh
-        </button>
+        <div className="flex gap-3">
+          {/* View Toggle */}
+          <div className="flex bg-slate-100 rounded-lg p-1">
+            <button
+              onClick={() => setActiveView('active')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeView === 'active'
+                  ? 'bg-white text-blue-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-800'
+              }`}
+            >
+              Active Events
+            </button>
+            <button
+              onClick={() => setActiveView('archived')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeView === 'archived'
+                  ? 'bg-white text-blue-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-800'
+              }`}
+            >
+              Archived Events
+            </button>
+          </div>
+          <button
+            onClick={activeView === 'archived' ? loadArchivedEvents : loadEvents}
+            disabled={isLoading}
+            className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -1963,6 +2029,14 @@ const EventsTab = () => {
                   {sortKey === 'status' && <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>}
                 </button>
               </th>
+              {activeView === 'archived' && (
+                <th className="px-4 py-3">
+                  <button onClick={() => toggleSort('archived_at')} className="flex items-center gap-1">
+                    Archive Reason
+                    {sortKey === 'archived_at' && <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>}
+                  </button>
+                </th>
+              )}
               <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
@@ -1973,6 +2047,11 @@ const EventsTab = () => {
                 <td className="px-4 py-3">{event.venue}</td>
                 <td className="px-4 py-3">
                   {new Date(event.start_date).toLocaleDateString()}
+                  {event.is_archived && event.archived_at && (
+                    <div className="text-xs text-slate-500 mt-1">
+                      Archived: {new Date(event.archived_at).toLocaleDateString()}
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   {event.current_participants} / {event.max_participants || '∞'}
@@ -1986,27 +2065,63 @@ const EventsTab = () => {
                   }`}>
                     {event.status}
                   </span>
+                  {event.is_archived && (
+                    <span className="ml-2 px-2 py-1 rounded-full text-xs font-medium bg-slate-200 text-slate-700">
+                      Archived
+                    </span>
+                  )}
                 </td>
+                {activeView === 'archived' && (
+                  <td className="px-4 py-3">
+                    <div className="text-sm text-slate-600 max-w-xs" title={event.archive_reason || 'No reason provided'}>
+                      {event.archive_reason ? (
+                        event.archive_reason.length > 50 ? (
+                          <span>{event.archive_reason.substring(0, 50)}...</span>
+                        ) : (
+                          <span>{event.archive_reason}</span>
+                        )
+                      ) : (
+                        <span className="text-slate-400 italic">No reason provided</span>
+                      )}
+                    </div>
+                  </td>
+                )}
                 <td className="px-4 py-3">
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => {
-                        setSelectedEvent(event);
-                        setActionType('stats');
-                      }}
-                      className="px-3 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 text-xs"
-                    >
-                      View Stats
-                    </button>
-                    {(event.status === 'completed' || event.status === 'cancelled') && (
+                  <div className="flex space-x-2 flex-wrap gap-2">
+                    {!event.is_archived && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setSelectedEvent(event);
+                            setActionType('stats');
+                          }}
+                          className="px-3 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 text-xs"
+                        >
+                          View Stats
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedEvent(event);
+                            setActionType('archive');
+                          }}
+                          className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 text-xs"
+                          title="Archive this event"
+                        >
+                          Archive
+                        </button>
+                      </>
+                    )}
+                    {event.is_archived && (
                       <button
                         onClick={() => {
                           setSelectedEvent(event);
-                          setActionType('archive');
+                          setActionType('unarchive');
                         }}
-                        className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 text-xs"
+                        className="px-3 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 text-xs"
+                        title="Restore this event"
+                        disabled={actionLoading}
                       >
-                        Archive
+                        Unarchive
                       </button>
                     )}
                   </div>
@@ -2022,6 +2137,18 @@ const EventsTab = () => {
         <ArchiveEventModal
           event={selectedEvent}
           onArchive={(reason) => handleArchiveEvent(selectedEvent.id, reason)}
+          onClose={() => {
+            setSelectedEvent(null);
+            setActionType(null);
+          }}
+          loading={actionLoading}
+        />
+      )}
+
+      {selectedEvent && actionType === 'unarchive' && (
+        <UnarchiveEventModal
+          event={selectedEvent}
+          onUnarchive={(reason) => handleUnarchiveEvent(selectedEvent.archive_id || selectedEvent.id, reason)}
           onClose={() => {
             setSelectedEvent(null);
             setActionType(null);
@@ -2078,6 +2205,54 @@ const ArchiveEventModal = ({ event, onArchive, onClose, loading }) => {
             className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50"
           >
             {loading ? 'Archiving...' : 'Archive Event'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Unarchive Event Modal
+const UnarchiveEventModal = ({ event, onUnarchive, onClose, loading }) => {
+  const [reason, setReason] = useState('');
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+        <h3 className="text-lg font-semibold text-slate-800 mb-4">Unarchive Event</h3>
+        <p className="text-slate-600 mb-4">
+          Restore "{event.title}" back to active events?
+        </p>
+        {event.archive_reason && (
+          <div className="mb-4 p-3 bg-slate-50 rounded-lg">
+            <p className="text-xs font-medium text-slate-600 mb-1">Original Archive Reason:</p>
+            <p className="text-sm text-slate-700">{event.archive_reason}</p>
+          </div>
+        )}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-slate-700 mb-2">Unarchive Reason (Optional)</label>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            rows={4}
+            placeholder="Enter reason for unarchiving (optional)..."
+          />
+        </div>
+        <div className="flex space-x-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onUnarchive(reason)}
+            disabled={loading}
+            className="flex-1 px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50"
+          >
+            {loading ? 'Unarchiving...' : 'Unarchive Event'}
           </button>
         </div>
       </div>

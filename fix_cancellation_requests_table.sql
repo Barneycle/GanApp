@@ -190,61 +190,16 @@ BEGIN
         updated_at = NOW()
     WHERE id = request_uuid;
     
-    -- If approved, cancel and archive the event immediately
+    -- If approved, cancel the event (but don't archive - admins can archive manually later)
     IF new_status_text = 'approved' THEN
-        -- First, update status to cancelled
+        -- Update status to cancelled
         UPDATE events SET
             status = 'cancelled',
             updated_at = NOW()
         WHERE id = request_record.event_id;
         
-        -- Then immediately archive the event
-        -- Insert into archived_events
-        -- Only reference core columns that definitely exist (id, title, dates, times, venue, created_by, timestamps)
-        -- Set all other columns to NULL or default values to avoid column not found errors
-        INSERT INTO archived_events (
-            original_event_id,
-            title, description, rationale,
-            start_date, end_date, start_time, end_time,
-            venue, venue_address, max_participants, final_participant_count,
-            banner_url, programme_url, materials_url, event_kits_url,
-            sponsors, guest_speakers, status, category, tags, is_featured,
-            registration_deadline, created_by, original_created_at, original_updated_at,
-            archive_reason, archived_by
-        )
-        VALUES (
-            request_record.event_id,
-            event_record.title,
-            event_record.description,
-            event_record.rationale,
-            event_record.start_date,
-            event_record.end_date,
-            event_record.start_time,
-            event_record.end_time,
-            event_record.venue,
-            NULL, -- venue_address
-            event_record.max_participants,
-            event_record.current_participants,
-            NULL, -- banner_url (use NULL if column doesn't exist)
-            NULL, -- programme_url
-            NULL, -- materials_url
-            NULL, -- event_kits_url
-            NULL, -- sponsors
-            NULL, -- guest_speakers
-            'cancelled',
-            NULL, -- category
-            NULL, -- tags
-            false, -- is_featured
-            event_record.registration_deadline,
-            event_record.created_by,
-            event_record.created_at,
-            event_record.updated_at,
-            COALESCE(review_notes_text, 'Event cancelled and archived automatically'),
-            reviewed_by_uuid
-        );
-        
-        -- Delete from active events
-        DELETE FROM events WHERE id = request_record.event_id;
+        -- Note: Event remains in events table and will appear in "Cancelled" category
+        -- Admins can manually archive cancelled events if needed
     END IF;
     
     -- Build result
