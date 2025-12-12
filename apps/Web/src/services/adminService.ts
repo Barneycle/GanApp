@@ -916,39 +916,44 @@ export class AdminService {
         return { error: 'Not authenticated' };
       }
 
-      // Get current user data
-      const { data: { user: targetUser }, error: getUserError } = await supabase.auth.admin.getUserById(userId);
-      
-      if (getUserError || !targetUser) {
-        return { error: 'User not found' };
+      // Get current user profile to get email for logging
+      let targetUserEmail = '';
+      try {
+        const { data: userData } = await supabase.rpc('get_user_profile', { user_id: userId });
+        if (userData) {
+          targetUserEmail = userData.email || '';
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
       }
 
-      // Prepare metadata update
-      const currentMetadata = targetUser.user_metadata || {};
-      const updatedMetadata = {
-        ...currentMetadata,
-      };
-
-      // Update only provided fields
-      if (updates.prefix !== undefined) updatedMetadata.prefix = updates.prefix;
-      if (updates.first_name !== undefined) updatedMetadata.first_name = updates.first_name;
-      if (updates.middle_initial !== undefined) updatedMetadata.middle_initial = updates.middle_initial;
-      if (updates.last_name !== undefined) updatedMetadata.last_name = updates.last_name;
-      if (updates.affix !== undefined) updatedMetadata.affix = updates.affix;
-      if (updates.affiliated_organization !== undefined) updatedMetadata.affiliated_organization = updates.affiliated_organization;
-      if (updates.role !== undefined) updatedMetadata.role = updates.role;
-
-      // Update user using admin API
-      const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
-        user_metadata: updatedMetadata,
+      // Use RPC function to update user metadata
+      const { data, error: rpcError } = await supabase.rpc('update_user_profile', {
+        target_user_id: userId,
+        prefix: updates.prefix ?? null,
+        first_name: updates.first_name ?? null,
+        middle_initial: updates.middle_initial ?? null,
+        last_name: updates.last_name ?? null,
+        affix: updates.affix ?? null,
+        affiliated_organization: updates.affiliated_organization ?? null,
+        role: updates.role ?? null
       });
 
-      if (updateError) {
-        return { error: updateError.message || 'Failed to update user' };
+      if (rpcError) {
+        if (rpcError.message?.includes('function update_user_profile')) {
+          return {
+            error: 'Updating users requires the `update_user_profile` Supabase function. Please run the admin SQL migrations to install it.'
+          };
+        }
+        return { error: rpcError.message || 'Failed to update user' };
+      }
+
+      if (data?.success === false) {
+        return { error: data?.error || 'Failed to update user' };
       }
 
       // Log activity
-      const userName = `${targetUser.user_metadata?.first_name || ''} ${targetUser.user_metadata?.last_name || ''}`.trim() || targetUser.email || userId;
+      const userName = `${updates.first_name || ''} ${updates.last_name || ''}`.trim() || targetUserEmail || userId;
       logActivity(
         currentUser.id,
         'update',
@@ -956,7 +961,7 @@ export class AdminService {
         {
           resourceId: userId,
           resourceName: userName,
-          details: { user_id: userId, email: targetUser.email, updates: Object.keys(updates) }
+          details: { user_id: userId, email: targetUserEmail, updates: Object.keys(updates) }
         }
       ).catch(err => console.error('Failed to log user update:', err));
 

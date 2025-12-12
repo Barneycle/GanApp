@@ -334,10 +334,15 @@ export class EventService {
   static async setFeaturedEvent(id: string): Promise<{ event?: Event; error?: string }> {
     try {
       // First, unfeature all other events
-      await supabase
+      const { error: unfeatureError } = await supabase
         .from('events')
         .update({ is_featured: false })
         .neq('id', id);
+
+      if (unfeatureError) {
+        console.error('Error unfeaturing other events:', unfeatureError);
+        return { error: `Failed to unfeature other events: ${unfeatureError.message}` };
+      }
 
       // Then set the selected event as featured
       const { data, error } = await supabase
@@ -348,12 +353,50 @@ export class EventService {
         .single();
 
       if (error) {
+        console.error('Error featuring event:', error);
         return { error: error.message };
       }
 
+      if (!data) {
+        return { error: 'Event not found' };
+      }
+
+      // Verify the update succeeded
+      if (!data.is_featured) {
+        return { error: 'Failed to set event as featured' };
+      }
+
+      // Verify only one event is featured
+      const { data: featuredEvents, error: verifyError } = await supabase
+        .from('events')
+        .select('id, title, is_featured')
+        .eq('is_featured', true);
+
+      if (verifyError) {
+        console.warn('Warning: Could not verify featured events:', verifyError);
+      } else if (featuredEvents && featuredEvents.length > 1) {
+        console.warn('Warning: Multiple events are featured:', featuredEvents);
+        // Try to fix it by unfeaturing all except the current one
+        const otherFeaturedIds = featuredEvents
+          .filter(e => e.id !== id)
+          .map(e => e.id);
+        
+        if (otherFeaturedIds.length > 0) {
+          await supabase
+            .from('events')
+            .update({ is_featured: false })
+            .in('id', otherFeaturedIds);
+        }
+      }
+
+      // Invalidate cache to ensure fresh data is loaded
+      await CacheService.deletePattern('events:*');
+      await CacheService.delete(CacheService.keys.event(id));
+
       return { event: data };
-    } catch (error) {
-      return { error: 'An unexpected error occurred' };
+    } catch (error: any) {
+      console.error('Unexpected error in setFeaturedEvent:', error);
+      return { error: error?.message || 'An unexpected error occurred' };
     }
   }
 
@@ -369,6 +412,10 @@ export class EventService {
       if (error) {
         return { error: error.message };
       }
+
+      // Invalidate cache to ensure fresh data is loaded
+      await CacheService.deletePattern('events:*');
+      await CacheService.delete(CacheService.keys.event(id));
 
       return { event: data };
     } catch (error) {

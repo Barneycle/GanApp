@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { AdminService } from '../../services/adminService';
 import { SystemSettingsService } from '../../services/systemSettingsService';
 import { DatabaseMaintenanceService } from '../../services/databaseMaintenanceService';
-import { Eye, EyeOff, Send, Trash2, AlertCircle, CheckCircle, XCircle, Info, Database, Activity, Shield } from 'lucide-react';
+import { OrganizationService } from '../../services/organizationService';
+import { Eye, EyeOff, Send, Trash2, AlertCircle, CheckCircle, XCircle, Info, Database, Activity, Shield, Search, ChevronDown } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 
 export const Admin = () => {
@@ -1204,6 +1205,60 @@ const EditUserModal = ({ user, onUpdate, onClose, loading }) => {
     affiliated_organization: user.affiliated_organization || user.organization || '',
     role: user.role || 'participant'
   });
+  const [organizations, setOrganizations] = useState([]);
+  const [loadingOrganizations, setLoadingOrganizations] = useState(true);
+  const [showCustomOrgInput, setShowCustomOrgInput] = useState(false);
+  const [customOrgName, setCustomOrgName] = useState('');
+  const [orgSearchQuery, setOrgSearchQuery] = useState('');
+  const [showOrgDropdown, setShowOrgDropdown] = useState(false);
+  const orgDropdownRef = useRef(null);
+  const orgInputRef = useRef(null);
+
+  // Load organizations on mount
+  useEffect(() => {
+    const loadOrganizations = async () => {
+      setLoadingOrganizations(true);
+      const result = await OrganizationService.getOrganizationsGrouped();
+      if (result.error) {
+        console.error('Error loading organizations:', result.error);
+      } else {
+        setOrganizations(result.groups || []);
+      }
+      setLoadingOrganizations(false);
+    };
+    loadOrganizations();
+  }, []);
+
+  // Initialize organization state based on user's current org
+  useEffect(() => {
+    if (user.affiliated_organization && organizations.length > 0) {
+      const orgExists = organizations.some(group => 
+        group.organizations.some(org => org.name === user.affiliated_organization)
+      );
+      
+      if (!orgExists) {
+        setShowCustomOrgInput(true);
+        setCustomOrgName(user.affiliated_organization);
+      } else {
+        setOrgSearchQuery(user.affiliated_organization);
+      }
+    }
+  }, [user.affiliated_organization, organizations]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (orgDropdownRef.current && !orgDropdownRef.current.contains(event.target) && 
+          orgInputRef.current && !orgInputRef.current.contains(event.target)) {
+        setShowOrgDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -1213,9 +1268,88 @@ const EditUserModal = ({ user, onUpdate, onClose, loading }) => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleOrgSearchChange = (e) => {
+    const value = e.target.value;
+    setOrgSearchQuery(value);
+    setShowOrgDropdown(true);
+  };
+
+  const handleSelectOrganization = (orgName) => {
+    if (orgName === '__OTHER__') {
+      setShowCustomOrgInput(true);
+      setOrgSearchQuery('');
+      setFormData(prev => ({
+        ...prev,
+        affiliated_organization: ''
+      }));
+      setShowOrgDropdown(false);
+    } else {
+      setOrgSearchQuery(orgName);
+      setFormData(prev => ({
+        ...prev,
+        affiliated_organization: orgName
+      }));
+      setShowCustomOrgInput(false);
+      setCustomOrgName('');
+      setShowOrgDropdown(false);
+    }
+  };
+
+  const handleCustomOrgChange = (e) => {
+    const value = e.target.value;
+    setCustomOrgName(value);
+    setFormData(prev => ({
+      ...prev,
+      affiliated_organization: value
+    }));
+  };
+
+  // Filter organizations based on search query
+  const getFilteredOrganizations = () => {
+    if (!orgSearchQuery.trim()) {
+      return organizations;
+    }
+
+    const query = orgSearchQuery.toLowerCase();
+    return organizations
+      .map(group => ({
+        ...group,
+        organizations: group.organizations.filter(org =>
+          org.name.toLowerCase().includes(query) ||
+          group.category.toLowerCase().includes(query)
+        )
+      }))
+      .filter(group => group.organizations.length > 0);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onUpdate(formData);
+    
+    // Ensure organization name is set correctly
+    let orgName = showCustomOrgInput 
+      ? customOrgName.trim() 
+      : (formData.affiliated_organization.trim() || orgSearchQuery.trim());
+    
+    // If custom org and it doesn't exist, create it
+    if (showCustomOrgInput && orgName) {
+      try {
+        const orgResult = await OrganizationService.createCustomOrganization(orgName, user.id);
+        if (orgResult.error) {
+          console.error('Error creating organization:', orgResult.error);
+          // Continue anyway with the custom name
+        } else {
+          orgName = orgResult.organization?.name || orgName;
+        }
+      } catch (error) {
+        console.error('Error creating organization:', error);
+        // Continue anyway with the custom name
+      }
+    }
+    
+    onUpdate({
+      ...formData,
+      affiliated_organization: orgName
+    });
   };
 
   return (
@@ -1307,14 +1441,118 @@ const EditUserModal = ({ user, onUpdate, onClose, loading }) => {
             {/* Affiliated Organization */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Affiliated Organization</label>
-              <input
-                type="text"
-                name="affiliated_organization"
-                value={formData.affiliated_organization}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                required
-              />
+              {loadingOrganizations ? (
+                <div className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-600">
+                  Loading organizations...
+                </div>
+              ) : (
+                <>
+                  {!showCustomOrgInput ? (
+                    <div className="relative" ref={orgDropdownRef}>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                          ref={orgInputRef}
+                          type="text"
+                          name="affiliated_organization"
+                          value={showOrgDropdown ? orgSearchQuery : (formData.affiliated_organization || orgSearchQuery)}
+                          onChange={handleOrgSearchChange}
+                          onFocus={() => {
+                            setShowOrgDropdown(true);
+                            if (formData.affiliated_organization && !orgSearchQuery) {
+                              setOrgSearchQuery(formData.affiliated_organization);
+                            }
+                          }}
+                          className="w-full pl-9 pr-9 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="Type to search organizations..."
+                          required
+                          disabled={loading}
+                          autoComplete="off"
+                        />
+                        <ChevronDown 
+                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 transition-transform ${showOrgDropdown ? 'rotate-180' : ''}`}
+                        />
+                      </div>
+                      
+                      {/* Dropdown List */}
+                      {showOrgDropdown && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-96 overflow-y-auto">
+                          {getFilteredOrganizations().length > 0 ? (
+                            <>
+                              {getFilteredOrganizations().map((group) => (
+                                <div key={group.category}>
+                                  <div className="px-3 py-2 bg-slate-100 text-slate-700 font-semibold text-xs sticky top-0">
+                                    {group.category}
+                                  </div>
+                                  {group.organizations.map((org) => (
+                                    <button
+                                      key={org.id}
+                                      type="button"
+                                      onClick={() => handleSelectOrganization(org.name)}
+                                      className="w-full text-left px-3 py-2 hover:bg-blue-50 text-slate-900 transition-colors text-sm"
+                                    >
+                                      {org.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              ))}
+                              <div className="border-t border-slate-200">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectOrganization('__OTHER__')}
+                                  className="w-full text-left px-3 py-2 hover:bg-blue-50 text-blue-600 font-medium transition-colors text-sm"
+                                >
+                                  Other (specify below)
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="px-3 py-2 text-slate-500 text-center text-sm">
+                              No organizations found. 
+                              <button
+                                type="button"
+                                onClick={() => handleSelectOrganization('__OTHER__')}
+                                className="ml-1 text-blue-600 hover:text-blue-800 underline"
+                              >
+                                Add custom organization
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        name="custom_organization"
+                        value={customOrgName}
+                        onChange={handleCustomOrgChange}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Enter your organization name"
+                        required
+                        disabled={loading}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCustomOrgInput(false);
+                          setCustomOrgName('');
+                          setOrgSearchQuery('');
+                          setFormData(prev => ({
+                            ...prev,
+                            affiliated_organization: ''
+                          }));
+                        }}
+                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                        disabled={loading}
+                      >
+                        Select from list instead
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             {/* Role */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EventService } from '../../services/eventService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -170,6 +170,25 @@ export const Events = () => {
   const [venueFilter, setVenueFilter] = useState('all');
   const [sortOption, setSortOption] = useState('date-asc'); // 'date-asc', 'date-desc', 'title-asc', 'title-desc', 'participants-asc', 'participants-desc'
   const [showFilters, setShowFilters] = useState(false);
+  // Advanced search filters
+  const [advancedSearch, setAdvancedSearch] = useState({
+    title: '',
+    description: '',
+    venue: '',
+    category: '',
+    tags: '',
+    dateFrom: '',
+    dateTo: '',
+    minParticipants: '',
+    maxParticipants: '',
+    status: ''
+  });
+  const [useAdvancedSearch, setUseAdvancedSearch] = useState(false);
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(12);
+  const [useInfiniteScroll, setUseInfiniteScroll] = useState(false);
+  const observerTarget = useRef(null);
   const isVisible = usePageVisibility();
   const loadingRef = useRef(false);
   const hasLoadedRef = useRef(false);
@@ -320,13 +339,18 @@ export const Events = () => {
       const result = await EventService.setFeaturedEvent(eventId);
       if (result.error) {
         setError(result.error);
+        toast.error(result.error);
       } else {
+        // Force reload by resetting loadingRef
+        loadingRef.current = false;
         await loadEvents();
         setSuccessModalMessage('Event set as featured successfully!');
         setShowSuccessModal(true);
+        toast.success('Event set as featured successfully!');
       }
     } catch (error) {
       setError('Failed to set featured event');
+      toast.error('Failed to set featured event');
     } finally {
       setLoading(false);
     }
@@ -340,13 +364,18 @@ export const Events = () => {
       const result = await EventService.unfeatureEvent(eventId);
       if (result.error) {
         setError(result.error);
+        toast.error(result.error);
       } else {
+        // Force reload by resetting loadingRef
+        loadingRef.current = false;
         await loadEvents();
         setSuccessModalMessage('Event unfeatured successfully!');
         setShowSuccessModal(true);
+        toast.success('Event unfeatured successfully!');
       }
     } catch (error) {
       setError('Failed to unfeature event');
+      toast.error('Failed to unfeature event');
     } finally {
       setLoading(false);
     }
@@ -607,21 +636,84 @@ export const Events = () => {
   };
 
   // Get unique venues from events (for active events)
-  const uniqueVenues = [...new Set(events.map(event => event.venue).filter(v => v && v !== 'Location TBD' && v.trim() !== ''))].sort();
+  const uniqueVenues = useMemo(() => {
+    try {
+      if (!Array.isArray(events)) return [];
+      return [...new Set(events.map(event => event?.venue).filter(v => v && v !== 'Location TBD' && v.trim() !== ''))].sort();
+    } catch (error) {
+      console.error('Error calculating unique venues:', error);
+      return [];
+    }
+  }, [events]);
 
   // Get unique venues from archived events
-  const uniqueArchivedVenues = [...new Set(archivedEvents.map(event => event.venue).filter(v => v && v !== 'Location TBD' && v.trim() !== ''))].sort();
+  const uniqueArchivedVenues = useMemo(() => {
+    try {
+      if (!Array.isArray(archivedEvents)) return [];
+      return [...new Set(archivedEvents.map(event => event?.venue).filter(v => v && v !== 'Location TBD' && v.trim() !== ''))].sort();
+    } catch (error) {
+      console.error('Error calculating unique archived venues:', error);
+      return [];
+    }
+  }, [archivedEvents]);
+
+  // Advanced search filter function
+  const matchesAdvancedSearch = (event) => {
+    if (!useAdvancedSearch) return true;
+
+    if (advancedSearch.title && !event.title.toLowerCase().includes(advancedSearch.title.toLowerCase())) {
+      return false;
+    }
+    if (advancedSearch.description && event.rationale && !event.rationale.toLowerCase().includes(advancedSearch.description.toLowerCase())) {
+      return false;
+    }
+    if (advancedSearch.venue && event.venue && !event.venue.toLowerCase().includes(advancedSearch.venue.toLowerCase())) {
+      return false;
+    }
+    if (advancedSearch.category && event.category !== advancedSearch.category) {
+      return false;
+    }
+    if (advancedSearch.tags && event.tags) {
+      const searchTags = advancedSearch.tags.toLowerCase().split(',').map(t => t.trim());
+      const eventTags = Array.isArray(event.tags) ? event.tags.map(t => t.toLowerCase()) : [];
+      if (!searchTags.some(tag => eventTags.some(et => et.includes(tag)))) {
+        return false;
+      }
+    }
+    if (advancedSearch.dateFrom && new Date(event.start_date) < new Date(advancedSearch.dateFrom)) {
+      return false;
+    }
+    if (advancedSearch.dateTo && new Date(event.start_date) > new Date(advancedSearch.dateTo)) {
+      return false;
+    }
+    if (advancedSearch.minParticipants && (event.current_participants || 0) < parseInt(advancedSearch.minParticipants)) {
+      return false;
+    }
+    if (advancedSearch.maxParticipants && (event.current_participants || 0) > parseInt(advancedSearch.maxParticipants)) {
+      return false;
+    }
+    if (advancedSearch.status && event.status !== advancedSearch.status) {
+      return false;
+    }
+
+    return true;
+  };
 
   // Filter and sort active events
-  const filteredAndSortedEvents = events.filter(event => {
-    // Search filter
-    if (searchQuery.trim()) {
+  const filteredAndSortedEvents = (Array.isArray(events) ? events : []).filter(event => {
+    // Basic search filter
+    if (!useAdvancedSearch && searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       const matchesSearch = 
         event.title.toLowerCase().includes(query) ||
         (event.venue && event.venue.toLowerCase().includes(query)) ||
         (event.rationale && event.rationale.toLowerCase().includes(query));
       if (!matchesSearch) return false;
+    }
+
+    // Advanced search filter
+    if (useAdvancedSearch && !matchesAdvancedSearch(event)) {
+      return false;
     }
 
     // Date filter
@@ -658,7 +750,7 @@ export const Events = () => {
   });
 
   // Filter and sort archived events
-  const filteredAndSortedArchivedEvents = archivedEvents.filter(event => {
+  const filteredAndSortedArchivedEvents = (Array.isArray(archivedEvents) ? archivedEvents : []).filter(event => {
     // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -703,8 +795,76 @@ export const Events = () => {
   });
 
   // Determine which events to display based on active tab
-  const displayEvents = activeTab === 'archived' ? filteredAndSortedArchivedEvents : filteredAndSortedEvents;
+  const allFilteredEvents = activeTab === 'archived' 
+    ? (filteredAndSortedArchivedEvents || [])
+    : (filteredAndSortedEvents || []);
   const isLoading = activeTab === 'archived' ? archivedLoading : loading;
+
+  // Pagination logic - calculate displayed events directly
+  const totalPages = Math.max(1, Math.ceil((allFilteredEvents?.length || 0) / itemsPerPage));
+  
+  // Ensure currentPage is valid
+  const validCurrentPage = Math.max(1, Math.min(currentPage || 1, totalPages));
+  
+  let displayEvents = [];
+  let hasMore = false;
+  
+  try {
+    if (allFilteredEvents && Array.isArray(allFilteredEvents) && allFilteredEvents.length > 0) {
+      if (useInfiniteScroll) {
+        // For infinite scroll, show all events up to current page
+        const endIndex = validCurrentPage * itemsPerPage;
+        displayEvents = allFilteredEvents.slice(0, endIndex);
+        hasMore = endIndex < allFilteredEvents.length;
+      } else {
+        // For regular pagination
+        const startIndex = (validCurrentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        displayEvents = allFilteredEvents.slice(startIndex, endIndex);
+        hasMore = endIndex < allFilteredEvents.length;
+      }
+    }
+  } catch (error) {
+    console.error('Error calculating displayEvents:', error);
+    displayEvents = [];
+    hasMore = false;
+  }
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, dateFilter, venueFilter, sortOption, useAdvancedSearch, activeTab]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (!useInfiniteScroll || isLoading || !allFilteredEvents || !Array.isArray(allFilteredEvents)) return;
+    
+    // Calculate if there are more events to load
+    const endIndex = currentPage * itemsPerPage;
+    const currentHasMore = endIndex < allFilteredEvents.length;
+    
+    if (!currentHasMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setCurrentPage((prev) => prev + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [useInfiniteScroll, isLoading, currentPage, itemsPerPage, allFilteredEvents.length]);
 
   if (isLoading && (activeTab === 'active' ? events.length === 0 : archivedEvents.length === 0)) {
     return (
@@ -947,6 +1107,19 @@ export const Events = () => {
                     setDateFilter('all');
                     setVenueFilter('all');
                     setSortOption('date-asc');
+                    setUseAdvancedSearch(false);
+                    setAdvancedSearch({
+                      title: '',
+                      description: '',
+                      venue: '',
+                      category: '',
+                      tags: '',
+                      dateFrom: '',
+                      dateTo: '',
+                      minParticipants: '',
+                      maxParticipants: '',
+                      status: ''
+                    });
                   }}
                   className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-medium text-sm"
                 >
@@ -954,9 +1127,184 @@ export const Events = () => {
                 </button>
               </div>
 
-              {/* Results Count */}
-              <div className="mt-4 text-sm text-slate-600">
-                Showing {displayEvents.length} of {activeTab === 'archived' ? archivedEvents.length : events.length} {activeTab === 'archived' ? 'archived' : ''} events
+              {/* Advanced Search Toggle */}
+              <div className="mt-4 pt-4 border-t border-slate-200">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useAdvancedSearch}
+                    onChange={(e) => {
+                      setUseAdvancedSearch(e.target.checked);
+                      if (!e.target.checked) {
+                        // Reset advanced search fields
+                        setAdvancedSearch({
+                          title: '',
+                          description: '',
+                          venue: '',
+                          category: '',
+                          tags: '',
+                          dateFrom: '',
+                          dateTo: '',
+                          minParticipants: '',
+                          maxParticipants: '',
+                          status: ''
+                        });
+                      }
+                    }}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-slate-700">Use Advanced Search</span>
+                </label>
+              </div>
+
+              {/* Advanced Search Fields */}
+              {useAdvancedSearch && (
+                <div className="mt-4 pt-4 border-t border-slate-200 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Title</label>
+                      <input
+                        type="text"
+                        value={advancedSearch.title}
+                        onChange={(e) => setAdvancedSearch({...advancedSearch, title: e.target.value})}
+                        placeholder="Search in title..."
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Description</label>
+                      <input
+                        type="text"
+                        value={advancedSearch.description}
+                        onChange={(e) => setAdvancedSearch({...advancedSearch, description: e.target.value})}
+                        placeholder="Search in description..."
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Venue</label>
+                      <input
+                        type="text"
+                        value={advancedSearch.venue}
+                        onChange={(e) => setAdvancedSearch({...advancedSearch, venue: e.target.value})}
+                        placeholder="Search venue..."
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Category</label>
+                      <input
+                        type="text"
+                        value={advancedSearch.category}
+                        onChange={(e) => setAdvancedSearch({...advancedSearch, category: e.target.value})}
+                        placeholder="Event category..."
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Tags (comma-separated)</label>
+                      <input
+                        type="text"
+                        value={advancedSearch.tags}
+                        onChange={(e) => setAdvancedSearch({...advancedSearch, tags: e.target.value})}
+                        placeholder="tag1, tag2, tag3..."
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Status</label>
+                      <select
+                        value={advancedSearch.status}
+                        onChange={(e) => setAdvancedSearch({...advancedSearch, status: e.target.value})}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      >
+                        <option value="">All Statuses</option>
+                        <option value="draft">Draft</option>
+                        <option value="published">Published</option>
+                        <option value="cancelled">Cancelled</option>
+                        <option value="completed">Completed</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Date From</label>
+                      <input
+                        type="date"
+                        value={advancedSearch.dateFrom}
+                        onChange={(e) => setAdvancedSearch({...advancedSearch, dateFrom: e.target.value})}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Date To</label>
+                      <input
+                        type="date"
+                        value={advancedSearch.dateTo}
+                        onChange={(e) => setAdvancedSearch({...advancedSearch, dateTo: e.target.value})}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Min Participants</label>
+                      <input
+                        type="number"
+                        value={advancedSearch.minParticipants}
+                        onChange={(e) => setAdvancedSearch({...advancedSearch, minParticipants: e.target.value})}
+                        placeholder="Minimum..."
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Max Participants</label>
+                      <input
+                        type="number"
+                        value={advancedSearch.maxParticipants}
+                        onChange={(e) => setAdvancedSearch({...advancedSearch, maxParticipants: e.target.value})}
+                        placeholder="Maximum..."
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Pagination Controls */}
+              <div className="mt-4 pt-4 border-t border-slate-200">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center space-x-2 text-sm text-slate-700">
+                      <span>Items per page:</span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => {
+                          setItemsPerPage(parseInt(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="px-2 py-1 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      >
+                        <option value={6}>6</option>
+                        <option value={12}>12</option>
+                        <option value={24}>24</option>
+                        <option value={48}>48</option>
+                      </select>
+                    </label>
+                    <label className="flex items-center space-x-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={useInfiniteScroll}
+                        onChange={(e) => {
+                          setUseInfiniteScroll(e.target.checked);
+                          setCurrentPage(1);
+                        }}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <span>Infinite Scroll</span>
+                    </label>
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    Showing {displayEvents.length} of {allFilteredEvents.length} {activeTab === 'archived' ? 'archived' : ''} events
+                    {!useInfiniteScroll && totalPages > 1 && ` (Page ${currentPage} of ${totalPages})`}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -985,7 +1333,7 @@ export const Events = () => {
         )}
 
         {/* Events Grid */}
-        {displayEvents.length === 0 && (activeTab === 'archived' ? archivedEvents.length === 0 : events.length === 0) ? (
+        {(activeTab === 'archived' ? (!archivedEvents || !Array.isArray(archivedEvents) || archivedEvents.length === 0) : (!events || !Array.isArray(events) || events.length === 0)) ? (
           <div className="text-center py-12">
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto mb-8">
               <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1193,7 +1541,7 @@ export const Events = () => {
               </div>
             ) : null}
           </div>
-        ) : displayEvents.length === 0 ? (
+        ) : (!allFilteredEvents || allFilteredEvents.length === 0) && (activeTab === 'archived' ? (archivedEvents && Array.isArray(archivedEvents) && archivedEvents.length > 0) : (events && Array.isArray(events) && events.length > 0)) ? (
           <div className="text-center py-12">
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto">
               <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1209,6 +1557,19 @@ export const Events = () => {
                   setDateFilter('all');
                   setVenueFilter('all');
                   setSortOption('date-asc');
+                  setUseAdvancedSearch(false);
+                  setAdvancedSearch({
+                    title: '',
+                    description: '',
+                    venue: '',
+                    category: '',
+                    tags: '',
+                    dateFrom: '',
+                    dateTo: '',
+                    minParticipants: '',
+                    maxParticipants: '',
+                    status: ''
+                  });
                 }}
                 className="px-6 py-3 bg-blue-900 text-white rounded-xl hover:bg-blue-800 transition-colors font-medium"
               >
@@ -1216,9 +1577,12 @@ export const Events = () => {
               </button>
             </div>
           </div>
-        ) : (
+        ) : (displayEvents && Array.isArray(displayEvents) && displayEvents.length > 0) ? (
+          <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {displayEvents.map((event) => (
+            {displayEvents.map((event) => {
+              if (!event || !event.id) return null;
+              return (
               <div key={event.id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden">
                 {/* Event Banner */}
                 {event.banner_url && (
@@ -1416,7 +1780,83 @@ export const Events = () => {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
+          </div>
+          
+          {/* Pagination Controls */}
+          {!useInfiniteScroll && totalPages > 1 && (
+            <div className="mt-8 flex justify-center items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-4 py-2 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              
+              {/* Page Numbers */}
+              <div className="flex gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`px-4 py-2 rounded-lg transition-colors ${
+                        currentPage === pageNum
+                          ? 'bg-blue-900 text-white'
+                          : 'bg-white border border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          )}
+          
+          {/* Infinite Scroll Observer */}
+          {useInfiniteScroll && hasMore && (
+            <div ref={observerTarget} className="h-10 flex items-center justify-center mt-8">
+              {isLoading ? (
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              ) : (
+                <p className="text-slate-600">Loading more events...</p>
+              )}
+            </div>
+          )}
+          
+          {useInfiniteScroll && !hasMore && displayEvents.length > 0 && (
+            <div className="mt-8 text-center text-slate-600">
+              <p>You've reached the end of the list</p>
+            </div>
+          )}
+          </>
+        ) : (
+          <div className="text-center py-12">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto">
+              <p className="text-slate-600">Loading events...</p>
+            </div>
           </div>
         )}
       </div>

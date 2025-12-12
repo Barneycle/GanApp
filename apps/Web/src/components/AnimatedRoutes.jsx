@@ -14,6 +14,7 @@ import { EventStatisticsDetail } from "./sections/EventStatisticsDetail";
 import { Registration } from "./sections/Registration";
 import { Events } from "./sections/Events";
 import { MyEvents } from "./sections/MyEvents";
+import { MyCertificates } from "./sections/MyCertificates";
 import GenerateQR from "./sections/GenerateQR";
 import SurveyManagementPage from "./sections/SurveyManagementPage";
 import { Evaluation } from "./sections/Evaluation";
@@ -28,6 +29,8 @@ import { Albums } from "./sections/Albums";
 import { CertificatePage } from "./sections/CertificatePage";
 import { VerifyCertificate } from "./sections/VerifyCertificate";
 import { StandaloneCertificateGenerator } from "./sections/StandaloneCertificateGenerator";
+import { Support } from "./sections/Support";
+import { HelpCenter } from "./sections/HelpCenter";
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -51,6 +54,7 @@ function AnimatedRoutes() {
         <Route path="/survey-management" element={<SurveyManagementPage />} />
         <Route path="/participants" element={<Participants />} />
         <Route path="/my-events" element={<MyEvents />} />
+        <Route path="/my-certificates" element={<MyCertificates />} />
         <Route path="/registration" element={<Registration />} />
         <Route path="/generate-qr" element={<GenerateQR />} />
         <Route path="/evaluation/:surveyId" element={<Evaluation />} />
@@ -65,6 +69,8 @@ function AnimatedRoutes() {
         <Route path="/certificate" element={<CertificatePage />} />
         <Route path="/verify-certificate/:certificateNumber" element={<VerifyCertificate />} />
         <Route path="/standalone-certificate-generator" element={<StandaloneCertificateGenerator />} />
+        <Route path="/support" element={<Support />} />
+        <Route path="/help" element={<HelpCenter />} />
       </Routes>
     </div>
   );
