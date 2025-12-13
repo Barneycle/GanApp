@@ -237,31 +237,6 @@ export const Notifications = () => {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const handleCreateTestNotification = async () => {
-    if (!user?.id) return;
-    
-    const testTypes = ['info', 'success', 'warning', 'error'];
-    const randomType = testTypes[Math.floor(Math.random() * testTypes.length)];
-    
-    const result = await NotificationService.createNotification(
-      user.id,
-      'Test Notification',
-      `This is a test ${randomType} notification. Click to test the notification system!`,
-      randomType,
-      {
-        action_url: '/notifications',
-        action_text: 'View Notifications',
-        priority: 'normal'
-      }
-    );
-
-    if (result.error) {
-      setError(`Failed to create test notification: ${result.error}`);
-    } else {
-      // Reload notifications to show the new one
-      await loadNotifications();
-    }
-  };
 
   if (authLoading || loading) {
     return (
@@ -283,17 +258,6 @@ export const Notifications = () => {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <div className="flex items-center justify-end mb-4">
-            <button
-              onClick={handleCreateTestNotification}
-              className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-medium flex items-center space-x-2"
-              title="Create Test Notification"
-            >
-              <Bell className="w-4 h-4" />
-              <span>Test Notification</span>
-            </button>
-          </div>
-
           {/* Filters */}
           <div className="bg-white rounded-xl shadow-lg border border-slate-100 p-4 mb-4">
             <div className="flex flex-wrap items-center gap-4">

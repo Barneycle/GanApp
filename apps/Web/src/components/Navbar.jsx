@@ -178,31 +178,6 @@ export const Navbar = () => {
     });
   };
 
-  const handleCreateTestNotification = async () => {
-    if (!user?.id) return;
-    
-    const testTypes = ['info', 'success', 'warning', 'error'];
-    const randomType = testTypes[Math.floor(Math.random() * testTypes.length)];
-    
-    const result = await NotificationService.createNotification(
-      user.id,
-      'Test Notification',
-      `This is a test ${randomType} notification. Click to test the notification system!`,
-      randomType,
-      {
-        action_url: '/notifications',
-        action_text: 'View Notifications',
-        priority: 'normal'
-      }
-    );
-
-    if (result.error) {
-      console.error('Failed to create test notification:', result.error);
-    } else {
-      // Reload notifications to show the new one
-      await loadNotifications();
-    }
-  };
 
   const getNotificationIcon = (type) => {
     switch (type) {
@@ -491,14 +466,6 @@ export const Navbar = () => {
                               Mark all as read
                             </button>
                           )}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={handleCreateTestNotification}
-                            className="flex-1 px-3 py-1.5 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-medium"
-                          >
-                            Test Notification
-                          </button>
                         </div>
                       </div>
 
