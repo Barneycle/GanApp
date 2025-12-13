@@ -47,8 +47,9 @@ export default function MyEvents() {
   const [venueFilter, setVenueFilter] = useState<string>('all');
   const [sortOption, setSortOption] = useState<SortOption>('date-asc');
   const [showFilters, setShowFilters] = useState(false);
+  const [eventStatuses, setEventStatuses] = useState<Record<string, { isCheckedIn: boolean; surveyCompleted: boolean }>>({});
   const insets = useSafeAreaInsets();
-  
+
   const router = useRouter();
   const { user } = useAuth();
   const toast = useToast();
@@ -78,7 +79,7 @@ export default function MyEvents() {
       router.replace('/login');
       return;
     }
-    
+
     if (user?.role !== 'participant') {
       router.replace('/');
       return;
@@ -104,9 +105,9 @@ export default function MyEvents() {
     try {
       setLoading(true);
       setError(null);
-      
+
       const result = await EventService.getUserRegistrations(user.id);
-      
+
       if (result.error) {
         console.error('Error loading registrations:', result.error);
         setError(result.error);
@@ -117,8 +118,34 @@ export default function MyEvents() {
           registration_date: registration.registration_date,
           registration_id: registration.registration_id
         })) || [];
-        
+
         setRegisteredEvents(events);
+
+        // Check check-in and survey completion status for each event
+        if (user?.id && events.length > 0) {
+          const statusPromises = events.map(async (event) => {
+            const [checkInResult, surveyResult] = await Promise.all([
+              EventService.checkUserCheckInStatus(event.id, user.id),
+              EventService.checkUserSurveyCompletion(event.id, user.id)
+            ]);
+
+            return {
+              eventId: event.id,
+              isCheckedIn: checkInResult.isCheckedIn || false,
+              surveyCompleted: surveyResult.isCompleted || false
+            };
+          });
+
+          const statuses = await Promise.all(statusPromises);
+          const statusMap: Record<string, { isCheckedIn: boolean; surveyCompleted: boolean }> = {};
+          statuses.forEach(status => {
+            statusMap[status.eventId] = {
+              isCheckedIn: status.isCheckedIn,
+              surveyCompleted: status.surveyCompleted
+            };
+          });
+          setEventStatuses(statusMap);
+        }
       }
     } catch (err) {
       console.error('Exception loading registered events:', err);
@@ -152,10 +179,10 @@ export default function MyEvents() {
 
   const formatCheckInTime = (event: RegisteredEvent) => {
     if (!event.check_in_before_minutes) return formatTime(event.start_time);
-    
+
     const startTime = new Date(`${event.start_date}T${event.start_time}`);
     const checkInTime = new Date(startTime.getTime() - (event.check_in_before_minutes * 60000));
-    
+
     return checkInTime.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
@@ -165,10 +192,10 @@ export default function MyEvents() {
 
   const formatCheckInEndTime = (event: RegisteredEvent) => {
     if (!event.check_in_during_minutes) return formatTime(event.start_time);
-    
+
     const startTime = new Date(`${event.start_date}T${event.start_time}`);
     const checkInEndTime = new Date(startTime.getTime() + (event.check_in_during_minutes * 60000));
-    
+
     return checkInEndTime.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
@@ -266,7 +293,7 @@ export default function MyEvents() {
     // Use EventService.unregisterFromEvent for consistency
     try {
       const result = await EventService.unregisterFromEvent(eventId, user.id);
-      
+
       if (result.error) {
         toast.error(result.error);
       } else {
@@ -283,7 +310,7 @@ export default function MyEvents() {
     try {
       // Get survey for this event
       const surveyResult = await SurveyService.getSurveyByEventId(event.id, user?.id || '');
-      
+
       if (surveyResult.error) {
         toast.error(surveyResult.error);
       } else if (surveyResult.survey) {
@@ -401,9 +428,9 @@ export default function MyEvents() {
         ]}
       />
 
-      <ScrollView 
-        className="flex-1" 
-        contentContainerStyle={{ 
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
           paddingHorizontal: 16,
           paddingTop: 8,
           paddingBottom: Math.max(insets.bottom, 20) + 80 // Account for tab bar height
@@ -449,7 +476,7 @@ export default function MyEvents() {
               <View className="ml-2 w-2 h-2 bg-blue-600 rounded-full" />
             )}
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             className="flex-1 flex-row items-center justify-center bg-white rounded-xl px-4 py-3 shadow-md"
             onPress={() => {
@@ -463,11 +490,11 @@ export default function MyEvents() {
             <Ionicons name="swap-vertical" size={18} color="#1e40af" />
             <Text className="ml-2 text-slate-800 font-medium">
               {sortOption === 'date-asc' ? 'Date ↑' :
-               sortOption === 'date-desc' ? 'Date ↓' :
-               sortOption === 'title-asc' ? 'Title A-Z' :
-               sortOption === 'title-desc' ? 'Title Z-A' :
-               sortOption === 'registration-asc' ? 'Registration ↑' :
-               'Registration ↓'}
+                sortOption === 'date-desc' ? 'Date ↓' :
+                  sortOption === 'title-asc' ? 'Title A-Z' :
+                    sortOption === 'title-desc' ? 'Title Z-A' :
+                      sortOption === 'registration-asc' ? 'Registration ↑' :
+                        'Registration ↓'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -481,13 +508,11 @@ export default function MyEvents() {
                 <TouchableOpacity
                   key={filter}
                   onPress={() => setDateFilter(filter)}
-                  className={`px-4 py-2 rounded-lg ${
-                    dateFilter === filter ? 'bg-blue-600' : 'bg-slate-100'
-                  }`}
+                  className={`px-4 py-2 rounded-lg ${dateFilter === filter ? 'bg-blue-600' : 'bg-slate-100'
+                    }`}
                 >
-                  <Text className={`font-medium ${
-                    dateFilter === filter ? 'text-white' : 'text-slate-700'
-                  }`}>
+                  <Text className={`font-medium ${dateFilter === filter ? 'text-white' : 'text-slate-700'
+                    }`}>
                     {filter === 'all' ? 'All' : filter === 'upcoming' ? 'Upcoming' : filter === 'ongoing' ? 'Ongoing' : 'Completed'}
                   </Text>
                 </TouchableOpacity>
@@ -500,13 +525,11 @@ export default function MyEvents() {
                 <View className="flex-row flex-wrap gap-2">
                   <TouchableOpacity
                     onPress={() => setVenueFilter('all')}
-                    className={`px-4 py-2 rounded-lg ${
-                      venueFilter === 'all' ? 'bg-blue-600' : 'bg-slate-100'
-                    }`}
+                    className={`px-4 py-2 rounded-lg ${venueFilter === 'all' ? 'bg-blue-600' : 'bg-slate-100'
+                      }`}
                   >
-                    <Text className={`font-medium ${
-                      venueFilter === 'all' ? 'text-white' : 'text-slate-700'
-                    }`}>
+                    <Text className={`font-medium ${venueFilter === 'all' ? 'text-white' : 'text-slate-700'
+                      }`}>
                       All Venues
                     </Text>
                   </TouchableOpacity>
@@ -514,13 +537,11 @@ export default function MyEvents() {
                     <TouchableOpacity
                       key={venue}
                       onPress={() => setVenueFilter(venue)}
-                      className={`px-4 py-2 rounded-lg ${
-                        venueFilter === venue ? 'bg-blue-600' : 'bg-slate-100'
-                      }`}
+                      className={`px-4 py-2 rounded-lg ${venueFilter === venue ? 'bg-blue-600' : 'bg-slate-100'
+                        }`}
                     >
-                      <Text className={`font-medium ${
-                        venueFilter === venue ? 'text-white' : 'text-slate-700'
-                      }`}>
+                      <Text className={`font-medium ${venueFilter === venue ? 'text-white' : 'text-slate-700'
+                        }`}>
                         {venue}
                       </Text>
                     </TouchableOpacity>
@@ -530,306 +551,327 @@ export default function MyEvents() {
             )}
           </View>
         )}
-          {/* My Registered Events Section Card */}
-          <View 
-            className="rounded-3xl overflow-hidden"
-            style={{ 
-              backgroundColor: '#FFFFFF',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.1,
-              shadowRadius: 12,
-              elevation: 8,
+        {/* My Registered Events Section Card */}
+        <View
+          className="rounded-3xl overflow-hidden"
+          style={{
+            backgroundColor: '#FFFFFF',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 12,
+            elevation: 8,
+          }}
+        >
+          {/* Card Header */}
+          <View
+            className="px-6 py-5"
+            style={{
+              borderBottomWidth: 1,
+              borderBottomColor: '#E2E8F0',
             }}
           >
-            {/* Card Header */}
-            <View 
-              className="px-6 py-5"
-              style={{
-                borderBottomWidth: 1,
-                borderBottomColor: '#E2E8F0',
-              }}
-            >
-              <View className="flex-row items-center">
-                <View 
-                  className="w-10 h-10 rounded-xl items-center justify-center mr-3"
-                  style={{ backgroundColor: '#DBEAFE' }}
-                >
-                  <Ionicons name="calendar-outline" size={22} color="#2563eb" />
-                </View>
-                <Text className="text-2xl font-bold text-slate-900">
-                  {filteredAndSortedEvents.length === registeredEvents.length 
-                    ? 'My Registered Events' 
-                    : `My Events (${filteredAndSortedEvents.length}${registeredEvents.length > 0 ? ` of ${registeredEvents.length}` : ''})`}
-                </Text>
-              </View>
-            </View>
-            
-            {/* Events List */}
-            <View className="p-5">
-              {filteredAndSortedEvents.length === 0 ? (
-                <View className="py-12 items-center">
-                  <View 
-                    className="w-20 h-20 rounded-full items-center justify-center mb-4"
-                    style={{ backgroundColor: '#F1F5F9' }}
-                  >
-                    <Ionicons name="calendar-outline" size={40} color="#64748b" />
-                  </View>
-                  <Text className="text-xl font-semibold text-gray-800 mb-2 text-center">
-                    {registeredEvents.length === 0 ? 'No Registered Events' : 'No Events Match Your Filters'}
-                  </Text>
-                  <Text className="text-gray-500 text-center text-sm">
-                    {registeredEvents.length === 0 
-                      ? 'You haven\'t registered for any events yet.'
-                      : 'Try adjusting your search or filters.'}
-                  </Text>
-                </View>
-              ) : (
-                filteredAndSortedEvents.map((event) => {
-            const eventStatus = getEventStatus(event);
-            
-            return (
+            <View className="flex-row items-center">
               <View
-                key={event.registration_id}
-                      className="rounded-2xl overflow-hidden mb-6"
-                      style={{
-                        backgroundColor: '#FFFFFF',
-                        borderWidth: 1,
-                        borderColor: '#E2E8F0',
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.05,
-                        shadowRadius: 8,
-                        elevation: 3,
-                      }}
+                className="w-10 h-10 rounded-xl items-center justify-center mr-3"
+                style={{ backgroundColor: '#DBEAFE' }}
               >
-                {/* Event Banner */}
-                {event.banner_url && (
-                  <View className="h-48 overflow-hidden">
-                    <Image 
-                      source={{ uri: event.banner_url }} 
-                      className="w-full h-full"
-                      resizeMode="cover"
-                    />
-                  </View>
-                )}
-                
-                {/* Event Content */}
-                <View className="p-5">
-                  <View className="flex-row items-start justify-between mb-4">
-                    <Text className="text-xl font-bold text-slate-800 flex-1">{event.title}</Text>
-                    <View className={`ml-2 px-3 py-1 rounded-full ${eventStatus.color}`}>
-                      <Text className={`text-sm font-medium ${eventStatus.textColor}`}>
-                        {eventStatus.text}
-                      </Text>
-                    </View>
-                  </View>
-                  
-                  {event.rationale && (
-                    <View className="mb-4">
-                      <View className="bg-blue-50 p-4 rounded-xl">
-                        <View style={{ maxHeight: expandedRationale.has(event.id) ? undefined : 150, overflow: 'hidden' }}>
-                          <RenderHTML
-                            contentWidth={getHtmlContentWidth(36)}
-                            source={{ html: decodeHtml(event.rationale) }}
-                            baseStyle={{
-                              ...defaultHtmlStyles.baseStyle,
-                              fontSize: 16,
-                              lineHeight: 24,
-                            }}
-                            tagsStyles={defaultHtmlStyles.tagsStyles}
-                            enableExperimentalMarginCollapsing={true}
-                          />
-                        </View>
-                        {shouldCollapseRationale(event.rationale) && (
-                          <TouchableOpacity
-                            onPress={() => toggleRationale(event.id)}
-                            className="mt-3 flex-row items-center justify-center"
-                          >
-                            <Text className="text-blue-600 font-semibold text-sm">
-                              {expandedRationale.has(event.id) ? 'Read Less' : 'Read More'}
-                            </Text>
-                            <Ionicons 
-                              name={expandedRationale.has(event.id) ? 'chevron-up' : 'chevron-down'} 
-                              size={16} 
-                              color="#2563eb" 
-                              style={{ marginLeft: 4 }}
-                            />
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    </View>
-                  )}
-                  
-                  <View className="space-y-2.5 mb-4">
-                    <View className="flex-row items-center">
-                      <Ionicons name="calendar-outline" size={18} color="#6b7280" />
-                      <Text className="text-base text-slate-600 ml-2">
-                        {formatDate(event.start_date)}
-                        {event.start_date !== event.end_date && ` - ${formatDate(event.end_date)}`}
-                      </Text>
-                    </View>
-                    
-                    <View className="flex-row items-center">
-                      <Ionicons name="time-outline" size={18} color="#6b7280" />
-                      <Text className="text-base text-slate-600 ml-2">
-                        {formatTime(event.start_time)} - {formatTime(event.end_time)}
-                      </Text>
-                    </View>
-                    
-                    {/* Check-in Window Info */}
-                    {(event.check_in_before_minutes || event.check_in_during_minutes) && (
-                      <View className="flex-row items-center">
-                        <Ionicons name="checkmark-circle-outline" size={18} color="#2563eb" />
-                        <Text className="text-base text-blue-600 ml-2">
-                          Check-in: {formatCheckInTime(event)} - {formatCheckInEndTime(event)}
-                        </Text>
-                      </View>
-                    )}
-                    
-                    {event.venue && (
-                      <View className="flex-row items-center">
-                        <Ionicons name="location-outline" size={18} color="#6b7280" />
-                        <Text className="text-base text-slate-600 ml-2" numberOfLines={1}>
-                          {event.venue}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  
-                  {/* Action Buttons - 3x3 Grid */}
-                  <View 
-                    style={{
-                      flexDirection: 'row',
-                      flexWrap: 'wrap',
-                      marginTop: 8,
-                      marginHorizontal: -4,
-                    }}
-                  >
-                    {/* Row 1 - Primary Actions (Navy Blue) */}
-                    <TouchableOpacity
-                      onPress={() => router.push(`/event-details?eventId=${event.id}`)}
-                      style={{
-                        width: '31%',
-                        margin: '1%',
-                        backgroundColor: '#1e40af',
-                        borderRadius: 10,
-                        padding: 12,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minHeight: 75,
-                      }}
-                    >
-                      <Ionicons name="information-circle" size={24} color="#ffffff" />
-                      <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
-                        View Details
-                      </Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                      onPress={() => handleGenerateQR(event)}
-                      style={{
-                        width: '31%',
-                        margin: '1%',
-                        backgroundColor: '#1e40af',
-                        borderRadius: 10,
-                        padding: 12,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minHeight: 75,
-                      }}
-                    >
-                      <Ionicons name="qr-code" size={24} color="#ffffff" />
-                      <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
-                        Generate QR Code
-                      </Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                      onPress={() => handleTakeEvaluation(event)}
-                      style={{
-                        width: '31%',
-                        margin: '1%',
-                        backgroundColor: '#1e40af',
-                        borderRadius: 10,
-                        padding: 12,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minHeight: 75,
-                      }}
-                    >
-                      <Ionicons name="clipboard-outline" size={24} color="#ffffff" />
-                      <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
-                        Take Evaluation
-                      </Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                      onPress={() => {
-                        router.push(`/certificate?eventId=${event.id}`);
-                      }}
-                      style={{
-                        width: '31%',
-                        margin: '1%',
-                        backgroundColor: '#1e40af',
-                        borderRadius: 10,
-                        padding: 12,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minHeight: 75,
-                      }}
-                    >
-                      <Ionicons name="document-text" size={24} color="#ffffff" />
-                      <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
-                        Generate Certificate
-                      </Text>
-                    </TouchableOpacity>
-                          
-                    <TouchableOpacity
-                      onPress={() => handleSnapPhoto(event)}
-                      style={{
-                        width: '31%',
-                        margin: '1%',
-                        backgroundColor: '#3b82f6',
-                        borderRadius: 10,
-                        padding: 12,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minHeight: 75,
-                      }}
-                    >
-                      <Ionicons name="camera" size={24} color="#ffffff" />
-                      <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
-                        Snap Photo
-                      </Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                      onPress={() => handleUnregister(event.id)}
-                      style={{
-                        width: '31%',
-                        margin: '1%',
-                        backgroundColor: '#dc2626',
-                        borderRadius: 10,
-                        padding: 12,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minHeight: 75,
-                      }}
-                    >
-                      <Ionicons name="person-remove" size={24} color="#ffffff" />
-                      <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
-                        Unregister
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
+                <Ionicons name="calendar-outline" size={22} color="#2563eb" />
               </View>
-            );
-                })
-              )}
+              <Text className="text-2xl font-bold text-slate-900">
+                {filteredAndSortedEvents.length === registeredEvents.length
+                  ? 'My Registered Events'
+                  : `My Events (${filteredAndSortedEvents.length}${registeredEvents.length > 0 ? ` of ${registeredEvents.length}` : ''})`}
+              </Text>
             </View>
           </View>
+
+          {/* Events List */}
+          <View className="p-5">
+            {filteredAndSortedEvents.length === 0 ? (
+              <View className="py-12 items-center">
+                <View
+                  className="w-20 h-20 rounded-full items-center justify-center mb-4"
+                  style={{ backgroundColor: '#F1F5F9' }}
+                >
+                  <Ionicons name="calendar-outline" size={40} color="#64748b" />
+                </View>
+                <Text className="text-xl font-semibold text-gray-800 mb-2 text-center">
+                  {registeredEvents.length === 0 ? 'No Registered Events' : 'No Events Match Your Filters'}
+                </Text>
+                <Text className="text-gray-500 text-center text-sm">
+                  {registeredEvents.length === 0
+                    ? 'You haven\'t registered for any events yet.'
+                    : 'Try adjusting your search or filters.'}
+                </Text>
+              </View>
+            ) : (
+              filteredAndSortedEvents.map((event) => {
+                const eventStatus = getEventStatus(event);
+                const eventStatusData = eventStatuses[event.id] || { isCheckedIn: false, surveyCompleted: false };
+                const canTakeSurvey = eventStatusData.isCheckedIn;
+                const canGenerateCert = eventStatusData.isCheckedIn && eventStatusData.surveyCompleted;
+
+                return (
+                  <View
+                    key={event.registration_id}
+                    className="rounded-2xl overflow-hidden mb-6"
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      borderWidth: 1,
+                      borderColor: '#E2E8F0',
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 8,
+                      elevation: 3,
+                    }}
+                  >
+                    {/* Event Banner */}
+                    {event.banner_url && (
+                      <View className="h-48 overflow-hidden">
+                        <Image
+                          source={{ uri: event.banner_url }}
+                          className="w-full h-full"
+                          resizeMode="cover"
+                        />
+                      </View>
+                    )}
+
+                    {/* Event Content */}
+                    <View className="p-5">
+                      <View className="flex-row items-start justify-between mb-4">
+                        <Text className="text-xl font-bold text-slate-800 flex-1">{event.title}</Text>
+                        <View className={`ml-2 px-3 py-1 rounded-full ${eventStatus.color}`}>
+                          <Text className={`text-sm font-medium ${eventStatus.textColor}`}>
+                            {eventStatus.text}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {event.rationale && (
+                        <View className="mb-4">
+                          <View className="bg-blue-50 p-4 rounded-xl">
+                            <View style={{ maxHeight: expandedRationale.has(event.id) ? undefined : 150, overflow: 'hidden' }}>
+                              <RenderHTML
+                                contentWidth={getHtmlContentWidth(36)}
+                                source={{ html: decodeHtml(event.rationale) }}
+                                baseStyle={{
+                                  ...defaultHtmlStyles.baseStyle,
+                                  fontSize: 16,
+                                  lineHeight: 24,
+                                }}
+                                tagsStyles={defaultHtmlStyles.tagsStyles}
+                                enableExperimentalMarginCollapsing={true}
+                              />
+                            </View>
+                            {shouldCollapseRationale(event.rationale) && (
+                              <TouchableOpacity
+                                onPress={() => toggleRationale(event.id)}
+                                className="mt-3 flex-row items-center justify-center"
+                              >
+                                <Text className="text-blue-600 font-semibold text-sm">
+                                  {expandedRationale.has(event.id) ? 'Read Less' : 'Read More'}
+                                </Text>
+                                <Ionicons
+                                  name={expandedRationale.has(event.id) ? 'chevron-up' : 'chevron-down'}
+                                  size={16}
+                                  color="#2563eb"
+                                  style={{ marginLeft: 4 }}
+                                />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </View>
+                      )}
+
+                      <View className="space-y-2.5 mb-4">
+                        <View className="flex-row items-center">
+                          <Ionicons name="calendar-outline" size={18} color="#6b7280" />
+                          <Text className="text-base text-slate-600 ml-2">
+                            {formatDate(event.start_date)}
+                            {event.start_date !== event.end_date && ` - ${formatDate(event.end_date)}`}
+                          </Text>
+                        </View>
+
+                        <View className="flex-row items-center">
+                          <Ionicons name="time-outline" size={18} color="#6b7280" />
+                          <Text className="text-base text-slate-600 ml-2">
+                            {formatTime(event.start_time)} - {formatTime(event.end_time)}
+                          </Text>
+                        </View>
+
+                        {/* Check-in Window Info */}
+                        {(event.check_in_before_minutes || event.check_in_during_minutes) && (
+                          <View className="flex-row items-center">
+                            <Ionicons name="checkmark-circle-outline" size={18} color="#2563eb" />
+                            <Text className="text-base text-blue-600 ml-2">
+                              Check-in: {formatCheckInTime(event)} - {formatCheckInEndTime(event)}
+                            </Text>
+                          </View>
+                        )}
+
+                        {event.venue && (
+                          <View className="flex-row items-center">
+                            <Ionicons name="location-outline" size={18} color="#6b7280" />
+                            <Text className="text-base text-slate-600 ml-2" numberOfLines={1}>
+                              {event.venue}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Action Buttons - 3x3 Grid */}
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          flexWrap: 'wrap',
+                          marginTop: 8,
+                          marginHorizontal: -4,
+                        }}
+                      >
+                        {/* Row 1 - Primary Actions (Navy Blue) */}
+                        <TouchableOpacity
+                          onPress={() => router.push(`/event-details?eventId=${event.id}`)}
+                          style={{
+                            width: '31%',
+                            margin: '1%',
+                            backgroundColor: '#1e40af',
+                            borderRadius: 10,
+                            padding: 12,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            minHeight: 75,
+                          }}
+                        >
+                          <Ionicons name="information-circle" size={24} color="#ffffff" />
+                          <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
+                            View Details
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={() => handleGenerateQR(event)}
+                          style={{
+                            width: '31%',
+                            margin: '1%',
+                            backgroundColor: '#1e40af',
+                            borderRadius: 10,
+                            padding: 12,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            minHeight: 75,
+                          }}
+                        >
+                          <Ionicons name="qr-code" size={24} color="#ffffff" />
+                          <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
+                            Generate QR Code
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (!canTakeSurvey) {
+                              toast.warning('Please check in to the event first before taking the survey.');
+                              return;
+                            }
+                            handleTakeEvaluation(event);
+                          }}
+                          disabled={!canTakeSurvey}
+                          style={{
+                            width: '31%',
+                            margin: '1%',
+                            backgroundColor: canTakeSurvey ? '#1e40af' : '#9ca3af',
+                            borderRadius: 10,
+                            padding: 12,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            minHeight: 75,
+                            opacity: canTakeSurvey ? 1 : 0.6,
+                          }}
+                        >
+                          <Ionicons name="clipboard-outline" size={24} color="#ffffff" />
+                          <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
+                            Take Evaluation
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (!canGenerateCert) {
+                              if (!eventStatusData.isCheckedIn) {
+                                toast.warning('Please check in to the event first.');
+                              } else if (!eventStatusData.surveyCompleted) {
+                                toast.warning('Please complete the survey/evaluation first.');
+                              }
+                              return;
+                            }
+                            router.push(`/certificate?eventId=${event.id}`);
+                          }}
+                          disabled={!canGenerateCert}
+                          style={{
+                            width: '31%',
+                            margin: '1%',
+                            backgroundColor: canGenerateCert ? '#1e40af' : '#9ca3af',
+                            borderRadius: 10,
+                            padding: 12,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            minHeight: 75,
+                            opacity: canGenerateCert ? 1 : 0.6,
+                          }}
+                        >
+                          <Ionicons name="document-text" size={24} color="#ffffff" />
+                          <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
+                            Generate Certificate
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={() => handleSnapPhoto(event)}
+                          style={{
+                            width: '31%',
+                            margin: '1%',
+                            backgroundColor: '#3b82f6',
+                            borderRadius: 10,
+                            padding: 12,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            minHeight: 75,
+                          }}
+                        >
+                          <Ionicons name="camera" size={24} color="#ffffff" />
+                          <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
+                            Snap Photo
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={() => handleUnregister(event.id)}
+                          style={{
+                            width: '31%',
+                            margin: '1%',
+                            backgroundColor: '#dc2626',
+                            borderRadius: 10,
+                            padding: 12,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            minHeight: 75,
+                          }}
+                        >
+                          <Ionicons name="person-remove" size={24} color="#ffffff" />
+                          <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
+                            Unregister
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </View>
+        </View>
       </ScrollView>
 
 

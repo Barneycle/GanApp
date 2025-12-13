@@ -182,12 +182,12 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
         if (response.ok) {
           const blob = await response.blob();
           const downloadUrl = window.URL.createObjectURL(blob);
-          const link = document.createElement('a');
+    const link = document.createElement('a');
           link.href = downloadUrl;
-          link.download = `${event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_qr_code.png`;
+    link.download = `${event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_qr_code.png`;
           link.style.display = 'none';
           document.body.appendChild(link);
-          link.click();
+    link.click();
           setTimeout(() => {
             document.body.removeChild(link);
             window.URL.revokeObjectURL(downloadUrl);
@@ -269,7 +269,7 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
               <div ref={qrCardRef} className="bg-slate-900 rounded-3xl p-6 mb-6 shadow-2xl relative overflow-hidden">
                 {/* Background Pattern Effect */}
                 <div className="absolute inset-0 bg-blue-900 opacity-10 rounded-3xl"></div>
-
+                
                 {/* White Card Container */}
                 <div className="bg-white rounded-2xl p-5 max-w-xs mx-auto relative z-10 shadow-lg">
                   {/* QR Code */}
@@ -369,8 +369,8 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
                   </>
                 ) : (
                   <>
-                    <Download className="w-5 h-5" />
-                    <span>Download PNG</span>
+                <Download className="w-5 h-5" />
+                <span>Download PNG</span>
                   </>
                 )}
               </button>
@@ -409,7 +409,7 @@ export default function GenerateQR() {
 
       // Create JWT-based QR data string in format: userID | timestamp | signature
       const qrDataString = createQRDataString(user);
-
+      
       // Create QR data object for database storage
       const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
       const qrData = {
@@ -603,7 +603,7 @@ export default function GenerateQR() {
               </h2>
               <div className="w-16 h-1 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full mx-auto"></div>
             </div>
-
+            
             {qrCodeUrl && (
               <div className="text-center">
                 <div className="mb-8">
@@ -615,23 +615,23 @@ export default function GenerateQR() {
                     />
                   </div>
                 </div>
-
+                
                 <div className="space-y-3 mb-8">
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
                     <p className="text-gray-500 text-xs uppercase tracking-wide font-medium mb-1">Name</p>
                     <p className="text-gray-800 font-semibold">{demoMode ? 'Demo User' : `${user?.first_name} ${user?.last_name}`}</p>
                   </div>
-
+                  
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
                     <p className="text-gray-500 text-xs uppercase tracking-wide font-medium mb-1">Email</p>
                     <p className="text-gray-800 font-semibold text-sm">{demoMode ? 'demo@example.com' : user?.email}</p>
                   </div>
-
+                  
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
                     <p className="text-gray-500 text-xs uppercase tracking-wide font-medium mb-1">Role</p>
                     <p className="text-gray-800 font-semibold">{demoMode ? 'Participant' : user?.role}</p>
                   </div>
-
+                  
                   <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-4 border border-gray-200">
                     <p className="text-gray-500 text-xs uppercase tracking-wide font-medium mb-1">Generated</p>
                     <p className="text-gray-800 font-semibold text-sm">{qrCodeData?.generatedAt ? formatDate(qrCodeData.generatedAt) : 'N/A'}</p>

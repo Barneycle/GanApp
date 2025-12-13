@@ -23,6 +23,7 @@ export interface Event {
   event_programmes_url?: string;
   certificate_templates_url?: string;
   event_kits_url?: string;
+  registration_deadline?: string;
 }
 
 export interface EventWithDetails extends Event {
@@ -64,7 +65,7 @@ export class EventService {
             .select('*', { count: 'exact', head: true })
             .eq('event_id', event.id)
             .eq('status', 'registered'); // Only count 'registered' status
-          
+
           return {
             ...event,
             current_participants: count || 0
@@ -225,7 +226,7 @@ export class EventService {
       if (cached) {
         return { events: cached };
       }
-      
+
       const { data, error } = await supabase
         .from('events')
         .select('*')
@@ -237,7 +238,7 @@ export class EventService {
         if (error.code === 'PGRST205') {
           return { events: [] };
         }
-        
+
         return { error: error.message };
       }
 
@@ -245,31 +246,31 @@ export class EventService {
       // Always calculate count from actual registrations to avoid stale data
       const eventsWithParticipants = await Promise.all(
         data.map(async (event) => {
-          
+
           // First, let's see what registrations exist for this event
           const { data: allRegistrations, error: allError } = await supabase
             .from('event_registrations')
             .select('*')
             .eq('event_id', event.id);
-          
+
           if (allError) {
           } else {
             // Show the status of each registration
             allRegistrations.forEach((reg, index) => {
             });
           }
-          
+
           // Now count only registered ones
           const { count, error } = await supabase
             .from('event_registrations')
             .select('*', { count: 'exact', head: true })
             .eq('event_id', event.id)
             .eq('status', 'registered'); // Only count 'registered' status
-          
+
           if (error) {
           }
-          
-          
+
+
           return {
             ...event,
             current_participants: count || 0
@@ -283,10 +284,11 @@ export class EventService {
       return { events: eventsWithParticipants };
     } catch (error) {
       // If it's a table not found error, return empty array
-      if (error.message && error.message.includes('table') && error.message.includes('not found')) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('table') && errorMessage.includes('not found')) {
         return { events: [] };
       }
-      
+
       return { error: 'An unexpected error occurred' };
     }
   }
@@ -380,7 +382,7 @@ export class EventService {
         const otherFeaturedIds = featuredEvents
           .filter(e => e.id !== id)
           .map(e => e.id);
-        
+
         if (otherFeaturedIds.length > 0) {
           await supabase
             .from('events')
@@ -426,7 +428,7 @@ export class EventService {
   // Event Registration Methods
   static async registerForEvent(eventId: string, userId: string): Promise<{ registration?: EventRegistration; error?: string }> {
     try {
-      
+
       // Check if user is already registered (active registration)
       const existingRegistration = await this.getUserRegistration(eventId, userId);
       if (existingRegistration.registration) {
@@ -444,7 +446,7 @@ export class EventService {
 
       if (cancelledError) {
       }
-      
+
       if (cancelledRegistration) {
       } else {
       }
@@ -485,7 +487,7 @@ export class EventService {
       }
 
       // Check if event has reached max participants
-      if (eventResult.event.max_participants && eventResult.event.current_participants >= eventResult.event.max_participants) {
+      if (eventResult.event.max_participants && eventResult.event.current_participants !== undefined && eventResult.event.current_participants >= eventResult.event.max_participants) {
         return { error: 'This event has reached maximum capacity' };
       }
 
@@ -501,7 +503,7 @@ export class EventService {
           .eq('id', cancelledRegistration.id)
           .select()
           .single();
-        
+
         registrationData = data;
         registrationError = error;
       } else {
@@ -515,7 +517,7 @@ export class EventService {
           }])
           .select()
           .single();
-        
+
         registrationData = data;
         registrationError = error;
       }
@@ -539,11 +541,11 @@ export class EventService {
       // Update event participant count - use database count + 1
       const currentCount = eventResult.event.current_participants || 0;
       const newCount = currentCount + 1;
-      
-      
+
+
       const { error: updateError } = await supabase
         .from('events')
-        .update({ 
+        .update({
           current_participants: newCount
         })
         .eq('id', eventId);
@@ -551,26 +553,26 @@ export class EventService {
       if (updateError) {
         // Don't fail the registration if count update fails
       } else {
-        
+
         // Verify the update worked
         const { data: updatedEvent, error: verifyError } = await supabase
           .from('events')
           .select('current_participants')
           .eq('id', eventId)
           .single();
-          
+
         if (verifyError) {
         } else {
-          
+
           // If verification shows the update didn't work, try again
           if (updatedEvent.current_participants !== newCount) {
             const { error: retryError } = await supabase
               .from('events')
-              .update({ 
+              .update({
                 current_participants: newCount
               })
               .eq('id', eventId);
-              
+
             if (retryError) {
             } else {
             }
@@ -586,7 +588,7 @@ export class EventService {
 
   static async unregisterFromEvent(eventId: string, userId: string): Promise<{ error?: string }> {
     try {
-      
+
       // Get current registration
       const registrationResult = await this.getUserRegistration(eventId, userId);
       if (registrationResult.error) {
@@ -600,17 +602,17 @@ export class EventService {
 
       // Get current event data to get the participant count
       const eventData = await this.getEventById(eventId);
-      if (eventData.error) {
-        return { error: eventData.error };
+      if (eventData.error || !eventData.event) {
+        return { error: eventData.error || 'Event not found' };
       }
 
       // Update event participant count - use database count - 1
       const currentCount = eventData.event.current_participants || 0;
       const newCount = Math.max(currentCount - 1, 0);
-      
+
       const { data: updateData, error: updateError } = await supabase
         .from('events')
-        .update({ 
+        .update({
           current_participants: newCount
         })
         .eq('id', eventId)
@@ -810,7 +812,7 @@ export class EventService {
       }
 
       // Transform archived events to match Event interface
-      const events = (data || []).map((archived) => ({
+      const events: Event[] = (data || []).map((archived) => ({
         id: archived.original_event_id || archived.id,
         title: archived.title,
         rationale: archived.rationale || archived.description || '',
@@ -819,7 +821,7 @@ export class EventService {
         start_time: archived.start_time,
         end_time: archived.end_time,
         venue: archived.venue,
-        status: archived.status === 'cancelled' ? 'cancelled' : 'completed',
+        status: (archived.status === 'cancelled' ? 'cancelled' : 'cancelled') as 'draft' | 'published' | 'cancelled',
         is_featured: archived.is_featured || false,
         max_participants: archived.max_participants,
         current_participants: archived.final_participant_count || 0,
@@ -829,17 +831,78 @@ export class EventService {
         banner_url: archived.banner_url,
         materials_url: archived.materials_url,
         event_programmes_url: archived.programme_url,
-        certificate_templates_url: null,
+        certificate_templates_url: undefined,
         event_kits_url: archived.event_kits_url,
-        sponsors: archived.sponsors,
-        guest_speakers: archived.guest_speakers,
-        archived_at: archived.archived_at,
-        archive_reason: archived.archive_reason,
       }));
 
       return { events };
     } catch (error) {
       return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Check if user has checked in to an event
+   */
+  static async checkUserCheckInStatus(eventId: string, userId: string): Promise<{ isCheckedIn: boolean; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('attendance_logs')
+        .select('id, check_in_time, is_validated')
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
+        .eq('is_validated', true)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return { isCheckedIn: false };
+        }
+        return { isCheckedIn: false, error: error.message };
+      }
+
+      return { isCheckedIn: !!data?.check_in_time };
+    } catch (error) {
+      return { isCheckedIn: false, error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Check if user has completed survey/evaluation for an event
+   */
+  static async checkUserSurveyCompletion(eventId: string, userId: string): Promise<{ isCompleted: boolean; error?: string }> {
+    try {
+      // Check survey_responses with join to surveys table
+      const { data: surveyResponses, error: surveyError } = await supabase
+        .from('survey_responses')
+        .select(`
+          id,
+          surveys!inner(event_id)
+        `)
+        .eq('user_id', userId)
+        .eq('surveys.event_id', eventId);
+
+      if (surveyResponses && surveyResponses.length > 0) {
+        return { isCompleted: true };
+      }
+
+      // Check evaluation_responses with join to evaluations table
+      const { data: evaluationResponses, error: evalError } = await supabase
+        .from('evaluation_responses')
+        .select(`
+          id,
+          evaluations!inner(event_id)
+        `)
+        .eq('user_id', userId)
+        .eq('evaluations.event_id', eventId);
+
+      if (evaluationResponses && evaluationResponses.length > 0) {
+        return { isCompleted: true };
+      }
+
+      return { isCompleted: false };
+    } catch (error) {
+      return { isCompleted: false, error: 'An unexpected error occurred' };
     }
   }
 }

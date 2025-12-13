@@ -39,6 +39,7 @@ export const MyEvents = () => {
     eventTitle: '',
   });
   const [isUnregistering, setIsUnregistering] = useState(false);
+  const [eventStatuses, setEventStatuses] = useState({});
 
   // Helper function to check if user profile is complete
   const isProfileComplete = (user) => {
@@ -46,11 +47,11 @@ export const MyEvents = () => {
     const firstName = user.first_name;
     const lastName = user.last_name;
     const affiliatedOrg = user.affiliated_organization;
-    
+
     const hasFirstName = firstName !== undefined && firstName !== null && String(firstName).trim() !== '';
     const hasLastName = lastName !== undefined && lastName !== null && String(lastName).trim() !== '';
     const hasAffiliatedOrg = affiliatedOrg !== undefined && affiliatedOrg !== null && String(affiliatedOrg).trim() !== '';
-    
+
     return hasFirstName && hasLastName && hasAffiliatedOrg;
   };
 
@@ -59,7 +60,7 @@ export const MyEvents = () => {
       navigate('/login');
       return;
     }
-    
+
     if (user?.role !== 'participant') {
       navigate('/');
       return;
@@ -95,34 +96,60 @@ export const MyEvents = () => {
       loadingRef.current = true;
       setLoading(true);
       setError(null);
-      
+
       const result = await EventService.getUserRegistrations(user.id);
-      
+
       // Only update state if page is still visible
       if (isVisible) {
-      if (result.error) {
-        setError(result.error);
-      } else {
-        // Extract the events from the registrations
-        const events = result.registrations?.map(registration => ({
-          ...registration.events,
-          registration_date: registration.registration_date,
-          registration_id: registration.id
-        })) || [];
-        
-        setRegisteredEvents(events);
+        if (result.error) {
+          setError(result.error);
+        } else {
+          // Extract the events from the registrations
+          const events = result.registrations?.map(registration => ({
+            ...registration.events,
+            registration_date: registration.registration_date,
+            registration_id: registration.id
+          })) || [];
+
+          setRegisteredEvents(events);
+
+          // Check check-in and survey completion status for each event
+          if (user?.id && events.length > 0) {
+            const statusPromises = events.map(async (event) => {
+              const [checkInResult, surveyResult] = await Promise.all([
+                EventService.checkUserCheckInStatus(event.id, user.id),
+                EventService.checkUserSurveyCompletion(event.id, user.id)
+              ]);
+
+              return {
+                eventId: event.id,
+                isCheckedIn: checkInResult.isCheckedIn || false,
+                surveyCompleted: surveyResult.isCompleted || false
+              };
+            });
+
+            const statuses = await Promise.all(statusPromises);
+            const statusMap = {};
+            statuses.forEach(status => {
+              statusMap[status.eventId] = {
+                isCheckedIn: status.isCheckedIn,
+                surveyCompleted: status.surveyCompleted
+              };
+            });
+            setEventStatuses(statusMap);
+          }
         }
       }
     } catch (err) {
       // Only update error if page is still visible
       if (isVisible) {
-      setError('Failed to load your registered events');
+        setError('Failed to load your registered events');
       }
     } finally {
       loadingRef.current = false;
       // Only set loading to false if page is still visible
       if (isVisible) {
-      setLoading(false);
+        setLoading(false);
       }
     }
   };
@@ -145,10 +172,10 @@ export const MyEvents = () => {
 
   const formatCheckInTime = (event) => {
     if (!event.check_in_before_minutes) return formatTime(event.start_time);
-    
+
     const startTime = new Date(`${event.start_date}T${event.start_time}`);
     const checkInTime = new Date(startTime.getTime() - (event.check_in_before_minutes * 60000));
-    
+
     return checkInTime.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
@@ -158,10 +185,10 @@ export const MyEvents = () => {
 
   const formatCheckInEndTime = (event) => {
     if (!event.check_in_during_minutes) return formatTime(event.start_time);
-    
+
     const startTime = new Date(`${event.start_date}T${event.start_time}`);
     const checkInEndTime = new Date(startTime.getTime() + (event.check_in_during_minutes * 60000));
-    
+
     return checkInEndTime.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
@@ -191,7 +218,7 @@ export const MyEvents = () => {
     // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      const matchesSearch = 
+      const matchesSearch =
         event.title.toLowerCase().includes(query) ||
         (event.venue && event.venue.toLowerCase().includes(query)) ||
         (event.rationale && event.rationale.toLowerCase().includes(query));
@@ -202,7 +229,7 @@ export const MyEvents = () => {
     const now = new Date();
     const startDate = new Date(`${event.start_date}T${event.start_time}`);
     const endDate = new Date(`${event.end_date}T${event.end_time}`);
-    
+
     if (dateFilter === 'upcoming') {
       if (now >= startDate) return false;
     } else if (dateFilter === 'ongoing') {
@@ -251,7 +278,7 @@ export const MyEvents = () => {
     setIsUnregistering(true);
     try {
       const result = await EventService.unregisterFromEvent(eventId, user.id);
-      
+
       if (result.error) {
         toast.error(result.error || 'Failed to unregister from event');
       } else {
@@ -293,8 +320,8 @@ export const MyEvents = () => {
               </svg>
             </div>
             <p className="text-red-800 mb-6 text-lg">{error}</p>
-            <button 
-              onClick={loadRegisteredEvents} 
+            <button
+              onClick={loadRegisteredEvents}
               className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 transition-all duration-200 font-medium shadow-md hover:shadow-lg"
             >
               Try Again
@@ -315,7 +342,7 @@ export const MyEvents = () => {
             </div>
             <h3 className="text-xl font-semibold text-slate-800 mb-2">No Registered Events</h3>
             <p className="text-slate-600 mb-6">You haven't registered for any events yet. Explore available events and join the ones that interest you!</p>
-            <Link 
+            <Link
               to="/events"
               className="inline-block bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-900 transition-all duration-200 font-medium shadow-md hover:shadow-lg"
             >
@@ -404,347 +431,371 @@ export const MyEvents = () => {
           margin: 8px 0;
         }
       `}</style>
-    <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        {/* Search and Filter Bar */}
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8">
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Search Bar */}
-            <div className="flex-1">
-              <div className="relative">
-                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+          {/* Search and Filter Bar */}
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8">
+            <div className="flex flex-col lg:flex-row gap-4">
+              {/* Search Bar */}
+              <div className="flex-1">
+                <div className="relative">
+                  <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Search your events by title, venue, or description..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Filter Button */}
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="px-6 py-3 bg-blue-800 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                Filters & Sort
+              </button>
+            </div>
+
+            {/* Filters Panel */}
+            {showFilters && (
+              <div className="mt-6 pt-6 border-t border-slate-200">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Status Filter */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Status</label>
+                    <div className="flex flex-wrap gap-2">
+                      {['all', 'upcoming', 'ongoing', 'completed'].map((filter) => (
+                        <button
+                          key={filter}
+                          onClick={() => setDateFilter(filter)}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${dateFilter === filter
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            }`}
+                        >
+                          {filter === 'all' ? 'All Events' : filter === 'upcoming' ? 'Upcoming' : filter === 'ongoing' ? 'Ongoing' : 'Completed'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Venue Filter */}
+                  {uniqueVenues.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Venue</label>
+                      <select
+                        value={venueFilter}
+                        onChange={(e) => setVenueFilter(e.target.value)}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="all">All Venues</option>
+                        {uniqueVenues.map((venue) => (
+                          <option key={venue} value={venue}>{venue}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Sort Options */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Sort By</label>
+                    <select
+                      value={sortOption}
+                      onChange={(e) => setSortOption(e.target.value)}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="date-asc">Date (Earliest First)</option>
+                      <option value="date-desc">Date (Latest First)</option>
+                      <option value="title-asc">Title (A-Z)</option>
+                      <option value="title-desc">Title (Z-A)</option>
+                      <option value="registration-asc">Registration Date (Oldest First)</option>
+                      <option value="registration-desc">Registration Date (Newest First)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Clear Filters */}
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setDateFilter('all');
+                      setVenueFilter('all');
+                      setSortOption('date-asc');
+                    }}
+                    className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-medium text-sm"
+                  >
+                    Clear All Filters
+                  </button>
+                </div>
+
+                {/* Results Count */}
+                <div className="mt-4 text-sm text-slate-600">
+                  Showing {filteredAndSortedEvents.length} of {registeredEvents.length} events
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Registered Events Grid */}
+          {filteredAndSortedEvents.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto">
+                <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <input
-                  type="text"
-                  placeholder="Search your events by title, venue, or description..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                {searchQuery && (
+                <h3 className="text-xl font-semibold text-slate-800 mb-2">
+                  {registeredEvents.length === 0 ? 'No Registered Events' : 'No Events Match Your Filters'}
+                </h3>
+                <p className="text-slate-600 mb-4">
+                  {registeredEvents.length === 0
+                    ? 'You haven\'t registered for any events yet.'
+                    : 'Try adjusting your search or filters.'}
+                </p>
+                {registeredEvents.length > 0 && (
                   <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setDateFilter('all');
+                      setVenueFilter('all');
+                      setSortOption('date-asc');
+                    }}
+                    className="px-6 py-3 bg-blue-800 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    Clear Filters
                   </button>
                 )}
               </div>
             </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredAndSortedEvents.map((event) => {
+                const eventStatus = getEventStatus(event);
+                const eventStatusData = eventStatuses[event.id] || { isCheckedIn: false, surveyCompleted: false };
+                const canTakeSurvey = eventStatusData.isCheckedIn;
+                const canGenerateCert = eventStatusData.isCheckedIn && eventStatusData.surveyCompleted;
 
-            {/* Filter Button */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="px-6 py-3 bg-blue-800 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              Filters & Sort
-            </button>
-          </div>
-
-          {/* Filters Panel */}
-          {showFilters && (
-            <div className="mt-6 pt-6 border-t border-slate-200">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Status Filter */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Status</label>
-                  <div className="flex flex-wrap gap-2">
-                    {['all', 'upcoming', 'ongoing', 'completed'].map((filter) => (
-                      <button
-                        key={filter}
-                        onClick={() => setDateFilter(filter)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          dateFilter === filter
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        }`}
-                      >
-                        {filter === 'all' ? 'All Events' : filter === 'upcoming' ? 'Upcoming' : filter === 'ongoing' ? 'Ongoing' : 'Completed'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Venue Filter */}
-                {uniqueVenues.length > 0 && (
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Venue</label>
-                    <select
-                      value={venueFilter}
-                      onChange={(e) => setVenueFilter(e.target.value)}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="all">All Venues</option>
-                      {uniqueVenues.map((venue) => (
-                        <option key={venue} value={venue}>{venue}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {/* Sort Options */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Sort By</label>
-                  <select
-                    value={sortOption}
-                    onChange={(e) => setSortOption(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                return (
+                  <div
+                    key={event.id}
+                    className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden"
                   >
-                    <option value="date-asc">Date (Earliest First)</option>
-                    <option value="date-desc">Date (Latest First)</option>
-                    <option value="title-asc">Title (A-Z)</option>
-                    <option value="title-desc">Title (Z-A)</option>
-                    <option value="registration-asc">Registration Date (Oldest First)</option>
-                    <option value="registration-desc">Registration Date (Newest First)</option>
-                  </select>
-                </div>
-              </div>
+                    {/* Event Banner */}
+                    {event.banner_url && (
+                      <div className="h-48 overflow-hidden">
+                        <img
+                          src={event.banner_url}
+                          alt={event.title}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'flex';
+                          }}
+                        />
+                        <div className="h-48 bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center" style={{ display: 'none' }}>
+                          <span className="text-white text-lg font-semibold">Event Banner</span>
+                        </div>
+                      </div>
+                    )}
 
-              {/* Clear Filters */}
-              <div className="mt-4 pt-4 border-t border-slate-200">
-                <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setDateFilter('all');
-                    setVenueFilter('all');
-                    setSortOption('date-asc');
-                  }}
-                  className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-medium text-sm"
-                >
-                  Clear All Filters
-                </button>
-              </div>
+                    {/* Event Content */}
+                    <div className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <h3 className="text-xl font-bold text-slate-800 flex-1">{event.title}</h3>
+                        <div className={`ml-2 px-3 py-1 rounded-full text-xs font-medium border ${eventStatus.color}`}>
+                          {eventStatus.text}
+                        </div>
+                      </div>
 
-              {/* Results Count */}
-              <div className="mt-4 text-sm text-slate-600">
-                Showing {filteredAndSortedEvents.length} of {registeredEvents.length} events
-              </div>
+                      {event.rationale && (
+                        <div
+                          className="text-slate-600 mb-4 line-clamp-3 rich-text-content"
+                          dangerouslySetInnerHTML={{ __html: event.rationale }}
+                          style={{
+                            wordWrap: 'break-word'
+                          }}
+                        />
+                      )}
+
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center text-sm text-slate-600">
+                          <Calendar className="w-4 h-4 mr-2" />
+                          <span>
+                            {formatDate(event.start_date)}
+                            {event.start_date !== event.end_date && (
+                              <> - {formatDate(event.end_date)}</>
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex items-center text-sm text-slate-600">
+                          <Clock className="w-4 h-4 mr-2" />
+                          <span>{formatTime(event.start_time)} - {formatTime(event.end_time)}</span>
+                        </div>
+                        {/* Check-in Window Info */}
+                        {(event.check_in_before_minutes || event.check_in_during_minutes) && (
+                          <div className="flex items-center text-sm text-blue-600">
+                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m0 0a2 2 0 012 2m-2-2a2 2 0 00-2 2m2-2V5a2 2 0 00-2-2M9 7a2 2 0 012 2m0 0a2 2 0 012 2m-2-2a2 2 0 00-2 2m2-2V5a2 2 0 00-2-2" />
+                            </svg>
+                            <span>
+                              Check-in: {formatCheckInTime(event)} - {formatCheckInEndTime(event)}
+                            </span>
+                          </div>
+                        )}
+                        {event.venue && (
+                          <div className="flex items-center text-sm text-slate-600">
+                            <MapPin className="w-4 h-4 mr-2" />
+                            <span className="line-clamp-1">{event.venue}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedEvent(event);
+                            setIsModalOpen(true);
+                          }}
+                          className="w-full px-4 py-2 bg-blue-800 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                        >
+                          View Details
+                        </button>
+                        <button
+                          onClick={() => {
+                            setQrEvent(event);
+                            setIsQRModalOpen(true);
+                          }}
+                          className="w-full px-4 py-2 bg-blue-800 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                        >
+                          Generate QR Code
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!canTakeSurvey) {
+                              toast.warning('Please check in to the event first before taking the survey.');
+                              return;
+                            }
+                            try {
+                              // Get survey for this event
+                              const surveyResult = await SurveyService.getSurveysByEvent(event.id);
+                              if (surveyResult.surveys && surveyResult.surveys.length > 0) {
+                                // Get the first active survey
+                                const activeSurvey = surveyResult.surveys.find(e => e.is_active) || surveyResult.surveys[0];
+                                navigate(`/evaluation/${activeSurvey.id}`);
+                              } else {
+                                toast.info('No survey is available for this event yet.');
+                              }
+                            } catch (err) {
+                              toast.error('Failed to load survey. Please try again.');
+                            }
+                          }}
+                          disabled={!canTakeSurvey}
+                          className={`w-full px-4 py-2 rounded-lg transition-colors text-sm ${canTakeSurvey
+                            ? 'bg-blue-800 text-white hover:bg-blue-700'
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            }`}
+                          title={!canTakeSurvey ? 'Please check in to the event first' : ''}
+                        >
+                          Take Survey
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (!canGenerateCert) {
+                              if (!eventStatusData.isCheckedIn) {
+                                toast.warning('Please check in to the event first.');
+                              } else if (!eventStatusData.surveyCompleted) {
+                                toast.warning('Please complete the survey/evaluation first.');
+                              }
+                              return;
+                            }
+                            setCertificateEventId(event.id);
+                            setIsCertificateModalOpen(true);
+                          }}
+                          disabled={!canGenerateCert}
+                          className={`w-full px-4 py-2 rounded-lg transition-colors text-sm ${canGenerateCert
+                            ? 'bg-blue-500 text-white hover:bg-blue-600'
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            }`}
+                          title={!canGenerateCert ? (!eventStatusData.isCheckedIn ? 'Please check in first' : 'Please complete the survey first') : ''}
+                        >
+                          Generate Certificate
+                        </button>
+                        <button
+                          onClick={() => handleUnregisterClick(event.id, event.title)}
+                          className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm col-span-2"
+                        >
+                          Unregister
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Registered Events Grid */}
-        {filteredAndSortedEvents.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto">
-              <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <h3 className="text-xl font-semibold text-slate-800 mb-2">
-                {registeredEvents.length === 0 ? 'No Registered Events' : 'No Events Match Your Filters'}
-              </h3>
-              <p className="text-slate-600 mb-4">
-                {registeredEvents.length === 0 
-                  ? 'You haven\'t registered for any events yet.'
-                  : 'Try adjusting your search or filters.'}
-              </p>
-              {registeredEvents.length > 0 && (
-                <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setDateFilter('all');
-                    setVenueFilter('all');
-                    setSortOption('date-asc');
-                  }}
-                  className="px-6 py-3 bg-blue-800 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
-                >
-                  Clear Filters
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredAndSortedEvents.map((event) => {
-            const eventStatus = getEventStatus(event);
-            
-            return (
-              <div
-                key={event.id}
-                className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden"
-              >
-                {/* Event Banner */}
-                {event.banner_url && (
-                  <div className="h-48 overflow-hidden">
-                    <img
-                      src={event.banner_url}
-                      alt={event.title}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.nextSibling.style.display = 'flex';
-                      }}
-                    />
-                    <div className="h-48 bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center" style={{display: 'none'}}>
-                      <span className="text-white text-lg font-semibold">Event Banner</span>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Event Content */}
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <h3 className="text-xl font-bold text-slate-800 flex-1">{event.title}</h3>
-                    <div className={`ml-2 px-3 py-1 rounded-full text-xs font-medium border ${eventStatus.color}`}>
-                      {eventStatus.text}
-                    </div>
-                  </div>
-                  
-                  {event.rationale && (
-                    <div 
-                      className="text-slate-600 mb-4 line-clamp-3 rich-text-content"
-                      dangerouslySetInnerHTML={{ __html: event.rationale }}
-                      style={{
-                        wordWrap: 'break-word'
-                      }}
-                    />
-                  )}
-                  
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center text-sm text-slate-600">
-                      <Calendar className="w-4 h-4 mr-2" />
-                      <span>
-                        {formatDate(event.start_date)}
-                        {event.start_date !== event.end_date && (
-                          <> - {formatDate(event.end_date)}</>
-                        )}
-                      </span>
-                    </div>
-                    <div className="flex items-center text-sm text-slate-600">
-                      <Clock className="w-4 h-4 mr-2" />
-                      <span>{formatTime(event.start_time)} - {formatTime(event.end_time)}</span>
-                    </div>
-                    {/* Check-in Window Info */}
-                    {(event.check_in_before_minutes || event.check_in_during_minutes) && (
-                      <div className="flex items-center text-sm text-blue-600">
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m0 0a2 2 0 012 2m-2-2a2 2 0 00-2 2m2-2V5a2 2 0 00-2-2M9 7a2 2 0 012 2m0 0a2 2 0 012 2m-2-2a2 2 0 00-2 2m2-2V5a2 2 0 00-2-2" />
-                        </svg>
-                        <span>
-                          Check-in: {formatCheckInTime(event)} - {formatCheckInEndTime(event)}
-                        </span>
-                      </div>
-                    )}
-                    {event.venue && (
-                      <div className="flex items-center text-sm text-slate-600">
-                        <MapPin className="w-4 h-4 mr-2" />
-                        <span className="line-clamp-1">{event.venue}</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Action Buttons */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => {
-                        setSelectedEvent(event);
-                        setIsModalOpen(true);
-                      }}
-                      className="w-full px-4 py-2 bg-blue-800 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                    >
-                      View Details
-                    </button>
-                    <button
-                      onClick={() => {
-                        setQrEvent(event);
-                        setIsQRModalOpen(true);
-                      }}
-                      className="w-full px-4 py-2 bg-blue-800 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                    >
-                      Generate QR Code
-                    </button>
-                    <button
-                      onClick={async () => {
-                        try {
-                          // Get survey for this event
-                          const surveyResult = await SurveyService.getSurveysByEvent(event.id);
-                          if (surveyResult.surveys && surveyResult.surveys.length > 0) {
-                            // Get the first active survey
-                            const activeSurvey = surveyResult.surveys.find(e => e.is_active) || surveyResult.surveys[0];
-                            navigate(`/evaluation/${activeSurvey.id}`);
-                          } else {
-                            toast.info('No survey is available for this event yet.');
-                          }
-                        } catch (err) {
-                          toast.error('Failed to load survey. Please try again.');
-                        }
-                      }}
-                      className="w-full px-4 py-2 bg-blue-800 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                    >
-                      Take Survey
-                    </button>
-                    <button
-                      onClick={() => {
-                        setCertificateEventId(event.id);
-                        setIsCertificateModalOpen(true);
-                      }}
-                      className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
-                    >
-                      Generate Certificate
-                    </button>
-                    <button
-                      onClick={() => handleUnregisterClick(event.id, event.title)}
-                      className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm col-span-2"
-                    >
-                      Unregister
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          </div>
-        )}
-      </div>
-      
-      {/* Event Modal */}
-      <EventModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        event={selectedEvent} 
-      />
-      
-      {/* QR Code Modal */}
-      <GenerateQRModal 
-        isOpen={isQRModalOpen} 
-        onClose={() => setIsQRModalOpen(false)} 
-        event={qrEvent} 
-      />
-      
-      {/* Certificate Generator Modal */}
-      {isCertificateModalOpen && (
-        <CertificateGenerator
-          eventId={certificateEventId}
-          onClose={() => {
-            setIsCertificateModalOpen(false);
-            setCertificateEventId(null);
-          }}
+        {/* Event Modal */}
+        <EventModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          event={selectedEvent}
         />
-      )}
 
-      {/* Unregister Confirmation Dialog */}
-      <ConfirmationDialog
-        isOpen={unregisterDialog.isOpen}
-        onClose={() => {
-          if (!isUnregistering) {
-            setUnregisterDialog({ isOpen: false, eventId: null, eventTitle: '' });
-          }
-        }}
-        onConfirm={handleUnregister}
-        title="Unregister from Event"
-        message={`Are you sure you want to unregister from "${unregisterDialog.eventTitle}"? This action cannot be undone.`}
-        confirmText="Unregister"
-        cancelText="Cancel"
-        type="danger"
-        loading={isUnregistering}
-      />
-    </section>
+        {/* QR Code Modal */}
+        <GenerateQRModal
+          isOpen={isQRModalOpen}
+          onClose={() => setIsQRModalOpen(false)}
+          event={qrEvent}
+        />
+
+        {/* Certificate Generator Modal */}
+        {isCertificateModalOpen && (
+          <CertificateGenerator
+            eventId={certificateEventId}
+            onClose={() => {
+              setIsCertificateModalOpen(false);
+              setCertificateEventId(null);
+            }}
+          />
+        )}
+
+        {/* Unregister Confirmation Dialog */}
+        <ConfirmationDialog
+          isOpen={unregisterDialog.isOpen}
+          onClose={() => {
+            if (!isUnregistering) {
+              setUnregisterDialog({ isOpen: false, eventId: null, eventTitle: '' });
+            }
+          }}
+          onConfirm={handleUnregister}
+          title="Unregister from Event"
+          message={`Are you sure you want to unregister from "${unregisterDialog.eventTitle}"? This action cannot be undone.`}
+          confirmText="Unregister"
+          cancelText="Cancel"
+          type="danger"
+          loading={isUnregistering}
+        />
+      </section>
     </>
   );
 };

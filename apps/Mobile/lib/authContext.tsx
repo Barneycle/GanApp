@@ -43,7 +43,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.id);
-
+        
         if (event === 'SIGNED_IN' && session?.user) {
           await loadUserProfile(session.user.id);
         } else if (event === 'SIGNED_OUT') {
@@ -68,7 +68,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const checkUser = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-
+      
       if (session?.user) {
         await loadUserProfile(session.user.id);
       } else {
@@ -85,7 +85,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const loadUserProfile = async (userId: string) => {
     try {
       const { data: { user: authUser }, error } = await supabase.auth.getUser();
-
+      
       if (error) {
         console.error('Error loading user profile:', error);
         setUser(null);
@@ -94,24 +94,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Only use metadata values if they exist and are not empty
         const affiliatedOrg = authUser.user_metadata?.affiliated_organization;
         const hasAffiliatedOrg = affiliatedOrg && typeof affiliatedOrg === 'string' && affiliatedOrg.trim() !== '';
-
+        
         const userProfile: User = {
           id: authUser.id,
           email: authUser.email || '',
-          prefix: authUser.user_metadata?.prefix && authUser.user_metadata.prefix.trim() !== ''
-            ? authUser.user_metadata.prefix
+          prefix: authUser.user_metadata?.prefix && authUser.user_metadata.prefix.trim() !== '' 
+            ? authUser.user_metadata.prefix 
             : '',
-          first_name: authUser.user_metadata?.first_name && authUser.user_metadata.first_name.trim() !== ''
-            ? authUser.user_metadata.first_name
+          first_name: authUser.user_metadata?.first_name && authUser.user_metadata.first_name.trim() !== '' 
+            ? authUser.user_metadata.first_name 
             : '',
-          middle_initial: authUser.user_metadata?.middle_initial && authUser.user_metadata.middle_initial.trim() !== ''
-            ? authUser.user_metadata.middle_initial
+          middle_initial: authUser.user_metadata?.middle_initial && authUser.user_metadata.middle_initial.trim() !== '' 
+            ? authUser.user_metadata.middle_initial 
             : '',
-          last_name: authUser.user_metadata?.last_name && authUser.user_metadata.last_name.trim() !== ''
-            ? authUser.user_metadata.last_name
+          last_name: authUser.user_metadata?.last_name && authUser.user_metadata.last_name.trim() !== '' 
+            ? authUser.user_metadata.last_name 
             : '',
-          affix: authUser.user_metadata?.affix && authUser.user_metadata.affix.trim() !== ''
-            ? authUser.user_metadata.affix
+          affix: authUser.user_metadata?.affix && authUser.user_metadata.affix.trim() !== '' 
+            ? authUser.user_metadata.affix 
             : '',
           affiliated_organization: hasAffiliatedOrg ? affiliatedOrg.trim() : '',
           avatar_url: authUser.user_metadata?.avatar_url && authUser.user_metadata.avatar_url.trim() !== ''
@@ -121,7 +121,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           created_at: authUser.created_at || new Date().toISOString(),
           updated_at: authUser.updated_at || new Date().toISOString(),
         };
-
+        
         setUser(userProfile);
       } else {
         setUser(null);
@@ -169,7 +169,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signUp = async (email: string, password: string, firstName: string, lastName: string, role: 'admin' | 'organizer' | 'participant' = 'participant') => {
     try {
       setIsLoading(true);
-
+      
       // Prepare user data for registration (matching Web version)
       const userData = {
         first_name: firstName,
@@ -201,7 +201,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       const { error } = await supabase.auth.signOut();
-
+      
       if (error) {
         return { error: error.message };
       }
@@ -222,20 +222,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Force a session refresh to get latest metadata
       // First, refresh the session to ensure we have the latest data
       const { data: { session: currentSession } } = await supabase.auth.getSession();
-
+      
       if (currentSession?.user) {
         // Wait a moment for metadata to sync
         await new Promise(resolve => setTimeout(resolve, 300));
-
+        
         // Get fresh user data
         const { data: { user: authUser }, error } = await supabase.auth.getUser();
-
+        
         if (error) {
           console.error('Error refreshing user:', error);
           setIsLoading(false);
           return;
         }
-
+        
         if (authUser) {
           await loadUserProfile(authUser.id);
         } else {

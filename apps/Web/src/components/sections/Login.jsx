@@ -16,8 +16,8 @@ export const Login = () => {
         <div className="text-center p-8">
           <h1 className="text-2xl font-bold text-slate-800 mb-4">Error Loading Login</h1>
           <p className="text-slate-600 mb-4">Please refresh the page.</p>
-          <button
-            onClick={() => window.location.reload()}
+          <button 
+            onClick={() => window.location.reload()} 
             className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
           >
             Refresh Page
@@ -26,7 +26,7 @@ export const Login = () => {
       </section>
     );
   }
-
+  
   const { signIn, loading, error, clearError, isAuthenticated, getRedirectPath, user } = authContext || {
     signIn: null,
     loading: false,
@@ -47,7 +47,7 @@ export const Login = () => {
   const [isSendingReset, setIsSendingReset] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [resetError, setResetError] = useState('');
-
+  
   // New state for enhanced features
   const [successMessage, setSuccessMessage] = useState('');
   const [loginAttempts, setLoginAttempts] = useState(0);
@@ -130,17 +130,17 @@ export const Login = () => {
           // Allow scrolling within modal - don't prevent the event
           return;
         }
-
+        
         // Prevent scroll on the page itself
         e.preventDefault();
         e.stopPropagation();
         return false;
       };
-
+      
       // Add no-scroll class to html and body
       document.documentElement.classList.add('no-scroll');
       document.body.classList.add('no-scroll');
-
+      
       // Also set inline styles as backup
       document.documentElement.style.setProperty('overflow', 'hidden', 'important');
       document.documentElement.style.setProperty('height', '100%', 'important');
@@ -155,17 +155,17 @@ export const Login = () => {
         root.style.setProperty('overflow', 'hidden', 'important');
         root.style.setProperty('max-height', '100vh', 'important');
       }
-
+      
       // Prevent scroll events
       document.addEventListener('wheel', preventScroll, { passive: false });
       document.addEventListener('touchmove', preventScroll, { passive: false });
       document.addEventListener('scroll', preventScroll, { passive: false });
-
+      
       return () => {
         // Remove no-scroll class
         document.documentElement.classList.remove('no-scroll');
         document.body.classList.remove('no-scroll');
-
+        
         // Remove inline styles
         document.documentElement.style.removeProperty('overflow');
         document.documentElement.style.removeProperty('height');
@@ -180,7 +180,7 @@ export const Login = () => {
           root.style.removeProperty('overflow');
           root.style.removeProperty('max-height');
         }
-
+        
         // Remove event listeners
         document.removeEventListener('wheel', preventScroll);
         document.removeEventListener('touchmove', preventScroll);
@@ -197,12 +197,12 @@ export const Login = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
-
+    
     // Clear success message when user starts typing
     if (successMessage) {
       setSuccessMessage('');
     }
-
+    
     // Clear error when user starts typing
     if (error) {
       clearError();
@@ -227,7 +227,7 @@ export const Login = () => {
 
   const handleSendResetEmail = async () => {
     const trimmedEmail = forgotPasswordEmail.trim();
-
+    
     if (!trimmedEmail) {
       setResetError('Please enter your email address');
       return;
@@ -245,7 +245,7 @@ export const Login = () => {
 
     try {
       const result = await UserService.resetPassword(trimmedEmail);
-
+      
       if (result.error) {
         setResetError(result.error);
       } else if (result.success) {
@@ -269,18 +269,18 @@ export const Login = () => {
   // Enhanced error message parsing with specific email/password detection
   const getErrorMessage = (errorMsg, errorType) => {
     if (!errorMsg) return 'An error occurred. Please try again.';
-
+    
     const lowerError = errorMsg.toLowerCase();
-
+    
     // Account lockout/ban messages
     if (lowerError.includes('banned') || lowerError.includes('ban')) {
       return errorMsg; // Keep original ban message
     }
-
+    
     if (lowerError.includes('inactive')) {
       return errorMsg; // Keep original inactive message
     }
-
+    
     // Email not confirmed
     if (lowerError.includes('email') && lowerError.includes('confirm')) {
       return 'Please confirm your email address before signing in. Check your inbox for the confirmation link.';
@@ -311,27 +311,27 @@ export const Login = () => {
       // So it's definitely a password issue
       return 'Password is wrong. Please check your password and try again.';
     }
-
+    
     // Email not found (though Supabase usually doesn't reveal this for security)
     if (lowerError.includes('email') && (lowerError.includes('not found') || lowerError.includes('does not exist') || lowerError.includes('user not found'))) {
       return 'Email is wrong. No account found with this email address. Please check your email or sign up.';
     }
-
+    
     // Password incorrect
     if (lowerError.includes('password') && (lowerError.includes('incorrect') || lowerError.includes('wrong') || lowerError.includes('invalid'))) {
       return 'Password is wrong. Please try again or use "Forgot password?" to reset.';
     }
-
+    
     // Too many attempts
     if (lowerError.includes('too many') || lowerError.includes('rate limit') || lowerError.includes('attempt')) {
       return 'Too many login attempts. Please wait a few minutes before trying again.';
     }
-
+    
     // Network errors
     if (lowerError.includes('network') || lowerError.includes('connection') || lowerError.includes('fetch')) {
       return 'Network error. Please check your internet connection and try again.';
     }
-
+    
     // Return original error if no specific match
     return errorMsg;
   };
@@ -340,7 +340,7 @@ export const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+    
     // Check if account is locked
     if (isLocked) {
       const remainingTime = Math.ceil((lockoutTime - new Date()) / 1000 / 60);
@@ -353,7 +353,7 @@ export const Login = () => {
     clearError();
     setLocalError(null);
     setSuccessMessage('');
-
+    
     // Trim email and password before submitting
     const trimmedEmail = formData.email.trim();
     const trimmedPassword = formData.password.trim();
@@ -364,7 +364,7 @@ export const Login = () => {
       setLocalError('Please enter both email and password.');
       return;
     }
-
+    
     // Rate limiting check
     try {
       const { RateLimitService } = await import('../../services/rateLimitService');
@@ -374,7 +374,7 @@ export const Login = () => {
         RateLimitService.limits.login.maxRequests,
         RateLimitService.limits.login.windowSeconds
       );
-
+      
       if (!rateLimitResult.allowed) {
         setIsSubmitting(false);
         setLocalError(`Too many login attempts. Please try again after ${new Date(rateLimitResult.resetAt).toLocaleTimeString()}.`);
@@ -384,7 +384,7 @@ export const Login = () => {
       // Fail open - allow login if rate limit check fails
       console.warn('Rate limit check failed, allowing login:', rateLimitError);
     }
-
+    
     try {
       // Attempt sign-in first
       const result = await signIn(trimmedEmail, trimmedPassword, formData.rememberMe);
@@ -396,7 +396,7 @@ export const Login = () => {
         setLocalError('Login failed. Please try again.');
         return;
       }
-
+      
       if (result && result.success && result.user) {
         // Handle remember me
         if (formData.rememberMe) {
@@ -406,26 +406,26 @@ export const Login = () => {
           localStorage.removeItem('rememberedEmail');
           localStorage.removeItem('rememberMe');
         }
-
+        
         // Reset login attempts on success
         setLoginAttempts(0);
         localStorage.removeItem('loginAttempts');
-
+        
         // Show success message
         setSuccessMessage('Login successful! Redirecting...');
-
+        
         // Navigate after a brief delay to show success message
         setTimeout(() => {
-          if (result.redirectPath) {
-            navigate(result.redirectPath);
-          }
+        if (result.redirectPath) {
+          navigate(result.redirectPath);
+        }
         }, 500);
       } else {
         // Handle failed login attempts
         const newAttempts = loginAttempts + 1;
         setLoginAttempts(newAttempts);
         localStorage.setItem('loginAttempts', newAttempts.toString());
-
+        
         // Lock account after 5 failed attempts
         if (newAttempts >= 5) {
           const lockoutEnd = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
@@ -524,15 +524,15 @@ export const Login = () => {
   }
 
   return (
-    <section
-      className="fixed inset-0 overflow-hidden bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4"
-      style={{
-        height: '100vh',
-        width: '100vw',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
+    <section 
+      className="fixed inset-0 overflow-hidden bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4" 
+      style={{ 
+        height: '100vh', 
+        width: '100vw', 
+        position: 'fixed', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
         bottom: 0,
         overflow: 'hidden',
         maxHeight: '100vh'
@@ -747,7 +747,7 @@ export const Login = () => {
 
       {/* Forgot Password Modal */}
       {showForgotPassword && (
-        <div
+        <div 
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
           role="dialog"
           aria-modal="true"

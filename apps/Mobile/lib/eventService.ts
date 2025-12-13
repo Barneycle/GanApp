@@ -21,6 +21,7 @@ export interface Event {
   event_programmes_url?: string;
   materials_url?: string;
   programme_url?: string;
+  registration_deadline?: string;
 }
 
 export interface EventRegistration {
@@ -309,7 +310,7 @@ export class EventService {
           .eq('id', cancelledRegistration.id)
           .select()
           .single();
-        
+
         registrationData = data;
         registrationError = error;
       } else {
@@ -323,7 +324,7 @@ export class EventService {
           }])
           .select()
           .single();
-        
+
         registrationData = data;
         registrationError = error;
       }
@@ -354,10 +355,10 @@ export class EventService {
       // Update event participant count
       const currentCount = eventResult.event.current_participants || 0;
       const newCount = currentCount + 1;
-      
+
       const { error: updateError } = await supabase
         .from('events')
-        .update({ 
+        .update({
           current_participants: newCount
         })
         .eq('id', eventId);
@@ -368,6 +369,109 @@ export class EventService {
       }
 
       return { registration: registrationData };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Check if user has checked in to an event
+   */
+  static async checkUserCheckInStatus(eventId: string, userId: string): Promise<{ isCheckedIn: boolean; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('attendance_logs')
+        .select('id, check_in_time, is_validated')
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
+        .eq('is_validated', true)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return { isCheckedIn: false };
+        }
+        return { isCheckedIn: false, error: error.message };
+      }
+
+      return { isCheckedIn: !!data?.check_in_time };
+    } catch (error) {
+      return { isCheckedIn: false, error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Check if user has completed survey/evaluation for an event
+   */
+  static async checkUserSurveyCompletion(eventId: string, userId: string): Promise<{ isCompleted: boolean; error?: string }> {
+    try {
+      // Check survey_responses with join to surveys table
+      const { data: surveyResponses, error: surveyError } = await supabase
+        .from('survey_responses')
+        .select(`
+          id,
+          surveys!inner(event_id)
+        `)
+        .eq('user_id', userId)
+        .eq('surveys.event_id', eventId);
+
+      if (surveyResponses && surveyResponses.length > 0) {
+        return { isCompleted: true };
+      }
+
+      // Check evaluation_responses with join to evaluations table
+      const { data: evaluationResponses, error: evalError } = await supabase
+        .from('evaluation_responses')
+        .select(`
+          id,
+          evaluations!inner(event_id)
+        `)
+        .eq('user_id', userId)
+        .eq('evaluations.event_id', eventId);
+
+      if (evaluationResponses && evaluationResponses.length > 0) {
+        return { isCompleted: true };
+      }
+
+      return { isCompleted: false };
+    } catch (error) {
+      return { isCompleted: false, error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Unregister user from an event
+   */
+  static async unregisterFromEvent(eventId: string, userId: string): Promise<{ error?: string }> {
+    try {
+      // First check if registration exists
+      const { data: registration, error: checkError } = await supabase
+        .from('event_registrations')
+        .select('id, status')
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
+        .eq('status', 'registered')
+        .maybeSingle();
+
+      if (checkError) {
+        return { error: checkError.message };
+      }
+
+      if (!registration) {
+        return { error: 'You are not registered for this event' };
+      }
+
+      // Update status to cancelled
+      const { error } = await supabase
+        .from('event_registrations')
+        .update({ status: 'cancelled' })
+        .eq('id', registration.id);
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return {};
     } catch (error) {
       return { error: 'An unexpected error occurred' };
     }
