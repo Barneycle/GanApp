@@ -236,11 +236,74 @@ export default function Certificate() {
     );
   }
 
+  // Inject CSS to add safe area padding to the web content
+  // This runs after the page loads to ensure safe areas are respected
+  const injectedJavaScript = `
+    (function() {
+      // Wait for DOM to be ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', applySafeAreas);
+      } else {
+        applySafeAreas();
+      }
+      
+      function applySafeAreas() {
+        // Add safe area CSS if not already present
+        const styleId = 'rn-safe-area-style';
+        if (!document.getElementById(styleId)) {
+          const style = document.createElement('style');
+          style.id = styleId;
+          style.textContent = \`
+            html, body {
+              padding-top: env(safe-area-inset-top) !important;
+              padding-bottom: env(safe-area-inset-bottom) !important;
+              padding-left: env(safe-area-inset-left) !important;
+              padding-right: env(safe-area-inset-right) !important;
+            }
+            #root {
+              padding-top: env(safe-area-inset-top) !important;
+              padding-bottom: env(safe-area-inset-bottom) !important;
+            }
+            .mobile-certificate-view {
+              padding-top: env(safe-area-inset-top) !important;
+              padding-bottom: env(safe-area-inset-bottom) !important;
+            }
+          \`;
+          document.head.appendChild(style);
+        }
+        
+        // Ensure viewport meta tag has viewport-fit=cover
+        let viewport = document.querySelector('meta[name="viewport"]');
+        if (viewport) {
+          const content = viewport.getAttribute('content') || '';
+          if (!content.includes('viewport-fit=cover')) {
+            viewport.setAttribute('content', content + ', viewport-fit=cover');
+          }
+        } else {
+          viewport = document.createElement('meta');
+          viewport.name = 'viewport';
+          viewport.content = 'width=device-width, initial-scale=1.0, viewport-fit=cover';
+          document.head.appendChild(viewport);
+        }
+      }
+    })();
+    true; // Required for iOS
+  `;
+
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <View className="flex-1">
+    <SafeAreaView className="flex-1 bg-white" edges={['top', 'bottom']}>
+      <View className="flex-1" style={{ 
+        paddingTop: 0, // SafeAreaView handles top
+        paddingBottom: 0 // SafeAreaView handles bottom
+      }}>
         {loading && (
-          <View className="absolute inset-0 items-center justify-center bg-white z-10" style={{ paddingTop: insets.top }}>
+          <View 
+            className="absolute inset-0 items-center justify-center bg-white z-10" 
+            style={{ 
+              paddingTop: insets.top,
+              paddingBottom: insets.bottom
+            }}
+          >
             <ActivityIndicator size="large" color="#2563eb" />
             <Text className="text-slate-600 mt-4">Loading certificate...</Text>
             {__DEV__ && (
@@ -263,7 +326,13 @@ export default function Certificate() {
           startInLoadingState={true}
           scalesPageToFit={true}
           allowsBackForwardNavigationGestures={true}
-          style={{ flex: 1 }}
+          injectedJavaScript={injectedJavaScript}
+          style={{ 
+            flex: 1,
+            marginTop: 0,
+            marginBottom: 0
+          }}
+          contentInsetAdjustmentBehavior="automatic"
           userAgent="Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36"
         />
       </View>

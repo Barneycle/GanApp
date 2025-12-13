@@ -89,13 +89,52 @@ export const CertificatePage = () => {
     }
   }, [token, isMobile]);
 
-  // Hide navbar for mobile WebView
+  // Hide navbar and add safe area support for mobile WebView
   useEffect(() => {
     if (isMobile) {
       // Hide navbar by adding a class to body
       document.body.classList.add('mobile-certificate-view');
+      
+      // Add safe area CSS if not already present
+      const styleId = 'mobile-certificate-safe-area';
+      if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+          .mobile-certificate-view {
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+          }
+          .mobile-certificate-view #root {
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+          }
+        `;
+        document.head.appendChild(style);
+      }
+      
+      // Ensure viewport meta tag has viewport-fit=cover
+      let viewport = document.querySelector('meta[name="viewport"]');
+      if (viewport) {
+        const content = viewport.getAttribute('content') || '';
+        if (!content.includes('viewport-fit=cover')) {
+          viewport.setAttribute('content', `${content}, viewport-fit=cover`);
+        }
+      } else {
+        viewport = document.createElement('meta');
+        viewport.name = 'viewport';
+        viewport.content = 'width=device-width, initial-scale=1.0, viewport-fit=cover';
+        document.head.appendChild(viewport);
+      }
+      
       return () => {
         document.body.classList.remove('mobile-certificate-view');
+        const style = document.getElementById(styleId);
+        if (style) {
+          style.remove();
+        }
       };
     }
   }, [isMobile]);
