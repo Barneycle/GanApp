@@ -151,6 +151,37 @@ export class QRScanService {
   }
 
   /**
+   * Look up QR code by token (8-character ID) and return its qr_data
+   */
+  static async lookupQRCodeByToken(qrToken: string): Promise<string | null> {
+    try {
+      // Remove any dashes or spaces from the token
+      const cleanToken = qrToken.replace(/[-\s]/g, '').toUpperCase();
+      
+      if (cleanToken.length !== 8) {
+        return null;
+      }
+
+      const { data, error } = await supabase
+        .from('qr_codes')
+        .select('qr_data, is_active')
+        .eq('qr_token', cleanToken)
+        .eq('is_active', true)
+        .single();
+
+      if (error || !data) {
+        return null;
+      }
+
+      // Return the qr_data as a JSON string
+      return JSON.stringify(data.qr_data);
+    } catch (error) {
+      console.error('Error looking up QR code by token:', error);
+      return null;
+    }
+  }
+
+  /**
    * Parse QR code data from various formats
    */
   private static parseQRData(qrData: string): QRScanData {

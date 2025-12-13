@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,24 +12,40 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ParticipantService, ParticipantInfo } from '../lib/participantService';
+import { showSuccess } from '../lib/sweetAlert';
 import TutorialOverlay from '../components/TutorialOverlay';
 
 export default function ParticipantDetails() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { participantId, eventId, eventTitle } = useLocalSearchParams<{
+  const { participantId, eventId, eventTitle, showAlert, alertTitle, alertMessage } = useLocalSearchParams<{
     participantId?: string;
     eventId?: string;
     eventTitle?: string;
+    showAlert?: string;
+    alertTitle?: string;
+    alertMessage?: string;
   }>();
   
   const [participant, setParticipant] = useState<ParticipantInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasShownAlert = useRef(false);
 
   useEffect(() => {
     loadParticipantInfo();
   }, [participantId, eventId]);
+
+  // Show alert after participant data is loaded
+  useEffect(() => {
+    if (!loading && participant && showAlert === 'true' && alertTitle && !hasShownAlert.current) {
+      hasShownAlert.current = true;
+      // Small delay to ensure screen is fully rendered
+      setTimeout(() => {
+        showSuccess(alertTitle, alertMessage);
+      }, 300);
+    }
+  }, [loading, participant, showAlert, alertTitle, alertMessage]);
 
   const loadParticipantInfo = async () => {
     if (!participantId || !eventId) {
@@ -124,7 +140,10 @@ export default function ParticipantDetails() {
       {/* Header */}
       <View 
         className="border-b border-gray-200 px-6 py-4 flex-row items-center justify-between"
-        style={{ paddingTop: 0, backgroundColor: '#FAFAFA' }}
+        style={{ 
+          paddingTop: Math.max(insets.top, 8),
+          backgroundColor: '#FAFAFA' 
+        }}
       >
         <TouchableOpacity
           onPress={() => router.back()}
@@ -161,7 +180,9 @@ export default function ParticipantDetails() {
         {/* Name and Role */}
         <View className="px-6 pb-6">
           <Text className="text-4xl font-bold text-gray-900 mb-2">
-            {participant.first_name} {participant.last_name}
+            {[participant.first_name, participant.middle_initial, participant.last_name]
+              .filter(Boolean)
+              .join(' ')}
           </Text>
           <Text className="text-lg text-gray-500 capitalize">
             {participant.role}
@@ -202,45 +223,6 @@ export default function ParticipantDetails() {
             </View>
           </View>
         </View>
-
-        {/* Contact Information */}
-        <View className="mx-6 mb-6">
-          <Text className="text-base font-semibold text-gray-600 mb-3">Contact Information</Text>
-          
-          {/* Email */}
-          <View className="rounded-xl p-5 flex-row items-center shadow-sm border border-gray-100" style={{ backgroundColor: '#FAFAFA' }}>
-            <View className="w-14 h-14 bg-blue-100 rounded-full items-center justify-center mr-4">
-              <Ionicons name="mail" size={24} color="#1E40AF" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-sm text-gray-500 mb-1">Email</Text>
-              <Text className="text-lg font-medium text-gray-900">{participant.email || 'Not provided'}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Check-in Details */}
-        {participant.check_in_time && (
-          <View className="mx-6 mb-6">
-            <Text className="text-base font-semibold text-gray-600 mb-3">Check-in Details</Text>
-            
-            <View className="rounded-xl p-5 mb-3 shadow-sm border border-gray-100" style={{ backgroundColor: '#FAFAFA' }}>
-              <Text className="text-sm text-purple-600 mb-2">Check-in Time</Text>
-              <Text className="text-lg font-medium text-purple-900">
-                {new Date(participant.check_in_time).toLocaleString()}
-              </Text>
-            </View>
-
-            {participant.check_in_method && (
-              <View className="rounded-xl p-5 shadow-sm border border-gray-100" style={{ backgroundColor: '#FAFAFA' }}>
-                <Text className="text-sm text-amber-600 mb-2">Check-in Method</Text>
-                <Text className="text-lg font-medium text-amber-900 capitalize">
-                  {participant.check_in_method.replace('_', ' ')}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
 
         {/* Registration Date */}
         {participant.registration_date && (

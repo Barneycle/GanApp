@@ -13,6 +13,7 @@ export const SweetAlertProvider = forwardRef<SweetAlertRef, { children: React.Re
 
     useImperativeHandle(ref, () => ({
       show: (config: Omit<SweetAlertProps, 'visible'>) => {
+        console.log('SweetAlertProvider: show called', config);
         setAlertConfig({
           ...config,
           visible: true,

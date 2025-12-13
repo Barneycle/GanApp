@@ -48,7 +48,12 @@ export default function RootLayout() {
   const sweetAlertRef = useRef<SweetAlertRef>(null);
 
   useEffect(() => {
+    console.log('RootLayout: Setting sweetAlertRef', { hasRef: !!sweetAlertRef, hasCurrent: !!sweetAlertRef.current });
     setSweetAlertRef(sweetAlertRef);
+    // Also check after a delay to see if ref.current is set
+    setTimeout(() => {
+      console.log('RootLayout: Ref check after delay', { hasRef: !!sweetAlertRef, hasCurrent: !!sweetAlertRef.current });
+    }, 1000);
   }, []);
 
   return (

@@ -3,6 +3,7 @@ import { supabase } from './supabase';
 export interface ParticipantInfo {
   id: string;
   first_name: string;
+  middle_initial?: string;
   last_name: string;
   email: string;
   phone?: string;
@@ -23,23 +24,25 @@ export class ParticipantService {
     try {
       console.log('Fetching participant info for userId:', userId, 'eventId:', eventId);
       
-      // Try to get user info from a database function that can read from auth.users
-      // If that doesn't exist, try the public users table
+      // Try to get user info from RPC function first
       const { data: userData, error: userError } = await supabase.rpc('get_user_profile', { user_id: userId });
       
       console.log('RPC user data:', userData, 'Error:', userError);
       
-      // If RPC doesn't work, fall back to public users table (if it exists)
       let user = userData;
+      
+      // If RPC doesn't work, try public users table as fallback
       if (userError || !userData) {
         const { data: usersTableData, error: tableError } = await supabase
           .from('users')
-          .select('id, email, first_name, last_name, phone, avatar_url, role')
+          .select('id, email, first_name, middle_initial, last_name, phone, avatar_url, role')
           .eq('id', userId)
           .single();
         
         console.log('Users table data:', usersTableData, 'Error:', tableError);
-        user = usersTableData;
+        if (usersTableData) {
+          user = usersTableData;
+        }
       }
       
       // Get registration information
@@ -72,10 +75,16 @@ export class ParticipantService {
       // Parse the user data (could be JSON from RPC or object from table)
       const userInfo = typeof user === 'string' ? JSON.parse(user) : user;
 
+      // Extract middle_initial from userInfo
+      // Note: RPC function may need to be updated to include middle_initial
+      // See schemas/patches/update_get_user_profile_middle_initial.sql
+      const middleInitial = userInfo.middle_initial || '';
+
       // Build participant info with real user data
       const participantInfo: ParticipantInfo = {
         id: userInfo.id || userId,
         first_name: userInfo.first_name || 'Unknown',
+        middle_initial: middleInitial,
         last_name: userInfo.last_name || '',
         email: userInfo.email || '',
         phone: userInfo.phone || '',

@@ -11,6 +11,10 @@ import {
   ActivityIndicator,
   StyleSheet,
   Dimensions,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  InteractionManager,
 } from 'react-native';
 import { showError, showSuccess } from '../../lib/sweetAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,7 +27,7 @@ import {
   useCodeScanner,
 } from 'react-native-vision-camera';
 import { QRScanService, QRScanResult } from '../../lib/qrScanService';
-import { ParticipantService } from '../../lib/participantService';
+import { ParticipantService, ParticipantInfo } from '../../lib/participantService';
 import { useAuth } from '../../lib/authContext';
 import TutorialOverlay from '../../components/TutorialOverlay';
 
@@ -36,6 +40,8 @@ export default function QRScanner() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cameraType, setCameraType] = useState<'front' | 'back'>('back');
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [manualEntryId, setManualEntryId] = useState('');
   
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -100,7 +106,7 @@ export default function QRScanner() {
     }
   }, [hasPermission, activeDevice, isProcessing, scanLineAnim]);
 
-  const showSuccess = () => {
+  const animateSuccess = () => {
     Animated.sequence([
       Animated.spring(successAnim, {
         toValue: 1,
@@ -121,7 +127,7 @@ export default function QRScanner() {
       if (isProcessing) return;
 
       setIsProcessing(true);
-      showSuccess();
+      animateSuccess();
 
       try {
         const deviceInfo = {
@@ -141,53 +147,86 @@ export default function QRScanner() {
         if (result.success && result.event) {
           const isOrganizer = user?.role === 'organizer' || user?.role === 'admin';
 
-          if (isOrganizer) {
+          // Get participant info to display full name
+          let participant: ParticipantInfo | null = null;
+          try {
+            let participantId: string | null = null;
             try {
-              let participantId: string | null = null;
-              try {
-                const parsed = JSON.parse(qrData);
-                participantId = parsed.userId || parsed.id;
-              } catch {
-                participantId = qrData;
-              }
-
-              if (participantId) {
-                const participant = await ParticipantService.getParticipantInfo(
-                  participantId,
-                  result.event.id
-                );
-
-                if (participant) {
-                  router.push({
-                    pathname: '/participant-details',
-                    params: {
-                      participantId: participant.id,
-                      eventId: result.event.id,
-                      eventTitle: result.event.title,
-                    },
-                  });
-                  return;
-                }
-              }
-            } catch (err) {
-              console.error('Error fetching participant:', err);
+              const parsed = JSON.parse(qrData);
+              participantId = parsed.userId || parsed.id;
+            } catch {
+              participantId = qrData;
             }
+
+            if (participantId) {
+              participant = await ParticipantService.getParticipantInfo(
+                participantId,
+                result.event.id
+              );
+            }
+          } catch (err) {
+            console.error('Error fetching participant:', err);
           }
 
-          showSuccess(
-            'Check-in Successful!',
-            `Event: ${result.event.title}\n\n${result.message}`,
-            () => {
-              router.push({
-                pathname: '/survey',
-                params: {
-                  eventId: result.event!.id,
-                  eventTitle: result.event!.title,
-                  attendanceLogId: result.attendanceLog?.id,
-                },
+          // Get first name only
+          const firstName = participant?.first_name || 'Participant';
+          
+          // Format check-in details
+          const checkInTime = result.attendanceLog?.check_in_time 
+            ? new Date(result.attendanceLog.check_in_time).toLocaleString()
+            : new Date().toLocaleString();
+          
+          const checkInMethod = result.attendanceLog?.check_in_method 
+            ? result.attendanceLog.check_in_method.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+            : 'QR Code Scan';
+
+          // Navigate based on user role
+          if (isOrganizer && participant) {
+            // For organizers: navigate first, then show alert on participant details screen
+            router.push({
+              pathname: '/participant-details',
+              params: {
+                participantId: participant.id,
+                eventId: result.event.id,
+                eventTitle: result.event.title,
+                showAlert: 'true',
+                alertTitle: `Welcome, ${firstName}!`,
+                alertMessage: `Event: ${result.event.title}\n\nCheck-in Time: ${checkInTime}\nMethod: ${checkInMethod}\n\n${result.message}`,
+              },
+            });
+          } else {
+            // For participants: show alert first, then navigate to survey
+            console.log('QRScanner: About to call showSuccess', { firstName, eventTitle: result.event.title });
+            
+            // Store navigation params and router reference to avoid closure issues
+            const surveyParams = {
+              eventId: result.event!.id,
+              eventTitle: result.event!.title,
+              attendanceLogId: result.attendanceLog?.id,
+            };
+            
+            // Create a navigation function that will be called from the alert callback
+            const navigateToSurvey = () => {
+              // Use InteractionManager to ensure navigation happens after interactions
+              InteractionManager.runAfterInteractions(() => {
+                try {
+                  router.push({
+                    pathname: '/survey',
+                    params: surveyParams,
+                  } as any);
+                } catch (err) {
+                  console.error('Navigation error:', err);
+                }
               });
-            }
-          );
+            };
+            
+            showSuccess(
+              `Welcome, ${firstName}!`,
+              `Event: ${result.event.title}\n\nCheck-in Time: ${checkInTime}\nMethod: ${checkInMethod}\n\n${result.message}`,
+              navigateToSurvey
+            );
+            console.log('QRScanner: showSuccess called');
+          }
         } else {
           showError('Check-in Failed', result.message || result.error || 'Unable to process QR code');
         }
@@ -198,6 +237,40 @@ export default function QRScanner() {
     },
     [isProcessing, user, router]
   );
+
+  const handleManualEntry = async () => {
+    if (!manualEntryId.trim() || isProcessing) return;
+
+    const cleanId = manualEntryId.replace(/[-\s]/g, '').toUpperCase().trim();
+    
+    if (cleanId.length !== 8) {
+      showError('Invalid ID', 'Please enter an 8-character QR code ID');
+      return;
+    }
+
+    setIsProcessing(true);
+    setShowManualEntry(false);
+
+    try {
+      // Look up QR code by token
+      const qrData = await QRScanService.lookupQRCodeByToken(cleanId);
+      
+      if (!qrData) {
+        setIsProcessing(false);
+        showError('QR Code Not Found', 'The entered ID does not match any active QR code. Please check and try again.');
+        setManualEntryId('');
+        return;
+      }
+
+      // Process the QR code data
+      await handleQRScan(qrData);
+      setManualEntryId('');
+    } catch (err) {
+      setIsProcessing(false);
+      showError('Error', 'Failed to process manual entry. Please try again.');
+      setManualEntryId('');
+    }
+  };
 
   // Calculate frame position (centered in available space)
   // Account for header and safe area
@@ -325,12 +398,15 @@ export default function QRScanner() {
         ]}
       />
       <SafeAreaView style={{ flex: 1 }}>
-        {/* Header - camera flip button only */}
+        {/* Header - camera flip and manual entry buttons */}
         <View
           style={{
             position: 'absolute',
             top: 0,
+            left: 0,
             right: 0,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
             paddingHorizontal: 16,
             paddingVertical: 12,
             paddingTop: 8,
@@ -338,8 +414,34 @@ export default function QRScanner() {
           }}
         >
           <TouchableOpacity
+            onPress={() => setShowManualEntry(true)}
+            style={{ 
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'rgba(30, 58, 138, 0.9)',
+              borderRadius: 25,
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+              gap: 8,
+            }}
+          >
+            <Ionicons name="create-outline" size={20} color="white" />
+            <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '600' }}>
+              Manual Entry
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
             onPress={() => setCameraType(prev => prev === 'back' ? 'front' : 'back')}
-            style={{ width: 56, height: 56, alignItems: 'center', justifyContent: 'center' }}
+            style={{ 
+              width: 56, 
+              height: 56, 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              borderRadius: 28,
+            }}
           >
             <Ionicons name="camera-reverse" size={32} color="white" />
           </TouchableOpacity>
@@ -538,6 +640,105 @@ export default function QRScanner() {
           </View>
         </View>
       </SafeAreaView>
+
+      {/* Manual Entry Modal */}
+      <Modal
+        visible={showManualEntry}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowManualEntry(false);
+          setManualEntryId('');
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1, justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
+        >
+          <View
+            style={{
+              backgroundColor: '#1e3a8a',
+              marginHorizontal: 20,
+              borderRadius: 20,
+              padding: 24,
+              maxWidth: 400,
+              alignSelf: 'center',
+              width: '100%',
+            }}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: 'bold' }}>
+                Manual Entry
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowManualEntry(false);
+                  setManualEntryId('');
+                }}
+              >
+                <Ionicons name="close" size={28} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ color: '#e2e8f0', fontSize: 14, marginBottom: 12 }}>
+              Enter the 8-character QR code ID
+            </Text>
+
+            <TextInput
+              value={manualEntryId}
+              onChangeText={(text) => {
+                // Remove any non-alphanumeric characters and limit to 8
+                const cleaned = text.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8);
+                setManualEntryId(cleaned);
+              }}
+              placeholder="XXXX-XXXX"
+              placeholderTextColor="#94a3b8"
+              style={{
+                backgroundColor: '#ffffff',
+                borderRadius: 12,
+                padding: 16,
+                fontSize: 24,
+                fontFamily: 'monospace',
+                fontWeight: 'bold',
+                letterSpacing: 4,
+                textAlign: 'center',
+                color: '#1e3a8a',
+                marginBottom: 20,
+                borderWidth: 2,
+                borderColor: manualEntryId.length === 8 ? '#16a34a' : '#cbd5e1',
+              }}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={8}
+              autoFocus={true}
+            />
+
+            <Text style={{ color: '#94a3b8', fontSize: 12, marginBottom: 20, textAlign: 'center' }}>
+              {manualEntryId.length === 8 ? '✓ Ready to submit' : `${manualEntryId.length}/8 characters`}
+            </Text>
+
+            <TouchableOpacity
+              onPress={handleManualEntry}
+              disabled={manualEntryId.length !== 8 || isProcessing}
+              style={{
+                backgroundColor: manualEntryId.length === 8 && !isProcessing ? '#16a34a' : '#64748b',
+                borderRadius: 12,
+                padding: 16,
+                alignItems: 'center',
+                opacity: manualEntryId.length === 8 && !isProcessing ? 1 : 0.6,
+              }}
+            >
+              {isProcessing ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: 'bold' }}>
+                  Submit
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
