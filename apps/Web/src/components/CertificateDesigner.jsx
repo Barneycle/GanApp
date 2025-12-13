@@ -21,8 +21,8 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
     title_font_family: 'Libre Baskerville, serif',
     title_color: '#000000',
     title_position: { x: 50, y: 28 },
-    width: 2000,
-    height: 1200,
+    width: 842,  // A4 landscape: 297mm × 210mm = 842 × 595 points
+    height: 595,
     name_config: {
       font_size: 48,
       color: '#000000',
@@ -432,7 +432,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
       
       // Update config with the uploaded URL and default size
       updateConfig('background_image_url', publicUrl);
-      updateConfig('background_image_size', config.background_image_size || { width: config.width || 2000, height: config.height || 1200 });
+      updateConfig('background_image_size', config.background_image_size || { width: config.width || 842, height: config.height || 595 });
       
       // Refresh backgrounds list
       await fetchExistingBackgrounds();
@@ -449,7 +449,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
   // Select existing background image from database
   const handleSelectExistingBackground = (bgUrl) => {
     updateConfig('background_image_url', bgUrl);
-    updateConfig('background_image_size', config.background_image_size || { width: config.width || 2000, height: config.height || 1200 });
+    updateConfig('background_image_size', config.background_image_size || { width: config.width || 842, height: config.height || 595 });
   };
 
   // Upload logo to Supabase Storage and database
@@ -1244,7 +1244,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
                         <div className="flex items-center justify-between">
                           <label className="text-xs font-medium text-slate-600">Width</label>
                           <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
-                            {config.background_image_size?.width || config.width || 2000}px
+                            {config.background_image_size?.width || config.width || 842}px
                           </span>
                         </div>
                         <input
@@ -1252,11 +1252,11 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
                           min="500"
                           max="4000"
                           step="100"
-                          value={config.background_image_size?.width || config.width || 2000}
+                          value={config.background_image_size?.width || config.width || 842}
                           onChange={(e) => updateConfig('background_image_size', {
                             ...config.background_image_size,
                             width: parseInt(e.target.value),
-                            height: config.background_image_size?.height || config.height || 1200
+                            height: config.background_image_size?.height || config.height || 595
                           })}
                           className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                         />
@@ -1265,7 +1265,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
                         <div className="flex items-center justify-between">
                           <label className="text-xs font-medium text-slate-600">Height</label>
                           <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
-                            {config.background_image_size?.height || config.height || 1200}px
+                            {config.background_image_size?.height || config.height || 595}px
                           </span>
                         </div>
                         <input
@@ -1273,10 +1273,10 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
                           min="300"
                           max="2400"
                           step="100"
-                          value={config.background_image_size?.height || config.height || 1200}
+                          value={config.background_image_size?.height || config.height || 595}
                           onChange={(e) => updateConfig('background_image_size', {
                             ...config.background_image_size,
-                            width: config.background_image_size?.width || config.width || 2000,
+                            width: config.background_image_size?.width || config.width || 842,
                             height: parseInt(e.target.value)
                           })}
                           className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"

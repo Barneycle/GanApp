@@ -314,7 +314,10 @@ export const StandaloneCertificateGenerator = () => {
   };
 
   const handleDownload = async (url, format, certificateNumber, certId) => {
+    console.log('📥 Download requested:', format, { url, certificateNumber, certId });
+    
     if (!url) {
+      console.warn('❌ No URL provided for download');
       toast.error(`${format.toUpperCase()} certificate not available`);
       return;
     }
@@ -324,23 +327,92 @@ export const StandaloneCertificateGenerator = () => {
     setDownloadingFormat(format);
 
     try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch certificate: ${response.statusText}`);
+      // Add cache-busting parameter to ensure we get the latest version
+      const urlWithCacheBust = `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+      console.log('📥 Downloading from URL:', urlWithCacheBust);
+      
+      let blob;
+      
+      try {
+        // Try fetching with CORS first
+        const response = await fetch(urlWithCacheBust, {
+          method: 'GET',
+          mode: 'cors',
+          cache: 'no-cache',
+        });
+        
+        if (response.ok) {
+          blob = await response.blob();
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (fetchErr) {
+        // If CORS fails, for images we can use an img element to load and convert to blob
+        if (format === 'png') {
+          console.log('🔄 CORS failed, trying canvas-based approach for PNG...');
+          blob = await new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.width;
+              canvas.height = img.height;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0);
+              canvas.toBlob((blob) => {
+                if (blob) {
+                  resolve(blob);
+                } else {
+                  reject(new Error('Failed to convert image to blob'));
+                }
+              }, 'image/png');
+            };
+            img.onerror = () => reject(new Error('Failed to load image'));
+            img.src = urlWithCacheBust;
+          });
+        } else {
+          // For PDF, if fetch fails, try direct download link
+          throw fetchErr;
+        }
       }
-      const blob = await response.blob();
+      
+      // Create download link with blob URL
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.download = `certificate-${certificateNumber || 'cert'}.${format}`;
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
+      
+      // Clean up after a delay to ensure download starts
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+      }, 100);
+      
       toast.success('Certificate downloaded successfully!');
     } catch (err) {
-      console.error('Download error:', err);
-      toast.error(`Failed to download certificate: ${err.message || 'Unknown error'}`);
+      console.error('❌ Download error:', err);
+      
+      // Last resort: try direct link (may open in new tab for some browsers)
+      try {
+        console.log('🔄 Trying fallback download method...');
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `certificate-${certificateNumber || 'cert'}.${format}`;
+        link.target = '_blank'; // Open in new tab as fallback
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+        }, 100);
+        toast.info('Attempting download... If it opens in a new tab, right-click and "Save As"');
+      } catch (fallbackErr) {
+        console.error('❌ Fallback download also failed:', fallbackErr);
+        toast.error(`Failed to download certificate: ${err.message || 'Unknown error'}`);
+      }
     } finally {
       // Clear loading state
       setDownloadingCertId(null);
@@ -467,8 +539,8 @@ export const StandaloneCertificateGenerator = () => {
     title_font_size: 56,
     title_color: '#000000',
     title_position: { x: 50, y: 28 },
-    width: 2000,
-    height: 1200,
+    width: 842,  // A4 landscape: 297mm × 210mm = 842 × 595 points
+    height: 595,
     name_config: {
       font_size: 48,
       color: '#000000',
@@ -541,7 +613,7 @@ export const StandaloneCertificateGenerator = () => {
       font_weight: 'normal'
     },
     signature_blocks: [],
-    background_image_size: { width: 2000, height: 1200 },
+    background_image_size: { width: 842, height: 595 },  // A4 landscape
     cert_id_prefix: '',
     cert_id_position: { x: 50, y: 85 },
     cert_id_font_size: 16,

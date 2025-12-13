@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import QRCode from 'qrcode';
 import { CertificateService } from '../services/certificateService';
 import { EventService } from '../services/eventService';
@@ -22,6 +21,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
   const [previewData, setPreviewData] = useState(null);
   const [jobStatus, setJobStatus] = useState('idle');
   const [jobId, setJobId] = useState(null);
+  const [downloading, setDownloading] = useState({ pdf: false, png: false });
   const hasLoadedRef = useRef(false);
   const authTimeoutRef = useRef(null);
   const readyMessageSentRef = useRef(false);
@@ -81,6 +81,48 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
       console.log('⚠️ No user found but auth loading is complete. EventId:', eventId);
     }
   }, [eventId, user?.id, authLoading, isMobile]);
+
+  // Generate preview on-the-fly if certificate exists but no preview URL
+  useEffect(() => {
+    if (certificate && !previewData && config && event && !loading) {
+      const generatePreview = async () => {
+        try {
+          // Always generate preview on-the-fly for consistency
+          const { generatePNGCertificate } = await import('../utils/certificateGenerator');
+          const blob = await generatePNGCertificate(
+            config,
+            certificate.certificate_number,
+            {
+              participantName: getUserName(),
+              eventTitle: event.title,
+              completionDate: event.start_date || new Date().toISOString().split('T')[0],
+              venue: event.venue || ''
+            }
+          );
+          const previewUrl = window.URL.createObjectURL(blob);
+          setPreviewData({
+            type: 'png',
+            url: previewUrl
+          });
+        } catch (previewError) {
+          console.warn('Failed to generate preview:', previewError);
+          // Try using stored URL as fallback
+          if (certificate.certificate_png_url) {
+            setPreviewData({
+              type: 'png',
+              url: certificate.certificate_png_url
+            });
+          } else if (certificate.certificate_pdf_url) {
+            setPreviewData({
+              type: 'pdf',
+              url: certificate.certificate_pdf_url
+            });
+          }
+        }
+      };
+      generatePreview();
+    }
+  }, [certificate, previewData, config, event, loading]);
 
   // Notify mobile WebView when loading completes or error occurs
   useEffect(() => {
@@ -201,8 +243,8 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     title_font_size: 56,
     title_color: '#000000',
     title_position: { x: 50, y: 28 },
-    width: 2000,
-    height: 1200,
+    width: 842,  // A4 landscape: 297mm × 210mm = 842 × 595 points
+    height: 595,
     name_config: {
       font_size: 48,
       color: '#000000',
@@ -283,7 +325,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     qr_code_enabled: false,
     qr_code_size: 60,
     qr_code_position: { x: 60, y: 75 },
-    background_image_size: { width: 2000, height: 1200 }
+    background_image_size: { width: 842, height: 595 }  // A4 landscape
   });
 
   const loadData = async () => {
@@ -349,7 +391,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
       const certResult = await CertificateService.getUserCertificate(user.id, eventId);
       if (certResult.certificate) {
         setCertificate(certResult.certificate);
-        // Load preview
+        // Load preview - try PNG first, then PDF, then generate on-the-fly
         if (certResult.certificate.certificate_png_url) {
           setPreviewData({
             type: 'png',
@@ -360,6 +402,29 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
             type: 'pdf',
             url: certResult.certificate.certificate_pdf_url
           });
+        } else {
+          // Generate preview on-the-fly if URLs are not available
+          try {
+            const { generatePNGCertificate } = await import('../utils/certificateGenerator');
+            const blob = await generatePNGCertificate(
+              mergedConfig,
+              certResult.certificate.certificate_number,
+              {
+                participantName: getUserName(),
+                eventTitle: event.title,
+                completionDate: event.start_date || new Date().toISOString().split('T')[0],
+                venue: event.venue || ''
+              }
+            );
+            const previewUrl = window.URL.createObjectURL(blob);
+            setPreviewData({
+              type: 'png',
+              url: previewUrl
+            });
+          } catch (previewError) {
+            console.warn('Failed to generate preview:', previewError);
+            // Leave previewData as null to show "Preview not available"
+          }
         }
       }
     } catch (err) {
@@ -416,417 +481,38 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
   const generatePDF = async (certificateNumber = null) => {
     if (!config || !event) return null;
 
-    const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([config.width || 2000, config.height || 1200]);
-    const { width, height } = page.getSize();
-
-    // Helper function to load and embed image
-    const embedImage = async (url) => {
-      try {
-        const response = await fetch(url);
-        if (!response.ok) return null;
-        const imageBytes = await response.arrayBuffer();
-        // Try PNG first, then JPG
-        try {
-          return await pdfDoc.embedPng(imageBytes);
-        } catch {
-          return await pdfDoc.embedJpg(imageBytes);
-        }
-      } catch (error) {
-        console.warn('Error embedding image:', url, error);
-        return null;
-      }
-    };
-
-    // Background - use image only
-    if (config.background_image_url) {
-      const bgImage = await embedImage(config.background_image_url);
-      if (bgImage) {
-        page.drawImage(bgImage, {
-          x: 0,
-          y: 0,
-          width: width,
-          height: height,
-        });
-      } else {
-        // Fallback to white if image fails to load
-        page.drawRectangle({
-          x: 0,
-          y: 0,
-          width: width,
-          height: height,
-          color: rgb(1, 1, 1) // White
-        });
-      }
-    } else {
-      // Default white background if no image
-      page.drawRectangle({
-        x: 0,
-        y: 0,
-        width: width,
-        height: height,
-        color: rgb(1, 1, 1) // White
-      });
-    }
-
-    // Border
-    if (config.border_width && config.border_width > 0) {
-      const borderColor = config.border_color || '#1e40af';
-      page.drawRectangle({
-        x: config.border_width / 2,
-        y: config.border_width / 2,
-        width: width - config.border_width,
-        height: height - config.border_width,
-        borderColor: rgb(
-          parseInt(borderColor.substring(1, 3), 16) / 255,
-          parseInt(borderColor.substring(3, 5), 16) / 255,
-          parseInt(borderColor.substring(5, 7), 16) / 255
-        ),
-        borderWidth: config.border_width
-      });
-    }
-
-    // Embed fonts
-    const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    
-    // Embed MonteCarlo font for participant name
-    let monteCarloFont = null;
     try {
-      // Try multiple sources for MonteCarlo font
-      const fontUrls = [
-        'https://fonts.gstatic.com/s/montecarlo/v1/sykz-yx80lwvRnfW2Nc4kgnFhTd3kXc.woff2',
-        'https://github.com/google/fonts/raw/main/ofl/montecarlo/MonteCarlo-Regular.ttf'
-      ];
+      // First, generate the PNG certificate
+      const { generatePNGCertificate, convertPNGToPDF } = await import('../utils/certificateGenerator');
       
-      let fontBytes = null;
-      for (const fontUrl of fontUrls) {
-        try {
-          const fontResponse = await fetch(fontUrl);
-          if (fontResponse.ok) {
-            fontBytes = await fontResponse.arrayBuffer();
-            break;
-          }
-        } catch (e) {
-          continue;
+      console.log('🖼️ Generating PNG certificate...');
+      const pngBlob = await generatePNGCertificate(
+        config,
+        certificateNumber || certificate?.certificate_number,
+        {
+          participantName: getUserName(),
+          eventTitle: event.title,
+          completionDate: event.start_date || new Date().toISOString().split('T')[0],
+          venue: event.venue || ''
         }
+      );
+      
+      if (!pngBlob) {
+        throw new Error('Failed to generate PNG certificate');
       }
       
-      if (fontBytes) {
-        monteCarloFont = await pdfDoc.embedFont(fontBytes);
-      } else {
-        throw new Error('Could not load MonteCarlo font from any source');
-      }
+      console.log('📄 Converting PNG to PDF...');
+      // Convert PNG to PDF
+      const width = config.width || 842;  // A4 landscape width
+      const height = config.height || 595; // A4 landscape height
+      const pdfBytes = await convertPNGToPDF(pngBlob, width, height);
+      
+      console.log('✅ PDF generated successfully');
+      return pdfBytes;
     } catch (error) {
-      console.warn('Error loading MonteCarlo font, using fallback:', error);
-      monteCarloFont = helveticaBoldFont;
+      console.error('❌ Error generating PDF from PNG:', error);
+      throw error;
     }
-
-    const header = config.header_config || {};
-    const participation = config.participation_text_config || {};
-    const isGivenTo = config.is_given_to_config || {};
-    const nameConfig = config.name_config || {};
-    const participantName = getUserName();
-
-    // Helper to convert hex to RGB
-    const hexToRgb = (hex) => {
-      const r = parseInt(hex.substring(1, 3), 16) / 255;
-      const g = parseInt(hex.substring(3, 5), 16) / 255;
-      const b = parseInt(hex.substring(5, 7), 16) / 255;
-      return rgb(r, g, b);
-    };
-
-    // Logos
-    if (config.logo_config?.logos && config.logo_config.logos.length > 0) {
-      for (const logo of config.logo_config.logos) {
-        const logoSize = logo.size || { width: 120, height: 120 };
-        const logoPos = logo.position || { x: 15, y: 10 };
-        const logoImage = await embedImage(logo.url);
-        if (logoImage) {
-          page.drawImage(logoImage, {
-            x: (width * logoPos.x) / 100,
-            y: height - (height * logoPos.y) / 100 - logoSize.height,
-            width: logoSize.width,
-            height: logoSize.height,
-          });
-        }
-      }
-    }
-
-    // Sponsor Logos
-    if (config.logo_config?.sponsor_logos && config.logo_config.sponsor_logos.length > 0) {
-      const sponsorSize = config.logo_config.sponsor_logo_size || { width: 80, height: 80 };
-      const sponsorPos = config.logo_config.sponsor_logo_position || { x: 90, y: 5 };
-      const spacing = config.logo_config.sponsor_logo_spacing || 10;
-      for (let i = 0; i < config.logo_config.sponsor_logos.length; i++) {
-        const sponsorImage = await embedImage(config.logo_config.sponsor_logos[i]);
-        if (sponsorImage) {
-          page.drawImage(sponsorImage, {
-            x: (width * sponsorPos.x) / 100,
-            y: height - (height * sponsorPos.y) / 100 - sponsorSize.height - (i * (sponsorSize.height + spacing)),
-            width: sponsorSize.width,
-            height: sponsorSize.height,
-          });
-        }
-      }
-    }
-
-    // Header - Republic
-    if (header.republic_text && header.republic_config) {
-      const repConfig = header.republic_config;
-      const textWidth = helveticaFont.widthOfTextAtSize(header.republic_text, repConfig.font_size || 20);
-      page.drawText(header.republic_text, {
-        x: (width * repConfig.position.x) / 100 - textWidth / 2,
-        y: height - (height * repConfig.position.y) / 100,
-        size: repConfig.font_size || 20,
-        font: repConfig.font_weight === 'bold' ? helveticaBoldFont : helveticaFont,
-        color: hexToRgb(repConfig.color || '#000000')
-      });
-    }
-
-    // Header - University
-    if (header.university_text && header.university_config) {
-      const uniConfig = header.university_config;
-      const textWidth = helveticaBoldFont.widthOfTextAtSize(header.university_text, uniConfig.font_size || 28);
-      page.drawText(header.university_text, {
-        x: (width * uniConfig.position.x) / 100 - textWidth / 2,
-        y: height - (height * uniConfig.position.y) / 100,
-        size: uniConfig.font_size || 28,
-        font: helveticaBoldFont,
-        color: hexToRgb(uniConfig.color || '#000000')
-      });
-    }
-
-    // Header - Location
-    if (header.location_text && header.location_config) {
-      const locConfig = header.location_config;
-      const textWidth = helveticaFont.widthOfTextAtSize(header.location_text, locConfig.font_size || 20);
-      page.drawText(header.location_text, {
-        x: (width * locConfig.position.x) / 100 - textWidth / 2,
-        y: height - (height * locConfig.position.y) / 100,
-        size: locConfig.font_size || 20,
-        font: helveticaFont,
-        color: hexToRgb(locConfig.color || '#000000')
-      });
-    }
-
-    // Title
-    if (config.title_text) {
-      const titleSize = config.title_font_size || 56;
-      const titleWidth = helveticaBoldFont.widthOfTextAtSize(config.title_text, titleSize);
-      page.drawText(config.title_text, {
-        x: (width * config.title_position.x) / 100 - titleWidth / 2,
-        y: height - (height * (config.title_position.y - 4)) / 100,
-        size: titleSize,
-        font: helveticaBoldFont,
-        color: hexToRgb(config.title_color || '#000000')
-      });
-    }
-
-    // Title Subtitle
-    if (config.title_subtitle) {
-      const subtitleSize = (config.title_font_size || 56) * 0.4;
-      const subtitleWidth = helveticaFont.widthOfTextAtSize(config.title_subtitle, subtitleSize);
-      page.drawText(config.title_subtitle, {
-        x: (width * config.title_position.x) / 100 - subtitleWidth / 2,
-        y: height - (height * (config.title_position.y + 2)) / 100,
-        size: subtitleSize,
-        font: helveticaFont,
-        color: hexToRgb(config.title_color || '#000000')
-      });
-    }
-
-    // "is given to" Text
-    if (isGivenTo.text) {
-      const textSize = isGivenTo.font_size || 16;
-      const textWidth = helveticaFont.widthOfTextAtSize(isGivenTo.text, textSize);
-      page.drawText(isGivenTo.text, {
-        x: (width * isGivenTo.position.x) / 100 - textWidth / 2,
-        y: height - (height * isGivenTo.position.y) / 100,
-        size: textSize,
-        font: helveticaFont,
-        color: hexToRgb(isGivenTo.color || '#000000')
-      });
-    }
-
-    // Participant Name - Use MonteCarlo font if available
-    const nameSize = nameConfig.font_size || 48;
-    const nameFont = monteCarloFont || helveticaBoldFont;
-    const nameWidth = nameFont.widthOfTextAtSize(participantName, nameSize);
-    page.drawText(participantName, {
-      x: (width * nameConfig.position.x) / 100 - nameWidth / 2,
-      y: height - (height * nameConfig.position.y) / 100,
-      size: nameSize,
-      font: nameFont,
-      color: hexToRgb(nameConfig.color || '#000000')
-    });
-
-    // Line Separator after name
-    page.drawLine({
-      start: { x: width * 0.2, y: height - (height * (nameConfig.position.y + 3)) / 100 },
-      end: { x: width * 0.8, y: height - (height * (nameConfig.position.y + 3)) / 100 },
-      thickness: 2,
-      color: rgb(0, 0, 0)
-    });
-
-    // Participation Text - Handle multi-line
-    if (participation.text_template) {
-      const participationText = participation.text_template
-        .replace('{EVENT_NAME}', event.title)
-        .replace('{EVENT_DATE}', formatDate(event.start_date))
-        .replace('{VENUE}', event.venue || '[Venue]');
-      
-      const textSize = participation.font_size || 18;
-      const lineHeight = textSize * (participation.line_height || 1.5);
-      const lines = participationText.split('\n');
-      const startY = height - (height * participation.position.y) / 100 + ((lines.length - 1) * lineHeight) / 2;
-      
-      lines.forEach((line, index) => {
-        const textWidth = helveticaFont.widthOfTextAtSize(line, textSize);
-        page.drawText(line, {
-          x: (width * participation.position.x) / 100 - textWidth / 2,
-          y: startY - (index * lineHeight),
-          size: textSize,
-          font: helveticaFont,
-          color: hexToRgb(participation.color || '#000000')
-        });
-      });
-    }
-
-    // Signature Blocks
-    const signatures = config.signature_blocks || [];
-    for (const signature of signatures) {
-      const sigX = (width * (signature.position_config?.x || 50)) / 100;
-      const sigY = height - (height * (signature.position_config?.y || 92)) / 100;
-
-      // Signature Image
-      if (signature.signature_image_url) {
-        const imgWidth = signature.signature_image_width || 300;
-        const imgHeight = signature.signature_image_height || 100;
-        const sigImage = await embedImage(signature.signature_image_url);
-        if (sigImage) {
-          page.drawImage(sigImage, {
-            x: sigX - imgWidth / 2,
-            y: sigY - imgHeight - 20,
-            width: imgWidth,
-            height: imgHeight,
-          });
-        }
-      }
-
-      // Name
-      if (signature.name) {
-        const nameSize = signature.name_font_size || 14;
-        const nameWidth = helveticaBoldFont.widthOfTextAtSize(signature.name, nameSize);
-        page.drawText(signature.name, {
-          x: sigX - nameWidth / 2,
-          y: sigY,
-          size: nameSize,
-          font: helveticaBoldFont,
-          color: hexToRgb(signature.name_color || '#000000')
-        });
-      }
-
-      // Position
-      if (signature.position) {
-        const posSize = signature.position_font_size || 12;
-        const posWidth = helveticaFont.widthOfTextAtSize(signature.position, posSize);
-        page.drawText(signature.position, {
-          x: sigX - posWidth / 2,
-          y: sigY - 20,
-          size: posSize,
-          font: helveticaFont,
-          color: hexToRgb(signature.position_color || '#000000')
-        });
-      }
-    }
-
-    // Certificate ID and QR Code
-    if (config.cert_id_prefix && certificateNumber) {
-      const certIdSize = config.cert_id_font_size || 14;
-      const certIdText = certificateNumber;
-      const certIdWidth = helveticaFont.widthOfTextAtSize(certIdText, certIdSize);
-      const certIdX = (width * (config.cert_id_position?.x || 50)) / 100;
-      const certIdY = height - (height * (config.cert_id_position?.y || 95)) / 100;
-      
-      // Draw QR Code beside cert ID if enabled
-      if (config.qr_code_enabled !== false) {
-        try {
-          const qrSize = config.qr_code_size || 60;
-          const qrGap = 15; // Gap between cert ID and QR code
-          // Position QR code to the right of the cert ID text (right edge + gap)
-          const certIdRightEdge = certIdX + certIdWidth / 2;
-          const qrX = certIdRightEdge + qrGap;
-          const qrY = certIdY - qrSize / 2;
-          
-          // Center cert ID vertically with QR code
-          const certIdYCentered = qrY + qrSize / 2;
-          
-          // Draw Certificate ID (centered vertically with QR code)
-          page.drawText(certIdText, {
-            x: certIdX - certIdWidth / 2,
-            y: certIdYCentered,
-            size: certIdSize,
-            font: helveticaFont,
-            color: hexToRgb(config.cert_id_color || '#000000')
-          });
-          
-          // Generate QR code with verification URL
-          // Ensure we have a proper URL format (not just text)
-          if (!certificateNumber) {
-            console.error('Certificate number is missing for QR code');
-            throw new Error('Certificate number is required for QR code generation');
-          }
-          
-          const baseUrl = window.location.origin || (window.location.protocol + '//' + window.location.host);
-          const verificationUrl = `${baseUrl}/verify-certificate/${encodeURIComponent(certificateNumber)}`;
-          
-          // Debug log - check browser console to verify URL is correct
-          console.log('Generating QR code with URL:', verificationUrl);
-          console.log('Certificate Number:', certificateNumber);
-          
-          // Ensure we're passing the URL, not just the certificate number
-          if (!verificationUrl.startsWith('http://') && !verificationUrl.startsWith('https://')) {
-            console.error('Invalid URL format:', verificationUrl);
-            throw new Error('QR code URL must start with http:// or https://');
-          }
-          
-          const qrDataUrl = await QRCode.toDataURL(verificationUrl, {
-            width: qrSize,
-            margin: 1,
-            errorCorrectionLevel: 'M'
-          });
-          
-          // Verify QR code contains the URL (debug)
-          console.log('QR Code generated, data URL length:', qrDataUrl.length);
-          
-          // Convert data URL to image bytes
-          const qrImageBytes = await fetch(qrDataUrl).then(res => res.arrayBuffer());
-          const qrImage = await pdfDoc.embedPng(qrImageBytes);
-          
-          page.drawImage(qrImage, {
-            x: qrX,
-            y: qrY,
-            width: qrSize,
-            height: qrSize
-          });
-        } catch (qrError) {
-          console.warn('Failed to generate QR code for PDF:', qrError);
-        }
-      } else {
-        // No QR code, draw cert ID at original position
-        page.drawText(certIdText, {
-          x: certIdX - certIdWidth / 2,
-          y: certIdY,
-          size: certIdSize,
-          font: helveticaFont,
-          color: hexToRgb(config.cert_id_color || '#000000')
-        });
-      }
-    }
-
-    const pdfBytes = await pdfDoc.save();
-    return pdfBytes;
   };
 
   const generatePNG = async (certificateNumber = null) => {
@@ -836,8 +522,8 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     await document.fonts.ready;
     
     const canvas = document.createElement('canvas');
-    const width = config.width || 2000;
-    const height = config.height || 1200;
+    const width = config.width || 842;  // A4 landscape width
+    const height = config.height || 595; // A4 landscape height
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
@@ -1039,7 +725,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
       const participationText = participation.text_template
         .replace('{EVENT_NAME}', event.title)
         .replace('{EVENT_DATE}', formatDate(event.start_date))
-        .replace('{VENUE}', event.venue || '[Venue]');
+        .replace('{VENUE}', event.venue && event.venue.trim() ? event.venue : '[Venue]');
       
       ctx.fillStyle = participation.color || '#000000';
       ctx.font = `${participation.font_weight || 'normal'} ${participation.font_size || 18}px ${participation.font_family || 'Libre Baskerville, serif'}`;
@@ -1357,119 +1043,107 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
   };
 
   const handleDownload = async (format) => {
-    if (!certificate) return;
-
-    // For PNG on web, generate it on-the-fly to avoid CORS issues
-    if (format === 'png' && !isMobile) {
-      try {
-        if (!config || !event) {
-          toast.error('Certificate data not loaded. Please wait...');
-          return;
-        }
-
-        toast.info('Generating PNG certificate...');
-        
-        const { generatePNGCertificate } = await import('../utils/certificateGenerator');
-        const blob = await generatePNGCertificate(
-          config,
-          certificate.certificate_number,
-          {
-            participantName: getUserName(),
-            eventTitle: event.title,
-            completionDate: event.start_date || new Date().toISOString().split('T')[0],
-            venue: event.venue || ''
-          }
-        );
-
-        // Download the generated PNG
-        const downloadUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = `certificate-${certificate.certificate_number}.png`;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        
-        // Clean up
-        setTimeout(() => {
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(downloadUrl);
-        }, 100);
-        
-        toast.success('Certificate downloaded successfully!');
-        return;
-      } catch (err) {
-        console.error('PNG generation error:', err);
-        toast.error(`Failed to generate PNG: ${err.message || 'Unknown error'}`);
-        return;
-      }
+    console.log('📥 Download requested:', format, { certificate, hasPdfUrl: !!certificate?.certificate_pdf_url, hasPngUrl: !!certificate?.certificate_png_url });
+    
+    if (!certificate) {
+      console.warn('❌ No certificate available for download');
+      toast.error('Certificate not found. Please generate a certificate first.');
+      return;
     }
 
-    // For PDF or mobile, use stored URL
+    // Set downloading state
+    setDownloading(prev => ({ ...prev, [format]: true }));
+
+    // Use stored URL from certificate
     const url = format === 'pdf' 
       ? certificate.certificate_pdf_url 
       : certificate.certificate_png_url;
 
     if (!url) {
-      toast.error(`${format.toUpperCase()} certificate not available`);
+      console.warn(`❌ No ${format.toUpperCase()} URL available`);
+      toast.error(`${format.toUpperCase()} certificate not available. The certificate may still be generating.`);
+      setDownloading(prev => ({ ...prev, [format]: false }));
       return;
     }
 
-    // For mobile WebView, send URL directly to let native app handle download
-    // This avoids CORS and fetch issues in WebView
-    if (isMobile && window.ReactNativeWebView) {
-      console.log('📤 Sending download URL to mobile app:', format, url);
-      try {
-        const message = {
-          type: 'download',
-          format: format,
-          url: url, // Send URL instead of base64
-          filename: `certificate-${certificate.certificate_number}.${format}`,
-          mimeType: format === 'pdf' ? 'application/pdf' : 'image/png'
-        };
-        window.ReactNativeWebView.postMessage(JSON.stringify(message));
-        toast.success('Preparing download...');
-        return;
-      } catch (err) {
-        console.error('❌ Error sending download message:', err);
-        toast.error('Failed to send download to mobile app');
-        return;
-      }
-    }
+    console.log('📥 Downloading from URL:', url);
 
-    // For PDF on web, fetch from storage
     try {
-      // Use fetch with CORS mode and credentials to ensure we get the correct file
+      // For mobile WebView, send URL directly to let native app handle download
+      // This avoids CORS and fetch issues in WebView
+      if (isMobile && window.ReactNativeWebView) {
+        console.log('📤 Sending download URL to mobile app:', format, url);
+        try {
+          const message = {
+            type: 'download',
+            format: format,
+            url: url, // Send URL instead of base64
+            filename: `certificate-${certificate.certificate_number}.${format}`,
+            mimeType: format === 'pdf' ? 'application/pdf' : 'image/png'
+          };
+          window.ReactNativeWebView.postMessage(JSON.stringify(message));
+          toast.success('Preparing download...');
+          setDownloading(prev => ({ ...prev, [format]: false }));
+          return;
+        } catch (err) {
+          console.error('❌ Error sending download message:', err);
+          toast.error('Failed to send download to mobile app');
+          setDownloading(prev => ({ ...prev, [format]: false }));
+          return;
+        }
+      }
+
+      // For web, fetch and download to avoid CORS and ensure proper download
       // Add cache-busting parameter to ensure we get the latest version
       const urlWithCacheBust = `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
       
-      const response = await fetch(urlWithCacheBust, {
-        method: 'GET',
-        mode: 'cors',
-        cache: 'no-cache',
-        credentials: 'include',
-        headers: {
-          'Accept': format === 'pdf' ? 'application/pdf' : 'image/png',
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch certificate: ${response.status} ${response.statusText}`);
-      }
-
-      const blob = await response.blob();
+      // Fetch the file - use 'no-cors' mode for PNG to avoid CORS issues, but this limits response
+      // For better control, try with 'cors' first, fallback to direct link
+      let blob;
       
-      // Verify blob is not empty and has correct type
-      if (blob.size === 0) {
-        throw new Error('Downloaded file is empty');
+      try {
+        // Try fetching with CORS first
+        const response = await fetch(urlWithCacheBust, {
+          method: 'GET',
+          mode: 'cors',
+          cache: 'no-cache',
+        });
+        
+        if (response.ok) {
+          blob = await response.blob();
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (fetchErr) {
+        // If CORS fails, for images we can use an img element to load and convert to blob
+        if (format === 'png') {
+          blob = await new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.width;
+              canvas.height = img.height;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0);
+              canvas.toBlob((blob) => {
+                if (blob) {
+                  resolve(blob);
+                } else {
+                  reject(new Error('Failed to convert image to blob'));
+                }
+              }, 'image/png');
+            };
+            img.onerror = () => reject(new Error('Failed to load image'));
+            img.src = urlWithCacheBust;
+          });
+        } else {
+          // For PDF, if fetch fails, try direct download link
+          throw fetchErr;
+        }
       }
-
-      const expectedType = format === 'pdf' ? 'application/pdf' : 'image/png';
-      if (blob.type && blob.type !== expectedType && !blob.type.includes(format)) {
-        console.warn(`Unexpected blob type: ${blob.type}, expected: ${expectedType}`);
-      }
-
-      // Standard browser download
+      
+      // Create download link with blob URL
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -1486,17 +1160,29 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
       
       toast.success('Certificate downloaded successfully!');
     } catch (err) {
-      console.error('Download error:', err);
-      toast.error(`Failed to download certificate: ${err.message || 'Unknown error'}`);
+      console.error('❌ Download error:', err);
       
-      // Don't open browser as fallback - let user retry
-      if (isMobile && window.ReactNativeWebView) {
-        // Send error message to mobile app
-        window.ReactNativeWebView.postMessage(JSON.stringify({
-          type: 'error',
-          message: `Download failed: ${err.message || 'Unknown error'}`
-        }));
+      // Last resort: try direct link (may open in new tab for some browsers)
+      try {
+        console.log('🔄 Trying fallback download method...');
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `certificate-${certificate.certificate_number}.${format}`;
+        link.target = '_blank'; // Open in new tab as fallback
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+        }, 100);
+        toast.info('Attempting download... If it opens in a new tab, right-click and "Save As"');
+      } catch (fallbackErr) {
+        console.error('❌ Fallback download also failed:', fallbackErr);
+        toast.error(`Failed to download certificate: ${err.message || 'Unknown error'}`);
       }
+    } finally {
+      // Reset downloading state
+      setDownloading(prev => ({ ...prev, [format]: false }));
     }
   };
 
@@ -1600,30 +1286,52 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
                 )}
               </div>
 
-              {/* Download Buttons */}
+              {/* Download Buttons - Always show since we generate on-the-fly */}
               <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} gap-4 ${isMobile ? 'w-full' : 'justify-center'}`}>
-                {certificate.certificate_pdf_url && (
-                  <button
-                    onClick={() => handleDownload('pdf')}
-                    className={`${isMobile ? 'w-full' : ''} px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center gap-2`}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    </svg>
-                    Download PDF
-                  </button>
-                )}
-                {certificate.certificate_png_url && (
-                  <button
-                    onClick={() => handleDownload('png')}
-                    className={`${isMobile ? 'w-full' : ''} px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2`}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    Download PNG
-                  </button>
-                )}
+                <button
+                  onClick={() => handleDownload('pdf')}
+                  disabled={downloading.pdf || !certificate?.certificate_pdf_url}
+                  className={`${isMobile ? 'w-full' : ''} px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {downloading.pdf ? (
+                    <>
+                      <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Downloading...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      Download PDF
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleDownload('png')}
+                  disabled={downloading.png || !certificate?.certificate_png_url}
+                  className={`${isMobile ? 'w-full' : ''} px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {downloading.png ? (
+                    <>
+                      <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Downloading...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Download PNG
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           ) : (

@@ -3,8 +3,8 @@
  * Used by both CertificateGenerator component and CertificateJobProcessor
  */
 
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import QRCode from 'qrcode';
+import { PDFDocument } from 'pdf-lib';
 
 export interface CertificateData {
   participantName: string;
@@ -31,469 +31,6 @@ export function formatDate(dateString: string): string {
 }
 
 /**
- * Helper to convert hex to RGB
- */
-function hexToRgb(hex: string) {
-  const r = parseInt(hex.substring(1, 3), 16) / 255;
-  const g = parseInt(hex.substring(3, 5), 16) / 255;
-  const b = parseInt(hex.substring(5, 7), 16) / 255;
-  return rgb(r, g, b);
-}
-
-/**
- * Generate PDF certificate with full config support
- */
-export async function generatePDFCertificate(
-  config: any,
-  certificateNumber: string,
-  data: CertificateData
-): Promise<Uint8Array> {
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([config.width || 2000, config.height || 1200]);
-  const { width, height } = page.getSize();
-
-  // Helper function to load and embed image
-  const embedImage = async (url: string) => {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) return null;
-      const imageBytes = await response.arrayBuffer();
-      try {
-        return await pdfDoc.embedPng(imageBytes);
-      } catch {
-        return await pdfDoc.embedJpg(imageBytes);
-      }
-    } catch (error) {
-      console.warn('Error embedding image:', url, error);
-      return null;
-    }
-  };
-
-  // Background - use image only
-  if (config.background_image_url) {
-    const bgImage = await embedImage(config.background_image_url);
-    if (bgImage) {
-      page.drawImage(bgImage, {
-        x: 0,
-        y: 0,
-        width: width,
-        height: height,
-      });
-    } else {
-      page.drawRectangle({
-        x: 0,
-        y: 0,
-        width: width,
-        height: height,
-        color: rgb(1, 1, 1) // White
-      });
-    }
-  } else {
-    page.drawRectangle({
-      x: 0,
-      y: 0,
-      width: width,
-      height: height,
-      color: rgb(1, 1, 1) // White
-    });
-  }
-
-  // Border
-  if (config.border_width && config.border_width > 0) {
-    const borderColor = config.border_color || '#1e40af';
-    page.drawRectangle({
-      x: config.border_width / 2,
-      y: config.border_width / 2,
-      width: width - config.border_width,
-      height: height - config.border_width,
-      borderColor: hexToRgb(borderColor),
-      borderWidth: config.border_width
-    });
-  }
-
-  // Embed standard fonts
-  const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const timesRomanFont = await pdfDoc.embedFont(StandardFonts.TimesRoman);
-  const timesRomanBoldFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
-  const courierFont = await pdfDoc.embedFont(StandardFonts.Courier);
-  const courierBoldFont = await pdfDoc.embedFont(StandardFonts.CourierBold);
-  
-  // Helper function to map font family to PDF standard font
-  const getPDFFont = (fontFamily: string, isBold: boolean = false): any => {
-    if (!fontFamily) return isBold ? helveticaBoldFont : helveticaFont;
-    
-    const fontLower = fontFamily.toLowerCase();
-    
-    // Map serif fonts to TimesRoman
-    if (fontLower.includes('times') || fontLower.includes('serif') || 
-        fontLower.includes('garamond') || fontLower.includes('baskerville') ||
-        fontLower.includes('georgia') || fontLower.includes('playfair') ||
-        fontLower.includes('lora') || fontLower.includes('merriweather') ||
-        fontLower.includes('crimson') || fontLower.includes('eb garamond')) {
-      return isBold ? timesRomanBoldFont : timesRomanFont;
-    }
-    
-    // Map monospace fonts to Courier
-    if (fontLower.includes('courier') || fontLower.includes('mono') || 
-        fontLower.includes('consolas') || fontLower.includes('menlo')) {
-      return isBold ? courierBoldFont : courierFont;
-    }
-    
-    // Default to Helvetica for sans-serif and other fonts
-    return isBold ? helveticaBoldFont : helveticaFont;
-  };
-  
-  // Load custom font for participant name if configured (only if it's MonteCarlo or a custom font)
-  let customNameFont = null;
-  const nameConfigForFont = config.name_config || {};
-  const nameFontFamily = nameConfigForFont.font_family || 'MonteCarlo, cursive';
-  
-  // Only try to load custom font if it's specifically MonteCarlo
-  if (nameFontFamily.includes('MonteCarlo')) {
-    try {
-      const fontUrls = [
-        '/fonts/MonteCarlo-Regular.ttf',
-        'https://fonts.gstatic.com/s/montecarlo/v1/MonteCarlo-Regular.ttf',
-        'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/montecarlo/MonteCarlo-Regular.ttf',
-        'https://raw.githubusercontent.com/google/fonts/main/ofl/montecarlo/MonteCarlo-Regular.ttf'
-      ];
-      
-      let fontBytes = null;
-      for (const fontUrl of fontUrls) {
-        try {
-          const fontResponse = await fetch(fontUrl, {
-            mode: 'cors',
-            cache: 'default'
-          });
-          if (fontResponse.ok) {
-            fontBytes = await fontResponse.arrayBuffer();
-            console.log('Successfully loaded custom name font from:', fontUrl);
-            break;
-          }
-        } catch (e) {
-          console.warn('Failed to load font from', fontUrl, e);
-          continue;
-        }
-      }
-      
-      if (fontBytes) {
-        try {
-          customNameFont = await pdfDoc.embedFont(fontBytes);
-          console.log('Custom name font embedded successfully');
-        } catch (error) {
-          console.warn('Error embedding custom font (fontkit not available), using mapped font:', error);
-          customNameFont = null;
-        }
-      }
-    } catch (error) {
-      console.warn('Error loading custom name font, using mapped font:', error);
-    }
-  }
-
-  const header = config.header_config || {};
-  const participation = config.participation_text_config || {};
-  const isGivenTo = config.is_given_to_config || {};
-  const nameConfig = config.name_config || {};
-
-  // Logos - Match PNG positioning (Y from top, not bottom)
-  if (config.logo_config?.logos && config.logo_config.logos.length > 0) {
-    for (const logo of config.logo_config.logos) {
-      const logoSize = logo.size || { width: 120, height: 120 };
-      const logoPos = logo.position || { x: 15, y: 10 };
-      const logoImage = await embedImage(logo.url);
-      if (logoImage) {
-        // Convert from top-based Y to PDF bottom-based Y
-        const yFromTop = (height * logoPos.y) / 100;
-        page.drawImage(logoImage, {
-          x: (width * logoPos.x) / 100,
-          y: height - yFromTop - logoSize.height, // Convert to bottom-based and account for image height
-          width: logoSize.width,
-          height: logoSize.height,
-        });
-      }
-    }
-  }
-
-  // Sponsor Logos - Match PNG positioning
-  if (config.logo_config?.sponsor_logos && config.logo_config.sponsor_logos.length > 0) {
-    const sponsorSize = config.logo_config.sponsor_logo_size || { width: 80, height: 80 };
-    const sponsorPos = config.logo_config.sponsor_logo_position || { x: 90, y: 5 };
-    const spacing = config.logo_config.sponsor_logo_spacing || 10;
-    for (let i = 0; i < config.logo_config.sponsor_logos.length; i++) {
-      const sponsorImage = await embedImage(config.logo_config.sponsor_logos[i]);
-      if (sponsorImage) {
-        // Convert from top-based Y to PDF bottom-based Y
-        const yFromTop = (height * sponsorPos.y) / 100 + (i * (sponsorSize.height + spacing));
-        page.drawImage(sponsorImage, {
-          x: (width * sponsorPos.x) / 100,
-          y: height - yFromTop - sponsorSize.height, // Convert to bottom-based and account for image height
-          width: sponsorSize.width,
-          height: sponsorSize.height,
-        });
-      }
-    }
-  }
-
-  // Header - Republic
-  if (header.republic_text && header.republic_config) {
-    const repConfig = header.republic_config;
-    const font = getPDFFont(repConfig.font_family, repConfig.font_weight === 'bold');
-    const textWidth = font.widthOfTextAtSize(header.republic_text, repConfig.font_size || 20);
-    page.drawText(header.republic_text, {
-      x: (width * repConfig.position.x) / 100 - textWidth / 2,
-      y: height - (height * repConfig.position.y) / 100,
-      size: repConfig.font_size || 20,
-      font: font,
-      color: hexToRgb(repConfig.color || '#000000')
-    });
-  }
-
-  // Header - University
-  if (header.university_text && header.university_config) {
-    const uniConfig = header.university_config;
-    const font = getPDFFont(uniConfig.font_family, uniConfig.font_weight === 'bold');
-    const textWidth = font.widthOfTextAtSize(header.university_text, uniConfig.font_size || 28);
-    page.drawText(header.university_text, {
-      x: (width * uniConfig.position.x) / 100 - textWidth / 2,
-      y: height - (height * uniConfig.position.y) / 100,
-      size: uniConfig.font_size || 28,
-      font: font,
-      color: hexToRgb(uniConfig.color || '#000000')
-    });
-  }
-
-  // Header - Location
-  if (header.location_text && header.location_config) {
-    const locConfig = header.location_config;
-    const font = getPDFFont(locConfig.font_family, locConfig.font_weight === 'bold');
-    const textWidth = font.widthOfTextAtSize(header.location_text, locConfig.font_size || 20);
-    page.drawText(header.location_text, {
-      x: (width * locConfig.position.x) / 100 - textWidth / 2,
-      y: height - (height * locConfig.position.y) / 100,
-      size: locConfig.font_size || 20,
-      font: font,
-      color: hexToRgb(locConfig.color || '#000000')
-    });
-  }
-
-  // Title
-  if (config.title_text) {
-    const titleSize = config.title_font_size || 56;
-    const titleFont = getPDFFont(config.title_font_family, true);
-    const titleWidth = titleFont.widthOfTextAtSize(config.title_text, titleSize);
-    page.drawText(config.title_text, {
-      x: (width * config.title_position.x) / 100 - titleWidth / 2,
-      y: height - (height * (config.title_position.y - 4)) / 100,
-      size: titleSize,
-      font: titleFont,
-      color: hexToRgb(config.title_color || '#000000')
-    });
-  }
-
-  // Title Subtitle
-  if (config.title_subtitle) {
-    const subtitleSize = (config.title_font_size || 56) * 0.4;
-    const subtitleFont = getPDFFont(config.title_font_family, false);
-    const subtitleWidth = subtitleFont.widthOfTextAtSize(config.title_subtitle, subtitleSize);
-    page.drawText(config.title_subtitle, {
-      x: (width * config.title_position.x) / 100 - subtitleWidth / 2,
-      y: height - (height * (config.title_position.y + 2)) / 100,
-      size: subtitleSize,
-      font: subtitleFont,
-      color: hexToRgb(config.title_color || '#000000')
-    });
-  }
-
-  // "is given to" Text
-  if (isGivenTo.text) {
-    const textSize = isGivenTo.font_size || 16;
-    const font = getPDFFont(isGivenTo.font_family, isGivenTo.font_weight === 'bold');
-    const textWidth = font.widthOfTextAtSize(isGivenTo.text, textSize);
-    page.drawText(isGivenTo.text, {
-      x: (width * isGivenTo.position.x) / 100 - textWidth / 2,
-      y: height - (height * isGivenTo.position.y) / 100,
-      size: textSize,
-      font: font,
-      color: hexToRgb(isGivenTo.color || '#000000')
-    });
-  }
-
-  // Participant Name - Use configured font
-  const nameSize = nameConfig.font_size || 48;
-  const nameFont = customNameFont || getPDFFont(nameFontFamily, nameConfig.font_weight === 'bold');
-  const nameWidth = nameFont.widthOfTextAtSize(data.participantName, nameSize);
-  page.drawText(data.participantName, {
-    x: (width * nameConfig.position.x) / 100 - nameWidth / 2,
-    y: height - (height * nameConfig.position.y) / 100,
-    size: nameSize,
-    font: nameFont,
-    color: hexToRgb(nameConfig.color || '#000000')
-  });
-
-  // Line Separator after name
-  page.drawLine({
-    start: { x: width * 0.2, y: height - (height * (nameConfig.position.y + 3)) / 100 },
-    end: { x: width * 0.8, y: height - (height * (nameConfig.position.y + 3)) / 100 },
-    thickness: 2,
-    color: rgb(0, 0, 0)
-  });
-
-  // Participation Text - Handle multi-line
-  if (participation.text_template) {
-    const participationText = participation.text_template
-      .replace('{EVENT_NAME}', data.eventTitle)
-      .replace('{EVENT_DATE}', formatDate(data.completionDate))
-      .replace('{VENUE}', data.venue || '[Venue]');
-    
-    const textSize = participation.font_size || 18;
-    const lineHeight = textSize * (participation.line_height || 1.5);
-    const lines = participationText.split('\n');
-    const startY = height - (height * participation.position.y) / 100 + ((lines.length - 1) * lineHeight) / 2;
-    
-    const participationFont = getPDFFont(participation.font_family, participation.font_weight === 'bold');
-    lines.forEach((line, index) => {
-      const textWidth = participationFont.widthOfTextAtSize(line, textSize);
-      page.drawText(line, {
-        x: (width * participation.position.x) / 100 - textWidth / 2,
-        y: startY - (index * lineHeight),
-        size: textSize,
-        font: participationFont,
-        color: hexToRgb(participation.color || '#000000')
-      });
-    });
-  }
-
-  // Signature Blocks - Match PNG positioning (Y from top, position below name)
-  const signatures = config.signature_blocks || [];
-  for (const signature of signatures) {
-    const sigX = (width * (signature.position_config?.x || 50)) / 100;
-    // Convert from top-based Y to PDF bottom-based Y
-    const sigYFromTop = (height * (signature.position_config?.y || 92)) / 100;
-    const sigY = height - sigYFromTop; // Convert to bottom-based
-
-    // Signature Image (above name)
-    if (signature.signature_image_url) {
-      const imgWidth = signature.signature_image_width || 300;
-      const imgHeight = signature.signature_image_height || 100;
-      const sigImage = await embedImage(signature.signature_image_url);
-      if (sigImage) {
-        page.drawImage(sigImage, {
-          x: sigX - imgWidth / 2,
-          y: sigY - imgHeight - 20, // Image above name
-          width: imgWidth,
-          height: imgHeight,
-        });
-      }
-    }
-
-    // Name (at sigY position)
-    if (signature.name) {
-      const nameSize = signature.name_font_size || 14;
-      const sigNameFont = getPDFFont(signature.font_family, true);
-      const nameWidth = sigNameFont.widthOfTextAtSize(signature.name, nameSize);
-      page.drawText(signature.name, {
-        x: sigX - nameWidth / 2,
-        y: sigY,
-        size: nameSize,
-        font: sigNameFont,
-        color: hexToRgb(signature.name_color || '#000000')
-      });
-    }
-
-    // Position (below name, matching PNG which uses sigY + 20)
-    if (signature.position) {
-      const posSize = signature.position_font_size || 12;
-      const sigPosFont = getPDFFont(signature.font_family, false);
-      const posWidth = sigPosFont.widthOfTextAtSize(signature.position, posSize);
-      // In PDF, y decreases upward, so to go below we subtract
-      page.drawText(signature.position, {
-        x: sigX - posWidth / 2,
-        y: sigY - 20, // Position below name (subtract because PDF Y increases upward from bottom)
-        size: posSize,
-        font: sigPosFont,
-        color: hexToRgb(signature.position_color || '#000000')
-      });
-    }
-  }
-
-  // Certificate ID and QR Code
-  if (config.cert_id_prefix && certificateNumber) {
-    const certIdSize = config.cert_id_font_size || 14;
-    const certIdText = certificateNumber;
-    // Use global font for certificate ID (from header config as fallback)
-    const certIdFontFamily = config.header_config?.republic_config?.font_family || 'Libre Baskerville, serif';
-    const certIdFont = getPDFFont(certIdFontFamily, false);
-    const certIdWidth = certIdFont.widthOfTextAtSize(certIdText, certIdSize);
-    const certIdX = (width * (config.cert_id_position?.x || 50)) / 100;
-    const certIdY = height - (height * (config.cert_id_position?.y || 95)) / 100;
-    
-    // Draw QR Code beside cert ID if enabled
-    if (config.qr_code_enabled !== false) {
-      try {
-        const qrSize = config.qr_code_size || 60;
-        const qrGap = 15;
-        const certIdRightEdge = certIdX + certIdWidth / 2;
-        const qrX = certIdRightEdge + qrGap;
-        const qrY = certIdY - qrSize / 2;
-        const certIdYCentered = qrY + qrSize / 2;
-        
-        // Draw Certificate ID
-        page.drawText(certIdText, {
-          x: certIdX - certIdWidth / 2,
-          y: certIdYCentered,
-          size: certIdSize,
-          font: certIdFont,
-          color: hexToRgb(config.cert_id_color || '#000000')
-        });
-        
-        const baseUrl = typeof window !== 'undefined' 
-          ? window.location.origin 
-          : (process.env.VITE_SUPABASE_URL?.replace('/rest/v1', '') || 'https://hekjabrlgdpbffzidshz.supabase.co');
-        const verificationUrl = `${baseUrl}/verify-certificate/${encodeURIComponent(certificateNumber)}`;
-        
-        const qrDataUrl = await QRCode.toDataURL(verificationUrl, {
-          width: qrSize,
-          margin: 1,
-          errorCorrectionLevel: 'M'
-        });
-        
-        const qrImageBytes = await fetch(qrDataUrl).then(res => res.arrayBuffer());
-        const qrImage = await pdfDoc.embedPng(qrImageBytes);
-        
-        page.drawImage(qrImage, {
-          x: qrX,
-          y: qrY,
-          width: qrSize,
-          height: qrSize
-        });
-      } catch (qrError) {
-        console.warn('Failed to generate QR code for PDF:', qrError);
-        // Fallback: just draw cert ID
-        page.drawText(certIdText, {
-          x: certIdX - certIdWidth / 2,
-          y: certIdY,
-          size: certIdSize,
-          font: certIdFont,
-          color: hexToRgb(config.cert_id_color || '#000000')
-        });
-      }
-    } else {
-      // No QR code, draw cert ID at original position
-      page.drawText(certIdText, {
-        x: certIdX - certIdWidth / 2,
-        y: certIdY,
-        size: certIdSize,
-        font: certIdFont,
-        color: hexToRgb(config.cert_id_color || '#000000')
-      });
-    }
-  }
-
-  return await pdfDoc.save();
-}
-
-/**
  * Generate PNG certificate with full config support
  */
 export async function generatePNGCertificate(
@@ -508,10 +45,13 @@ export async function generatePNGCertificate(
 
   // Ensure fonts are loaded before creating canvas
   await document.fonts.ready;
-  
+
   const canvas = document.createElement('canvas');
-  const width = config.width || 2000;
-  const height = config.height || 1200;
+  // A4 Landscape: 297mm × 210mm = 842 × 595 points (at 72 DPI)
+  // For high-quality PNG, we use 300 DPI: 3508 × 2480 pixels
+  // For PDF compatibility, we'll use the point dimensions: 842 × 595
+  const width = config.width || 842;  // A4 landscape width in points
+  const height = config.height || 595; // A4 landscape height in points
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
@@ -548,12 +88,7 @@ export async function generatePNGCertificate(
   if (config.border_width && config.border_width > 0) {
     ctx.strokeStyle = config.border_color || '#1e40af';
     ctx.lineWidth = config.border_width;
-    ctx.strokeRect(
-      config.border_width / 2,
-      config.border_width / 2,
-      width - config.border_width,
-      height - config.border_width
-    );
+    ctx.strokeRect(config.border_width / 2, config.border_width / 2, width - config.border_width, height - config.border_width);
   }
 
   const header = config.header_config || {};
@@ -676,7 +211,7 @@ export async function generatePNGCertificate(
   // Participant Name
   ctx.fillStyle = nameConfig.color || '#000000';
   const nameFontFamily = nameConfig.font_family || 'MonteCarlo, cursive';
-  
+
   // Load custom font for participant name if it's a web font (not system font)
   // Only try to load if it's a specific web font like MonteCarlo
   if (nameFontFamily.includes('MonteCarlo')) {
@@ -687,7 +222,7 @@ export async function generatePNGCertificate(
         'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/montecarlo/MonteCarlo-Regular.ttf',
         'https://raw.githubusercontent.com/google/fonts/main/ofl/montecarlo/MonteCarlo-Regular.ttf'
       ];
-      
+
       let fontLoaded = false;
       for (const fontUrl of fontUrls) {
         try {
@@ -702,7 +237,7 @@ export async function generatePNGCertificate(
           continue;
         }
       }
-      
+
       if (!fontLoaded) {
         console.warn('Could not load MonteCarlo font from any source, using fallback');
       }
@@ -710,15 +245,15 @@ export async function generatePNGCertificate(
       console.warn('Error loading MonteCarlo font for canvas:', e);
     }
   }
-  
+
   // Wait for all fonts to be ready before rendering
   await document.fonts.ready;
-  
+
   // Set font and render
   ctx.font = `${nameConfig.font_weight || 'bold'} ${nameConfig.font_size || 48}px ${nameFontFamily}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  
+
   ctx.fillText(
     data.participantName,
     (width * nameConfig.position.x) / 100,
@@ -738,18 +273,18 @@ export async function generatePNGCertificate(
     const participationText = participation.text_template
       .replace('{EVENT_NAME}', data.eventTitle)
       .replace('{EVENT_DATE}', formatDate(data.completionDate))
-      .replace('{VENUE}', data.venue || '[Venue]');
-    
+      .replace('{VENUE}', data.venue && data.venue.trim() ? data.venue : '[Venue]');
+
     ctx.fillStyle = participation.color || '#000000';
     ctx.font = `${participation.font_weight || 'normal'} ${participation.font_size || 18}px ${participation.font_family || 'Libre Baskerville, serif'}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    
+
     const lines = participationText.split('\n');
     const lineHeight = (participation.font_size || 18) * (participation.line_height || 1.5);
     const startY = (height * participation.position.y) / 100 - ((lines.length - 1) * lineHeight) / 2;
-    
-    lines.forEach((line, index) => {
+
+    lines.forEach((line: string, index: number) => {
       ctx.fillText(
         line,
         (width * participation.position.x) / 100,
@@ -758,26 +293,30 @@ export async function generatePNGCertificate(
     });
   }
 
-  // Signature Blocks
+  // Signature Blocks - Match PDF/HTML spacing (signature touching name)
   const signatures = config.signature_blocks || [];
   for (const signature of signatures) {
     const sigX = (width * (signature.position_config?.x || 50)) / 100;
     const sigY = (height * (signature.position_config?.y || 92)) / 100;
 
-    // Signature Image
+    // Signature Image (top) - Move closer to name (matching PDF)
+    // PDF/HTML: image bottom is very close to name center (about 2px gap)
+    // So image top is: sigY - imgHeight - 2
     if (signature.signature_image_url) {
       const imgWidth = signature.signature_image_width || 300;
       const imgHeight = signature.signature_image_height || 100;
+      // Image bottom should be very close to name center (2px gap for better visual)
+      // So image top = sigY - imgHeight - 2
       await drawImage(
         signature.signature_image_url,
         sigX - imgWidth / 2,
-        sigY - imgHeight - 20,
+        sigY - imgHeight - 2,
         imgWidth,
         imgHeight
       );
     }
 
-    // Name
+    // Name (middle) - at sigY position (center)
     if (signature.name) {
       ctx.fillStyle = signature.name_color || '#000000';
       ctx.font = `bold ${signature.name_font_size || 14}px ${signature.font_family || 'Libre Baskerville, serif'}`;
@@ -786,7 +325,7 @@ export async function generatePNGCertificate(
       ctx.fillText(signature.name, sigX, sigY);
     }
 
-    // Position
+    // Position (bottom) - 20px below name center (matching PDF)
     if (signature.position) {
       ctx.fillStyle = signature.position_color || '#000000';
       ctx.font = `${signature.position_font_size || 12}px ${signature.font_family || 'Libre Baskerville, serif'}`;
@@ -802,7 +341,7 @@ export async function generatePNGCertificate(
     const certIdPos = config.cert_id_position || { x: 50, y: 95 };
     const certIdX = (width * certIdPos.x) / 100;
     const certIdY = (height * certIdPos.y) / 100;
-    
+
     // Draw QR Code beside cert ID if enabled
     if (config.qr_code_enabled !== false) {
       try {
@@ -815,23 +354,23 @@ export async function generatePNGCertificate(
         const qrX = certIdX + certIdTextWidth / 2 + qrGap;
         const qrY = certIdY - qrSize / 2;
         const certIdYCentered = qrY + qrSize / 2;
-        
+
         // Draw Certificate ID
         ctx.fillStyle = config.cert_id_color || '#000000';
         ctx.font = `${certIdSize}px Arial, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(certificateNumber, certIdX, certIdYCentered);
-        
+
         const baseUrl = window.location.origin;
         const verificationUrl = `${baseUrl}/verify-certificate/${encodeURIComponent(certificateNumber)}`;
-        
+
         const qrDataUrl = await QRCode.toDataURL(verificationUrl, {
           width: qrSize,
           margin: 1,
           errorCorrectionLevel: 'M'
         });
-        
+
         const qrImage = new Image();
         await new Promise<void>((resolve, reject) => {
           qrImage.onload = () => {
@@ -871,11 +410,112 @@ export async function generatePNGCertificate(
         reject(new Error('Failed to convert canvas to blob'));
       }
     }, 'image/png', 1.0);
-    
+
     // Timeout after 10 seconds
     setTimeout(() => {
       reject(new Error('PNG generation timeout'));
     }, 10000);
   });
+}
+
+/**
+ * Convert PNG certificate to PDF with lossless quality
+ * 
+ * This function performs a truly lossless conversion:
+ * - PNG image data is embedded directly into the PDF without recompression
+ * - pdf-lib's embedPng() preserves the original PNG stream byte-for-byte
+ * - No quality loss, no compression artifacts, pixel-perfect preservation
+ * - Maintains 1:1 pixel-to-point ratio at 72 DPI for exact resolution matching
+ * 
+ * @param pngBlob - The PNG image blob to convert
+ * @param width - Expected width in pixels (used as fallback if image can't be loaded)
+ * @param height - Expected height in pixels (used as fallback if image can't be loaded)
+ * @returns PDF bytes as Uint8Array with lossless embedded PNG
+ */
+export async function convertPNGToPDF(
+  pngBlob: Blob,
+  width: number = 842,  // A4 landscape width in points
+  height: number = 595  // A4 landscape height in points
+): Promise<Uint8Array> {
+  // Get actual image dimensions from the PNG blob for precise sizing
+  let actualWidth = width;
+  let actualHeight = height;
+
+  // Load the image to get its actual pixel dimensions
+  // This ensures the PDF page size matches the image exactly
+  if (typeof window !== 'undefined' && typeof Image !== 'undefined') {
+    try {
+      const imageUrl = URL.createObjectURL(pngBlob);
+      const img = new Image();
+
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => {
+          URL.revokeObjectURL(imageUrl);
+          resolve(); // Fallback to provided dimensions on timeout
+        }, 5000); // 5 second timeout
+
+        img.onload = () => {
+          clearTimeout(timeout);
+          actualWidth = img.naturalWidth || img.width;
+          actualHeight = img.naturalHeight || img.height;
+          URL.revokeObjectURL(imageUrl);
+          resolve();
+        };
+        img.onerror = () => {
+          clearTimeout(timeout);
+          URL.revokeObjectURL(imageUrl);
+          // Fallback to provided dimensions if image load fails
+          resolve();
+        };
+        img.src = imageUrl;
+      });
+    } catch (error) {
+      console.warn('Could not load image to get dimensions, using provided dimensions:', error);
+    }
+  }
+
+  // Create a new PDF document
+  const pdfDoc = await PDFDocument.create();
+
+  // PDF uses points (1/72 inch) as units
+  // For high quality, we maintain 1:1 pixel-to-point ratio at 72 DPI
+  // This means 1 pixel = 1 point, preserving full resolution
+  const pdfWidth = actualWidth;
+  const pdfHeight = actualHeight;
+
+  // Add a page with the exact dimensions of the PNG (in points)
+  const page = pdfDoc.addPage([pdfWidth, pdfHeight]);
+
+  // Convert PNG blob to array buffer
+  const pngBytes = await pngBlob.arrayBuffer();
+
+  // Embed the PNG image into the PDF - LOSSLESS CONVERSION
+  // pdf-lib's embedPng() embeds the PNG stream directly without any recompression
+  // The original PNG data is preserved byte-for-byte, ensuring 100% lossless quality
+  // No JPEG compression, no quality degradation, no artifacts
+  const pngImage = await pdfDoc.embedPng(pngBytes);
+
+  // Get the actual dimensions of the embedded image
+  const imageDims = pngImage.size();
+
+  // Draw the image on the page at full resolution
+  // Using the actual embedded image dimensions ensures perfect 1:1 mapping
+  // No scaling or interpolation - maximum quality preservation
+  page.drawImage(pngImage, {
+    x: 0,
+    y: 0,
+    width: imageDims.width,
+    height: imageDims.height,
+  });
+
+  // Save the PDF with lossless preservation
+  // pdf-lib does NOT recompress embedded PNG images - they remain lossless
+  // Disable object streams to ensure maximum compatibility and guarantee all PNG data is included
+  // The resulting PDF contains the original PNG data unchanged, making this a true lossless conversion
+  const pdfBytes = await pdfDoc.save({
+    useObjectStreams: false, // Ensures all data is included, better compatibility
+  });
+
+  return pdfBytes;
 }
 

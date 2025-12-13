@@ -5,8 +5,9 @@
  */
 
 import { CertificateService } from './certificateService';
+import { EventService } from './eventService';
 import { JobQueueService, CertificateGenerationJobData } from './jobQueueService';
-import { generatePDFCertificate, generatePNGCertificate, CertificateData } from '../utils/certificateGenerator';
+import { generatePNGCertificate, convertPNGToPDF, CertificateData } from '../utils/certificateGenerator';
 import { supabase } from '../lib/supabaseClient';
 
 /**
@@ -99,8 +100,23 @@ export class CertificateJobProcessor {
         certificateNumber = CertificateService.generateCertificateNumber(eventId, userId);
       }
 
-      // Generate PDF and PNG using shared certificate generator
-      console.log('[Job Processor] Generating PDF and PNG files...');
+      // Get event venue if eventId is available (not standalone)
+      let venue: string | undefined = undefined;
+      if (eventId && eventId !== 'standalone') {
+        try {
+          const eventResult = await EventService.getEventById(eventId);
+          if (eventResult.event && eventResult.event.venue) {
+            venue = eventResult.event.venue;
+            console.log('[Job Processor] Found venue:', venue);
+          }
+        } catch (venueError) {
+          console.warn('[Job Processor] Could not fetch event venue:', venueError);
+          // Continue without venue - will use fallback
+        }
+      }
+
+      // Generate PNG first, then convert to PDF
+      console.log('[Job Processor] Generating PNG certificate...');
       let pdfBytes, pngBlob;
       
       // Prepare certificate data
@@ -108,28 +124,37 @@ export class CertificateJobProcessor {
         participantName,
         eventTitle,
         completionDate,
-        venue: undefined // Venue not available in job data, but can be added if needed
+        venue: venue || '' // Use fetched venue or empty string
       };
       
       try {
-        pdfBytes = await generatePDFCertificate(config, certificateNumber, certificateData);
-        console.log('[Job Processor] PDF generated:', pdfBytes ? `${pdfBytes.length} bytes` : 'FAILED');
-      } catch (pdfError: any) {
-        console.error('[Job Processor] PDF generation error:', pdfError);
-        return {
-          success: false,
-          error: `PDF generation failed: ${pdfError.message || 'Unknown error'}`
-        };
-      }
-
-      try {
+        // First, generate the PNG certificate
         pngBlob = await generatePNGCertificate(config, certificateNumber, certificateData);
         console.log('[Job Processor] PNG generated:', pngBlob ? `${pngBlob.size} bytes` : 'FAILED');
+        
+        if (!pngBlob) {
+          throw new Error('PNG generation returned null');
+        }
       } catch (pngError: any) {
         console.error('[Job Processor] PNG generation error:', pngError);
         return {
           success: false,
           error: `PNG generation failed: ${pngError.message || 'Unknown error'}`
+        };
+      }
+
+      try {
+        // Convert PNG to PDF
+        console.log('[Job Processor] Converting PNG to PDF...');
+        const width = config.width || 842;  // A4 landscape width in points
+        const height = config.height || 595; // A4 landscape height in points
+        pdfBytes = await convertPNGToPDF(pngBlob, width, height);
+        console.log('[Job Processor] PDF generated:', pdfBytes ? `${pdfBytes.length} bytes` : 'FAILED');
+      } catch (pdfError: any) {
+        console.error('[Job Processor] PDF conversion error:', pdfError);
+        return {
+          success: false,
+          error: `PDF generation failed: ${pdfError.message || 'Unknown error'}`
         };
       }
 
