@@ -7,8 +7,8 @@ import {
   SafeAreaView,
   RefreshControl,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
+import { showError, showSuccess, showConfirm } from '../../lib/sweetAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -103,14 +103,14 @@ export default function Notifications() {
     try {
       const result = await NotificationService.markAllAsRead(user.id);
       if (result.error) {
-        Alert.alert('Error', `Failed to mark all as read: ${result.error}`);
+        showError('Error', `Failed to mark all as read: ${result.error}`);
       } else {
         // Update local state
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       }
     } catch (err) {
       console.error('Failed to mark all as read:', err);
-      Alert.alert('Error', 'Failed to mark all notifications as read');
+      showError('Error', 'Failed to mark all notifications as read');
     }
   };
 
@@ -118,7 +118,7 @@ export default function Notifications() {
     try {
       const result = await NotificationService.deleteNotification(notificationId);
       if (result.error) {
-        Alert.alert('Error', `Failed to delete notification: ${result.error}`);
+        showError('Error', `Failed to delete notification: ${result.error}`);
       } else {
         setNotifications(prev => prev.filter(n => n.id !== notificationId));
         setSelectedNotifications(prev => {
@@ -128,73 +128,59 @@ export default function Notifications() {
         });
       }
     } catch (err) {
-      Alert.alert('Error', 'Failed to delete notification');
+      showError('Error', 'Failed to delete notification');
     }
   };
 
   const handleDeleteSelected = async () => {
     if (selectedNotifications.size === 0) return;
 
-    Alert.alert(
+    showConfirm(
       'Delete Notifications',
       `Are you sure you want to delete ${selectedNotifications.size} notification(s)?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const deletePromises = Array.from(selectedNotifications).map(id =>
-                NotificationService.deleteNotification(id)
-              );
-              const results = await Promise.all(deletePromises);
-              
-              const errors = results.filter(r => r.error);
-              if (errors.length > 0) {
-                Alert.alert('Error', `Failed to delete ${errors.length} notification(s)`);
-              }
-              
-              setNotifications(prev => prev.filter(n => !selectedNotifications.has(n.id)));
-              setSelectedNotifications(new Set());
-              setIsSelectionMode(false);
-            } catch (err) {
-              Alert.alert('Error', 'Failed to delete notifications');
-            }
-          },
-        },
-      ]
+      async () => {
+        try {
+          const deletePromises = Array.from(selectedNotifications).map(id =>
+            NotificationService.deleteNotification(id)
+          );
+          const results = await Promise.all(deletePromises);
+          
+          const errors = results.filter(r => r.error);
+          if (errors.length > 0) {
+            showError('Error', `Failed to delete ${errors.length} notification(s)`);
+          }
+          
+          setNotifications(prev => prev.filter(n => !selectedNotifications.has(n.id)));
+          setSelectedNotifications(new Set());
+          setIsSelectionMode(false);
+        } catch (err) {
+          showError('Error', 'Failed to delete notifications');
+        }
+      }
     );
   };
 
   const handleDeleteAll = async () => {
     if (!user?.id) return;
 
-    Alert.alert(
+    showConfirm(
       'Delete All Notifications',
       'Are you sure you want to delete all notifications? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete All',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const result = await NotificationService.deleteAllNotifications(user.id);
-              if (result.error) {
-                Alert.alert('Error', `Failed to delete all notifications: ${result.error}`);
-              } else {
-                setNotifications([]);
-                setSelectedNotifications(new Set());
-                setIsSelectionMode(false);
-                Alert.alert('Success', 'All notifications deleted');
-              }
-            } catch (err) {
-              Alert.alert('Error', 'Failed to delete all notifications');
-            }
-          },
-        },
-      ]
+      async () => {
+        try {
+          const result = await NotificationService.deleteAllNotifications(user.id);
+          if (result.error) {
+            showError('Error', `Failed to delete all notifications: ${result.error}`);
+          } else {
+            setNotifications([]);
+            setSelectedNotifications(new Set());
+            setIsSelectionMode(false);
+            showSuccess('Success', 'All notifications deleted');
+          }
+        } catch (err) {
+          showError('Error', 'Failed to delete all notifications');
+        }
+      }
     );
   };
 
@@ -214,101 +200,6 @@ export default function Notifications() {
     setIsSelectionMode(!isSelectionMode);
     if (isSelectionMode) {
       setSelectedNotifications(new Set());
-    }
-  };
-
-  const handleTestNotification = async () => {
-    if (!user?.id) return;
-
-    try {
-      const testTypes = [
-        {
-          title: 'Test: Registration Confirmed!',
-          message: 'This is a test registration notification. You have successfully registered for "Test Event".',
-          type: 'success' as const,
-          action_url: '/(tabs)/my-events',
-          action_text: 'View Events',
-        },
-        {
-          title: 'Test: Event Reminder',
-          message: 'This is a test event reminder. Don\'t forget about "Test Event" happening tomorrow!',
-          type: 'info' as const,
-          action_url: '/(tabs)/events',
-          action_text: 'View Event',
-        },
-        {
-          title: 'Test: Survey Available',
-          message: 'This is a test survey notification. A survey is now available for "Test Event".',
-          type: 'info' as const,
-          action_url: '/(tabs)/my-events',
-          action_text: 'Take Survey',
-        },
-        {
-          title: 'Test: Certificate Ready!',
-          message: 'This is a test certificate notification. Your certificate for "Test Event" is ready!',
-          type: 'success' as const,
-          action_url: '/(tabs)/my-events',
-          action_text: 'View Certificate',
-        },
-      ];
-
-      const randomTest = testTypes[Math.floor(Math.random() * testTypes.length)];
-
-      // First, send push notification directly
-      try {
-        const { PushNotificationService } = await import('../../lib/pushNotificationService');
-        
-        // Request permissions and send notification
-        const hasPermission = await PushNotificationService.requestPermissions();
-        
-        if (hasPermission) {
-          await PushNotificationService.sendLocalNotification(
-            randomTest.title,
-            randomTest.message,
-            {
-              notificationId: 'test-' + Date.now(),
-              actionUrl: randomTest.action_url,
-              action_text: randomTest.action_text,
-              type: randomTest.type,
-            }
-          );
-        } else {
-          Alert.alert(
-            'Permission Required', 
-            'Please enable notifications in your device settings.'
-          );
-        }
-      } catch (pushError: any) {
-        console.error('Failed to send push notification:', pushError);
-        Alert.alert(
-          'Push Notification Error', 
-          `Failed to send push notification: ${pushError?.message || 'Unknown error'}. Make sure you've rebuilt the app after installing expo-notifications.`
-        );
-      }
-
-      // Also create notification in database
-      const result = await NotificationService.createNotification(
-        user.id,
-        randomTest.title,
-        randomTest.message,
-        randomTest.type,
-        {
-          action_url: randomTest.action_url,
-          action_text: randomTest.action_text,
-          priority: 'normal',
-        }
-      );
-
-      if (result.error) {
-        Alert.alert('Error', `Failed to create test notification: ${result.error}`);
-      } else {
-        // Refresh notifications to show the new one
-        await loadNotifications();
-        Alert.alert('Success', 'Test notification created! Check your notifications list and device notification bar.');
-      }
-    } catch (err) {
-      console.error('Test notification error:', err);
-      Alert.alert('Error', 'Failed to create test notification');
     }
   };
 
@@ -396,68 +287,43 @@ export default function Notifications() {
         ]}
       />
       {/* Header */}
-      <View className="bg-blue-900 px-3 py-3">
-        <View className="flex-row items-center justify-between">
-          {isSelectionMode ? (
-            <>
-              <TouchableOpacity onPress={toggleSelectionMode}>
-                <Text className="text-blue-200 text-base font-medium">Cancel</Text>
+      {isSelectionMode && (
+        <View className="bg-blue-900 px-3 py-3">
+          <View className="flex-row items-center justify-between">
+            <TouchableOpacity onPress={toggleSelectionMode}>
+              <Text className="text-blue-200 text-base font-medium">Cancel</Text>
+            </TouchableOpacity>
+            
+            <View className="flex-row items-center">
+              <Text className="text-lg font-bold text-white">
+                {selectedNotifications.size > 0 
+                  ? `${selectedNotifications.size} selected`
+                  : 'Select notifications'}
+              </Text>
+            </View>
+            
+            <View className="flex-row items-center gap-2">
+              <TouchableOpacity 
+                onPress={handleDeleteSelected}
+                disabled={selectedNotifications.size === 0}
+                className={`px-3 py-1.5 rounded-lg flex-row items-center gap-1 ${
+                  selectedNotifications.size > 0 ? 'bg-red-600' : 'bg-gray-500 opacity-50'
+                }`}
+              >
+                <Ionicons name="trash" size={18} color="#ffffff" />
+                <Text className="text-white text-base font-medium">Delete Selected</Text>
               </TouchableOpacity>
-              
-              <View className="flex-row items-center">
-                <Text className="text-lg font-bold text-white">
-                  {selectedNotifications.size > 0 
-                    ? `${selectedNotifications.size} selected`
-                    : 'Select notifications'}
-                </Text>
-              </View>
-              
-              <View className="flex-row items-center gap-2">
-                <TouchableOpacity 
-                  onPress={handleDeleteSelected}
-                  disabled={selectedNotifications.size === 0}
-                  className={`px-3 py-1.5 rounded-lg flex-row items-center gap-1 ${
-                    selectedNotifications.size > 0 ? 'bg-red-600' : 'bg-gray-500 opacity-50'
-                  }`}
-                >
-                  <Ionicons name="trash" size={18} color="#ffffff" />
-                  <Text className="text-white text-base font-medium">Delete Selected</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  onPress={handleSelectAll}
-                  className="bg-blue-600 px-3 py-1.5 rounded-lg flex-row items-center gap-1"
-                >
-                  <Ionicons name="checkmark-circle" size={18} color="#ffffff" />
-                  <Text className="text-white text-base font-medium">Mark All</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : (
-            <>
-              <View className="w-10" />
-              
-              <View className="flex-row items-center">
-                <Ionicons name="notifications" size={18} color="#ffffff" />
-                <Text className="text-lg font-bold text-white ml-2">Notifications</Text>
-                {unreadCount > 0 && (
-                  <View className="ml-2 bg-red-500 rounded-full px-2 py-0.5 min-w-[20px] items-center">
-                    <Text className="text-white text-xs font-bold">{unreadCount}</Text>
-                  </View>
-                )}
-              </View>
-              
-              <View className="flex-row items-center gap-3">
-                <TouchableOpacity 
-                  onPress={handleTestNotification}
-                  className="bg-blue-600 px-3 py-1.5 rounded-lg"
-                >
-                  <Text className="text-white text-xs font-medium">Test</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
+              <TouchableOpacity 
+                onPress={handleSelectAll}
+                className="bg-blue-600 px-3 py-1.5 rounded-lg flex-row items-center gap-1"
+              >
+                <Ionicons name="checkmark-circle" size={18} color="#ffffff" />
+                <Text className="text-white text-base font-medium">Mark All</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-      </View>
+      )}
 
       <View className="flex-1 mx-4 my-2">
         <ScrollView 

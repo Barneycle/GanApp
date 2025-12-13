@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Alert,
   SafeAreaView,
   Linking,
   Platform,
@@ -13,6 +12,7 @@ import {
   StyleSheet,
   Dimensions,
 } from 'react-native';
+import { showError, showSuccess } from '../../lib/sweetAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -174,32 +174,26 @@ export default function QRScanner() {
             }
           }
 
-          Alert.alert(
+          showSuccess(
             'Check-in Successful!',
             `Event: ${result.event.title}\n\n${result.message}`,
-            [
-              {
-                text: 'Continue to Survey',
-                onPress: () => {
-                  router.push({
-                    pathname: '/survey',
-                    params: {
-                      eventId: result.event!.id,
-                      eventTitle: result.event!.title,
-                      attendanceLogId: result.attendanceLog?.id,
-                    },
-                  });
+            () => {
+              router.push({
+                pathname: '/survey',
+                params: {
+                  eventId: result.event!.id,
+                  eventTitle: result.event!.title,
+                  attendanceLogId: result.attendanceLog?.id,
                 },
-              },
-              { text: 'Done', style: 'cancel' },
-            ]
+              });
+            }
           );
         } else {
-          Alert.alert('Check-in Failed', result.message || result.error || 'Unable to process QR code');
+          showError('Check-in Failed', result.message || result.error || 'Unable to process QR code');
         }
       } catch (err) {
         setIsProcessing(false);
-        Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+        showError('Error', 'An unexpected error occurred. Please try again.');
       }
     },
     [isProcessing, user, router]

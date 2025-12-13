@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, Image, Dimensions, ActivityIndicator, Animated, RefreshControl } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Image, Dimensions, ActivityIndicator, Animated, RefreshControl } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { EventService, Event } from '../../lib/eventService';
@@ -271,8 +271,10 @@ export default function Index() {
       />
       <ScrollView 
         className="flex-1" 
+        style={{ marginTop: -50 }}
         contentContainerStyle={{ 
-          padding: 16,
+          paddingHorizontal: 16,
+          paddingTop: 8,
           paddingBottom: Math.max(insets.bottom, 20)
         }}
         showsVerticalScrollIndicator={false}

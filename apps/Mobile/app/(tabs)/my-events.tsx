@@ -593,9 +593,25 @@ export default function MyEvents() {
         ]}
       />
 
-      <View className="flex-1 mx-4 my-2">
+      <ScrollView 
+        className="flex-1" 
+        contentContainerStyle={{ 
+          paddingHorizontal: 16,
+          paddingTop: 8,
+          paddingBottom: Math.max(insets.bottom, 20) + 80 // Account for tab bar height
+        }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#ffffff"
+            colors={["#ffffff"]}
+          />
+        }
+      >
         {/* Search Bar */}
-        <View className="mb-4">
+        <View className="mb-4 mt-2">
           <View className="flex-row items-center bg-white rounded-xl px-4 py-3 shadow-md">
             <Ionicons name="search" size={20} color="#64748b" />
             <TextInput
@@ -706,21 +722,6 @@ export default function MyEvents() {
             )}
           </View>
         )}
-        <ScrollView 
-          className="flex-1" 
-          contentContainerStyle={{ 
-            paddingBottom: Math.max(insets.bottom, 20) + 80 // Account for tab bar height
-          }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#ffffff"
-              colors={["#ffffff"]}
-            />
-          }
-        >
           {/* My Registered Events Section Card */}
           <View 
             className="rounded-3xl overflow-hidden"
@@ -1022,8 +1023,7 @@ export default function MyEvents() {
               )}
             </View>
           </View>
-        </ScrollView>
-      </View>
+      </ScrollView>
 
       {/* QR Code Modal */}
       <Modal

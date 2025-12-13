@@ -132,7 +132,7 @@ export const defaultHtmlStyles = {
       padding: 12,
       borderRadius: 8,
       marginVertical: 12,
-      overflow: 'hidden',
+      overflow: 'hidden' as const,
     },
     br: {
       height: 12,

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Image, ScrollView, Animated, Dimensions, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Image, ScrollView, Animated, Dimensions } from 'react-native';
+import { showConfirm } from '../lib/sweetAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../lib/authContext';
@@ -46,25 +47,15 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
   };
 
   const handleSignOut = async () => {
-    Alert.alert(
+    showConfirm(
       'Sign Out',
       'Are you sure you want to sign out?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            onClose();
-            setTimeout(async () => {
-              await signOut();
-            }, 250);
-          },
-        },
-      ]
+      async () => {
+        onClose();
+        setTimeout(async () => {
+          await signOut();
+        }, 250);
+      }
     );
   };
 

@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   SafeAreaView,
-  Alert,
   ActivityIndicator,
   StyleSheet,
   Dimensions,
@@ -12,6 +11,7 @@ import {
   ScrollView,
   Modal,
 } from 'react-native';
+import { showError, showSuccess, showWarning, showInfo } from '../lib/sweetAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -135,7 +135,7 @@ export default function CameraScreen() {
 
   const takePhoto = async () => {
     if (!camera.current || !activeDevice || !eventId || !user?.id) {
-      Alert.alert('Error', 'Camera not ready or missing information.');
+      showError('Error', 'Camera not ready or missing information.');
       return;
     }
 
@@ -146,10 +146,9 @@ export default function CameraScreen() {
       // Check if user has reached the limit (existing photos + captured photos)
       const totalPhotos = photoCount + capturedPhotos.length;
       if (totalPhotos >= 10) {
-        Alert.alert(
+        showWarning(
           'Photo Limit Reached',
-          `You have reached the maximum limit of 10 photos for this event. You have ${photoCount} uploaded photos and ${capturedPhotos.length} photos ready to upload.`,
-          [{ text: 'OK' }]
+          `You have reached the maximum limit of 10 photos for this event. You have ${photoCount} uploaded photos and ${capturedPhotos.length} photos ready to upload.`
         );
         setIsCapturing(false);
         return;
@@ -165,7 +164,7 @@ export default function CameraScreen() {
     } catch (err: any) {
       console.error('Error taking photo:', err);
       setError(err.message || 'Failed to take photo. Please try again.');
-      Alert.alert('Error', err.message || 'Failed to take photo. Please try again.');
+      showError('Error', err.message || 'Failed to take photo. Please try again.');
     } finally {
       setIsCapturing(false);
     }
@@ -180,10 +179,9 @@ export default function CameraScreen() {
       // Check photo limit
       const totalPhotos = photoCount + capturedPhotos.length;
       if (totalPhotos >= 10) {
-        Alert.alert(
+        showWarning(
           'Photo Limit Reached',
-          `You have reached the maximum limit of 10 photos for this event. You have ${photoCount} uploaded photos and ${capturedPhotos.length} photos ready to upload.`,
-          [{ text: 'OK' }]
+          `You have reached the maximum limit of 10 photos for this event. You have ${photoCount} uploaded photos and ${capturedPhotos.length} photos ready to upload.`
         );
         return;
       }
@@ -191,7 +189,7 @@ export default function CameraScreen() {
       // Request permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
+        showWarning(
           'Permission Required',
           'Please grant media library permissions to select photos.'
         );
@@ -217,7 +215,7 @@ export default function CameraScreen() {
         for (const asset of result.assets) {
           // Check if we've reached the limit
           if (photoCount + capturedPhotos.length + newPhotos.length >= 10) {
-            Alert.alert(
+            showWarning(
               'Photo Limit Reached',
               `You can only add up to 10 photos. Added ${newPhotos.length} photo(s).`
             );
@@ -243,28 +241,27 @@ export default function CameraScreen() {
       }
     } catch (err: any) {
       console.error('Error picking images:', err);
-      Alert.alert('Error', err.message || 'Failed to pick images. Please try again.');
+      showError('Error', err.message || 'Failed to pick images. Please try again.');
     }
   };
 
   const uploadAllPhotos = async () => {
     if (!eventId || !user?.id) {
-      Alert.alert('Error', 'Missing event or user information.');
+      showError('Error', 'Missing event or user information.');
       return;
     }
 
     if (capturedPhotos.length === 0) {
-      Alert.alert('No Photos', 'Please take at least one photo before uploading.');
+      showWarning('No Photos', 'Please take at least one photo before uploading.');
       return;
     }
 
     // Check final limit before uploading
     const totalPhotos = photoCount + capturedPhotos.length;
     if (totalPhotos > 10) {
-      Alert.alert(
+      showWarning(
         'Photo Limit Exceeded',
-        `You can only upload ${10 - photoCount} more photos. Please remove ${totalPhotos - 10} photo(s) before uploading.`,
-        [{ text: 'OK' }]
+        `You can only upload ${10 - photoCount} more photos. Please remove ${totalPhotos - 10} photo(s) before uploading.`
       );
       return;
     }
@@ -321,15 +318,14 @@ export default function CameraScreen() {
       setCapturedPhotos([]);
       setUploadProgress({ current: 0, total: 0, percentage: 0 });
 
-      Alert.alert(
+      showSuccess(
         'Success', 
-        `Successfully uploaded ${uploadedCount} photo(s)!`,
-        [{ text: 'OK' }]
+        `Successfully uploaded ${uploadedCount} photo(s)!`
       );
     } catch (err: any) {
       console.error('Error uploading photos:', err);
       setError(err.message || 'Failed to upload photos. Please try again.');
-      Alert.alert('Error', err.message || 'Failed to upload photos. Please try again.');
+      showError('Error', err.message || 'Failed to upload photos. Please try again.');
     } finally {
       setIsUploading(false);
       setUploadProgress({ current: 0, total: 0, percentage: 0 });

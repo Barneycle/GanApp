@@ -4,13 +4,13 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Keyboard,
   ActivityIndicator,
 } from 'react-native';
+import { showSuccess } from '../lib/sweetAlert';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -172,19 +172,14 @@ export default function ResetPasswordScreen() {
       }
 
       // Success - show alert and redirect to login
-      Alert.alert(
+      showSuccess(
         'Password Reset Successful!',
         'Your password has been updated successfully. You can now sign in with your new password.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Sign out to clear the session
-              supabase.auth.signOut();
-              router.replace('/login');
-            },
-          },
-        ]
+        () => {
+          // Sign out to clear the session
+          supabase.auth.signOut();
+          router.replace('/login');
+        }
       );
     } catch (err: any) {
       console.error('Reset password error:', err);

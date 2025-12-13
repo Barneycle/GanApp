@@ -2,10 +2,12 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import { AuthProvider } from '../lib/authContext';
 import { ToastProvider } from '../components/Toast';
+import { SweetAlertProvider, SweetAlertRef } from '../components/SweetAlertProvider';
+import { setSweetAlertRef } from '../lib/sweetAlert';
 import './global.css';
 
 // Configure notification behavior
@@ -43,13 +45,20 @@ function NotificationHandler() {
 }
 
 export default function RootLayout() {
+  const sweetAlertRef = useRef<SweetAlertRef>(null);
+
+  useEffect(() => {
+    setSweetAlertRef(sweetAlertRef);
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ToastProvider>
-          <AuthProvider>
-            <NotificationHandler />
-            <Stack
+          <SweetAlertProvider ref={sweetAlertRef}>
+            <AuthProvider>
+              <NotificationHandler />
+              <Stack
               screenOptions={{
                 headerShown: false,
               }}
@@ -172,7 +181,8 @@ export default function RootLayout() {
             />
             </Stack>
             <StatusBar style="light" />
-          </AuthProvider>
+            </AuthProvider>
+          </SweetAlertProvider>
         </ToastProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

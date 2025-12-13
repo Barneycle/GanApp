@@ -188,9 +188,25 @@ export default function Events() {
         ]}
       />
 
-      <View className="flex-1 mx-4 my-2">
+      <ScrollView 
+        className="flex-1" 
+        contentContainerStyle={{ 
+          paddingHorizontal: 16,
+          paddingTop: 8,
+          paddingBottom: 70 + Math.max(insets.bottom, 8) + 20 // Tab bar height + safe area + extra padding
+        }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#ffffff"
+            colors={["#ffffff"]}
+          />
+        }
+      >
         {/* Search Bar */}
-        <View className="mb-4">
+        <View className="mb-4 mt-2">
           <View className="flex-row items-center bg-white rounded-xl px-4 py-3 shadow-md">
             <Ionicons name="search" size={20} color="#64748b" />
             <TextInput
@@ -301,22 +317,6 @@ export default function Events() {
             )}
           </View>
         )}
-        <ScrollView 
-          className="flex-1" 
-          contentContainerStyle={{ 
-            paddingTop: 8,
-            paddingBottom: 70 + Math.max(insets.bottom, 8) + 20 // Tab bar height + safe area + extra padding
-          }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#ffffff"
-              colors={["#ffffff"]}
-            />
-          }
-        >
           {/* Create New Event Button - Only for organizers/admins */}
           {isOrganizer && (
             <View className="mb-5">
@@ -487,8 +487,7 @@ export default function Events() {
           )}
             </View>
           </View>
-        </ScrollView>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

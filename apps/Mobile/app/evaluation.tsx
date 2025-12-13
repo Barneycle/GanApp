@@ -6,9 +6,9 @@ import {
   ScrollView,
   SafeAreaView,
   TextInput,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
+import { showSuccess } from '../lib/sweetAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -16,6 +16,8 @@ import { SurveyService, Survey } from '../lib/surveyService';
 import { EventService } from '../lib/eventService';
 import { useAuth } from '../lib/authContext';
 import { supabase } from '../lib/supabase';
+import RenderHTML from 'react-native-render-html';
+import { decodeHtml, getHtmlContentWidth, defaultHtmlStyles } from '../lib/htmlUtils';
 import TutorialOverlay from '../components/TutorialOverlay';
 
 interface Question {
@@ -24,14 +26,20 @@ interface Question {
   questionText?: string;
   type?: string;
   questionType?: string;
+  question_type?: string;
   required?: boolean;
   options?: string[];
+  rows?: string[];
+  columns?: string[];
   min_rating?: number;
   max_rating?: number;
   scaleMin?: number;
   scaleMax?: number;
   lowestLabel?: string;
   highestLabel?: string;
+  sectionTitle?: string;
+  sectionDescription?: string;
+  sectionIndex?: number;
 }
 
 interface Event {
@@ -188,7 +196,15 @@ export default function Evaluation() {
         if (loadedSurvey.questions && Array.isArray(loadedSurvey.questions)) {
           loadedSurvey.questions.forEach((question, index) => {
             const qId = question.id || question.question || `q_${index}`;
-            initialResponses[qId] = '';
+            const questionType = question.questionType || question.type || question.question_type || '';
+            // Initialize based on question type
+            if (questionType === 'checkbox' || questionType === 'checkbox-grid' || questionType === 'checkbox_grid') {
+              initialResponses[qId] = [];
+            } else if (questionType === 'multiple-choice-grid' || questionType === 'multiple_choice_grid') {
+              initialResponses[qId] = {};
+            } else {
+              initialResponses[qId] = '';
+            }
           });
         }
         setResponses(initialResponses);
@@ -244,7 +260,19 @@ export default function Evaluation() {
       if (question.required) {
         const questionId = question.id || question.question || '';
         const response = responses[questionId];
-        if (!response || (Array.isArray(response) && response.length === 0) || response === '') {
+        const questionType = question.questionType || question.type || question.question_type || '';
+        
+        // Check if response is empty based on question type
+        let isEmpty = false;
+        if (questionType === 'checkbox' || questionType === 'checkbox-grid' || questionType === 'checkbox_grid') {
+          isEmpty = !response || (Array.isArray(response) && response.length === 0);
+        } else if (questionType === 'multiple-choice-grid' || questionType === 'multiple_choice_grid') {
+          isEmpty = !response || (typeof response === 'object' && Object.keys(response).length === 0);
+        } else {
+          isEmpty = !response || response === '';
+        }
+        
+        if (isEmpty) {
           return `Please answer the required question: ${question.question || question.questionText}`;
         }
       }
@@ -284,21 +312,15 @@ export default function Evaluation() {
       }
       
       // Show success alert
-      Alert.alert(
+      showSuccess(
         'Evaluation Submitted Successfully!',
         'Thank you for your feedback.',
-        [
-          {
-            text: 'Continue',
-            onPress: () => {
-              // Navigate back to my-events
-              setTimeout(() => {
-                handleNavigateToMyEvents();
-              }, 100);
-            }
-          }
-        ],
-        { cancelable: false }
+        () => {
+          // Navigate back to my-events
+          setTimeout(() => {
+            handleNavigateToMyEvents();
+          }, 100);
+        }
       );
     } catch (err: any) {
       setError(err.message || 'Failed to submit evaluation. Please try again.');
@@ -326,19 +348,31 @@ export default function Evaluation() {
   const renderQuestion = (question: Question, index: number) => {
     const questionId = question.id || `q_${index}`;
     const questionText = question.question || question.questionText || '';
-    const questionType = question.type || question.questionType || 'text';
+    // Check all possible field names for question type (matching web version)
+    const questionType = question.questionType || question.type || question.question_type || '';
     const isRequired = question.required || false;
     const options = question.options || [];
     const currentResponse = responses[questionId] || '';
+    
+    // Debug logging
+    if (!questionType) {
+      console.warn('Question type not found for question:', question);
+    }
 
     switch (questionType) {
       case 'short-answer':
       case 'text':
         return (
           <View key={questionId} className="mb-6">
-            <Text className="text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <Text className="text-red-500">*</Text>}
-            </Text>
+            <View className="mb-2">
+              <RenderHTML
+                contentWidth={getHtmlContentWidth(32)}
+                source={{ html: decodeHtml(questionText) }}
+                baseStyle={defaultHtmlStyles.baseStyle}
+                tagsStyles={defaultHtmlStyles.tagsStyles}
+              />
+              {isRequired && <Text className="text-red-500">*</Text>}
+            </View>
             <TextInput
               value={typeof currentResponse === 'string' ? currentResponse : ''}
               onChangeText={(text) => handleResponseChange(questionId, text)}
@@ -351,9 +385,15 @@ export default function Evaluation() {
       case 'paragraph':
         return (
           <View key={questionId} className="mb-6">
-            <Text className="text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <Text className="text-red-500">*</Text>}
-            </Text>
+            <View className="mb-2">
+              <RenderHTML
+                contentWidth={getHtmlContentWidth(32)}
+                source={{ html: decodeHtml(questionText) }}
+                baseStyle={defaultHtmlStyles.baseStyle}
+                tagsStyles={defaultHtmlStyles.tagsStyles}
+              />
+              {isRequired && <Text className="text-red-500">*</Text>}
+            </View>
             <TextInput
               value={typeof currentResponse === 'string' ? currentResponse : ''}
               onChangeText={(text) => handleResponseChange(questionId, text)}
@@ -370,9 +410,15 @@ export default function Evaluation() {
       case 'multiple_choice':
         return (
           <View key={questionId} className="mb-6">
-            <Text className="text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <Text className="text-red-500">*</Text>}
-            </Text>
+            <View className="mb-2">
+              <RenderHTML
+                contentWidth={getHtmlContentWidth(32)}
+                source={{ html: decodeHtml(questionText) }}
+                baseStyle={defaultHtmlStyles.baseStyle}
+                tagsStyles={defaultHtmlStyles.tagsStyles}
+              />
+              {isRequired && <Text className="text-red-500">*</Text>}
+            </View>
             <View className="space-y-3">
               {options.map((option, optIndex) => (
                 <TouchableOpacity
@@ -409,9 +455,15 @@ export default function Evaluation() {
       case 'checkbox':
         return (
           <View key={questionId} className="mb-6">
-            <Text className="text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <Text className="text-red-500">*</Text>}
-            </Text>
+            <View className="mb-2">
+              <RenderHTML
+                contentWidth={getHtmlContentWidth(32)}
+                source={{ html: decodeHtml(questionText) }}
+                baseStyle={defaultHtmlStyles.baseStyle}
+                tagsStyles={defaultHtmlStyles.tagsStyles}
+              />
+              {isRequired && <Text className="text-red-500">*</Text>}
+            </View>
             <View className="space-y-3">
               {options.map((option, optIndex) => {
                 const checked = Array.isArray(currentResponse) && currentResponse.includes(option);
@@ -419,18 +471,18 @@ export default function Evaluation() {
                   <TouchableOpacity
                     key={optIndex}
                     onPress={() => handleCheckboxChange(questionId, option, !checked)}
-                    className="flex-row items-center p-3 rounded-md border border-gray-300 bg-white"
+                    className="flex-row items-center p-4 rounded-md border border-gray-300 bg-white"
                   >
-                    <View className={`w-5 h-5 rounded border-2 mr-3 items-center justify-center ${
+                    <View className={`w-6 h-6 rounded border-2 mr-4 items-center justify-center ${
                       checked
                         ? 'border-blue-500 bg-blue-500'
                         : 'border-gray-400'
                     }`}>
                       {checked && (
-                        <Ionicons name="checkmark" size={14} color="#ffffff" />
+                        <Ionicons name="checkmark" size={16} color="#ffffff" />
                       )}
                     </View>
-                    <Text className="text-base text-gray-700">
+                    <Text className="text-lg flex-1 text-gray-700">
                       {option}
                     </Text>
                   </TouchableOpacity>
@@ -443,9 +495,15 @@ export default function Evaluation() {
       case 'dropdown':
         return (
           <View key={questionId} className="mb-6">
-            <Text className="text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <Text className="text-red-500">*</Text>}
-            </Text>
+            <View className="mb-2">
+              <RenderHTML
+                contentWidth={getHtmlContentWidth(32)}
+                source={{ html: decodeHtml(questionText) }}
+                baseStyle={defaultHtmlStyles.baseStyle}
+                tagsStyles={defaultHtmlStyles.tagsStyles}
+              />
+              {isRequired && <Text className="text-red-500">*</Text>}
+            </View>
             {/* Note: React Native doesn't have a native dropdown/select component */}
             {/* We'll use a TouchableOpacity with a modal or picker - for now, use multiple choice style */}
             <View className="space-y-3">
@@ -453,22 +511,22 @@ export default function Evaluation() {
                 <TouchableOpacity
                   key={optIndex}
                   onPress={() => handleResponseChange(questionId, option)}
-                  className={`flex-row items-center p-3 rounded-md border ${
+                  className={`flex-row items-center p-4 rounded-md border ${
                     currentResponse === option
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-300 bg-white'
                   }`}
                 >
-                  <View className={`w-5 h-5 rounded-full border-2 mr-3 items-center justify-center ${
+                  <View className={`w-6 h-6 rounded-full border-2 mr-4 items-center justify-center ${
                     currentResponse === option
                       ? 'border-blue-500 bg-blue-500'
                       : 'border-gray-400'
                   }`}>
                     {currentResponse === option && (
-                      <View className="w-2 h-2 rounded-full bg-white" />
+                      <View className="w-3 h-3 rounded-full bg-white" />
                     )}
                   </View>
-                  <Text className={`text-base ${
+                  <Text className={`text-lg flex-1 ${
                     currentResponse === option
                       ? 'text-blue-700 font-medium'
                       : 'text-gray-700'
@@ -489,9 +547,15 @@ export default function Evaluation() {
         const highestLabel = question.highestLabel || '';
         return (
           <View key={questionId} className="mb-6">
-            <Text className="text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <Text className="text-red-500">*</Text>}
-            </Text>
+            <View className="mb-2">
+              <RenderHTML
+                contentWidth={getHtmlContentWidth(32)}
+                source={{ html: decodeHtml(questionText) }}
+                baseStyle={defaultHtmlStyles.baseStyle}
+                tagsStyles={defaultHtmlStyles.tagsStyles}
+              />
+              {isRequired && <Text className="text-red-500">*</Text>}
+            </View>
             <View>
               <View className="flex-row justify-between items-center mb-4">
                 <Text className="text-sm text-slate-600">{lowestLabel || `${scaleMin}`}</Text>
@@ -528,9 +592,15 @@ export default function Evaluation() {
         const starValue = parseInt(currentResponse) || 0;
         return (
           <View key={questionId} className="mb-6">
-            <Text className="text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <Text className="text-red-500">*</Text>}
-            </Text>
+            <View className="mb-2">
+              <RenderHTML
+                contentWidth={getHtmlContentWidth(32)}
+                source={{ html: decodeHtml(questionText) }}
+                baseStyle={defaultHtmlStyles.baseStyle}
+                tagsStyles={defaultHtmlStyles.tagsStyles}
+              />
+              {isRequired && <Text className="text-red-500">*</Text>}
+            </View>
             <View className="flex-row items-center">
               {Array.from({ length: starMax }, (_, i) => i + 1).map((star) => (
                 <TouchableOpacity
@@ -557,9 +627,15 @@ export default function Evaluation() {
       case 'date':
         return (
           <View key={questionId} className="mb-6">
-            <Text className="text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <Text className="text-red-500">*</Text>}
-            </Text>
+            <View className="mb-2">
+              <RenderHTML
+                contentWidth={getHtmlContentWidth(32)}
+                source={{ html: decodeHtml(questionText) }}
+                baseStyle={defaultHtmlStyles.baseStyle}
+                tagsStyles={defaultHtmlStyles.tagsStyles}
+              />
+              {isRequired && <Text className="text-red-500">*</Text>}
+            </View>
             <TextInput
               value={typeof currentResponse === 'string' ? currentResponse : ''}
               onChangeText={(text) => handleResponseChange(questionId, text)}
@@ -573,9 +649,15 @@ export default function Evaluation() {
       case 'time':
         return (
           <View key={questionId} className="mb-6">
-            <Text className="text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <Text className="text-red-500">*</Text>}
-            </Text>
+            <View className="mb-2">
+              <RenderHTML
+                contentWidth={getHtmlContentWidth(32)}
+                source={{ html: decodeHtml(questionText) }}
+                baseStyle={defaultHtmlStyles.baseStyle}
+                tagsStyles={defaultHtmlStyles.tagsStyles}
+              />
+              {isRequired && <Text className="text-red-500">*</Text>}
+            </View>
             <TextInput
               value={typeof currentResponse === 'string' ? currentResponse : ''}
               onChangeText={(text) => handleResponseChange(questionId, text)}
@@ -586,12 +668,154 @@ export default function Evaluation() {
           </View>
         );
 
-      default:
+      case 'multiple-choice-grid':
+      case 'multiple_choice_grid':
+        const rows = question.rows || [];
+        const columns = question.columns || [];
+        const gridResponse = currentResponse || {};
         return (
           <View key={questionId} className="mb-6">
-            <Text className="text-sm font-medium text-slate-700 mb-2">
-              {questionText} {isRequired && <Text className="text-red-500">*</Text>}
-            </Text>
+            <View className="mb-2">
+              <RenderHTML
+                contentWidth={getHtmlContentWidth(32)}
+                source={{ html: decodeHtml(questionText) }}
+                baseStyle={defaultHtmlStyles.baseStyle}
+                tagsStyles={defaultHtmlStyles.tagsStyles}
+              />
+              {isRequired && <Text className="text-red-500">*</Text>}
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={true} className="mb-4">
+              <View className="border border-slate-300 rounded-lg overflow-hidden">
+                {/* Header Row */}
+                <View className="flex-row bg-slate-50 border-b border-slate-300">
+                  <View className="w-32 px-3 py-2 border-r border-slate-300">
+                    <Text className="font-medium text-slate-700"></Text>
+                  </View>
+                  {columns.map((column, colIndex) => (
+                    <View key={colIndex} className="w-24 px-3 py-2 border-r border-slate-300 items-center">
+                      <Text className="text-xs text-slate-700 text-center" numberOfLines={2}>{column}</Text>
+                    </View>
+                  ))}
+                </View>
+                {/* Data Rows */}
+                {rows.map((row, rowIndex) => (
+                  <View key={rowIndex} className="flex-row border-b border-slate-300">
+                    <View className="w-32 px-3 py-2 border-r border-slate-300 bg-slate-50">
+                      <Text className="text-sm font-medium text-slate-700" numberOfLines={2}>{row}</Text>
+                    </View>
+                    {columns.map((column, colIndex) => (
+                      <TouchableOpacity
+                        key={colIndex}
+                        onPress={() => {
+                          const newResponse = { ...gridResponse, [row]: column };
+                          handleResponseChange(questionId, newResponse);
+                        }}
+                        className="w-24 px-3 py-2 border-r border-slate-300 items-center justify-center"
+                      >
+                        <View className={`w-5 h-5 rounded-full border-2 items-center justify-center ${
+                          gridResponse[row] === column
+                            ? 'border-blue-500 bg-blue-500'
+                            : 'border-gray-400 bg-white'
+                        }`}>
+                          {gridResponse[row] === column && (
+                            <View className="w-2 h-2 rounded-full bg-white" />
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        );
+
+      case 'checkbox-grid':
+      case 'checkbox_grid':
+        const checkboxRows = question.rows || [];
+        const checkboxColumns = question.columns || [];
+        const checkboxGridResponse = currentResponse || {};
+        return (
+          <View key={questionId} className="mb-6">
+            <View className="mb-2">
+              <RenderHTML
+                contentWidth={getHtmlContentWidth(32)}
+                source={{ html: decodeHtml(questionText) }}
+                baseStyle={defaultHtmlStyles.baseStyle}
+                tagsStyles={defaultHtmlStyles.tagsStyles}
+              />
+              {isRequired && <Text className="text-red-500">*</Text>}
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={true} className="mb-4">
+              <View className="border border-slate-300 rounded-lg overflow-hidden">
+                {/* Header Row */}
+                <View className="flex-row bg-slate-50 border-b border-slate-300">
+                  <View className="w-32 px-3 py-2 border-r border-slate-300">
+                    <Text className="font-medium text-slate-700"></Text>
+                  </View>
+                  {checkboxColumns.map((column, colIndex) => (
+                    <View key={colIndex} className="w-24 px-3 py-2 border-r border-slate-300 items-center">
+                      <Text className="text-xs text-slate-700 text-center" numberOfLines={2}>{column}</Text>
+                    </View>
+                  ))}
+                </View>
+                {/* Data Rows */}
+                {checkboxRows.map((row, rowIndex) => {
+                  const rowKey = row;
+                  const rowResponse = Array.isArray(checkboxGridResponse[rowKey]) ? checkboxGridResponse[rowKey] : [];
+                  return (
+                    <View key={rowIndex} className="flex-row border-b border-slate-300">
+                      <View className="w-32 px-3 py-2 border-r border-slate-300 bg-slate-50">
+                        <Text className="text-sm font-medium text-slate-700" numberOfLines={2}>{row}</Text>
+                      </View>
+                      {checkboxColumns.map((column, colIndex) => {
+                        const checked = rowResponse.includes(column);
+                        return (
+                          <TouchableOpacity
+                            key={colIndex}
+                            onPress={() => {
+                              const newRowResponse = checked
+                                ? rowResponse.filter(c => c !== column)
+                                : [...rowResponse, column];
+                              const newResponse = { ...checkboxGridResponse, [rowKey]: newRowResponse };
+                              handleResponseChange(questionId, newResponse);
+                            }}
+                            className="w-24 px-3 py-2 border-r border-slate-300 items-center justify-center"
+                          >
+                            <View className={`w-5 h-5 rounded border-2 items-center justify-center ${
+                              checked
+                                ? 'border-blue-500 bg-blue-500'
+                                : 'border-gray-400 bg-white'
+                            }`}>
+                              {checked && (
+                                <Ionicons name="checkmark" size={14} color="#ffffff" />
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </View>
+        );
+
+      default:
+        console.warn(`Unknown question type: ${questionType} for question:`, question);
+        return (
+          <View key={questionId} className="mb-6">
+            <View className="mb-2">
+              <RenderHTML
+                contentWidth={getHtmlContentWidth(32)}
+                source={{ html: decodeHtml(questionText) }}
+                baseStyle={defaultHtmlStyles.baseStyle}
+                tagsStyles={defaultHtmlStyles.tagsStyles}
+              />
+              {isRequired && <Text className="text-red-500">*</Text>}
+              {questionType && <Text className="text-xs text-slate-500 ml-2">(Type: {questionType})</Text>}
+            </View>
             <TextInput
               value={typeof currentResponse === 'string' ? currentResponse : ''}
               onChangeText={(text) => handleResponseChange(questionId, text)}
@@ -753,20 +977,103 @@ export default function Evaluation() {
 
         {/* Survey Form */}
         <View className="bg-white rounded-xl shadow-md border border-slate-100 p-4 mb-6">
-          {survey.questions && survey.questions.length > 0 ? (
-            survey.questions.map((question, index) => (
-              <View key={question.id || index} className="mb-8">
-                <View className="flex-row items-start mb-4">
-                  <View className="w-8 h-8 rounded-full bg-blue-600 items-center justify-center mr-3">
-                    <Text className="text-white font-bold text-sm">{index + 1}</Text>
+          {survey.questions && survey.questions.length > 0 ? (() => {
+            // Group questions by section (matching web version)
+            const sections: Array<{
+              sectionTitle?: string;
+              sectionDescription?: string;
+              sectionIndex?: number;
+              questions: Array<Question & { globalIndex: number }>;
+            }> = [];
+            let currentSection: typeof sections[0] | null = null;
+            let questionNumber = 1;
+            
+            survey.questions.forEach((question, index) => {
+              const sectionTitle = question.sectionTitle;
+              const sectionDescription = question.sectionDescription;
+              const sectionIndex = question.sectionIndex;
+              
+              // If this question has section info and it's different from current section, start a new section
+              if (sectionTitle && (currentSection === null || currentSection.sectionIndex !== sectionIndex)) {
+                currentSection = {
+                  sectionTitle,
+                  sectionDescription,
+                  sectionIndex,
+                  questions: []
+                };
+                sections.push(currentSection);
+              } else if (!sectionTitle && currentSection === null) {
+                // If no section info, create a default section
+                currentSection = {
+                  sectionTitle: undefined,
+                  sectionDescription: undefined,
+                  sectionIndex: undefined,
+                  questions: []
+                };
+                sections.push(currentSection);
+              } else if (!sectionTitle && currentSection && currentSection.sectionTitle) {
+                // If we have a section but this question doesn't have section info, create a new default section
+                currentSection = {
+                  sectionTitle: undefined,
+                  sectionDescription: undefined,
+                  sectionIndex: undefined,
+                  questions: []
+                };
+                sections.push(currentSection);
+              }
+              
+              currentSection!.questions.push({ ...question, globalIndex: questionNumber - 1 });
+              questionNumber++;
+            });
+            
+            return sections.map((section, sectionIdx) => (
+              <View key={sectionIdx} className="mb-8">
+                {/* Section Header */}
+                {(section.sectionTitle || section.sectionDescription) && (
+                  <View className="bg-purple-50 rounded-xl p-4 mb-4 border border-purple-200">
+                    {section.sectionTitle && (
+                      <View className="mb-2">
+                        <RenderHTML
+                          contentWidth={getHtmlContentWidth(32)}
+                          source={{ html: decodeHtml(section.sectionTitle) }}
+                          baseStyle={{ ...defaultHtmlStyles.baseStyle, fontSize: 18, fontWeight: 'bold' }}
+                          tagsStyles={defaultHtmlStyles.tagsStyles}
+                        />
+                      </View>
+                    )}
+                    {section.sectionDescription && (
+                      <View>
+                        <RenderHTML
+                          contentWidth={getHtmlContentWidth(32)}
+                          source={{ html: decodeHtml(section.sectionDescription) }}
+                          baseStyle={defaultHtmlStyles.baseStyle}
+                          tagsStyles={defaultHtmlStyles.tagsStyles}
+                        />
+                      </View>
+                    )}
                   </View>
-                  <View className="flex-1">
-                    {renderQuestion(question, index)}
-                  </View>
-                </View>
+                )}
+                
+                {/* Section Questions */}
+                {section.questions.map((question, qIdx) => {
+                  const questionId = question.id || `q_${question.globalIndex}`;
+                  return (
+                    <View key={questionId} className="mb-6 bg-white rounded-xl border border-slate-100 p-4">
+                      <View className="flex-row items-start mb-4">
+                        <View className="w-10 h-10 rounded-full bg-blue-600 items-center justify-center mr-3 flex-shrink-0">
+                          <Text className="text-white font-bold text-lg">{question.globalIndex + 1}</Text>
+                        </View>
+                        <View className="flex-1">
+                          <Text className="text-sm text-slate-600 mb-2">Question {question.globalIndex + 1}</Text>
+                          {renderQuestion(question, question.globalIndex)}
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
               </View>
-            ))
-          ) : (
+            ));
+          })() : (
             <View className="items-center py-8">
               <Text className="text-slate-500">No questions in this survey.</Text>
             </View>

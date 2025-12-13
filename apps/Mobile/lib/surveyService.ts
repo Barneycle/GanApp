@@ -48,19 +48,20 @@ export class SurveyService {
         };
       }
 
-      // Step 2: Attendance Verification - Ensure user is checked into this specific event
-      const attendanceCheck = await this.checkUserAttendance(eventId, userId);
-      if (attendanceCheck.error) {
+      // Step 2: Registration Verification - Ensure user is registered for this event
+      // Note: We only require registration, not check-in, for evaluations
+      const registrationCheck = await this.checkUserRegistration(eventId, userId);
+      if (registrationCheck.error) {
         return { 
-          error: attendanceCheck.error,
-          validationInfo: { step: 'attendance_verification', failed: true }
+          error: registrationCheck.error,
+          validationInfo: { step: 'registration_verification', failed: true }
         };
       }
       
-      if (!attendanceCheck.isCheckedIn) {
+      if (!registrationCheck.isRegistered) {
         return { 
-          error: 'You must check in to this event before accessing the survey. Please scan the QR code at the event venue.',
-          validationInfo: { step: 'attendance_verification', failed: true, reason: 'not_checked_in' }
+          error: 'You are not registered for this event. Please register first before accessing the evaluation.',
+          validationInfo: { step: 'registration_verification', failed: true, reason: 'not_registered' }
         };
       }
 
@@ -112,7 +113,7 @@ export class SurveyService {
           step: 'complete', 
           passed: true,
           eventId: eventValidation.event?.id,
-          attendanceLogId: attendanceCheck.attendanceLog?.id
+          isRegistered: registrationCheck.isRegistered
         }
       };
     } catch (error) {
@@ -166,67 +167,53 @@ export class SurveyService {
   }
 
   /**
-   * Attendance Verification: Ensures user is checked into the specific event
+   * Registration Verification: Ensures user is registered for the event
+   * This is used for evaluation access - registered users can take evaluations
    */
-  private static async checkUserAttendance(
+  private static async checkUserRegistration(
     eventId: string, 
     userId: string
-  ): Promise<{ isCheckedIn: boolean; attendanceLog?: any; error?: string }> {
+  ): Promise<{ isRegistered: boolean; registration?: any; error?: string }> {
     try {
-      const { data, error } = await supabase
-        .from('attendance_logs')
-        .select(`
-          id,
-          check_in_time,
-          check_in_method,
-          is_validated,
-          event_id,
-          user_id
-        `)
-        .eq('event_id', eventId)  // Ensure attendance is for this specific event
+      // Check if user is registered for this event (using same method as EventService.getUserRegistration)
+      const { data: registration, error: registrationError } = await supabase
+        .from('event_registrations')
+        .select('*')
+        .eq('event_id', eventId)
         .eq('user_id', userId)
-        .single();
+        .eq('status', 'registered')
+        .maybeSingle();
 
-      if (error) {
-        if (error.code === 'PGRST116') { // Not found
-          return { 
-            isCheckedIn: false, 
-            error: 'You are not registered for this event. Please register first before checking in.' 
-          };
+      if (registrationError) {
+        // Log the error for debugging
+        console.error('Registration check error:', registrationError);
+        // If it's not a "not found" error, return the error message
+        if (registrationError.code !== 'PGRST116') {
+          return { isRegistered: false, error: registrationError.message };
         }
-        return { isCheckedIn: false, error: error.message };
-      }
-
-      // Check if user has actually checked in (has check_in_time)
-      if (!data.check_in_time) {
+        // If it's "not found" (PGRST116), user is not registered
         return { 
-          isCheckedIn: false, 
-          error: 'You are registered but have not checked in yet. Please scan the QR code at the event venue to check in.' 
+          isRegistered: false, 
+          error: 'You are not registered for this event. Please register first before accessing the evaluation.' 
         };
       }
 
-      // Verify the attendance record is for the correct event
-      if (data.event_id !== eventId) {
+      // If user is not registered, return appropriate error
+      if (!registration) {
         return { 
-          isCheckedIn: false, 
-          error: 'Attendance record does not match the requested event. Please contact support.' 
+          isRegistered: false, 
+          error: 'You are not registered for this event. Please register first before accessing the evaluation.' 
         };
       }
 
-      // Additional validation: Check if attendance is validated
-      if (!data.is_validated) {
-        return { 
-          isCheckedIn: false, 
-          error: 'Your attendance has not been validated yet. Please contact the event organizer.' 
-        };
-      }
-
+      // User is registered
       return { 
-        isCheckedIn: true, 
-        attendanceLog: data 
+        isRegistered: true, 
+        registration: registration 
       };
     } catch (error) {
-      return { isCheckedIn: false, error: 'An unexpected error occurred while checking attendance' };
+      console.error('Unexpected error checking registration:', error);
+      return { isRegistered: false, error: 'An unexpected error occurred while checking registration' };
     }
   }
 
