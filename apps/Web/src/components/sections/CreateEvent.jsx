@@ -17,6 +17,8 @@ import { supabase } from '../../lib/supabaseClient';
 
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../Toast';
+import 'sweetalert2/dist/sweetalert2.min.css';
+import { promptCertificateUsage, showEventCreationSuccess } from '../../utils/eventCreationDialogs';
 
 // Lazy load RichTextEditor to prevent app-wide crashes
 const RichTextEditor = lazy(() => import('../RichTextEditor'));
@@ -90,7 +92,7 @@ const createEventSchema = z.object({
   // Check-in window settings
   checkInBeforeMinutes: z.coerce.number().min(0).max(480).optional(), // Max 8 hours before
   checkInDuringMinutes: z.coerce.number().min(0).max(240).optional(), // Max 4 hours during
-  
+
 
   bannerFile: z.any().optional(),
 
@@ -160,10 +162,10 @@ const createEventSchema = z.object({
 const formatPhilippinePhone = (value) => {
   // Remove all non-numeric characters
   const cleaned = value.replace(/\D/g, '');
-  
+
   // Limit to 11 digits (Philippine mobile numbers)
   const limited = cleaned.slice(0, 11);
-  
+
   // Format based on length: 0912 345 6789
   if (limited.length <= 4) {
     return limited;
@@ -195,7 +197,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
     const fileArray = Array.from(files);
 
-    
+
 
     if (onUpload && uploadType) {
 
@@ -203,7 +205,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
       setUploadProgress(0);
 
-      
+
 
       try {
 
@@ -233,7 +235,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(10);
 
-            
+
 
             const file = fileArray[0];
 
@@ -243,11 +245,11 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-            
+
 
             setUploadProgress(25);
 
-            
+
 
             const fileExt = file.name.split('.').pop();
 
@@ -255,7 +257,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             const filePath = `banners/${fileName}`;
 
-            
+
 
             const { data, error } = await supabase.storage
 
@@ -269,7 +271,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
               });
 
-            
+
 
             if (error) {
 
@@ -277,7 +279,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-            
+
 
             const { data: { publicUrl } } = supabase.storage
 
@@ -285,11 +287,11 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
               .getPublicUrl(filePath);
 
-            
+
 
             setUploadProgress(100);
 
-            
+
 
             const fileResult = {
 
@@ -313,7 +315,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             };
 
-            
+
 
             onUpload([fileResult]);
 
@@ -321,13 +323,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(0);
 
-            
+
 
           } catch (error) {
 
             // Banner upload failed
 
-            
+
 
             // Fallback to local storage
 
@@ -355,7 +357,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             };
 
-            
+
 
             onUpload([fileResult]);
 
@@ -373,13 +375,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(25);
 
-            
+
 
             const bucketName = 'event-kits';
 
             const results = [];
 
-            
+
 
             for (let index = 0; index < fileArray.length; index++) {
 
@@ -395,7 +397,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 const filePath = `kits/${fileName}`;
 
-                
+
 
                 const { data, error } = await supabase.storage
 
@@ -409,7 +411,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   });
 
-                
+
 
                 if (error) {
 
@@ -417,7 +419,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
                 const { data: { publicUrl } } = supabase.storage
 
@@ -425,11 +427,11 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   .getPublicUrl(filePath);
 
-                
+
 
                 setUploadProgress(50 + ((index + 1) / fileArray.length) * 25);
 
-                
+
 
                 results.push({
 
@@ -453,7 +455,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 });
 
-                
+
 
                 if (index < fileArray.length - 1) {
 
@@ -461,13 +463,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
               } catch (fileError) {
 
                 // Error uploading file
 
-                
+
 
                 setUploadProgress(50 + ((index + 1) / fileArray.length) * 25);
 
@@ -499,7 +501,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-            
+
 
             setUploadProgress(100);
 
@@ -509,13 +511,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(0);
 
-            
+
 
           } catch (error) {
 
             // Materials upload failed
 
-            
+
 
             const fileResults = fileArray.map((file, index) => {
 
@@ -555,7 +557,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(10);
 
-            
+
 
             // Validate image files
 
@@ -569,13 +571,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-            
+
 
             const bucketName = 'sponsor-logos';
 
             const results = [];
 
-            
+
 
             for (let index = 0; index < fileArray.length; index++) {
 
@@ -591,7 +593,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 const filePath = `logos/${fileName}`;
 
-                
+
 
                 const { data, error } = await supabase.storage
 
@@ -605,7 +607,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   });
 
-                
+
 
                 if (error) {
 
@@ -613,7 +615,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
                 const { data: { publicUrl } } = supabase.storage
 
@@ -621,7 +623,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   .getPublicUrl(filePath);
 
-                
+
 
                 results.push({
 
@@ -645,7 +647,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 });
 
-                
+
 
                 if (index < fileArray.length - 1) {
 
@@ -653,13 +655,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
               } catch (fileError) {
 
                 // Error uploading file
 
-                
+
 
                 results.push({
 
@@ -689,7 +691,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-            
+
 
             setUploadProgress(100);
 
@@ -699,13 +701,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(0);
 
-            
+
 
           } catch (error) {
 
             // Sponsor logos upload failed
 
-            
+
 
             const fileResults = fileArray.map((file, index) => ({
 
@@ -729,7 +731,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }));
 
-            
+
 
             onUpload(fileResults);
 
@@ -747,13 +749,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(25);
 
-            
+
 
             const bucketName = 'speaker-photos';
 
             const results = [];
 
-            
+
 
             for (let index = 0; index < fileArray.length; index++) {
 
@@ -769,7 +771,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 const filePath = `photos/${fileName}`;
 
-                
+
 
                 const { data, error } = await supabase.storage
 
@@ -783,7 +785,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   });
 
-                
+
 
                 if (error) {
 
@@ -791,7 +793,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
                 const { data: { publicUrl } } = supabase.storage
 
@@ -799,7 +801,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   .getPublicUrl(filePath);
 
-                
+
 
                 results.push({
 
@@ -823,7 +825,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 });
 
-                
+
 
                 if (index < fileArray.length - 1) {
 
@@ -831,13 +833,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
               } catch (fileError) {
 
                 // Error uploading file
 
-                
+
 
                 results.push({
 
@@ -867,7 +869,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-            
+
 
             setUploadProgress(100);
 
@@ -877,13 +879,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(0);
 
-            
+
 
           } catch (error) {
 
             // Speaker photos upload failed
 
-            
+
 
             const fileResults = fileArray.map((file, index) => ({
 
@@ -907,7 +909,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }));
 
-            
+
 
             onUpload(fileResults);
 
@@ -925,13 +927,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(25);
 
-            
+
 
             const bucketName = 'event-kits';
 
             const results = [];
 
-            
+
 
             for (let index = 0; index < fileArray.length; index++) {
 
@@ -947,7 +949,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 const filePath = `kits/${fileName}`;
 
-                
+
 
                 const { data, error } = await supabase.storage
 
@@ -961,7 +963,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   });
 
-                
+
 
                 if (error) {
 
@@ -969,7 +971,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
                 const { data: { publicUrl } } = supabase.storage
 
@@ -977,7 +979,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   .getPublicUrl(filePath);
 
-                
+
 
                 results.push({
 
@@ -1001,7 +1003,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 });
 
-                
+
 
                 if (index < fileArray.length - 1) {
 
@@ -1009,13 +1011,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
               } catch (fileError) {
 
                 // Error uploading file
 
-                
+
 
                 results.push({
 
@@ -1045,7 +1047,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-            
+
 
             setUploadProgress(100);
 
@@ -1055,13 +1057,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(0);
 
-            
+
 
           } catch (error) {
 
             // Event kits upload failed
 
-            
+
 
             const fileResults = fileArray.map((file, index) => ({
 
@@ -1085,7 +1087,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }));
 
-            
+
 
             onUpload(fileResults);
 
@@ -1103,13 +1105,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(25);
 
-            
+
 
             const bucketName = 'event-programmes';
 
             const results = [];
 
-            
+
 
             for (let index = 0; index < fileArray.length; index++) {
 
@@ -1125,7 +1127,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 const filePath = `programmes/${fileName}`;
 
-                
+
 
                 const { data, error } = await supabase.storage
 
@@ -1139,7 +1141,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   });
 
-                
+
 
                 if (error) {
 
@@ -1147,7 +1149,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
                 const { data: { publicUrl } } = supabase.storage
 
@@ -1155,7 +1157,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   .getPublicUrl(filePath);
 
-                
+
 
                 results.push({
 
@@ -1179,7 +1181,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 });
 
-                
+
 
                 if (index < fileArray.length - 1) {
 
@@ -1187,13 +1189,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
               } catch (fileError) {
 
                 // Error uploading file
 
-                
+
 
                 results.push({
 
@@ -1223,7 +1225,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-            
+
 
             setUploadProgress(100);
 
@@ -1233,13 +1235,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(0);
 
-            
+
 
           } catch (error) {
 
             // Event programmes upload failed
 
-            
+
 
             const fileResults = fileArray.map((file, index) => ({
 
@@ -1263,7 +1265,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }));
 
-            
+
 
             onUpload(fileResults);
 
@@ -1298,7 +1300,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
           });
 
-          
+
 
           onUpload(fileResults);
 
@@ -1370,99 +1372,97 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
   return (
 
-          <div className="mb-6 sm:mb-8">
+    <div className="mb-6 sm:mb-8">
 
-        <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3">
+      <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3">
 
-          {label}
+        {label}
 
-        </label>
+      </label>
 
-        
 
-        {/* Upload Progress Bar */}
 
-        {uploading && (
+      {/* Upload Progress Bar */}
 
-          <div className="mb-3">
+      {uploading && (
 
-            <div className="flex items-center justify-between text-sm text-slate-600 mb-1">
+        <div className="mb-3">
 
-              <span>Uploading files...</span>
+          <div className="flex items-center justify-between text-sm text-slate-600 mb-1">
 
-              <span>{Math.round(uploadProgress)}%</span>
+            <span>Uploading files...</span>
 
-            </div>
-
-            <div className="w-full bg-slate-200 rounded-full h-2">
-
-              <div 
-
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-
-                style={{ width: `${uploadProgress}%` }}
-
-              ></div>
-
-            </div>
+            <span>{Math.round(uploadProgress)}%</span>
 
           </div>
 
-        )}
+          <div className="w-full bg-slate-200 rounded-full h-2">
 
-        
+            <div
 
-        <Controller
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
 
-          name={name}
+              style={{ width: `${uploadProgress}%` }}
 
-          control={control}
+            ></div>
 
-          render={({ field: { onChange, value } }) => (
+          </div>
 
-                      <div
+        </div>
 
-              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl cursor-pointer p-6 sm:p-8 transition-all duration-300 min-h-[160px] sm:min-h-[180px] md:min-h-[200px] ${
+      )}
 
-                dragActive 
 
-                  ? 'border-blue-500 bg-blue-50 shadow-lg scale-105' 
 
-                  : error
+      <Controller
+
+        name={name}
+
+        control={control}
+
+        render={({ field: { onChange, value } }) => (
+
+          <div
+
+            className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl cursor-pointer p-6 sm:p-8 transition-all duration-300 min-h-[160px] sm:min-h-[180px] md:min-h-[200px] ${dragActive
+
+              ? 'border-blue-500 bg-blue-50 shadow-lg scale-105'
+
+              : error
 
                 ? 'border-red-300 bg-red-50'
 
                 : uploadedFiles.length > 0
 
-                ? multiple 
+                  ? multiple
 
-                  ? 'border-green-400 bg-green-50 hover:border-green-500 hover:bg-green-100' // Multiple files - can add more
+                    ? 'border-green-400 bg-green-50 hover:border-green-500 hover:bg-green-100' // Multiple files - can add more
 
-                  : 'border-green-400 bg-green-50' // Single file - can replace
+                    : 'border-green-400 bg-green-50' // Single file - can replace
 
-                : 'border-slate-300 bg-slate-50 hover:border-blue-400 hover:bg-blue-50 hover:shadow-md'
+                  : 'border-slate-300 bg-slate-50 hover:border-blue-400 hover:bg-blue-50 hover:shadow-md'
 
               }`}
 
-              onClick={() => {
+            onClick={() => {
 
-                if (fileInputRef.current) {
+              if (fileInputRef.current) {
 
-                  fileInputRef.current.click();
+                fileInputRef.current.click();
 
-                }
+              }
 
-              }}
+            }}
 
-              onDragEnter={handleDrag}
+            onDragEnter={handleDrag}
 
-              onDragOver={handleDrag}
+            onDragOver={handleDrag}
 
-              onDragLeave={handleDrag}
+            onDragLeave={handleDrag}
 
-              onDrop={handleDrop}
+            onDrop={handleDrop}
 
-            >
+          >
 
             <input
 
@@ -1500,7 +1500,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             />
 
-            
+
 
             {uploading ? (
 
@@ -1598,7 +1598,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             )}
 
-            
+
 
             {/* Display uploaded files with remove buttons */}
 
@@ -1622,7 +1622,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 )}
 
-                
+
 
                 <div className="text-sm font-medium text-slate-700 mb-2">
 
@@ -1650,9 +1650,9 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                                 <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
 
-                                  <img 
+                                  <img
 
-                                    src={URL.createObjectURL(file.file)} 
+                                    src={URL.createObjectURL(file.file)}
 
                                     alt={file.filename}
 
@@ -1672,7 +1672,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                           }
 
-                          
+
 
                           // Fallback to generic icon
 
@@ -1708,7 +1708,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                         })()}
 
-                        
+
 
                         {/* File Info */}
 
@@ -1726,7 +1726,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                       </div>
 
-                      
+
 
                       {/* Remove Button */}
 
@@ -1766,7 +1766,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 </div>
 
-                
+
 
                 {/* Add more files hint */}
 
@@ -1841,7 +1841,7 @@ export const CreateEvent = () => {
 
 
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
-  
+
 
 
 
@@ -1890,7 +1890,7 @@ export const CreateEvent = () => {
 
     }
 
-    
+
 
     if (!canManageEvents) {
 
@@ -2006,7 +2006,7 @@ export const CreateEvent = () => {
 
     if (!autoSaveEnabled) return; // Don't save if auto-save is disabled
 
-    
+
 
     try {
 
@@ -2156,7 +2156,7 @@ export const CreateEvent = () => {
 
         const eventData = JSON.parse(pendingEventData);
 
-        
+
 
         // Instant restore to form state
 
@@ -2183,7 +2183,7 @@ export const CreateEvent = () => {
           setValue('registrationDeadlineDate', '');
         }
 
-        
+
 
         // Handle sponsors and speakers
 
@@ -2199,7 +2199,7 @@ export const CreateEvent = () => {
 
         }
 
-        
+
 
         // Instant restore uploaded files (but note that File objects are lost in sessionStorage)
 
@@ -2247,7 +2247,7 @@ export const CreateEvent = () => {
             // Could not restore sponsors data
           }
         }
-        
+
 
         return; // Skip auto-save restoration
 
@@ -2259,7 +2259,7 @@ export const CreateEvent = () => {
 
     }
 
-    
+
 
     // Fallback to auto-saved data (also instant)
 
@@ -2295,7 +2295,7 @@ export const CreateEvent = () => {
 
         }, 300); // Save after 300ms of no changes
 
-        
+
 
         return () => clearTimeout(timeoutId);
 
@@ -2303,7 +2303,7 @@ export const CreateEvent = () => {
 
     });
 
-    
+
 
     return () => subscription.unsubscribe();
 
@@ -2351,11 +2351,11 @@ export const CreateEvent = () => {
 
         // For materials, accumulate files by category
 
-        setUploadedFiles(prev => ({ 
+        setUploadedFiles(prev => ({
 
-          ...prev, 
+          ...prev,
 
-          materials: prev.materials ? [...prev.materials, ...results] : results 
+          materials: prev.materials ? [...prev.materials, ...results] : results
 
         }));
 
@@ -2363,11 +2363,11 @@ export const CreateEvent = () => {
 
         // For sponsor logos, accumulate multiple files
 
-        setUploadedFiles(prev => ({ 
+        setUploadedFiles(prev => ({
 
-          ...prev, 
+          ...prev,
 
-          sponsorLogos: prev.sponsorLogos ? [...prev.sponsorLogos, ...results] : results 
+          sponsorLogos: prev.sponsorLogos ? [...prev.sponsorLogos, ...results] : results
 
         }));
 
@@ -2375,11 +2375,11 @@ export const CreateEvent = () => {
 
         // For speaker photos, accumulate multiple files
 
-        setUploadedFiles(prev => ({ 
+        setUploadedFiles(prev => ({
 
-          ...prev, 
+          ...prev,
 
-          speakerPhotos: prev.speakerPhotos ? [...prev.speakerPhotos, ...results] : results 
+          speakerPhotos: prev.speakerPhotos ? [...prev.speakerPhotos, ...results] : results
 
         }));
 
@@ -2387,11 +2387,11 @@ export const CreateEvent = () => {
 
         // For event kits, accumulate multiple files
 
-        setUploadedFiles(prev => ({ 
+        setUploadedFiles(prev => ({
 
-          ...prev, 
+          ...prev,
 
-          eventKits: prev.eventKits ? [...prev.eventKits, ...results] : results 
+          eventKits: prev.eventKits ? [...prev.eventKits, ...results] : results
 
         }));
 
@@ -2399,11 +2399,11 @@ export const CreateEvent = () => {
 
         // For event programmes, accumulate multiple files
 
-        setUploadedFiles(prev => ({ 
+        setUploadedFiles(prev => ({
 
-          ...prev, 
+          ...prev,
 
-          eventProgrammes: prev.eventProgrammes ? [...prev.eventProgrammes, ...results] : results 
+          eventProgrammes: prev.eventProgrammes ? [...prev.eventProgrammes, ...results] : results
 
         }));
 
@@ -2430,7 +2430,7 @@ export const CreateEvent = () => {
 
       let fileArray = null;
 
-      
+
 
       if (uploadType === 'banner') {
 
@@ -2450,9 +2450,9 @@ export const CreateEvent = () => {
 
         if (fileToRemove) {
 
-          setUploadedFiles(prev => ({ 
+          setUploadedFiles(prev => ({
 
-            ...prev, 
+            ...prev,
 
             materials: prev.materials?.filter(f => f.id !== fileId) || []
 
@@ -2468,9 +2468,9 @@ export const CreateEvent = () => {
 
         if (fileToRemove) {
 
-          setUploadedFiles(prev => ({ 
+          setUploadedFiles(prev => ({
 
-            ...prev, 
+            ...prev,
 
             sponsorLogos: prev.sponsorLogos?.filter(f => f.id !== fileId) || []
 
@@ -2486,9 +2486,9 @@ export const CreateEvent = () => {
 
         if (fileToRemove) {
 
-          setUploadedFiles(prev => ({ 
+          setUploadedFiles(prev => ({
 
-            ...prev, 
+            ...prev,
 
             speakerPhotos: prev.speakerPhotos?.filter(f => f.id !== fileId) || []
 
@@ -2504,9 +2504,9 @@ export const CreateEvent = () => {
 
         if (fileToRemove) {
 
-          setUploadedFiles(prev => ({ 
+          setUploadedFiles(prev => ({
 
-            ...prev, 
+            ...prev,
 
             eventKits: prev.eventKits?.filter(f => f.id !== fileId) || []
 
@@ -2522,9 +2522,9 @@ export const CreateEvent = () => {
 
         if (fileToRemove) {
 
-          setUploadedFiles(prev => ({ 
+          setUploadedFiles(prev => ({
 
-            ...prev, 
+            ...prev,
 
             eventProgrammes: prev.eventProgrammes?.filter(f => f.id !== fileId) || []
 
@@ -2534,7 +2534,7 @@ export const CreateEvent = () => {
 
       }
 
-      
+
 
       // Remove file from Supabase Storage if it was uploaded
       if (fileToRemove?.path && fileToRemove?.uploaded && fileToRemove?.bucket) {
@@ -2582,7 +2582,7 @@ export const CreateEvent = () => {
   };
 
   const updateSpeaker = (index, field, value) => {
-    const updatedSpeakers = speakers.map((speaker, i) => 
+    const updatedSpeakers = speakers.map((speaker, i) =>
       i === index ? { ...speaker, [field]: value } : speaker
     );
     setSpeakers(updatedSpeakers);
@@ -2602,7 +2602,7 @@ export const CreateEvent = () => {
     const updatedSpeakers = [...speakers];
     const [movedSpeaker] = updatedSpeakers.splice(fromIndex, 1);
     updatedSpeakers.splice(toIndex, 0, movedSpeaker);
-    
+
     // Update speaker_order for all speakers
     const reorderedSpeakers = updatedSpeakers.map((speaker, i) => ({
       ...speaker,
@@ -2630,7 +2630,7 @@ export const CreateEvent = () => {
   };
 
   const updateSponsor = (index, field, value) => {
-    const updatedSponsors = sponsors.map((sponsor, i) => 
+    const updatedSponsors = sponsors.map((sponsor, i) =>
       i === index ? { ...sponsor, [field]: value } : sponsor
     );
     setSponsors(updatedSponsors);
@@ -2650,7 +2650,7 @@ export const CreateEvent = () => {
     const updatedSponsors = [...sponsors];
     const [movedSponsor] = updatedSponsors.splice(fromIndex, 1);
     updatedSponsors.splice(toIndex, 0, movedSponsor);
-    
+
     // Update sponsor_order for all sponsors
     const reorderedSponsors = updatedSponsors.map((sponsor, i) => ({
       ...sponsor,
@@ -2732,7 +2732,7 @@ export const CreateEvent = () => {
             name: customVenueName.trim(),
             created_by: user.id
           });
-          
+
           if (venueResult.error) {
             // Continue with event creation even if venue creation fails
           }
@@ -2765,7 +2765,7 @@ export const CreateEvent = () => {
 
     }
 
-    
+
 
     // Handle materials files
 
@@ -2775,21 +2775,21 @@ export const CreateEvent = () => {
 
     }
 
-    
+
 
     // Handle sponsor logos - match uploaded images with sponsor data
     if (uploadedFiles.sponsorLogos && uploadedFiles.sponsorLogos.length > 0) {
       sponsors.forEach((sponsor, index) => {
         // Try multiple matching strategies
         let matchingLogo = null;
-        
+
         // Strategy 1: Match by index (assuming same order)
         if (uploadedFiles.sponsorLogos[index]) {
           matchingLogo = uploadedFiles.sponsorLogos[index];
         }
         // Strategy 2: Match by filename containing index
         if (!matchingLogo) {
-          matchingLogo = uploadedFiles.sponsorLogos.find(logo => 
+          matchingLogo = uploadedFiles.sponsorLogos.find(logo =>
             logo.name && logo.name.includes(`sponsor-logo-${index}`)
           );
         }
@@ -2797,28 +2797,28 @@ export const CreateEvent = () => {
         if (!matchingLogo && sponsors.length === 1 && uploadedFiles.sponsorLogos.length === 1) {
           matchingLogo = uploadedFiles.sponsorLogos[0];
         }
-        
+
         if (matchingLogo && matchingLogo.url) {
           sponsor.logo_url = matchingLogo.url;
         }
       });
     }
-    
+
     // Handle speaker photos - match uploaded images with speaker data
     if (uploadedFiles.speakerPhotos && uploadedFiles.speakerPhotos.length > 0) {
       speakers.forEach((speaker, index) => {
         const speakerName = `${speaker.first_name} ${speaker.last_name}`;
-        
+
         // Try multiple matching strategies
         let matchingPhoto = null;
-        
+
         // Strategy 1: Match by index (assuming same order)
         if (uploadedFiles.speakerPhotos[index]) {
           matchingPhoto = uploadedFiles.speakerPhotos[index];
         }
         // Strategy 2: Match by filename containing index
         if (!matchingPhoto) {
-          matchingPhoto = uploadedFiles.speakerPhotos.find(photo => 
+          matchingPhoto = uploadedFiles.speakerPhotos.find(photo =>
             photo.name && photo.name.includes(`speaker-photo-${index}`)
           );
         }
@@ -2826,13 +2826,13 @@ export const CreateEvent = () => {
         if (!matchingPhoto && speakers.length === 1 && uploadedFiles.speakerPhotos.length === 1) {
           matchingPhoto = uploadedFiles.speakerPhotos[0];
         }
-        
+
         if (matchingPhoto && matchingPhoto.url) {
           speaker.photo_url = matchingPhoto.url;
         }
       });
     }
-    
+
 
     // Handle event programmes - use link if provided, otherwise use uploaded files
     if (data.eventProgrammeLink && data.eventProgrammeLink.trim()) {
@@ -2861,72 +2861,25 @@ export const CreateEvent = () => {
       ...speaker,
       photo_url: speaker.photo_url || ''
     }));
-    
+
     const sponsorsWithImages = sponsors.map(sponsor => ({
       ...sponsor,
       logo_url: sponsor.logo_url || ''
     }));
-    
-    
+
+
     sessionStorage.setItem('pending-event-speakers', JSON.stringify(speakersWithImages));
     sessionStorage.setItem('pending-event-sponsors', JSON.stringify(sponsorsWithImages));
-    
-    // Ask user if event will use certificates
-    const useCertificate = window.confirm(
-      'Will this event use certificates?\n\n' +
-      'Click "OK" to design a certificate template.\n' +
-      'Click "Cancel" to skip certificate design and complete event creation.'
-    );
-    
-    if (useCertificate) {
+
+    // Ask user if event will use certificates using sweetalert2
+    const wantsCertificate = await promptCertificateUsage();
+
+    if (wantsCertificate) {
       // Navigate to certificate design step
       navigate('/design-certificate');
     } else {
-      // Complete event creation without certificate
-      // Save event data and navigate to events list or event details
-      try {
-        const { data: createdEvent, error: eventError } = await supabase
-          .from('events')
-          .insert([eventData])
-          .select()
-          .single();
-
-        if (eventError) {
-          throw eventError;
-        }
-
-        // Handle speakers
-        if (speakersWithImages.length > 0) {
-          for (const speaker of speakersWithImages) {
-            await SpeakerService.createSpeaker({
-              ...speaker,
-              event_id: createdEvent.id
-            });
-          }
-        }
-
-        // Handle sponsors
-        if (sponsorsWithImages.length > 0) {
-          for (const sponsor of sponsorsWithImages) {
-            await SponsorService.createSponsor({
-              ...sponsor,
-              event_id: createdEvent.id
-            });
-          }
-        }
-
-        // Clear session storage
-        sessionStorage.removeItem('pending-event-data');
-        sessionStorage.removeItem('pending-event-files');
-        sessionStorage.removeItem('pending-event-speakers');
-        sessionStorage.removeItem('pending-event-sponsors');
-
-        toast.success('Event created successfully!');
-        navigate(`/events/${createdEvent.id}`);
-      } catch (error) {
-        console.error('Error creating event:', error);
-        toast.error('Failed to create event. Please try again.');
-      }
+      // Navigate to survey/evaluation creation step
+      navigate('/create-survey');
     }
 
   };
@@ -3015,13 +2968,13 @@ export const CreateEvent = () => {
 
             >
 
-              <svg 
+              <svg
 
-                className="w-6 h-6 text-slate-600 group-hover:text-blue-600 transition-colors" 
+                className="w-6 h-6 text-slate-600 group-hover:text-blue-600 transition-colors"
 
-                fill="none" 
+                fill="none"
 
-                stroke="currentColor" 
+                stroke="currentColor"
 
                 viewBox="0 0 24 24"
 
@@ -3033,7 +2986,7 @@ export const CreateEvent = () => {
 
             </button>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-slate-800 to-blue-800 bg-clip-text text-transparent">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-800">
 
               {pageTitle}
 
@@ -3041,95 +2994,137 @@ export const CreateEvent = () => {
 
           </div>
 
-          
 
-          
+
+
+
+          {/* Progress Indicator */}
+          <div className="mt-8 mb-8">
+            <div className="flex items-center justify-center space-x-4 sm:space-x-8">
+              {/* Step 1: Create Event - Current Step */}
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-lg">
+                  1
+                </div>
+                <div className="mt-2 text-center">
+                  <p className="text-sm font-semibold text-blue-600">Create Event</p>
+                  <p className="text-xs text-slate-500 mt-1">Current Step</p>
+                </div>
+              </div>
+
+              {/* Connector Line */}
+              <div className="hidden sm:block w-16 h-0.5 bg-slate-300"></div>
+
+              {/* Step 2: Design Certificate - Next Step */}
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center font-bold text-lg">
+                  2
+                </div>
+                <div className="mt-2 text-center">
+                  <p className="text-sm font-semibold text-slate-500">Design Certificate</p>
+                  <p className="text-xs text-slate-400 mt-1">Next Step</p>
+                </div>
+              </div>
+
+              {/* Connector Line */}
+              <div className="hidden sm:block w-16 h-0.5 bg-slate-300"></div>
+
+              {/* Step 3: Create Evaluation - Next Step */}
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center font-bold text-lg">
+                  3
+                </div>
+                <div className="mt-2 text-center">
+                  <p className="text-sm font-semibold text-slate-500">Create Evaluation</p>
+                  <p className="text-xs text-slate-400 mt-1">Next Step</p>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Draft Management Info */}
 
           <div className="mt-6 flex items-center justify-center space-x-6">
 
-              <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3">
 
-                <span className="text-base font-medium text-slate-600">Auto-save</span>
+              <span className="text-base font-medium text-slate-600">Auto-save</span>
 
-                <button
+              <button
 
-                  onClick={toggleAutoSave}
+                onClick={toggleAutoSave}
 
-                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
-
-                    autoSaveEnabled ? 'bg-green-500' : 'bg-gray-400'
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${autoSaveEnabled ? 'bg-green-500' : 'bg-gray-400'
 
                   }`}
 
-                >
+              >
 
-                  <div
+                <div
 
-                    className={`inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white transition-transform ${
-
-                      autoSaveEnabled ? 'translate-x-6' : 'translate-x-1'
+                  className={`inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white transition-transform ${autoSaveEnabled ? 'translate-x-6' : 'translate-x-1'
 
                     }`}
 
-                  >
 
-                    {autoSaveEnabled && (
+                >
 
-                      <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {autoSaveEnabled && (
 
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 
-                      </svg>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 
-                    )}
 
-                  </div>
+                    </svg>
 
-                </button>
+                  )}
 
-                <span className={`text-base font-medium ${autoSaveEnabled ? 'text-green-600' : 'text-gray-500'}`}>
-
-                  {autoSaveEnabled ? 'Enabled' : 'Disabled'}
-
-                </span>
-
-              </div>
-
-              
-
-              
-
-                          {/* Clear Draft Button */}
-
-               <button
-
-                 onClick={handleClearDraft}
-
-                 className="inline-flex items-center space-x-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-lg border border-red-200 hover:border-red-300 transition-all duration-200 font-medium text-base shadow-sm hover:shadow-md"
-
-                 title="Clear saved draft"
-
-               >
-
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-
-                </svg>
-
-                <span>Clear Draft</span>
+                </div>
 
               </button>
 
+              <span className={`text-base font-medium ${autoSaveEnabled ? 'text-green-600' : 'text-gray-500'}`}>
 
+                {autoSaveEnabled ? 'Enabled' : 'Disabled'}
 
-              {/* Policy Tester Button */}
-
-
+              </span>
 
             </div>
+
+
+
+
+
+            {/* Clear Draft Button */}
+
+            <button
+
+              onClick={handleClearDraft}
+
+              className="inline-flex items-center space-x-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-lg border border-red-200 hover:border-red-300 transition-all duration-200 font-medium text-base shadow-sm hover:shadow-md"
+
+              title="Clear saved draft"
+
+            >
+
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+
+              </svg>
+
+              <span>Clear Draft</span>
+
+            </button>
+
+
+
+            {/* Policy Tester Button */}
+
+
+
+          </div>
 
         </div>
 
@@ -3139,7 +3134,7 @@ export const CreateEvent = () => {
 
 
 
-        
+
 
 
 
@@ -3185,7 +3180,7 @@ export const CreateEvent = () => {
 
                 accept=".png,.jpg,.jpeg"
 
-                onFileChange={() => {}}
+                onFileChange={() => { }}
 
                 onUpload={(results) => handleFileUpload('banner', results)}
 
@@ -3227,13 +3222,13 @@ export const CreateEvent = () => {
 
                 </div>
 
-                                 <div>
+                <div>
 
-                   <h3 className="text-xl font-semibold text-slate-800">Event Title</h3>
+                  <h3 className="text-xl font-semibold text-slate-800">Event Title</h3>
 
-                   <p className="text-base text-slate-600">Set the main title for your event</p>
+                  <p className="text-base text-slate-600">Set the main title for your event</p>
 
-                 </div>
+                </div>
 
               </div>
 
@@ -3243,11 +3238,11 @@ export const CreateEvent = () => {
 
               <div className="space-y-2">
 
-                                 <label className="block text-base font-semibold text-slate-700 uppercase tracking-wide">
+                <label className="block text-base font-semibold text-slate-700 uppercase tracking-wide">
 
-                   Event Title
+                  Event Title
 
-                 </label>
+                </label>
 
                 <Controller
 
@@ -3263,11 +3258,9 @@ export const CreateEvent = () => {
 
                       type="text"
 
-                                             className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-lg transition-all duration-200 placeholder-slate-400 ${
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-lg transition-all duration-200 placeholder-slate-400 ${errors.title ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
 
-                         errors.title ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-
-                       }`}
+                        }`}
 
                       placeholder="Enter your event title"
 
@@ -3277,11 +3270,12 @@ export const CreateEvent = () => {
 
                 />
 
-                                 {errors.title && (
 
-                   <p className="text-base text-red-600">{errors.title.message}</p>
+                {errors.title && (
 
-                 )}
+                  <p className="text-base text-red-600">{errors.title.message}</p>
+
+                )}
 
               </div>
 
@@ -3443,11 +3437,9 @@ export const CreateEvent = () => {
 
                         type="date"
 
-                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
+                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.startDate ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
 
-                          errors.startDate ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-
-                        }`}
+                          }`}
 
                       />
 
@@ -3456,6 +3448,7 @@ export const CreateEvent = () => {
                   />
 
                   {errors.startDate && (
+
 
                     <p className="text-sm text-red-600">{errors.startDate.message}</p>
 
@@ -3485,11 +3478,9 @@ export const CreateEvent = () => {
 
                         type="date"
 
-                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
+                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.endDate ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
 
-                          errors.endDate ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-
-                        }`}
+                          }`}
 
                       />
 
@@ -3499,6 +3490,7 @@ export const CreateEvent = () => {
 
                   {errors.endDate && (
 
+
                     <p className="text-sm text-red-600">{errors.endDate.message}</p>
 
                   )}
@@ -3507,229 +3499,222 @@ export const CreateEvent = () => {
 
               </div>
 
-              
 
-                             {/* Time inputs */}
 
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {/* Time inputs */}
 
-                 <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
 
-                   <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                <div className="space-y-2">
 
-                     Start Time
+                  <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
 
-                   </label>
+                    Start Time
 
-                   <Controller
+                  </label>
 
-                     name="startTime"
+                  <Controller
 
-                     control={control}
+                    name="startTime"
 
-                     render={({ field }) => (
+                    control={control}
 
-                       <input
+                    render={({ field }) => (
 
-                         {...field}
+                      <input
 
-                         type="time"
+                        {...field}
 
-                         className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
+                        type="time"
 
-                           errors.startTime ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.startTime ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
 
-                         }`}
+                          }`}
 
-                       />
+                      />
 
-                     )}
+                    )}
 
-                   />
+                  />
 
-                   {errors.startTime && (
+                  {errors.startTime && (
 
-                     <p className="text-sm text-red-600">{errors.startTime.message}</p>
 
-                   )}
+                    <p className="text-sm text-red-600">{errors.startTime.message}</p>
 
-                 </div>
+                  )}
 
-                 <div className="space-y-2">
+                </div>
 
-                   <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                <div className="space-y-2">
 
-                     End Time
+                  <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
 
-                   </label>
+                    End Time
 
-                   <Controller
+                  </label>
 
-                     name="endTime"
+                  <Controller
 
-                     control={control}
+                    name="endTime"
 
-                     render={({ field }) => (
+                    control={control}
 
-                       <input
+                    render={({ field }) => (
 
-                         {...field}
+                      <input
 
-                         type="time"
+                        {...field}
 
-                         className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
+                        type="time"
 
-                           errors.endTime ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.endTime ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
 
-                         }`}
+                          }`}
 
-                       />
+                      />
 
-                     )}
+                    )}
 
-                   />
+                  />
 
-                   {errors.endTime && (
+                  {errors.endTime && (
 
-                     <p className="text-sm text-red-600">{errors.endTime.message}</p>
 
-                   )}
+                    <p className="text-sm text-red-600">{errors.endTime.message}</p>
 
-                 </div>
+                  )}
 
-               </div>
+                </div>
 
+              </div>
 
 
-               {/* Registration Deadline */}
 
-               <div className="space-y-4">
+              {/* Registration Deadline */}
 
-                 <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+              <div className="space-y-4">
 
-                   Registration Deadline
-
-                 </label>
-
-                 <div className="space-y-2">
-
-                   <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide">
-
-                     Date (Time will be set to 11:59 PM)
-
-                   </label>
-
-                   <Controller
-
-                     name="registrationDeadlineDate"
-
-                     control={control}
-
-                     render={({ field }) => (
-
-                       <input
-
-                         {...field}
-
-                         type="date"
-
-                         className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
-
-                           errors.registrationDeadlineDate ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-
-                         }`}
-
-                       />
-
-                     )}
-
-                   />
-
-                 </div>
-
-                 {errors.registrationDeadlineDate && (
-
-                   <p className="text-sm text-red-600">{errors.registrationDeadlineDate.message}</p>
-
-                 )}
-
-               </div>
-
-               {/* Check-in Window Settings */}
-               <div className="space-y-4">
-                 <h3 className="text-lg font-semibold text-slate-800 mb-4">Check-in Window Settings</h3>
-                 
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                   <div className="space-y-2">
-                     <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
-                       Check-in Before Event (minutes)
-                     </label>
-                     <Controller
-                       name="checkInBeforeMinutes"
-                       control={control}
-                       render={({ field }) => (
-                         <input
-                           {...field}
-                           type="number"
-                           min="0"
-                           max="480"
-                           placeholder="60"
-                           className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
-                             errors.checkInBeforeMinutes ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-                           }`}
-                         />
-                       )}
-                     />
-                     {errors.checkInBeforeMinutes && (
-                       <p className="text-sm text-red-600">{errors.checkInBeforeMinutes.message}</p>
-                     )}
-                     <p className="text-xs text-slate-500">How many minutes before the event starts can users check in?</p>
-                   </div>
-
-                   <div className="space-y-2">
-                     <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
-                       Check-in During Event (minutes)
-                     </label>
-                     <Controller
-                       name="checkInDuringMinutes"
-                       control={control}
-                       render={({ field }) => (
-                         <input
-                           {...field}
-                           type="number"
-                           min="0"
-                           max="240"
-                           placeholder="30"
-                           className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
-                             errors.checkInDuringMinutes ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-                           }`}
-                         />
-                       )}
-                     />
-                     {errors.checkInDuringMinutes && (
-                       <p className="text-sm text-red-600">{errors.checkInDuringMinutes.message}</p>
-                     )}
-                     <p className="text-xs text-slate-500">How many minutes after the event starts can users still check in?</p>
-                   </div>
-                 </div>
-
-                 {/* Check-in Window Preview */}
-                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                   <h4 className="font-semibold text-blue-800 mb-2">Check-in Window Preview</h4>
-                   <div className="text-sm text-blue-700 space-y-1">
-                     <p>Event: {watch('startDate')} at {watch('startTime')}</p>
-                     <p>Check-in opens: {watch('checkInBeforeMinutes') || 60} minutes before event</p>
-                     <p>Check-in closes: {watch('checkInDuringMinutes') || 30} minutes after event starts</p>
-                   </div>
-                 </div>
-
-               </div>
+                <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+
+                  Registration Deadline
+
+                </label>
+
+                <div className="space-y-2">
+
+                  <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide">
+
+                    Date (Time will be set to 11:59 PM)
+
+                  </label>
+
+                  <Controller
+
+                    name="registrationDeadlineDate"
+
+                    control={control}
+
+                    render={({ field }) => (
+
+                      <input
+
+                        {...field}
+
+                        type="date"
+
+                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.registrationDeadlineDate ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+
+                          }`}
+
+                      />
+
+                    )}
+
+                  />
+
+                </div>
+
+
+                {errors.registrationDeadlineDate && (
+
+                  <p className="text-sm text-red-600">{errors.registrationDeadlineDate.message}</p>
+
+                )}
+
+              </div>
+
+              {/* Check-in Window Settings */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-slate-800 mb-4">Check-in Window Settings</h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                      Check-in Before Event (minutes)
+                    </label>
+                    <Controller
+                      name="checkInBeforeMinutes"
+                      control={control}
+                      render={({ field }) => (
+                        <input
+                          {...field}
+                          type="number"
+                          min="0"
+                          max="480"
+                          placeholder="60"
+                          className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.checkInBeforeMinutes ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                            }`}
+                        />
+                      )}
+                    />
+                    {errors.checkInBeforeMinutes && (
+                      <p className="text-sm text-red-600">{errors.checkInBeforeMinutes.message}</p>
+                    )}
+                    <p className="text-xs text-slate-500">How many minutes before the event starts can users check in?</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                      Check-in During Event (minutes)
+                    </label>
+                    <Controller
+                      name="checkInDuringMinutes"
+                      control={control}
+                      render={({ field }) => (
+                        <input
+                          {...field}
+                          type="number"
+                          min="0"
+                          max="240"
+                          placeholder="30"
+                          className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.checkInDuringMinutes ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                            }`}
+                        />
+                      )}
+                    />
+                    {errors.checkInDuringMinutes && (
+                      <p className="text-sm text-red-600">{errors.checkInDuringMinutes.message}</p>
+                    )}
+                    <p className="text-xs text-slate-500">How many minutes after the event starts can users still check in?</p>
+                  </div>
+                </div>
+
+                {/* Check-in Window Preview */}
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <h4 className="font-semibold text-blue-800 mb-2">Check-in Window Preview</h4>
+                  <div className="text-sm text-blue-700 space-y-1">
+                    <p>Event: {watch('startDate')} at {watch('startTime')}</p>
+                    <p>Check-in opens: {watch('checkInBeforeMinutes') || 60} minutes before event</p>
+                    <p>Check-in closes: {watch('checkInDuringMinutes') || 30} minutes after event starts</p>
+                  </div>
+                </div>
+
+              </div>
 
             </div>
 
           </div>
-
-
 
           {/* Venue Section */}
 
@@ -3765,114 +3750,112 @@ export const CreateEvent = () => {
 
             <div className="p-6 space-y-6">
 
-                             <div className="space-y-2">
+              <div className="space-y-2">
 
-                 <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
 
-                   Venue
+                  Venue
 
-                 </label>
+                </label>
 
-                 <Controller
-                   name="venue"
-                   control={control}
-                   render={({ field }) => (
-                     <div className="space-y-3">
-                       <select
-                         {...field}
-                         onChange={(e) => {
-                           const value = e.target.value;
-                           field.onChange(value);
-                           setShowOtherVenue(value === 'other');
-                           if (value !== 'other') {
-                             setCustomVenueName('');
-                           }
-                         }}
-                         className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
-                           errors.venue ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-                         }`}
-                       >
-                         <option value="">Select a venue...</option>
-                         {venues.map((venue) => (
-                           <option key={venue.id} value={venue.name}>
-                             {venue.name}
-                           </option>
-                         ))}
-                         <option value="other">Other (specify below)</option>
-                       </select>
-                       
-                       {showOtherVenue && (
-                         <input
-                           type="text"
-                           placeholder="Enter custom venue name"
-                           value={customVenueName}
-                           onChange={(e) => {
-                             setCustomVenueName(e.target.value);
-                             field.onChange(e.target.value); // Update the form field with custom venue
-                           }}
-                           className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
-                         />
-                       )}
-                     </div>
-                   )}
-                 />
+                <Controller
+                  name="venue"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="space-y-3">
+                      <select
+                        {...field}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          field.onChange(value);
+                          setShowOtherVenue(value === 'other');
+                          if (value !== 'other') {
+                            setCustomVenueName('');
+                          }
+                        }}
+                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.venue ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                          }`}
+                      >
+                        <option value="">Select a venue...</option>
+                        {venues.map((venue) => (
+                          <option key={venue.id} value={venue.name}>
+                            {venue.name}
+                          </option>
+                        ))}
+                        <option value="other">Other (specify below)</option>
+                      </select>
 
-                 {errors.venue && (
+                      {showOtherVenue && (
+                        <input
+                          type="text"
+                          placeholder="Enter custom venue name"
+                          value={customVenueName}
+                          onChange={(e) => {
+                            setCustomVenueName(e.target.value);
+                            field.onChange(e.target.value); // Update the form field with custom venue
+                          }}
+                          className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
+                        />
+                      )}
+                    </div>
+                  )}
+                />
 
-                   <p className="text-sm text-red-600">{errors.venue.message}</p>
+                {errors.venue && (
 
-                 )}
+                  <p className="text-sm text-red-600">{errors.venue.message}</p>
 
-               </div>
+                )}
 
+              </div>
 
 
 
-               <div className="space-y-2">
 
-                 <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+              <div className="space-y-2">
 
-                   Max Participants
+                <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
 
-                 </label>
+                  Max Participants
 
-                 <Controller
+                </label>
 
-                   name="maxParticipants"
+                <Controller
 
-                   control={control}
+                  name="maxParticipants"
 
-                   render={({ field }) => (
+                  control={control}
 
-                     <input
+                  render={({ field }) => (
 
-                       {...field}
+                    <input
 
-                       type="number"
+                      {...field}
 
-                       min="1"
+                      type="number"
 
-                       placeholder="Enter maximum number of participants"
+                      min="1"
 
-                       className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400 ${
+                      placeholder="Enter maximum number of participants"
 
-                         errors.maxParticipants ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400 ${errors.maxParticipants ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
 
-                       }`}
+                        }`}
 
-                     />
+                    />
 
-                   )}
+                  )}
 
-                 />
+                />
 
-                 {errors.maxParticipants && (
+                {errors.maxParticipants && (
 
-                   <p className="text-sm text-red-600">{errors.maxParticipants.message}</p>
 
-                 )}
+                  <p className="text-sm text-red-600">{errors.maxParticipants.message}</p>
 
-               </div>
+                )}
+
+              </div>
 
             </div>
 
@@ -3885,28 +3868,18 @@ export const CreateEvent = () => {
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden">
 
             <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-6 py-4 border-b border-slate-100">
-
               <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-
+                <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-
-                  </svg>
-
-                </div>
-
-                <div>
-
-                  <h3 className="text-lg font-semibold text-slate-800">Sponsors & Partners</h3>
-
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-800">Sponsors & Partners</h3>
                     <p className="text-sm text-slate-600">Add detailed sponsor information</p>
+                  </div>
                 </div>
-
-              </div>
-
                 <button
                   type="button"
                   onClick={addSponsor}
@@ -3917,8 +3890,7 @@ export const CreateEvent = () => {
                   </svg>
                   <span>Add Sponsor</span>
                 </button>
-            </div>
-
+              </div>
             </div>
             <div className="p-6">
               {sponsors.length === 0 ? (
@@ -3981,7 +3953,7 @@ export const CreateEvent = () => {
                           label="Sponsor Logo"
                           name={`sponsor-logo-${index}`}
                           accept=".png,.jpg,.jpeg"
-                          onFileChange={() => {}}
+                          onFileChange={() => { }}
                           onUpload={(results) => handleFileUpload('logo', results)}
                           uploadType="logo"
                           maxSizeMB={1024}
@@ -3995,10 +3967,8 @@ export const CreateEvent = () => {
                         {/* Organization Name */}
                         <div className="md:col-span-3">
                           <label className="block text-sm font-medium text-slate-700 mb-1">Organization Name *</label>
-                    <input
-
-                      type="text"
-
+                          <input
+                            type="text"
                             placeholder="Company Name, Organization"
                             value={sponsor.name}
                             onChange={(e) => updateSponsor(index, 'name', e.target.value)}
@@ -4006,7 +3976,6 @@ export const CreateEvent = () => {
                             required
                           />
                         </div>
-
 
                         {/* Contact Person */}
                         <div>
@@ -4091,29 +4060,18 @@ export const CreateEvent = () => {
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden">
 
             <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-6 py-4 border-b border-slate-100">
-
               <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-
-                <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center">
-
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-
-                  </svg>
-
-                </div>
-
-                <div>
-
-                  <h3 className="text-lg font-semibold text-slate-800">Guest Speakers</h3>
-
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-800">Guest Speakers</h3>
                     <p className="text-sm text-slate-600">Add detailed speaker information</p>
+                  </div>
                 </div>
-
-              </div>
-
                 <button
                   type="button"
                   onClick={addSpeaker}
@@ -4124,8 +4082,7 @@ export const CreateEvent = () => {
                   </svg>
                   <span>Add Speaker</span>
                 </button>
-            </div>
-
+              </div>
             </div>
             <div className="p-6">
               {speakers.length === 0 ? (
@@ -4193,7 +4150,7 @@ export const CreateEvent = () => {
                           label="Speaker Photo"
                           name={`speaker-photo-${index}`}
                           accept=".png,.jpg,.jpeg"
-                          onFileChange={() => {}}
+                          onFileChange={() => { }}
                           onUpload={(results) => handleFileUpload('photo', results)}
                           uploadType="photo"
                           maxSizeMB={1024}
@@ -4305,17 +4262,14 @@ export const CreateEvent = () => {
                               className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
                             />
                             <span className="text-sm font-medium text-slate-700">Keynote Speaker</span>
-                </label>
-
+                          </label>
                         </div>
 
                         {/* Designation */}
                         <div className="md:col-span-2">
                           <label className="block text-sm font-medium text-slate-700 mb-1">Designation/Title</label>
-                    <input
-
-                      type="text"
-
+                          <input
+                            type="text"
                             placeholder="CEO, Professor, Lead Developer"
                             value={speaker.designation}
                             onChange={(e) => updateSpeaker(index, 'designation', e.target.value)}
@@ -4332,11 +4286,8 @@ export const CreateEvent = () => {
                             value={speaker.organization}
                             onChange={(e) => updateSpeaker(index, 'organization', e.target.value)}
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-
-              </div>
-
-
+                          />
+                        </div>
 
                         {/* Email */}
                         <div>
@@ -4435,11 +4386,10 @@ export const CreateEvent = () => {
                         setEventKitsMode('upload');
                         setValue('eventKitsLink', ''); // Clear link when switching to upload
                       }}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                        eventKitsMode === 'upload'
-                          ? 'bg-white text-blue-600 shadow-sm'
-                          : 'text-slate-600 hover:text-slate-800'
-                      }`}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${eventKitsMode === 'upload'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-800'
+                        }`}
                     >
                       Upload
                     </button>
@@ -4450,11 +4400,10 @@ export const CreateEvent = () => {
                         // Clear uploaded files when switching to link
                         setUploadedFiles(prev => ({ ...prev, eventKits: [] }));
                       }}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                        eventKitsMode === 'link'
-                          ? 'bg-white text-blue-600 shadow-sm'
-                          : 'text-slate-600 hover:text-slate-800'
-                      }`}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${eventKitsMode === 'link'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-800'
+                        }`}
                     >
                       Link
                     </button>
@@ -4466,7 +4415,7 @@ export const CreateEvent = () => {
                     label=""
                     name="eventKitsFile"
                     accept=".pdf"
-                    onFileChange={() => {}}
+                    onFileChange={() => { }}
                     onUpload={(results) => handleFileUpload('event-kits', results)}
                     uploadType="event-kits"
                     multiple
@@ -4486,9 +4435,8 @@ export const CreateEvent = () => {
                           {...field}
                           type="url"
                           placeholder="https://example.com/event-kits.pdf"
-                          className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
-                            errors.eventKitsLink ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-                          }`}
+                          className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.eventKitsLink ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                            }`}
                         />
                       )}
                     />
@@ -4511,11 +4459,10 @@ export const CreateEvent = () => {
                         setEventProgrammeMode('upload');
                         setValue('eventProgrammeLink', ''); // Clear link when switching to upload
                       }}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                        eventProgrammeMode === 'upload'
-                          ? 'bg-white text-blue-600 shadow-sm'
-                          : 'text-slate-600 hover:text-slate-800'
-                      }`}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${eventProgrammeMode === 'upload'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-800'
+                        }`}
                     >
                       Upload
                     </button>
@@ -4526,11 +4473,10 @@ export const CreateEvent = () => {
                         // Clear uploaded files when switching to link
                         setUploadedFiles(prev => ({ ...prev, eventProgrammes: [] }));
                       }}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                        eventProgrammeMode === 'link'
-                          ? 'bg-white text-blue-600 shadow-sm'
-                          : 'text-slate-600 hover:text-slate-800'
-                      }`}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${eventProgrammeMode === 'link'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-800'
+                        }`}
                     >
                       Link
                     </button>
@@ -4542,7 +4488,7 @@ export const CreateEvent = () => {
                     label=""
                     name="eventProgrammeFile"
                     accept=".pdf"
-                    onFileChange={() => {}}
+                    onFileChange={() => { }}
                     onUpload={(results) => handleFileUpload('event-programmes', results)}
                     uploadType="event-programmes"
                     multiple
@@ -4562,9 +4508,8 @@ export const CreateEvent = () => {
                           {...field}
                           type="url"
                           placeholder="https://example.com/event-programme.pdf"
-                          className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
-                            errors.eventProgrammeLink ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-                          }`}
+                          className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.eventProgrammeLink ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                            }`}
                         />
                       )}
                     />
@@ -4584,36 +4529,23 @@ export const CreateEvent = () => {
           {/* Action Button */}
 
           <div className="flex justify-center pt-8">
-
             <button
-
               type="submit"
-
               disabled={Object.keys(errors).length > 0}
-
-              className={`w-full px-6 py-3 rounded-xl text-lg font-semibold shadow-md transition-all duration-200 flex items-center justify-center space-x-2 ${
-
-                Object.keys(errors).length === 0
-
-                  ? 'bg-blue-900 text-white hover:bg-blue-800'
-
-                  : 'bg-slate-200 text-slate-500 cursor-not-allowed'
-
-              }`}
-
+              className={`w-full px-6 py-3 rounded-xl text-lg font-semibold shadow-md transition-all duration-200 flex items-center justify-center space-x-2 ${Object.keys(errors).length === 0
+                ? 'bg-blue-900 text-white hover:bg-blue-800'
+                : 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                }`}
             >
-
               {submitButtonLabel}
-
             </button>
-
           </div>
 
         </form>
 
       </div>
 
-    </section>
+    </section >
 
   );
 

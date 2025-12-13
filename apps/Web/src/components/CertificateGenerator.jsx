@@ -47,7 +47,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
           setError('Authentication required. Please make sure you are logged in. If you came from the mobile app, try logging in again.');
           setLoading(false);
           hasLoadedRef.current = true;
-          
+
           // Notify mobile app of error
           if (isMobile && window.ReactNativeWebView) {
             window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -57,7 +57,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
           }
         }
       }, 3000); // Give 3 seconds for token auth to complete
-      
+
       return () => {
         if (authTimeoutRef.current) {
           clearTimeout(authTimeoutRef.current);
@@ -137,7 +137,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
         }));
         return;
       }
-      
+
       // Send ready message when:
       // 1. Auth has finished loading
       // 2. Data loading has finished (either successfully or with error)
@@ -145,7 +145,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
       if (!authLoading && !loading) {
         const hasData = certificate || config || event;
         const hasNoUser = !user?.id && !authLoading; // User check completed but no user
-        
+
         if (hasData || hasNoUser) {
           console.log('📤 Sending ready message to mobile. Has data:', hasData, 'Has no user:', hasNoUser);
           readyMessageSentRef.current = true;
@@ -190,15 +190,15 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
   // Check for pending job in sessionStorage
   const checkPendingJob = async () => {
     if (!eventId || !user?.id) return;
-    
+
     const storageKey = `cert_job_${eventId}_${user.id}`;
     const storedJobId = sessionStorage.getItem(storageKey);
-    
+
     if (storedJobId) {
       setJobId(storedJobId);
       setGenerating(true);
       setJobStatus('processing');
-      
+
       // Check current status
       const statusResult = await JobQueueService.getJobStatus(storedJobId);
       if (statusResult.job) {
@@ -243,8 +243,8 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     title_font_size: 56,
     title_color: '#000000',
     title_position: { x: 50, y: 28 },
-    width: 842,  // A4 landscape: 297mm × 210mm = 842 × 595 points
-    height: 595,
+    width: 2500,  // Original certificate dimensions
+    height: 1768,  // Maintains aspect ratio (approximately 16:11)
     name_config: {
       font_size: 48,
       color: '#000000',
@@ -325,7 +325,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     qr_code_enabled: false,
     qr_code_size: 60,
     qr_code_position: { x: 60, y: 75 },
-    background_image_size: { width: 842, height: 595 }  // A4 landscape
+    background_image_size: { width: 2500, height: 1768 }  // Original certificate dimensions
   });
 
   const loadData = async () => {
@@ -346,7 +346,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
       // Load certificate config
       const configResult = await CertificateService.getCertificateConfig(eventId);
       const defaultConfig = getDefaultConfig();
-      
+
       if (configResult.error) {
         setConfig(defaultConfig);
       } else if (!configResult.config) {
@@ -357,17 +357,17 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
           ...defaultConfig,
           ...configResult.config,
           header_config: { ...defaultConfig.header_config, ...(configResult.config.header_config || {}) },
-          logo_config: { 
-            ...defaultConfig.logo_config, 
+          logo_config: {
+            ...defaultConfig.logo_config,
             ...(configResult.config.logo_config || {}),
             logos: configResult.config.logo_config?.logos || defaultConfig.logo_config.logos || []
           },
-          participation_text_config: { 
-            ...defaultConfig.participation_text_config, 
+          participation_text_config: {
+            ...defaultConfig.participation_text_config,
             ...(configResult.config.participation_text_config || {}),
-            position: { 
-              ...defaultConfig.participation_text_config.position, 
-              ...(configResult.config.participation_text_config?.position || {}) 
+            position: {
+              ...defaultConfig.participation_text_config.position,
+              ...(configResult.config.participation_text_config?.position || {})
             }
           },
           is_given_to_config: { ...defaultConfig.is_given_to_config, ...(configResult.config.is_given_to_config || {}) },
@@ -484,7 +484,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     try {
       // First, generate the PNG certificate
       const { generatePNGCertificate, convertPNGToPDF } = await import('../utils/certificateGenerator');
-      
+
       console.log('🖼️ Generating PNG certificate...');
       const pngBlob = await generatePNGCertificate(
         config,
@@ -496,17 +496,17 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
           venue: event.venue || ''
         }
       );
-      
+
       if (!pngBlob) {
         throw new Error('Failed to generate PNG certificate');
       }
-      
+
       console.log('📄 Converting PNG to PDF...');
       // Convert PNG to PDF
-      const width = config.width || 842;  // A4 landscape width
-      const height = config.height || 595; // A4 landscape height
+      const width = config.width || 2500;  // Original certificate width
+      const height = config.height || 1768; // Original certificate height
       const pdfBytes = await convertPNGToPDF(pngBlob, width, height);
-      
+
       console.log('✅ PDF generated successfully');
       return pdfBytes;
     } catch (error) {
@@ -520,10 +520,10 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
 
     // Ensure fonts are loaded before creating canvas
     await document.fonts.ready;
-    
+
     const canvas = document.createElement('canvas');
-    const width = config.width || 842;  // A4 landscape width
-    const height = config.height || 595; // A4 landscape height
+    const width = config.width || 2500;  // Original certificate width
+    const height = config.height || 1768; // Original certificate height
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
@@ -688,10 +688,10 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     // Participant Name
     ctx.fillStyle = nameConfig.color || '#000000';
     const fontFamily = nameConfig.font_family || 'MonteCarlo, cursive';
-    
+
     // Wait for all fonts to be ready before rendering
     await document.fonts.ready;
-    
+
     // Load MonteCarlo font if not already loaded
     try {
       if (fontFamily.includes('MonteCarlo')) {
@@ -700,12 +700,12 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     } catch (e) {
       console.warn('Could not load MonteCarlo font for canvas:', e);
     }
-    
+
     // Set font and render
     ctx.font = `${nameConfig.font_weight || 'bold'} ${nameConfig.font_size || 48}px ${fontFamily}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    
+
     ctx.fillText(
       participantName,
       (width * nameConfig.position.x) / 100,
@@ -726,16 +726,16 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
         .replace('{EVENT_NAME}', event.title)
         .replace('{EVENT_DATE}', formatDate(event.start_date))
         .replace('{VENUE}', event.venue && event.venue.trim() ? event.venue : '[Venue]');
-      
+
       ctx.fillStyle = participation.color || '#000000';
       ctx.font = `${participation.font_weight || 'normal'} ${participation.font_size || 18}px ${participation.font_family || 'Libre Baskerville, serif'}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      
+
       const lines = participationText.split('\n');
       const lineHeight = (participation.font_size || 18) * (participation.line_height || 1.5);
       const startY = (height * participation.position.y) / 100 - ((lines.length - 1) * lineHeight) / 2;
-      
+
       lines.forEach((line, index) => {
         ctx.fillText(
           line,
@@ -789,7 +789,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
       const certIdPos = config.cert_id_position || { x: 50, y: 95 };
       const certIdX = (width * certIdPos.x) / 100;
       const certIdY = (height * certIdPos.y) / 100;
-      
+
       // Draw QR Code beside cert ID if enabled
       if (config.qr_code_enabled !== false) {
         try {
@@ -803,46 +803,46 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
           // Position QR code to the right of cert ID text (center + half width + gap)
           const qrX = certIdX + certIdTextWidth / 2 + qrGap;
           const qrY = certIdY - qrSize / 2;
-          
+
           // Center cert ID vertically with QR code
           const certIdYCentered = qrY + qrSize / 2;
-          
+
           // Draw Certificate ID (centered vertically with QR code)
           ctx.fillStyle = config.cert_id_color || '#000000';
           ctx.font = `${certIdSize}px Arial, sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(certificateNumber, certIdX, certIdYCentered);
-          
+
           // Generate QR code with verification URL
           // Ensure we have a proper URL format (not just text)
           if (!certificateNumber) {
             console.error('Certificate number is missing for QR code');
             throw new Error('Certificate number is required for QR code generation');
           }
-          
+
           const baseUrl = window.location.origin || (window.location.protocol + '//' + window.location.host);
           const verificationUrl = `${baseUrl}/verify-certificate/${encodeURIComponent(certificateNumber)}`;
-          
+
           // Debug log - check browser console to verify URL is correct
           console.log('Generating QR code with URL:', verificationUrl);
           console.log('Certificate Number:', certificateNumber);
-          
+
           // Ensure we're passing the URL, not just the certificate number
           if (!verificationUrl.startsWith('http://') && !verificationUrl.startsWith('https://')) {
             console.error('Invalid URL format:', verificationUrl);
             throw new Error('QR code URL must start with http:// or https://');
           }
-          
+
           const qrDataUrl = await QRCode.toDataURL(verificationUrl, {
             width: qrSize,
             margin: 1,
             errorCorrectionLevel: 'M'
           });
-          
+
           // Verify QR code contains the URL (debug)
           console.log('QR Code generated for PNG, data URL length:', qrDataUrl.length);
-          
+
           // Draw QR code image
           const qrImage = new Image();
           await new Promise((resolve, reject) => {
@@ -894,7 +894,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
         RateLimitService.limits.certificateGenerate.maxRequests,
         RateLimitService.limits.certificateGenerate.windowSeconds
       );
-      
+
       if (!rateLimitResult.allowed) {
         toast.error(`Too many certificate generation attempts. Please try again after ${new Date(rateLimitResult.resetAt).toLocaleTimeString()}.`);
         return;
@@ -930,11 +930,11 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
         const jobId = jobResult.job.id;
         setJobId(jobId);
         setJobStatus('queued');
-        
+
         // Save job ID to sessionStorage for persistence
         const storageKey = `cert_job_${eventId}_${user.id}`;
         sessionStorage.setItem(storageKey, jobId);
-        
+
         toast.info('Certificate generation queued. Processing in background...');
 
         // Trigger immediate job processing
@@ -993,7 +993,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
 
       try {
         const statusResult = await JobQueueService.getJobStatus(jobId);
-        
+
         if (statusResult.error || !statusResult.job) {
           setError('Failed to check job status. Please refresh the page.');
           setJobStatus('failed');
@@ -1008,7 +1008,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
           setJobStatus('completed');
           setGenerating(false);
           sessionStorage.removeItem(storageKey);
-          
+
           // Reload certificate data
           const certResult = await CertificateService.getUserCertificate(user.id, eventId);
           if (certResult.certificate) {
@@ -1044,7 +1044,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
 
   const handleDownload = async (format) => {
     console.log('📥 Download requested:', format, { certificate, hasPdfUrl: !!certificate?.certificate_pdf_url, hasPngUrl: !!certificate?.certificate_png_url });
-    
+
     if (!certificate) {
       console.warn('❌ No certificate available for download');
       toast.error('Certificate not found. Please generate a certificate first.');
@@ -1055,8 +1055,8 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     setDownloading(prev => ({ ...prev, [format]: true }));
 
     // Use stored URL from certificate
-    const url = format === 'pdf' 
-      ? certificate.certificate_pdf_url 
+    const url = format === 'pdf'
+      ? certificate.certificate_pdf_url
       : certificate.certificate_png_url;
 
     if (!url) {
@@ -1096,11 +1096,11 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
       // For web, fetch and download to avoid CORS and ensure proper download
       // Add cache-busting parameter to ensure we get the latest version
       const urlWithCacheBust = `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
-      
+
       // Fetch the file - use 'no-cors' mode for PNG to avoid CORS issues, but this limits response
       // For better control, try with 'cors' first, fallback to direct link
       let blob;
-      
+
       try {
         // Try fetching with CORS first
         const response = await fetch(urlWithCacheBust, {
@@ -1108,7 +1108,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
           mode: 'cors',
           cache: 'no-cache',
         });
-        
+
         if (response.ok) {
           blob = await response.blob();
         } else {
@@ -1142,7 +1142,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
           throw fetchErr;
         }
       }
-      
+
       // Create download link with blob URL
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -1151,17 +1151,17 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
       link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      
+
       // Clean up after a delay to ensure download starts
       setTimeout(() => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(downloadUrl);
       }, 100);
-      
+
       toast.success('Certificate downloaded successfully!');
     } catch (err) {
       console.error('❌ Download error:', err);
-      
+
       // Last resort: try direct link (may open in new tab for some browsers)
       try {
         console.log('🔄 Trying fallback download method...');
@@ -1195,7 +1195,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
   const content = (
     <>
       {loading ? (
-        <div 
+        <div
           className={isMobile ? 'h-screen flex items-center justify-center bg-white' : ''}
           style={isMobile ? {} : {
             position: 'fixed',
@@ -1219,7 +1219,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
           </div>
         </div>
       ) : (
-        <div 
+        <div
           className={isMobile ? 'h-screen bg-white flex flex-col' : ''}
           style={isMobile ? {} : {
             position: 'fixed',
@@ -1241,151 +1241,150 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
           }}
         >
           <div className={`bg-white ${isMobile ? 'flex-1 flex flex-col' : 'rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh]'} overflow-y-auto`}>
-        <div className={`sticky top-0 bg-white border-b border-slate-200 ${isMobile ? 'p-4' : 'p-6'} flex justify-between items-center`}>
-          <h2 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-slate-800`}>Certificate</h2>
-          <button
-            onClick={onClose}
-            className="text-slate-500 hover:text-slate-700 transition-colors"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className={`${isMobile ? 'p-4 flex-1' : 'p-6'}`}>
-          {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-800 text-sm">{error}</p>
+            <div className={`sticky top-0 bg-white border-b border-slate-200 ${isMobile ? 'p-4' : 'p-6'} flex justify-between items-center`}>
+              <h2 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-slate-800`}>Certificate</h2>
+              <button
+                onClick={onClose}
+                className="text-slate-500 hover:text-slate-700 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-          )}
 
-          {certificate ? (
-            <div className="space-y-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-blue-800 font-medium">Certificate already generated!</p>
-                <p className="text-blue-600 text-sm mt-1">Your certificate has been saved. You can download it below.</p>
-              </div>
+            <div className={`${isMobile ? 'p-4 flex-1' : 'p-6'}`}>
+              {error && (
+                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-800 text-sm">{error}</p>
+                </div>
+              )}
 
-              {/* Preview */}
-              <div className="bg-slate-100 p-6 rounded-lg flex items-center justify-center">
-                {previewData?.type === 'png' ? (
-                  <img
-                    src={previewData.url}
-                    alt="Certificate Preview"
-                    className="max-w-full h-auto shadow-lg"
-                  />
-                ) : previewData?.type === 'pdf' ? (
-                  <iframe
-                    src={previewData.url}
-                    className="w-full h-[600px] border-0"
-                    title="Certificate Preview"
-                  />
-                ) : (
-                  <p className="text-slate-500">Preview not available</p>
-                )}
-              </div>
+              {certificate ? (
+                <div className="space-y-6">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-blue-800 font-medium">Certificate already generated!</p>
+                    <p className="text-blue-600 text-sm mt-1">Your certificate has been saved. You can download it below.</p>
+                  </div>
 
-              {/* Download Buttons - Always show since we generate on-the-fly */}
-              <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} gap-4 ${isMobile ? 'w-full' : 'justify-center'}`}>
-                <button
-                  onClick={() => handleDownload('pdf')}
-                  disabled={downloading.pdf || !certificate?.certificate_pdf_url}
-                  className={`${isMobile ? 'w-full' : ''} px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {downloading.pdf ? (
-                    <>
-                      <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Downloading...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                      </svg>
-                      Download PDF
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={() => handleDownload('png')}
-                  disabled={downloading.png || !certificate?.certificate_png_url}
-                  className={`${isMobile ? 'w-full' : ''} px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {downloading.png ? (
-                    <>
-                      <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Downloading...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      Download PNG
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="text-center">
-                <p className="text-slate-600 mb-4">
-                  Generate your certificate of participation for this event.
-                </p>
-                <button
-                  onClick={handleGenerate}
-                  disabled={generating}
-                  className={`px-8 py-4 rounded-lg font-semibold text-white transition-colors ${
-                    generating
-                      ? 'bg-blue-400 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
-                >
-                  {generating ? (
-                    <span className="flex items-center gap-2">
-                      <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      {jobStatus === 'queued' && 'Queuing Certificate...'}
-                      {jobStatus === 'processing' && 'Generating Certificate...'}
-                      {jobStatus === 'completed' && 'Certificate Generated!'}
-                      {!jobStatus || jobStatus === 'idle' ? 'Generating Certificate...' : ''}
-                    </span>
-                  ) : (
-                    'Generate Certificate'
-                  )}
-                </button>
-                
-                {generating && jobStatus && (
-                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
-                      <p className="text-sm font-medium text-blue-800">
-                        {jobStatus === 'queued' && 'Certificate is queued and will be processed shortly...'}
-                        {jobStatus === 'processing' && 'Certificate is being generated. This may take a few moments...'}
-                        {jobStatus === 'completed' && 'Certificate generation completed!'}
-                      </p>
-                    </div>
-                    {jobStatus === 'processing' && (
-                      <p className="text-xs text-blue-600 mt-1">
-                        Please wait while we generate your certificate. You can close this window and check back later.
-                      </p>
+                  {/* Preview */}
+                  <div className="bg-slate-100 p-6 rounded-lg flex items-center justify-center">
+                    {previewData?.type === 'png' ? (
+                      <img
+                        src={previewData.url}
+                        alt="Certificate Preview"
+                        className="max-w-full h-auto shadow-lg"
+                      />
+                    ) : previewData?.type === 'pdf' ? (
+                      <iframe
+                        src={previewData.url}
+                        className="w-full h-[600px] border-0"
+                        title="Certificate Preview"
+                      />
+                    ) : (
+                      <p className="text-slate-500">Preview not available</p>
                     )}
                   </div>
-                )}
-              </div>
+
+                  {/* Download Buttons - Always show since we generate on-the-fly */}
+                  <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} gap-4 ${isMobile ? 'w-full' : 'justify-center'}`}>
+                    <button
+                      onClick={() => handleDownload('pdf')}
+                      disabled={downloading.pdf || !certificate?.certificate_pdf_url}
+                      className={`${isMobile ? 'w-full' : ''} px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {downloading.pdf ? (
+                        <>
+                          <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Downloading...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                          Download PDF
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleDownload('png')}
+                      disabled={downloading.png || !certificate?.certificate_png_url}
+                      className={`${isMobile ? 'w-full' : ''} px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {downloading.png ? (
+                        <>
+                          <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Downloading...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          Download PNG
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <p className="text-slate-600 mb-4">
+                      Generate your certificate of participation for this event.
+                    </p>
+                    <button
+                      onClick={handleGenerate}
+                      disabled={generating}
+                      className={`px-8 py-4 rounded-lg font-semibold text-white transition-colors ${generating
+                        ? 'bg-blue-400 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700'
+                        }`}
+                    >
+                      {generating ? (
+                        <span className="flex items-center gap-2">
+                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          {jobStatus === 'queued' && 'Queuing Certificate...'}
+                          {jobStatus === 'processing' && 'Generating Certificate...'}
+                          {jobStatus === 'completed' && 'Certificate Generated!'}
+                          {!jobStatus || jobStatus === 'idle' ? 'Generating Certificate...' : ''}
+                        </span>
+                      ) : (
+                        'Generate Certificate'
+                      )}
+                    </button>
+
+                    {generating && jobStatus && (
+                      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                          <p className="text-sm font-medium text-blue-800">
+                            {jobStatus === 'queued' && 'Certificate is queued and will be processed shortly...'}
+                            {jobStatus === 'processing' && 'Certificate is being generated. This may take a few moments...'}
+                            {jobStatus === 'completed' && 'Certificate generation completed!'}
+                          </p>
+                        </div>
+                        {jobStatus === 'processing' && (
+                          <p className="text-xs text-blue-600 mt-1">
+                            Please wait while we generate your certificate. You can close this window and check back later.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
           </div>
         </div>
       )}
@@ -1396,7 +1395,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
   if (isMobile) {
     return content;
   }
-  
+
   // Use portal to render outside the normal DOM hierarchy for modal
   const modalRoot = document.getElementById('root') || document.body;
   return createPortal(content, modalRoot);

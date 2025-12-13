@@ -53,70 +53,71 @@ export const DesignCertificate = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header with Progress Indicator */}
+        {/* Header Section */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900 mb-2">Design Certificate</h1>
-              <p className="text-slate-600">Customize the certificate layout for your event</p>
-            </div>
-            <div className="flex items-center gap-4">
+          <div className="text-center mb-8 sm:mb-12">
+            <div className="flex items-center justify-center mb-4">
               <button
                 onClick={handleBack}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-all"
+                className="p-3 rounded-full bg-white shadow-lg hover:shadow-xl transition-all duration-200 mr-4 group"
+                aria-label="Back to create event"
               >
-                ← Back
+                <svg
+                  className="w-6 h-6 text-slate-600 group-hover:text-blue-600 transition-colors"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                </svg>
               </button>
-              <button
-                onClick={handleContinue}
-                className="px-6 py-2 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg"
-              >
-                Continue to Evaluation Form →
-              </button>
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-800">
+                Design Certificate
+              </h1>
             </div>
-          </div>
 
-          {/* Progress Steps */}
-          <div className="flex items-center justify-center mb-8">
-            <div className="flex items-center gap-4">
-              {/* Step 1: Create Event */}
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
+            {/* Progress Indicator */}
+            <div className="mt-8 mb-8">
+              <div className="flex items-center justify-center space-x-4 sm:space-x-8">
+                {/* Step 1: Create Event - Completed */}
+                <div className="flex flex-col items-center">
+                  <div className="w-12 h-12 rounded-full bg-green-500 text-white flex items-center justify-center font-bold text-lg shadow-lg">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div className="mt-2 text-center">
+                    <p className="text-sm font-semibold text-green-600">Create Event</p>
+                    <p className="text-xs text-slate-500 mt-1">Completed</p>
+                  </div>
                 </div>
-                <div className="text-sm">
-                  <p className="font-semibold text-slate-900">Create Event</p>
-                  <p className="text-slate-500">Completed</p>
-                </div>
-              </div>
 
-              {/* Connector */}
-              <div className="w-16 h-1 bg-blue-600"></div>
+                {/* Connector Line */}
+                <div className="hidden sm:block w-16 h-0.5 bg-green-500"></div>
 
-              {/* Step 2: Design Certificate */}
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold">
-                  2
+                {/* Step 2: Design Certificate - Current Step */}
+                <div className="flex flex-col items-center">
+                  <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-lg">
+                    2
+                  </div>
+                  <div className="mt-2 text-center">
+                    <p className="text-sm font-semibold text-blue-600">Design Certificate</p>
+                    <p className="text-xs text-slate-500 mt-1">Current Step</p>
+                  </div>
                 </div>
-                <div className="text-sm">
-                  <p className="font-semibold text-slate-900">Design Certificate</p>
-                  <p className="text-slate-500">Current Step</p>
-                </div>
-              </div>
 
-              {/* Connector */}
-              <div className="w-16 h-1 bg-slate-300"></div>
+                {/* Connector Line */}
+                <div className="hidden sm:block w-16 h-0.5 bg-slate-300"></div>
 
-              {/* Step 3: Create Evaluation */}
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-full bg-slate-300 text-slate-600 flex items-center justify-center font-semibold">
-                  3
-                </div>
-                <div className="text-sm">
-                  <p className="font-semibold text-slate-500">Create Evaluation</p>
-                  <p className="text-slate-400">Next Step</p>
+                {/* Step 3: Create Evaluation - Next Step */}
+                <div className="flex flex-col items-center">
+                  <div className="w-12 h-12 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center font-bold text-lg">
+                    3
+                  </div>
+                  <div className="mt-2 text-center">
+                    <p className="text-sm font-semibold text-slate-500">Create Evaluation</p>
+                    <p className="text-xs text-slate-400 mt-1">Next Step</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -125,7 +126,7 @@ export const DesignCertificate = () => {
 
         {/* Certificate Designer */}
         <div className="bg-white rounded-2xl shadow-xl border border-slate-200/50 overflow-hidden">
-          <CertificateDesigner 
+          <CertificateDesigner
             draftMode={true}
             draftStorageKey="pending-certificate-config"
             onSave={(config) => {

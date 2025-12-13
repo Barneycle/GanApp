@@ -16,8 +16,8 @@ import { useToast } from '../Toast';
 const questionSchema = z.object({
   questionText: z.string().min(1, 'Question text is required'),
   questionType: z.enum([
-    'short-answer', 'paragraph', 'multiple-choice', 'checkbox', 
-    'dropdown', 'linear-scale', 'star-rating', 'multiple-choice-grid', 
+    'short-answer', 'paragraph', 'multiple-choice', 'checkbox',
+    'dropdown', 'linear-scale', 'star-rating', 'multiple-choice-grid',
     'checkbox-grid', 'date', 'time'
   ]),
   options: z.array(z.string()).optional(),
@@ -82,7 +82,7 @@ export const CreateSurvey = () => {
   // Save form data to session storage
   const saveFormData = (data) => {
     if (!autoSaveEnabled) return; // Don't save if auto-save is disabled
-    
+
     try {
       // Only save non-file fields to session storage
       const dataToSave = {
@@ -142,7 +142,7 @@ export const CreateSurvey = () => {
     const eventFiles = sessionStorage.getItem('pending-event-files');
     const eventSpeakers = sessionStorage.getItem('pending-event-speakers');
     const eventSponsors = sessionStorage.getItem('pending-event-sponsors');
-    
+
     if (!eventData) {
       // No pending event data, redirect back to event creation
       toast.warning('Please create an event first before creating a survey.');
@@ -192,7 +192,7 @@ export const CreateSurvey = () => {
     const subscription = watch((data) => {
       saveFormData(data);
     });
-    
+
     return () => subscription.unsubscribe();
   }, [watch, autoSaveEnabled]);
 
@@ -257,7 +257,7 @@ export const CreateSurvey = () => {
 
   const handleQuestionTypeChange = (sectionIndex, questionIndex, newType) => {
     setValue(`sections.${sectionIndex}.questions.${questionIndex}.questionType`, newType);
-    
+
     // Reset type-specific fields when changing question type
     if (newType === 'multiple-choice' || newType === 'checkbox' || newType === 'dropdown') {
       setValue(`sections.${sectionIndex}.questions.${questionIndex}.options`, ['']);
@@ -342,7 +342,7 @@ export const CreateSurvey = () => {
   const duplicateQuestion = (sectionIndex, questionIndex) => {
     const currentQuestions = watchedSections[sectionIndex]?.questions || [];
     const questionToDuplicate = currentQuestions[questionIndex];
-    
+
     if (questionToDuplicate) {
       // Create a deep copy of the question
       const duplicatedQuestion = {
@@ -357,14 +357,14 @@ export const CreateSurvey = () => {
         rows: questionToDuplicate.rows ? [...questionToDuplicate.rows] : [''],
         columns: questionToDuplicate.columns ? [...questionToDuplicate.columns] : [''],
       };
-      
+
       // Insert the duplicated question right after the current one
       const newQuestions = [
         ...currentQuestions.slice(0, questionIndex + 1),
         duplicatedQuestion,
         ...currentQuestions.slice(questionIndex + 1)
       ];
-      
+
       setValue(`sections.${sectionIndex}.questions`, newQuestions);
     }
   };
@@ -603,7 +603,7 @@ export const CreateSurvey = () => {
 
     try {
       // Step 1: Create the event in the database
-      
+
       // Create the event (EventService handles its own timeouts)
       const eventResult = await EventService.createEvent(pendingEventData);
       if (eventResult.error) {
@@ -613,7 +613,7 @@ export const CreateSurvey = () => {
 
       // Step 1.5: Create and link speakers to the event
       if (pendingSpeakers && pendingSpeakers.length > 0) {
-        
+
         for (const speakerData of pendingSpeakers) {
           try {
             // Only create speaker if they have required fields
@@ -637,15 +637,15 @@ export const CreateSurvey = () => {
             };
 
             const speakerResult = await SpeakerService.createSpeaker(speakerToCreate);
-            
+
             if (speakerResult.error) {
               continue; // Continue with other speakers even if one fails
             }
 
             // Link the speaker to the event
             const linkResult = await SpeakerService.addSpeakerToEvent(
-              eventId, 
-              speakerResult.speaker.id, 
+              eventId,
+              speakerResult.speaker.id,
               {
                 order: speakerData.speaker_order || 0,
                 isKeynote: speakerData.is_keynote || false
@@ -658,12 +658,12 @@ export const CreateSurvey = () => {
             // Continue with other speakers
           }
         }
-        
+
       }
 
       // Step 1.6: Create and link sponsors to the event
       if (pendingSponsors && pendingSponsors.length > 0) {
-        
+
         for (const sponsorData of pendingSponsors) {
           try {
             // Only create sponsor if they have required fields
@@ -684,15 +684,15 @@ export const CreateSurvey = () => {
             };
 
             const sponsorResult = await SponsorService.createSponsor(sponsorToCreate);
-            
+
             if (sponsorResult.error) {
               continue; // Continue with other sponsors even if one fails
             }
 
             // Link the sponsor to the event
             const linkResult = await SponsorService.addSponsorToEvent(
-              eventId, 
-              sponsorResult.sponsor.id, 
+              eventId,
+              sponsorResult.sponsor.id,
               {
                 order: sponsorData.sponsor_order || 0
               }
@@ -704,28 +704,28 @@ export const CreateSurvey = () => {
             // Continue with other sponsors
           }
         }
-        
+
       }
 
 
       // Step 2: Create the survey in the database
-      
+
       // Transform sections and questions to match the Survey interface
       // Flatten sections into a single questions array, preserving section info
       let questionIndex = 1;
       const transformedQuestions = [];
-      
+
       // Check if data.sections exists, if not, handle gracefully
       if (!data.sections || !Array.isArray(data.sections)) {
         throw new Error('Survey sections data is missing or invalid');
       }
-      
+
       data.sections.forEach((section, sectionIndex) => {
         // Ensure section has questions array
         if (!section.questions || !Array.isArray(section.questions)) {
           return; // Skip sections without questions
         }
-        
+
         // Add section header as a special question type (if needed) or just process questions
         section.questions.forEach((q) => {
           // Preserve the original questionType and ALL properties for proper rendering
@@ -733,22 +733,22 @@ export const CreateSurvey = () => {
             id: `q_${questionIndex}`,
             questionType: q.questionType, // Preserve original questionType - this is the key field
             // Also include type for backward compatibility
-            type: q.questionType === 'multiple-choice' || q.questionType === 'checkbox' ? 'multiple_choice' : 
-                   q.questionType === 'linear-scale' || q.questionType === 'star-rating' ? 'rating' : 
-                   q.questionType === 'multiple-choice-grid' ? 'multiple_choice_grid' :
-                   q.questionType === 'checkbox-grid' ? 'checkbox_grid' :
-                   q.questionType === 'yes-no' ? 'yes_no' : 
-                   q.questionType === 'short-answer' ? 'text' :
-                   q.questionType === 'paragraph' ? 'text' :
-                   q.questionType === 'dropdown' ? 'dropdown' :
-                   q.questionType === 'date' ? 'date' :
-                   q.questionType === 'time' ? 'time' : 'text',
+            type: q.questionType === 'multiple-choice' || q.questionType === 'checkbox' ? 'multiple_choice' :
+              q.questionType === 'linear-scale' || q.questionType === 'star-rating' ? 'rating' :
+                q.questionType === 'multiple-choice-grid' ? 'multiple_choice_grid' :
+                  q.questionType === 'checkbox-grid' ? 'checkbox_grid' :
+                    q.questionType === 'yes-no' ? 'yes_no' :
+                      q.questionType === 'short-answer' ? 'text' :
+                        q.questionType === 'paragraph' ? 'text' :
+                          q.questionType === 'dropdown' ? 'dropdown' :
+                            q.questionType === 'date' ? 'date' :
+                              q.questionType === 'time' ? 'time' : 'text',
             question: q.questionText,
             questionText: q.questionText, // Also preserve questionText for compatibility
             required: q.required || false,
             // Options for multiple-choice, checkbox, dropdown
-            options: (q.questionType === 'multiple-choice' || q.questionType === 'checkbox' || q.questionType === 'dropdown') && 
-                     q.options && q.options.length > 0 ? q.options.filter(opt => opt && opt.trim()) : undefined,
+            options: (q.questionType === 'multiple-choice' || q.questionType === 'checkbox' || q.questionType === 'dropdown') &&
+              q.options && q.options.length > 0 ? q.options.filter(opt => opt && opt.trim()) : undefined,
             // Rating/Scale properties
             min_rating: q.scaleMin,
             max_rating: q.scaleMax,
@@ -757,10 +757,10 @@ export const CreateSurvey = () => {
             lowestLabel: q.lowestLabel || undefined,
             highestLabel: q.highestLabel || undefined,
             // Grid question properties
-            rows: (q.questionType === 'multiple-choice-grid' || q.questionType === 'checkbox-grid') && 
-                  q.rows && q.rows.length > 0 ? q.rows.filter(row => row && row.trim()) : undefined,
-            columns: (q.questionType === 'multiple-choice-grid' || q.questionType === 'checkbox-grid') && 
-                     q.columns && q.columns.length > 0 ? q.columns.filter(col => col && col.trim()) : undefined,
+            rows: (q.questionType === 'multiple-choice-grid' || q.questionType === 'checkbox-grid') &&
+              q.rows && q.rows.length > 0 ? q.rows.filter(row => row && row.trim()) : undefined,
+            columns: (q.questionType === 'multiple-choice-grid' || q.questionType === 'checkbox-grid') &&
+              q.columns && q.columns.length > 0 ? q.columns.filter(col => col && col.trim()) : undefined,
             // Section metadata
             sectionTitle: section.sectionTitle || undefined,
             sectionDescription: section.sectionDescription || undefined,
@@ -770,12 +770,12 @@ export const CreateSurvey = () => {
           questionIndex++;
         });
       });
-      
+
       // Validate that we have at least one question
       if (transformedQuestions.length === 0) {
         throw new Error('At least one question is required in the survey');
       }
-      
+
       const surveyData = {
         event_id: eventId,
         title: `Survey for ${pendingEventData.title}`,
@@ -787,9 +787,9 @@ export const CreateSurvey = () => {
         opens_at: null,
         closes_at: null
       };
-      
+
       const surveyResult = await SurveyService.createSurvey(surveyData);
-      
+
       if (surveyResult.error) {
         throw new Error(`Survey creation failed: ${surveyResult.error}`);
       }
@@ -819,18 +819,18 @@ export const CreateSurvey = () => {
       sessionStorage.removeItem('pending-event-speakers');
       sessionStorage.removeItem('pending-event-sponsors');
       sessionStorage.removeItem('pending-certificate-config');
-      
+
       // Show success message
       // Calculate total questions count from sections
       const totalQuestions = data.sections?.reduce((total, section) => {
         return total + (section.questions?.length || 0);
       }, 0) || 0;
-      
+
       toast.success(`Event and Survey created successfully! Event ID: ${eventId}, Survey ID: ${surveyId}, Questions: ${totalQuestions}`);
-      
+
       // Navigate to organizer dashboard
       navigate('/organizer');
-      
+
     } catch (err) {
       toast.error(`Failed to create event/survey: ${err.message}`);
     } finally {
@@ -840,7 +840,7 @@ export const CreateSurvey = () => {
 
   return (
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
-      <div className="w-full max-w-5xl mx-auto">
+      <div className="w-full max-w-7xl mx-auto">
         {/* Header Section */}
         <div className="text-center mb-8 sm:mb-12">
           <div className="flex items-center justify-center mb-4">
@@ -852,20 +852,66 @@ export const CreateSurvey = () => {
               className="p-3 rounded-full bg-white shadow-lg hover:shadow-xl transition-all duration-200 mr-4 group"
               aria-label="Back to create event"
             >
-              <svg 
-                className="w-6 h-6 text-slate-600 group-hover:text-blue-600 transition-colors" 
-                fill="none" 
-                stroke="currentColor" 
+              <svg
+                className="w-6 h-6 text-slate-600 group-hover:text-blue-600 transition-colors"
+                fill="none"
+                stroke="currentColor"
                 viewBox="0 0 24 24"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-slate-800 to-blue-800 bg-clip-text text-transparent">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-800">
               Create Survey
             </h1>
           </div>
-          
+
+          {/* Progress Indicator */}
+          <div className="mt-8 mb-8">
+            <div className="flex items-center justify-center space-x-4 sm:space-x-8">
+              {/* Step 1: Create Event - Completed */}
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 rounded-full bg-green-500 text-white flex items-center justify-center font-bold text-lg shadow-lg">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div className="mt-2 text-center">
+                  <p className="text-sm font-semibold text-green-600">Create Event</p>
+                  <p className="text-xs text-slate-500 mt-1">Completed</p>
+                </div>
+              </div>
+
+              {/* Connector Line */}
+              <div className="hidden sm:block w-16 h-0.5 bg-green-500"></div>
+
+              {/* Step 2: Design Certificate - Skipped (optional, can be hidden) */}
+              <div className="flex flex-col items-center opacity-50">
+                <div className="w-12 h-12 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center font-bold text-lg">
+                  2
+                </div>
+                <div className="mt-2 text-center">
+                  <p className="text-sm font-semibold text-slate-400">Design Certificate</p>
+                  <p className="text-xs text-slate-300 mt-1">Skipped</p>
+                </div>
+              </div>
+
+              {/* Connector Line */}
+              <div className="hidden sm:block w-16 h-0.5 bg-blue-500"></div>
+
+              {/* Step 3: Create Evaluation - Current Step */}
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-lg">
+                  3
+                </div>
+                <div className="mt-2 text-center">
+                  <p className="text-sm font-semibold text-blue-600">Create Evaluation</p>
+                  <p className="text-xs text-slate-500 mt-1">Current Step</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Event Preview */}
           {pendingEventData && (
             <div className="mt-6 bg-white rounded-xl shadow-lg border border-slate-200 p-4 max-w-2xl mx-auto">
@@ -880,7 +926,7 @@ export const CreateSurvey = () => {
               </div>
             </div>
           )}
-          
+
           {/* Draft Management Info */}
           <div className="mt-6 flex items-center justify-center space-x-6">
             {/* Auto-save Toggle */}
@@ -888,13 +934,11 @@ export const CreateSurvey = () => {
               <span className="text-base font-medium text-slate-600">Auto-save</span>
               <button
                 onClick={toggleAutoSave}
-                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
-                  autoSaveEnabled ? 'bg-green-500' : 'bg-gray-400'
-                }`}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${autoSaveEnabled ? 'bg-green-500' : 'bg-gray-400'
+                  }`}
               >
-                <div className={`inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white transition-transform ${
-                  autoSaveEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}>
+                <div className={`inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white transition-transform ${autoSaveEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}>
                   {autoSaveEnabled && (
                     <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -906,7 +950,7 @@ export const CreateSurvey = () => {
                 {autoSaveEnabled ? 'Enabled' : 'Disabled'}
               </span>
             </div>
-            
+
             {/* Preview Toggle */}
             <button
               onClick={() => setShowPreview(!showPreview)}
@@ -919,7 +963,7 @@ export const CreateSurvey = () => {
               </svg>
               <span>{showPreview ? 'Hide Preview' : 'Show Preview'}</span>
             </button>
-            
+
             {/* Clear Draft Button */}
             <button
               onClick={handleClearDraft}
@@ -947,7 +991,7 @@ export const CreateSurvey = () => {
                 <span className="text-sm text-slate-600">How your questions will appear to participants</span>
               </div>
             </div>
-            
+
             <div className="p-6 space-y-8">
               {watchedSections.map((section, sectionIndex) => {
                 let questionNumber = 1;
@@ -955,7 +999,7 @@ export const CreateSurvey = () => {
                 for (let i = 0; i < sectionIndex; i++) {
                   questionNumber += watchedSections[i]?.questions?.length || 0;
                 }
-                
+
                 return (
                   <div key={sectionIndex} className="space-y-4">
                     {/* Section Header */}
@@ -973,7 +1017,7 @@ export const CreateSurvey = () => {
                         )}
                       </div>
                     )}
-                    
+
                     {/* Section Questions */}
                     {section.questions?.map((question, qIndex) => {
                       const globalQIndex = questionNumber - 1;
@@ -1004,7 +1048,7 @@ export const CreateSurvey = () => {
                   </div>
                 );
               })}
-              
+
               {(!watchedSections || watchedSections.length === 0 || watchedSections.every(s => !s.questions || s.questions.length === 0)) && (
                 <div className="text-center py-8 text-slate-500">
                   <svg className="w-12 h-12 mx-auto mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1026,7 +1070,7 @@ export const CreateSurvey = () => {
             for (let i = 0; i < sectionIndex; i++) {
               questionNumber += watchedSections[i]?.questions?.length || 0;
             }
-            
+
             return (
               <div key={sectionField.id} className="space-y-6">
                 {/* Section Header */}
@@ -1042,7 +1086,7 @@ export const CreateSurvey = () => {
                           <p className="text-sm text-slate-600">Configure your section settings</p>
                         </div>
                       </div>
-                      
+
                       {sectionFields.length > 1 && (
                         <button
                           type="button"
@@ -1057,7 +1101,7 @@ export const CreateSurvey = () => {
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="p-6 space-y-4">
                     {/* Section Title */}
                     <div className="space-y-2">
@@ -1084,7 +1128,7 @@ export const CreateSurvey = () => {
                         <p className="text-red-500 text-xs mt-1">{errors.sections[sectionIndex].sectionTitle.message}</p>
                       )}
                     </div>
-                    
+
                     {/* Section Description */}
                     <div className="space-y-2">
                       <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
@@ -1108,14 +1152,14 @@ export const CreateSurvey = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Section Questions */}
                 <div className="space-y-6">
                   {sectionQuestions.map((question, qIndex) => {
                     const globalQIndex = questionNumber - 1;
                     questionNumber++;
                     return (
-                      <div 
+                      <div
                         key={qIndex}
                         className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden"
                       >
@@ -1131,7 +1175,7 @@ export const CreateSurvey = () => {
                                 <p className="text-sm text-slate-600">Configure your question settings</p>
                               </div>
                             </div>
-                            
+
                             <div className="flex items-center space-x-2">
                               <button
                                 type="button"
@@ -1144,7 +1188,7 @@ export const CreateSurvey = () => {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                 </svg>
                               </button>
-                              
+
                               {sectionQuestions.length > 1 && (
                                 <button
                                   type="button"
@@ -1425,12 +1469,10 @@ export const CreateSurvey = () => {
                                 {...control.register(`sections.${sectionIndex}.questions.${qIndex}.required`)}
                                 className="sr-only"
                               />
-                              <div className={`w-11 h-6 rounded-full transition-all duration-200 ${
-                                watch(`sections.${sectionIndex}.questions.${qIndex}.required`) ? 'bg-blue-600' : 'bg-slate-200'
-                              }`}>
-                                <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-200 ${
-                                  watch(`sections.${sectionIndex}.questions.${qIndex}.required`) ? 'translate-x-5' : 'translate-x-0'
-                                }`} />
+                              <div className={`w-11 h-6 rounded-full transition-all duration-200 ${watch(`sections.${sectionIndex}.questions.${qIndex}.required`) ? 'bg-blue-600' : 'bg-slate-200'
+                                }`}>
+                                <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-200 ${watch(`sections.${sectionIndex}.questions.${qIndex}.required`) ? 'translate-x-5' : 'translate-x-0'
+                                  }`} />
                               </div>
                             </label>
                             <span className="text-sm font-medium text-slate-700">Required Question</span>
@@ -1439,7 +1481,7 @@ export const CreateSurvey = () => {
                       </div>
                     );
                   })}
-                  
+
                   {/* Add Question Button for Section */}
                   <button
                     type="button"
@@ -1472,7 +1514,7 @@ export const CreateSurvey = () => {
                 <span>Add New Section</span>
               </span>
             </button>
-            
+
             <button
               type="submit"
               disabled={loading || Object.keys(errors).length > 0 || !watchedSections || watchedSections.length === 0}
@@ -1483,7 +1525,7 @@ export const CreateSurvey = () => {
                   <>
                     <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                     <span>Creating Event & Survey...</span>
-                  </> 
+                  </>
                 ) : (
                   <>
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

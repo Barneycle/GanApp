@@ -47,11 +47,9 @@ export async function generatePNGCertificate(
   await document.fonts.ready;
 
   const canvas = document.createElement('canvas');
-  // A4 Landscape: 297mm × 210mm = 842 × 595 points (at 72 DPI)
-  // For high-quality PNG, we use 300 DPI: 3508 × 2480 pixels
-  // For PDF compatibility, we'll use the point dimensions: 842 × 595
-  const width = config.width || 842;  // A4 landscape width in points
-  const height = config.height || 595; // A4 landscape height in points
+  // Original certificate dimensions
+  const width = config.width || 2500;  // Original certificate width
+  const height = config.height || 1768; // Original certificate height
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
@@ -184,14 +182,20 @@ export async function generatePNGCertificate(
 
   // Title Subtitle
   if (config.title_subtitle) {
-    ctx.fillStyle = config.title_color || '#000000';
-    ctx.font = `normal ${(config.title_font_size || 56) * 0.4}px ${config.title_font_family || 'Libre Baskerville, serif'}`;
+    const subtitleConfig = config.title_subtitle_config || {};
+    ctx.fillStyle = subtitleConfig.color || config.title_color || '#000000';
+    const subtitleFontSize = subtitleConfig.font_size || (config.title_font_size || 56) * 0.4;
+    const subtitleFontFamily = subtitleConfig.font_family || config.title_font_family || 'Libre Baskerville, serif';
+    const subtitleFontWeight = subtitleConfig.font_weight || 'normal';
+    ctx.font = `${subtitleFontWeight} ${subtitleFontSize}px ${subtitleFontFamily}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    const subtitleX = subtitleConfig.position?.x ?? config.title_position.x;
+    const subtitleY = subtitleConfig.position?.y ?? (config.title_position.y + 2);
     ctx.fillText(
       config.title_subtitle,
-      (width * config.title_position.x) / 100,
-      (height * (config.title_position.y + 2)) / 100
+      (width * subtitleX) / 100,
+      (height * subtitleY) / 100
     );
   }
 
@@ -434,8 +438,8 @@ export async function generatePNGCertificate(
  */
 export async function convertPNGToPDF(
   pngBlob: Blob,
-  width: number = 842,  // A4 landscape width in points
-  height: number = 595  // A4 landscape height in points
+  width: number = 2500,  // Original certificate width
+  height: number = 1768  // Original certificate height
 ): Promise<Uint8Array> {
   // Get actual image dimensions from the PNG blob for precise sizing
   let actualWidth = width;

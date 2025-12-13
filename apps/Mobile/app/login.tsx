@@ -187,34 +187,60 @@ export default function LoginDashboard() {
       if (result.error) {
         // Check if it's a generic "Invalid login credentials" error
         const errorMsg = result.error.toLowerCase();
-        if (errorMsg.includes('invalid login credentials') ||
+        const isGenericError = errorMsg.includes('invalid login credentials') ||
           errorMsg.includes('invalid credentials') ||
-          (errorMsg.includes('invalid') && errorMsg.includes('credential'))) {
+          (errorMsg.includes('invalid') && errorMsg.includes('credential'));
 
+        // Also check errorType if available
+        const isGenericErrorType = result.errorType === 'generic' || !result.errorType;
+
+        if (isGenericError || isGenericErrorType) {
           // Check email existence to determine which credential is wrong
           try {
+            console.log('Checking email existence for:', trimmedEmail);
             const emailCheck = await UserService.checkEmailExists(trimmedEmail);
 
-            // Only show email error if we successfully checked and email doesn't exist
-            // If check failed or returned error, default to password error (safer)
-            if (emailCheck.error) {
-              // Email check failed - default to password error to avoid false positives
-              console.warn('Email check failed, defaulting to password error:', emailCheck.error);
-              toast.error('Password is wrong. Please try again or use "Forgot password?" to reset.');
-            } else if (emailCheck.exists === false) {
-              // Email check succeeded and email doesn't exist
-              toast.error('Email is wrong. No account found with this email address. Please check your email or sign up.');
-            } else {
-              // Email exists, so it's a password issue
-              toast.error('Password is wrong. Please try again or use "Forgot password?" to reset.');
-            }
-          } catch (emailCheckError) {
-            // If email check throws exception, default to password error (safer assumption)
+            console.log('Email check result:', JSON.stringify(emailCheck));
+
+            // Use setTimeout to defer toast to next tick and avoid useInsertionEffect warning
+            setTimeout(() => {
+              // Check if email check has an error first
+              if (emailCheck.error) {
+                // Email check failed - this could mean RPC function doesn't exist or has issues
+                // For now, we'll show a generic message, but log the error for debugging
+                console.warn('Email check failed:', emailCheck.error);
+                // Still try to show a helpful message
+                toast.error('Invalid credentials. Please check your email and password.');
+              } else if (emailCheck.exists === false) {
+                // Email check succeeded and email doesn't exist - definitely email issue
+                console.log('Email does not exist - showing email error');
+                toast.error('Email is wrong. No account found with this email address. Please check your email or sign up.');
+              } else if (emailCheck.exists === true) {
+                // Email exists, so it's definitely a password issue
+                console.log('Email exists - showing password error');
+                toast.error('Password is wrong. Please try again or use "Forgot password?" to reset.');
+              } else {
+                // Unexpected result - emailCheck.exists is neither true nor false
+                console.warn('Unexpected email check result - exists is:', emailCheck.exists, typeof emailCheck.exists);
+                // Default to password error as safer assumption
+                toast.error('Password is wrong. Please check your password and try again.');
+              }
+            }, 0);
+          } catch (emailCheckError: any) {
+            // If email check throws exception, log it and show generic error
             console.error('Exception checking email existence:', emailCheckError);
-            toast.error('Password is wrong. Please check your password and try again.');
+            console.error('Error details:', {
+              message: emailCheckError?.message,
+              stack: emailCheckError?.stack,
+              name: emailCheckError?.name
+            });
+            // Use setTimeout to defer toast to next tick
+            setTimeout(() => {
+              toast.error('Invalid credentials. Please check your email and password.');
+            }, 0);
           }
         } else {
-          // For other error types, show the formatted error from authContext
+          // For other error types (already formatted), show the error from authContext
           toast.error(result.error);
         }
       } else if (result.user) {

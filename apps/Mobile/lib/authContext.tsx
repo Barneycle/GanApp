@@ -5,7 +5,7 @@ import { UserService, User } from './userService';
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ user: User | null; error: string | null }>;
+  signIn: (email: string, password: string) => Promise<{ user: User | null; error: string | null; errorType?: 'email' | 'password' | 'generic' }>;
   signUp: (email: string, password: string, firstName: string, lastName: string, role?: 'admin' | 'organizer' | 'participant') => Promise<{ user: User | null; error: string | null }>;
   signOut: () => Promise<{ error: string | null }>;
   refreshUser: () => Promise<void>;
@@ -141,16 +141,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (result.error) {
         // Format error message based on errorType for better user feedback
+        // But don't format generic "Invalid login credentials" - let login.tsx check email first
         let formattedError = result.error;
         if (result.errorType === 'email') {
           formattedError = 'Email is wrong. No account found with this email address. Please check your email or sign up.';
         } else if (result.errorType === 'password') {
           formattedError = 'Password is wrong. Please try again or use "Forgot password?" to reset.';
-        } else if (result.error && result.error.toLowerCase().includes('invalid login credentials')) {
-          // For generic "Invalid login credentials", default to password error
-          formattedError = 'Password is wrong. Please check your password and try again.';
         }
-        return { user: null, error: formattedError };
+        // For generic errors, pass through the original error so login.tsx can check email
+        return { user: null, error: formattedError, errorType: result.errorType };
       }
 
       if (result.user) {
