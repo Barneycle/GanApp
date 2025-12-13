@@ -46,7 +46,7 @@ export const SweetAlert: React.FC<SweetAlertProps> = ({
   confirmButtonColor,
   cancelButtonColor,
   autoClose = false,
-  autoCloseDelay = 3000, // 3 seconds default
+  autoCloseDelay = 5000, // 5 seconds default
 }) => {
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;

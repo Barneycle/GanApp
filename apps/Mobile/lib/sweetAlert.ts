@@ -80,7 +80,7 @@ export const showAlert = (
 };
 
 // Convenience methods
-export const showSuccess = (title: string, message?: string, onConfirm?: () => void, autoClose: boolean = true, autoCloseDelay: number = 3000) => {
+export const showSuccess = (title: string, message?: string, onConfirm?: () => void, autoClose: boolean = true, autoCloseDelay: number = 5000) => {
   showAlert(title, message, 'success', { 
     onConfirm, 
     autoClose, 

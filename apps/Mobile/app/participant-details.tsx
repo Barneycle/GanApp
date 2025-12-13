@@ -7,6 +7,8 @@ import {
   ScrollView,
   SafeAreaView,
   ActivityIndicator,
+  Animated,
+  InteractionManager,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,6 +33,13 @@ export default function ParticipantDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasShownAlert = useRef(false);
+  
+  // Auto-close countdown
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const autoCloseTimer = useRef<NodeJS.Timeout | null>(null);
+  const countdownTimer = useRef<NodeJS.Timeout | null>(null);
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const AUTO_CLOSE_DELAY = 5000; // 5 seconds
 
   useEffect(() => {
     loadParticipantInfo();
@@ -42,10 +51,61 @@ export default function ParticipantDetails() {
       hasShownAlert.current = true;
       // Small delay to ensure screen is fully rendered
       setTimeout(() => {
-        showSuccess(alertTitle, alertMessage);
+        // Show alert with callback to start countdown after it closes
+        showSuccess(alertTitle, alertMessage, () => {
+          // Start auto-close countdown after sweetalert is closed
+          startAutoCloseCountdown();
+        });
       }, 300);
     }
+    
+    // Cleanup timers on unmount
+    return () => {
+      if (autoCloseTimer.current) {
+        clearTimeout(autoCloseTimer.current);
+        autoCloseTimer.current = null;
+      }
+      if (countdownTimer.current) {
+        clearInterval(countdownTimer.current);
+        countdownTimer.current = null;
+      }
+    };
   }, [loading, participant, showAlert, alertTitle, alertMessage]);
+
+  // Function to start the auto-close countdown
+  const startAutoCloseCountdown = () => {
+    // Start auto-close countdown
+    const totalSeconds = Math.ceil(AUTO_CLOSE_DELAY / 1000);
+    setRemainingSeconds(totalSeconds);
+    
+    // Animate progress bar
+    progressAnim.setValue(0);
+    Animated.timing(progressAnim, {
+      toValue: 1,
+      duration: AUTO_CLOSE_DELAY,
+      useNativeDriver: false,
+    }).start();
+    
+    // Update countdown every second
+    let secondsLeft = totalSeconds;
+    countdownTimer.current = setInterval(() => {
+      secondsLeft -= 1;
+      setRemainingSeconds(secondsLeft);
+      if (secondsLeft <= 0) {
+        if (countdownTimer.current) {
+          clearInterval(countdownTimer.current);
+          countdownTimer.current = null;
+        }
+      }
+    }, 1000);
+    
+    // Auto-close and navigate back
+    autoCloseTimer.current = setTimeout(() => {
+      InteractionManager.runAfterInteractions(() => {
+        router.back();
+      });
+    }, AUTO_CLOSE_DELAY);
+  };
 
   const loadParticipantInfo = async () => {
     if (!participantId || !eventId) {
@@ -91,8 +151,8 @@ export default function ParticipantDetails() {
 
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFAFA' }} className="items-center justify-center">
-        <ActivityIndicator size="large" color="#1e40af" />
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#1e3a8a' }} className="items-center justify-center">
+        <ActivityIndicator size="large" color="#ffffff" />
       </SafeAreaView>
     );
   }
@@ -100,17 +160,17 @@ export default function ParticipantDetails() {
 
   if (error || !participant) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#1e3a8a' }}>
         <View className="flex-1 items-center justify-center px-6">
-          <Ionicons name="alert-circle" size={64} color="#ef4444" />
-          <Text className="text-xl font-bold text-gray-900 mt-4 mb-2">
+          <Ionicons name="alert-circle" size={64} color="#ffffff" />
+          <Text className="text-xl font-bold text-white mt-4 mb-2">
             {error || 'Participant Not Found'}
           </Text>
           <TouchableOpacity
             onPress={() => router.back()}
-            className="mt-6 px-6 py-3 bg-blue-600 rounded-xl"
+            className="mt-6 px-6 py-3 bg-white rounded-xl"
           >
-            <Text className="text-white font-semibold">Go Back</Text>
+            <Text className="text-blue-900 font-semibold">Go Back</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -121,7 +181,7 @@ export default function ParticipantDetails() {
   const attendanceStatus = getStatusColor(participant.attendance_status || 'not_checked_in', 'attendance');
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#1e3a8a' }}>
       <TutorialOverlay
         screenId="participant-details"
         steps={[
@@ -139,100 +199,326 @@ export default function ParticipantDetails() {
       />
       {/* Header */}
       <View 
-        className="border-b border-gray-200 px-6 py-4 flex-row items-center justify-between"
+        className="px-6 py-4 flex-row items-center justify-between"
         style={{ 
           paddingTop: Math.max(insets.top, 8),
-          backgroundColor: '#FAFAFA' 
+          backgroundColor: '#1e3a8a' 
         }}
       >
         <TouchableOpacity
-          onPress={() => router.back()}
-          className="w-10 h-10 items-center justify-center"
+          onPress={() => {
+            // Clear timers if manually closed
+            if (autoCloseTimer.current) {
+              clearTimeout(autoCloseTimer.current);
+              autoCloseTimer.current = null;
+            }
+            if (countdownTimer.current) {
+              clearInterval(countdownTimer.current);
+              countdownTimer.current = null;
+            }
+            router.back();
+          }}
+          className="w-10 h-10 items-center justify-center rounded-full"
+          style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
         >
-          <Ionicons name="arrow-back" size={24} color="#1f2937" />
+          <Ionicons name="arrow-back" size={24} color="#ffffff" />
         </TouchableOpacity>
-        <Text className="text-lg font-bold text-gray-900">Participant Details</Text>
-        <View className="w-10" />
+        <Text className="text-lg font-bold text-white">Participant Details</Text>
+        {showAlert === 'true' && remainingSeconds > 0 && (
+          <View 
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 2,
+              borderColor: '#ffffff',
+            }}
+          >
+            <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: 'bold' }}>
+              {remainingSeconds}
+            </Text>
+          </View>
+        )}
+        {showAlert !== 'true' && <View className="w-10" />}
       </View>
+
+      {/* Countdown Progress Bar */}
+      {showAlert === 'true' && remainingSeconds > 0 && (
+        <View 
+          style={{
+            height: 4,
+            backgroundColor: 'rgba(255, 255, 255, 0.2)',
+            marginHorizontal: 16,
+            marginBottom: 8,
+            borderRadius: 2,
+            overflow: 'hidden',
+          }}
+        >
+          <Animated.View
+            style={{
+              height: '100%',
+              backgroundColor: '#ffffff',
+              width: progressAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['0%', '100%'],
+              }),
+            }}
+          />
+        </View>
+      )}
 
       <ScrollView 
         showsVerticalScrollIndicator={false}
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 20) + 20 }}
+        contentContainerStyle={{ 
+          paddingBottom: Math.max(insets.bottom, 20) + 20,
+          paddingTop: 20,
+          paddingHorizontal: 16,
+        }}
       >
-        {/* Avatar Section */}
-        <View className="px-6 pt-6 pb-6 items-center">
-          {participant.avatar_url ? (
-            <View className="w-48 h-48 rounded-full overflow-hidden mb-4 bg-gray-200 shadow-lg">
-              <Image
-                source={{ uri: participant.avatar_url }}
-                className="w-full h-full"
-                resizeMode="cover"
-              />
-            </View>
-          ) : (
-            <View className="w-48 h-48 bg-blue-600 rounded-full items-center justify-center mb-4 shadow-lg">
-              <Ionicons name="person" size={80} color="white" />
-            </View>
-          )}
-        </View>
+        {/* Main Card Container */}
+        <View 
+          style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 24,
+            padding: 24,
+            shadowColor: '#000',
+            shadowOffset: {
+              width: 0,
+              height: 4,
+            },
+            shadowOpacity: 0.15,
+            shadowRadius: 12,
+            elevation: 8,
+          }}
+        >
+          {/* Avatar Section */}
+          <View className="items-center mb-6">
+            {participant.avatar_url ? (
+              <View 
+                style={{
+                  width: 120,
+                  height: 120,
+                  borderRadius: 60,
+                  overflow: 'hidden',
+                  backgroundColor: '#f3f4f6',
+                  shadowColor: '#000',
+                  shadowOffset: {
+                    width: 0,
+                    height: 4,
+                  },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 8,
+                  elevation: 6,
+                }}
+              >
+                <Image
+                  source={{ uri: participant.avatar_url }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
+              </View>
+            ) : (
+              <View 
+                style={{
+                  width: 120,
+                  height: 120,
+                  borderRadius: 60,
+                  backgroundColor: '#1e3a8a',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  shadowColor: '#000',
+                  shadowOffset: {
+                    width: 0,
+                    height: 4,
+                  },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 8,
+                  elevation: 6,
+                }}
+              >
+                <Ionicons name="person" size={60} color="white" />
+              </View>
+            )}
+          </View>
 
-        {/* Name and Role */}
-        <View className="px-6 pb-6">
-          <Text className="text-4xl font-bold text-gray-900 mb-2">
-            {[participant.first_name, participant.middle_initial, participant.last_name]
-              .filter(Boolean)
-              .join(' ')}
-          </Text>
-          <Text className="text-lg text-gray-500 capitalize">
-            {participant.role}
-          </Text>
-        </View>
+          {/* Name and Role */}
+          <View className="items-center mb-8">
+            <Text 
+              style={{
+                fontSize: 32,
+                fontWeight: 'bold',
+                color: '#1f2937',
+                marginBottom: 8,
+                textAlign: 'center',
+              }}
+            >
+              {[participant.first_name, participant.middle_initial, participant.last_name]
+                .filter(Boolean)
+                .join(' ')}
+            </Text>
+            <View 
+              style={{
+                backgroundColor: '#f3f4f6',
+                paddingHorizontal: 16,
+                paddingVertical: 6,
+                borderRadius: 20,
+              }}
+            >
+              <Text 
+                style={{
+                  fontSize: 14,
+                  color: '#6b7280',
+                  textTransform: 'capitalize',
+                  fontWeight: '600',
+                }}
+              >
+                {participant.role}
+              </Text>
+            </View>
+          </View>
 
-        {/* Event and Status Card */}
-        <View className="mx-6 mb-6 rounded-xl p-6 shadow-sm border border-gray-100" style={{ backgroundColor: '#FAFAFA' }}>
+          {/* Divider */}
+          <View 
+            style={{
+              height: 1,
+              backgroundColor: '#e5e7eb',
+              marginBottom: 24,
+            }}
+          />
+
           {/* Event Section */}
           <View className="mb-6">
-            <Text className="text-2xl text-blue-600 font-semibold mb-3">Event</Text>
-            <Text className="text-2xl font-bold text-blue-900">{eventTitle || 'Sample Conference 2024'}</Text>
+            <Text 
+              style={{
+                fontSize: 12,
+                fontWeight: '600',
+                color: '#6b7280',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 8,
+              }}
+            >
+              Event
+            </Text>
+            <Text 
+              style={{
+                fontSize: 20,
+                fontWeight: 'bold',
+                color: '#1e3a8a',
+              }}
+            >
+              {eventTitle || 'Sample Conference 2024'}
+            </Text>
           </View>
 
           {/* Status Badges */}
-          <View className="flex-row gap-3">
+          <View className="flex-row gap-3 mb-6">
             <View 
-              className="flex-1 rounded-xl p-5"
-              style={{ backgroundColor: registrationStatus.bg }}
+              style={{
+                flex: 1,
+                borderRadius: 16,
+                padding: 16,
+                backgroundColor: registrationStatus.bg,
+              }}
             >
-              <Text className="text-sm font-semibold mb-2" style={{ color: registrationStatus.text }}>
+              <Text 
+                style={{
+                  fontSize: 11,
+                  fontWeight: '600',
+                  color: registrationStatus.text,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                  marginBottom: 6,
+                }}
+              >
                 Registration
               </Text>
-              <Text className="text-lg font-bold" style={{ color: registrationStatus.text }}>
+              <Text 
+                style={{
+                  fontSize: 18,
+                  fontWeight: 'bold',
+                  color: registrationStatus.text,
+                }}
+              >
                 {registrationStatus.label}
               </Text>
             </View>
             <View 
-              className="flex-1 rounded-xl p-5"
-              style={{ backgroundColor: attendanceStatus.bg }}
+              style={{
+                flex: 1,
+                borderRadius: 16,
+                padding: 16,
+                backgroundColor: attendanceStatus.bg,
+              }}
             >
-              <Text className="text-sm font-semibold mb-2" style={{ color: attendanceStatus.text }}>
+              <Text 
+                style={{
+                  fontSize: 11,
+                  fontWeight: '600',
+                  color: attendanceStatus.text,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                  marginBottom: 6,
+                }}
+              >
                 Check-in
               </Text>
-              <Text className="text-lg font-bold" style={{ color: attendanceStatus.text }}>
+              <Text 
+                style={{
+                  fontSize: 18,
+                  fontWeight: 'bold',
+                  color: attendanceStatus.text,
+                }}
+              >
                 {attendanceStatus.label}
               </Text>
             </View>
           </View>
-        </View>
 
-        {/* Registration Date */}
-        {participant.registration_date && (
-          <View className="mx-6 mb-6 rounded-xl p-5 shadow-sm border border-gray-100" style={{ backgroundColor: '#FAFAFA' }}>
-            <Text className="text-sm text-gray-500 mb-2">Registered On</Text>
-            <Text className="text-lg font-medium text-gray-900">
-              {new Date(participant.registration_date).toLocaleDateString()}
-            </Text>
-          </View>
-        )}
+          {/* Registration Date */}
+          {participant.registration_date && (
+            <>
+              <View 
+                style={{
+                  height: 1,
+                  backgroundColor: '#e5e7eb',
+                  marginBottom: 16,
+                }}
+              />
+              <View>
+                <Text 
+                  style={{
+                    fontSize: 12,
+                    fontWeight: '600',
+                    color: '#6b7280',
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                    marginBottom: 8,
+                  }}
+                >
+                  Registered On
+                </Text>
+                <Text 
+                  style={{
+                    fontSize: 16,
+                    fontWeight: '600',
+                    color: '#1f2937',
+                  }}
+                >
+                  {new Date(participant.registration_date).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </Text>
+              </View>
+            </>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
