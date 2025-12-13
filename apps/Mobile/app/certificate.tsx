@@ -297,8 +297,7 @@ export default function Certificate() {
     );
   }
 
-  // Inject CSS to add safe area padding to the web content
-  // This runs after the page loads to ensure safe areas are respected
+  // Inject minimal CSS for safe areas (matching other screens)
   const injectedJavaScript = `
     (function() {
       // Wait for DOM to be ready
@@ -309,25 +308,15 @@ export default function Certificate() {
       }
       
       function applySafeAreas() {
-        // Add safe area CSS if not already present
+        // Add minimal safe area CSS
         const styleId = 'rn-safe-area-style';
         if (!document.getElementById(styleId)) {
           const style = document.createElement('style');
           style.id = styleId;
           style.textContent = \`
-            html, body {
-              padding-top: env(safe-area-inset-top) !important;
-              padding-bottom: env(safe-area-inset-bottom) !important;
-              padding-left: env(safe-area-inset-left) !important;
-              padding-right: env(safe-area-inset-right) !important;
-            }
-            #root {
-              padding-top: env(safe-area-inset-top) !important;
-              padding-bottom: env(safe-area-inset-bottom) !important;
-            }
             .mobile-certificate-view {
-              padding-top: env(safe-area-inset-top) !important;
-              padding-bottom: env(safe-area-inset-bottom) !important;
+              padding-top: env(safe-area-inset-top);
+              padding-bottom: env(safe-area-inset-bottom);
             }
           \`;
           document.head.appendChild(style);
@@ -352,19 +341,10 @@ export default function Certificate() {
   `;
 
   return (
-    <SafeAreaView className="flex-1 bg-white" edges={['top', 'bottom']}>
-      <View className="flex-1" style={{ 
-        paddingTop: 0, // SafeAreaView handles top
-        paddingBottom: 0 // SafeAreaView handles bottom
-      }}>
+    <SafeAreaView className="flex-1 bg-white">
+      <View className="flex-1">
         {loading && (
-          <View 
-            className="absolute inset-0 items-center justify-center bg-white z-10" 
-            style={{ 
-              paddingTop: insets.top,
-              paddingBottom: insets.bottom
-            }}
-          >
+          <View className="absolute inset-0 items-center justify-center bg-white z-10">
             <ActivityIndicator size="large" color="#2563eb" />
             <Text className="text-slate-600 mt-4">Loading certificate...</Text>
             {__DEV__ && (
@@ -382,17 +362,39 @@ export default function Certificate() {
           onError={handleError}
           onHttpError={handleHttpError}
           onMessage={handleMessage}
+          onShouldStartLoadWithRequest={(request) => {
+            // Prevent WebView from opening download links or blob URLs in browser
+            const url = request.url;
+            const isDownload = url.includes('.pdf') || 
+                              url.includes('.png') || 
+                              url.includes('download') || 
+                              url.startsWith('blob:') ||
+                              url.includes('generated-certificates');
+            
+            if (isDownload) {
+              // Block download links - they should be handled via postMessage
+              console.log('🚫 Blocked download link:', url);
+              return false;
+            }
+            
+            // Allow navigation to the same origin (our web app)
+            const webAppOrigin = new URL(WEB_APP_URL).origin;
+            const requestOrigin = new URL(url).origin;
+            
+            if (requestOrigin === webAppOrigin || url === webViewUrl) {
+              return true;
+            }
+            
+            // Block external links
+            return false;
+          }}
           javaScriptEnabled={true}
           domStorageEnabled={true}
           startInLoadingState={true}
           scalesPageToFit={true}
           allowsBackForwardNavigationGestures={true}
           injectedJavaScript={injectedJavaScript}
-          style={{ 
-            flex: 1,
-            marginTop: 0,
-            marginBottom: 0
-          }}
+          style={{ flex: 1 }}
           contentInsetAdjustmentBehavior="automatic"
           userAgent="Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36"
         />

@@ -1399,7 +1399,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
         console.warn(`Unexpected blob type: ${blob.type}, expected: ${expectedType}`);
       }
 
-      // For mobile WebView, use a different download approach
+      // For mobile WebView, always use postMessage (don't create download link)
       if (isMobile && window.ReactNativeWebView) {
         // Convert blob to base64 and send to mobile app
         const reader = new FileReader();
@@ -1412,16 +1412,16 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
             filename: `certificate-${certificate.certificate_number}.${format}`,
             mimeType: expectedType
           }));
+          toast.success('Preparing download...');
         };
         reader.onerror = () => {
           toast.error('Failed to process certificate for download');
         };
         reader.readAsDataURL(blob);
-        toast.info('Preparing download...');
         return;
       }
 
-      // Standard browser download
+      // Standard browser download (only for non-mobile)
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
