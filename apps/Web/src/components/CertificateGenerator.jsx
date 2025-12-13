@@ -1359,6 +1359,53 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
   const handleDownload = async (format) => {
     if (!certificate) return;
 
+    // For PNG on web, generate it on-the-fly to avoid CORS issues
+    if (format === 'png' && !isMobile) {
+      try {
+        if (!config || !event) {
+          toast.error('Certificate data not loaded. Please wait...');
+          return;
+        }
+
+        toast.info('Generating PNG certificate...');
+        
+        const { generatePNGCertificate } = await import('../utils/certificateGenerator');
+        const blob = await generatePNGCertificate(
+          config,
+          certificate.certificate_number,
+          {
+            participantName: getUserName(),
+            eventTitle: event.title,
+            completionDate: event.start_date || new Date().toISOString().split('T')[0],
+            venue: event.venue || ''
+          }
+        );
+
+        // Download the generated PNG
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `certificate-${certificate.certificate_number}.png`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        
+        // Clean up
+        setTimeout(() => {
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(downloadUrl);
+        }, 100);
+        
+        toast.success('Certificate downloaded successfully!');
+        return;
+      } catch (err) {
+        console.error('PNG generation error:', err);
+        toast.error(`Failed to generate PNG: ${err.message || 'Unknown error'}`);
+        return;
+      }
+    }
+
+    // For PDF or mobile, use stored URL
     const url = format === 'pdf' 
       ? certificate.certificate_pdf_url 
       : certificate.certificate_png_url;
@@ -1390,7 +1437,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
       }
     }
 
-    // For desktop/web, use fetch to download
+    // For PDF on web, fetch from storage
     try {
       // Use fetch with CORS mode and credentials to ensure we get the correct file
       // Add cache-busting parameter to ensure we get the latest version
@@ -1422,7 +1469,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
         console.warn(`Unexpected blob type: ${blob.type}, expected: ${expectedType}`);
       }
 
-      // Standard browser download (only for non-mobile)
+      // Standard browser download
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;

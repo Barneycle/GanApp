@@ -196,16 +196,18 @@ export async function generatePDFCertificate(
   const isGivenTo = config.is_given_to_config || {};
   const nameConfig = config.name_config || {};
 
-  // Logos
+  // Logos - Match PNG positioning (Y from top, not bottom)
   if (config.logo_config?.logos && config.logo_config.logos.length > 0) {
     for (const logo of config.logo_config.logos) {
       const logoSize = logo.size || { width: 120, height: 120 };
       const logoPos = logo.position || { x: 15, y: 10 };
       const logoImage = await embedImage(logo.url);
       if (logoImage) {
+        // Convert from top-based Y to PDF bottom-based Y
+        const yFromTop = (height * logoPos.y) / 100;
         page.drawImage(logoImage, {
           x: (width * logoPos.x) / 100,
-          y: height - (height * logoPos.y) / 100 - logoSize.height,
+          y: height - yFromTop - logoSize.height, // Convert to bottom-based and account for image height
           width: logoSize.width,
           height: logoSize.height,
         });
@@ -213,7 +215,7 @@ export async function generatePDFCertificate(
     }
   }
 
-  // Sponsor Logos
+  // Sponsor Logos - Match PNG positioning
   if (config.logo_config?.sponsor_logos && config.logo_config.sponsor_logos.length > 0) {
     const sponsorSize = config.logo_config.sponsor_logo_size || { width: 80, height: 80 };
     const sponsorPos = config.logo_config.sponsor_logo_position || { x: 90, y: 5 };
@@ -221,9 +223,11 @@ export async function generatePDFCertificate(
     for (let i = 0; i < config.logo_config.sponsor_logos.length; i++) {
       const sponsorImage = await embedImage(config.logo_config.sponsor_logos[i]);
       if (sponsorImage) {
+        // Convert from top-based Y to PDF bottom-based Y
+        const yFromTop = (height * sponsorPos.y) / 100 + (i * (sponsorSize.height + spacing));
         page.drawImage(sponsorImage, {
           x: (width * sponsorPos.x) / 100,
-          y: height - (height * sponsorPos.y) / 100 - sponsorSize.height - (i * (sponsorSize.height + spacing)),
+          y: height - yFromTop - sponsorSize.height, // Convert to bottom-based and account for image height
           width: sponsorSize.width,
           height: sponsorSize.height,
         });
@@ -360,13 +364,15 @@ export async function generatePDFCertificate(
     });
   }
 
-  // Signature Blocks
+  // Signature Blocks - Match PNG positioning (Y from top, position below name)
   const signatures = config.signature_blocks || [];
   for (const signature of signatures) {
     const sigX = (width * (signature.position_config?.x || 50)) / 100;
-    const sigY = height - (height * (signature.position_config?.y || 92)) / 100;
+    // Convert from top-based Y to PDF bottom-based Y
+    const sigYFromTop = (height * (signature.position_config?.y || 92)) / 100;
+    const sigY = height - sigYFromTop; // Convert to bottom-based
 
-    // Signature Image
+    // Signature Image (above name)
     if (signature.signature_image_url) {
       const imgWidth = signature.signature_image_width || 300;
       const imgHeight = signature.signature_image_height || 100;
@@ -374,14 +380,14 @@ export async function generatePDFCertificate(
       if (sigImage) {
         page.drawImage(sigImage, {
           x: sigX - imgWidth / 2,
-          y: sigY - imgHeight - 20,
+          y: sigY - imgHeight - 20, // Image above name
           width: imgWidth,
           height: imgHeight,
         });
       }
     }
 
-    // Name
+    // Name (at sigY position)
     if (signature.name) {
       const nameSize = signature.name_font_size || 14;
       const sigNameFont = getPDFFont(signature.font_family, true);
@@ -395,14 +401,15 @@ export async function generatePDFCertificate(
       });
     }
 
-    // Position
+    // Position (below name, matching PNG which uses sigY + 20)
     if (signature.position) {
       const posSize = signature.position_font_size || 12;
       const sigPosFont = getPDFFont(signature.font_family, false);
       const posWidth = sigPosFont.widthOfTextAtSize(signature.position, posSize);
+      // In PDF, y decreases upward, so to go below we subtract
       page.drawText(signature.position, {
         x: sigX - posWidth / 2,
-        y: sigY - 20,
+        y: sigY - 20, // Position below name (subtract because PDF Y increases upward from bottom)
         size: posSize,
         font: sigPosFont,
         color: hexToRgb(signature.position_color || '#000000')
