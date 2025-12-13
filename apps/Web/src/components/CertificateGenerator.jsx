@@ -1401,24 +1401,33 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
 
       // For mobile WebView, always use postMessage (don't create download link)
       if (isMobile && window.ReactNativeWebView) {
+        console.log('📤 Sending download to mobile app:', format);
         // Convert blob to base64 and send to mobile app
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64data = reader.result;
-          window.ReactNativeWebView.postMessage(JSON.stringify({
+          const message = {
             type: 'download',
             format: format,
             data: base64data,
             filename: `certificate-${certificate.certificate_number}.${format}`,
             mimeType: expectedType
-          }));
-          toast.success('Preparing download...');
+          };
+          console.log('📤 Sending download message:', { format, filename: message.filename, dataLength: base64data?.length });
+          try {
+            window.ReactNativeWebView.postMessage(JSON.stringify(message));
+            toast.success('Preparing download...');
+          } catch (err) {
+            console.error('❌ Error sending download message:', err);
+            toast.error('Failed to send download to mobile app');
+          }
         };
-        reader.onerror = () => {
+        reader.onerror = (error) => {
+          console.error('❌ FileReader error:', error);
           toast.error('Failed to process certificate for download');
         };
         reader.readAsDataURL(blob);
-        return;
+        return; // IMPORTANT: Return early to prevent browser download
       }
 
       // Standard browser download (only for non-mobile)
@@ -1441,10 +1450,13 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
       console.error('Download error:', err);
       toast.error(`Failed to download certificate: ${err.message || 'Unknown error'}`);
       
-      // If download fails, try opening in new tab as fallback
-      if (isMobile) {
-        toast.info('Trying alternative download method...');
-        window.open(url, '_blank');
+      // Don't open browser as fallback - let user retry
+      if (isMobile && window.ReactNativeWebView) {
+        // Send error message to mobile app
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'error',
+          message: `Download failed: ${err.message || 'Unknown error'}`
+        }));
       }
     }
   };

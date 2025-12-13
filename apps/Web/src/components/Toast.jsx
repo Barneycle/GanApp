@@ -51,8 +51,18 @@ export const ToastProvider = ({ children }) => {
 const ToastContainer = ({ toasts, removeToast }) => {
   if (toasts.length === 0) return null;
 
+  // Check if we're in mobile WebView mode
+  const isMobile = document.body.classList.contains('mobile-certificate-view');
+  
   return (
-    <div className="fixed top-4 right-4 z-[9999] space-y-2 max-w-md w-full">
+    <div 
+      className="fixed right-4 z-[9999] space-y-2 max-w-md w-full"
+      style={{
+        top: isMobile 
+          ? `calc(env(safe-area-inset-top) + 1rem)` 
+          : '1rem'
+      }}
+    >
       {toasts.map((toast) => (
         <Toast key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
       ))}

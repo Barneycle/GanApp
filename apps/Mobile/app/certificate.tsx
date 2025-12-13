@@ -176,8 +176,13 @@ export default function Certificate() {
         setError(data.message || 'An error occurred while loading the certificate');
       } else if (data.type === 'download') {
         // Handle download from WebView
-        console.log('📥 Download request received');
-        handleDownload(data.data, data.filename, data.mimeType);
+        console.log('📥 Download request received:', data.format, data.filename);
+        if (data.data && data.filename && data.mimeType) {
+          handleDownload(data.data, data.filename, data.mimeType);
+        } else {
+          console.error('❌ Invalid download data:', data);
+          Alert.alert('Download Error', 'Invalid download data received');
+        }
       }
     } catch (error) {
       console.error('❌ Error parsing message:', error);
@@ -365,11 +370,14 @@ export default function Certificate() {
           onShouldStartLoadWithRequest={(request) => {
             // Prevent WebView from opening download links or blob URLs in browser
             const url = request.url;
+            
+            // Block all download-related URLs
             const isDownload = url.includes('.pdf') || 
                               url.includes('.png') || 
                               url.includes('download') || 
                               url.startsWith('blob:') ||
-                              url.includes('generated-certificates');
+                              url.includes('generated-certificates') ||
+                              url.includes('supabase.co/storage');
             
             if (isDownload) {
               // Block download links - they should be handled via postMessage
@@ -378,14 +386,22 @@ export default function Certificate() {
             }
             
             // Allow navigation to the same origin (our web app)
-            const webAppOrigin = new URL(WEB_APP_URL).origin;
-            const requestOrigin = new URL(url).origin;
-            
-            if (requestOrigin === webAppOrigin || url === webViewUrl) {
-              return true;
+            try {
+              const webAppOrigin = new URL(WEB_APP_URL).origin;
+              const requestOrigin = new URL(url).origin;
+              
+              if (requestOrigin === webAppOrigin || url === webViewUrl || url.startsWith(webViewUrl)) {
+                return true;
+              }
+            } catch (e) {
+              // If URL parsing fails, allow it if it's the same as webViewUrl
+              if (url === webViewUrl) {
+                return true;
+              }
             }
             
             // Block external links
+            console.log('🚫 Blocked external link:', url);
             return false;
           }}
           javaScriptEnabled={true}
