@@ -99,27 +99,27 @@ export default function Profile() {
 
     try {
       setIsLoading(true);
-      
+
       // Get user metadata directly from Supabase Auth to ensure we have all fields
       const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-      
+
       // Try to get user profile from RPC function
       const { data: profileData, error: rpcError } = await supabase.rpc('get_user_profile', { user_id: user.id });
-      
+
       if (!rpcError && profileData) {
         // Parse the JSON response if it's a string
         const profile = typeof profileData === 'string' ? JSON.parse(profileData) : profileData;
-        
+
         // Ensure affiliated_organization is included from auth metadata if not in RPC response
         if (!profile.affiliated_organization && authUser?.user_metadata?.affiliated_organization) {
           profile.affiliated_organization = authUser.user_metadata.affiliated_organization;
         }
-        
+
         // Also ensure avatar_url is included if not in RPC response
         if (!profile.avatar_url && authUser?.user_metadata?.avatar_url) {
           profile.avatar_url = authUser.user_metadata.avatar_url;
         }
-        
+
         setUserProfile(profile);
       } else {
         // Fall back to auth metadata
@@ -155,12 +155,12 @@ export default function Profile() {
         console.error('Error in fallback:', fallbackError);
         // Last resort - use what we have from user context
         const profile = {
-        id: user.id,
-        email: user.email,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        role: user.role,
-        phone: '',
+          id: user.id,
+          email: user.email,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          role: user.role,
+          phone: '',
           avatar_url: user.avatar_url || '',
           affiliated_organization: user.affiliated_organization || '',
         };
@@ -210,7 +210,7 @@ export default function Profile() {
           setLoadingAlbums(true);
           setLoadingPhotos(true);
         }
-        
+
         // Load photos and albums in parallel in the background
         Promise.all([
           // Load recent photos (reduced for faster loading)
@@ -257,7 +257,7 @@ export default function Profile() {
 
         if (!result.canceled && result.assets[0]) {
           const asset = result.assets[0];
-          
+
           // Validate file size (max 50MB)
           if (asset.fileSize && asset.fileSize > 50 * 1024 * 1024) {
             InteractionManager.runAfterInteractions(() => {
@@ -320,7 +320,7 @@ export default function Profile() {
   const handleSelectPhoto = useCallback(async (photo: MediaLibrary.Asset) => {
     try {
       setShowGalleryPicker(false);
-      
+
       // Try to get the full asset info, but fallback to photo.uri if it fails
       let imageUri = photo.uri;
       try {
@@ -331,7 +331,7 @@ export default function Profile() {
         // This is expected behavior and doesn't affect functionality
         imageUri = photo.uri;
       }
-      
+
       if (!imageUri) {
         toast.error('Failed to get image URI');
         return;
@@ -349,7 +349,7 @@ export default function Profile() {
 
       // Store original URI for upload (uploadAvatar will handle compression)
       setAvatarOriginalUri(imageUri);
-      
+
       // Resize and compress using ImageManipulator for preview only
       try {
         const manipulatedImage = await ImageManipulator.manipulateAsync(
@@ -357,12 +357,12 @@ export default function Profile() {
           [
             { resize: { width: 800 } }, // Resize to reasonable size
           ],
-          { 
-            compress: 0.8, 
+          {
+            compress: 0.8,
             format: ImageManipulator.SaveFormat.JPEG,
           }
         );
-        
+
         // Use compressed version for preview, but keep original for upload
         setAvatarUri(manipulatedImage.uri);
         setAvatarPreview(manipulatedImage.uri);
@@ -387,24 +387,24 @@ export default function Profile() {
   }, []);
 
   // Memoized PhotoItem component for better performance
-  const PhotoItem = React.memo(({ item, onPress, size }: { 
-    item: MediaLibrary.Asset; 
+  const PhotoItem = React.memo(({ item, onPress, size }: {
+    item: MediaLibrary.Asset;
     onPress: (item: MediaLibrary.Asset) => void;
     size: number;
   }) => (
     <TouchableOpacity
       onPress={() => onPress(item)}
       activeOpacity={0.8}
-      style={{ 
-        width: size, 
-        height: size, 
+      style={{
+        width: size,
+        height: size,
         margin: 1,
       }}
     >
       <Image
         source={{ uri: item.uri }}
-        style={{ 
-          width: '100%', 
+        style={{
+          width: '100%',
           height: '100%',
         }}
         resizeMode="cover"
@@ -623,9 +623,9 @@ export default function Profile() {
           },
         ]}
       />
-      <ScrollView 
-        className="flex-1" 
-        contentContainerStyle={{ 
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
           flexGrow: 1,
           padding: 16,
           paddingTop: 16,
@@ -649,26 +649,26 @@ export default function Profile() {
           <View className="rounded-2xl shadow-xl border border-slate-200 p-8 mb-6" style={{ backgroundColor: '#FAFAFA' }}>
             {!isEditMode ? (
               <>
-            <View className="items-center mb-6">
-              {/* Avatar */}
-              {userProfile?.avatar_url ? (
-                <View className="w-40 h-40 rounded-full overflow-hidden mb-4 bg-gray-200">
-                  <Image
-                    source={{ uri: userProfile.avatar_url }}
-                    className="w-full h-full"
-                    resizeMode="cover"
-                  />
+                <View className="items-center mb-6">
+                  {/* Avatar */}
+                  {userProfile?.avatar_url ? (
+                    <View className="w-40 h-40 rounded-full overflow-hidden mb-4 bg-gray-200">
+                      <Image
+                        source={{ uri: userProfile.avatar_url }}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
+                    </View>
+                  ) : (
+                    <View className="w-40 h-40 bg-blue-600 rounded-full items-center justify-center mx-auto mb-4">
+                      <Ionicons name="person" size={80} color="white" />
+                    </View>
+                  )}
                 </View>
-              ) : (
-                <View className="w-40 h-40 bg-blue-600 rounded-full items-center justify-center mx-auto mb-4">
-                  <Ionicons name="person" size={80} color="white" />
-                </View>
-              )}
-            </View>
 
-            {/* Profile Information */}
-            <View className="border-t border-slate-200 pt-6 mb-6">
-              <View className="space-y-3 items-center">
+                {/* Profile Information */}
+                <View className="border-t border-slate-200 pt-6 mb-6">
+                  <View className="space-y-3 items-center">
                     {/* Name */}
                     {(userProfile?.first_name || userProfile?.last_name) && (
                       <View className="items-center">
@@ -698,36 +698,36 @@ export default function Profile() {
                         <Text className="text-slate-700 text-center">{userProfile.affiliated_organization}</Text>
                       </View>
                     )}
-                    
-                {/* Phone */}
-                {userProfile?.phone && (
-                  <View className="items-center">
-                    <Text className="text-slate-700 text-center">{userProfile.phone}</Text>
-                  </View>
-                )}
-                
-                {/* Member Since */}
-                {userProfile?.created_at && (
-                  <View className="items-center">
-                    <Text className="text-slate-700 text-center">
-                      Member since {new Date(userProfile.created_at).toLocaleDateString()}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
 
-            {/* Profile Actions */}
-            <View className="gap-3">
-              <TouchableOpacity
+                    {/* Phone */}
+                    {userProfile?.phone && (
+                      <View className="items-center">
+                        <Text className="text-slate-700 text-center">{userProfile.phone}</Text>
+                      </View>
+                    )}
+
+                    {/* Member Since */}
+                    {userProfile?.created_at && (
+                      <View className="items-center">
+                        <Text className="text-slate-700 text-center">
+                          Member since {new Date(userProfile.created_at).toLocaleDateString()}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                {/* Profile Actions */}
+                <View className="gap-3">
+                  <TouchableOpacity
                     onPress={() => setIsEditMode(true)}
-                className="bg-blue-600 py-3 px-6 rounded-xl items-center flex-row justify-center"
-              >
-                <Ionicons name="create-outline" size={20} color="white" style={{ marginRight: 8 }} />
+                    className="bg-blue-600 py-3 px-6 rounded-xl items-center flex-row justify-center"
+                  >
+                    <Ionicons name="create-outline" size={20} color="white" style={{ marginRight: 8 }} />
                     <Text className="text-white font-semibold">Edit Profile</Text>
-              </TouchableOpacity>
+                  </TouchableOpacity>
 
-            </View>
+                </View>
               </>
             ) : (
               <View>
@@ -975,13 +975,13 @@ export default function Profile() {
                     {selectedAlbum === null ? 'All Photos' : selectedAlbum.title}
                   </Text>
                 </View>
-                <Ionicons 
-                  name={showAlbumDropdown ? "chevron-up" : "chevron-down"} 
-                  size={20} 
-                  color="#ffffff" 
+                <Ionicons
+                  name={showAlbumDropdown ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color="#ffffff"
                 />
               </TouchableOpacity>
-              
+
               {/* Dropdown Menu */}
               {showAlbumDropdown && (
                 <View className="absolute top-full left-4 right-4 mt-1 bg-blue-800 rounded-lg border border-blue-700 z-50" style={{ maxHeight: 300 }}>
@@ -991,13 +991,11 @@ export default function Profile() {
                         handleSelectAlbum(null);
                         setShowAlbumDropdown(false);
                       }}
-                      className={`px-4 py-3 border-b border-blue-700 ${
-                        selectedAlbum === null ? 'bg-blue-700' : ''
-                      }`}
+                      className={`px-4 py-3 border-b border-blue-700 ${selectedAlbum === null ? 'bg-blue-700' : ''
+                        }`}
                     >
-                      <Text className={`text-base ${
-                        selectedAlbum === null ? 'text-white font-semibold' : 'text-blue-200'
-                      }`}>
+                      <Text className={`text-base ${selectedAlbum === null ? 'text-white font-semibold' : 'text-blue-200'
+                        }`}>
                         All Photos
                       </Text>
                     </TouchableOpacity>
@@ -1008,19 +1006,16 @@ export default function Profile() {
                           handleSelectAlbum(album);
                           setShowAlbumDropdown(false);
                         }}
-                        className={`px-4 py-3 border-b border-blue-700 ${
-                          selectedAlbum?.id === album.id ? 'bg-blue-700' : ''
-                        }`}
+                        className={`px-4 py-3 border-b border-blue-700 ${selectedAlbum?.id === album.id ? 'bg-blue-700' : ''
+                          }`}
                       >
                         <View className="flex-row items-center justify-between">
-                          <Text className={`text-base flex-1 ${
-                            selectedAlbum?.id === album.id ? 'text-white font-semibold' : 'text-blue-200'
-                          }`}>
+                          <Text className={`text-base flex-1 ${selectedAlbum?.id === album.id ? 'text-white font-semibold' : 'text-blue-200'
+                            }`}>
                             {album.title}
                           </Text>
-                          <Text className={`text-sm ml-2 ${
-                            selectedAlbum?.id === album.id ? 'text-blue-200' : 'text-blue-400'
-                          }`}>
+                          <Text className={`text-sm ml-2 ${selectedAlbum?.id === album.id ? 'text-blue-200' : 'text-blue-400'
+                            }`}>
                             {album.assetCount}
                           </Text>
                         </View>

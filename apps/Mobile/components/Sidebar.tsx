@@ -191,6 +191,20 @@ export default function Sidebar({ visible, onClose }: SidebarProps) {
               <Ionicons name="help-circle-outline" size={22} color="#FFFFFF" />
               <Text className="text-white text-lg ml-3 font-medium">Help Center</Text>
             </TouchableOpacity>
+            <View className="border-b border-white/20" />
+
+            <TouchableOpacity
+              onPress={() => {
+                onClose();
+                setTimeout(() => {
+                  router.push('/support' as any);
+                }, 250);
+              }}
+              className="flex-row items-center py-4 px-6 active:bg-white/10"
+            >
+              <Ionicons name="chatbubbles-outline" size={22} color="#FFFFFF" />
+              <Text className="text-white text-lg ml-3 font-medium">Support</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Sign Out Button */}

@@ -64,128 +64,134 @@ export default function RootLayout() {
             <AuthProvider>
               <NotificationHandler />
               <Stack
-              screenOptions={{
-                headerShown: false,
-              }}
-            >
-            {/* Initial auth routing screen */}
-            <Stack.Screen 
-              name="index" 
-              options={{ headerShown: false }}
-            />
-            
-            {/* Main app with tabs - handles authentication internally */}
-            <Stack.Screen 
-              name="(tabs)" 
-              options={{ headerShown: false }}
-            />
-            
-            {/* Login screen */}
-            <Stack.Screen 
-              name="login" 
-              options={{ headerShown: false }}
-            />
-            
-            {/* Auth flow screens - these will be stack screens */}
-            <Stack.Screen
-              name="registration"
-              options={{
-                title: 'Registration',
-                headerShown: true,
-                headerStyle: {
-                  backgroundColor: '#1e40af',
-                },
-                headerTintColor: '#ffffff',
-                headerTitleStyle: {
-                  fontWeight: 'bold',
-                },
-              }}
-            />
-            <Stack.Screen
-              name="setup-profile"
-              options={{
-                title: 'Setup Profile',
-                headerShown: true,
-                headerStyle: {
-                  backgroundColor: '#1e40af',
-                },
-                headerTintColor: '#ffffff',
-                headerTitleStyle: {
-                  fontWeight: 'bold',
-                },
-              }}
-            />
-            <Stack.Screen
-              name="survey"
-              options={{
-                title: 'Survey',
-                headerShown: true,
-                headerStyle: {
-                  backgroundColor: '#1e40af',
-                },
-                headerTintColor: '#ffffff',
-                headerTitleStyle: {
-                  fontWeight: 'bold',
-                },
-              }}
-            />
-            <Stack.Screen
-              name="evaluation"
-              options={{
-                title: 'Evaluation',
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="terms"
-              options={{
-                title: 'Terms & Conditions',
-                headerShown: true,
-                headerStyle: {
-                  backgroundColor: '#1e40af',
-                },
-                headerTintColor: '#ffffff',
-                headerTitleStyle: {
-                  fontWeight: 'bold',
-                },
-              }}
-            />
-            <Stack.Screen
-              name="event-details"
-              options={{
-                title: 'Event Details',
-                headerShown: true,
-                headerStyle: {
-                  backgroundColor: '#1e40af',
-                },
-                headerTintColor: '#ffffff',
-                headerTitleStyle: {
-                  fontWeight: 'bold',
-                },
-              }}
-            />
-            <Stack.Screen
-              name="participant-details"
-              options={{
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="reset-password"
-              options={{
-                title: 'Reset Password',
-                headerShown: true,
-                headerStyle: {
-                  backgroundColor: '#1e40af',
-                },
-                headerTintColor: '#ffffff',
-                headerTitleStyle: {
-                  fontWeight: 'bold',
-                },
-              }}
-            />
-            </Stack>
-            <StatusBar style="light" />
+                screenOptions={{
+                  headerShown: false,
+                }}
+              >
+                {/* Initial auth routing screen */}
+                <Stack.Screen
+                  name="index"
+                  options={{ headerShown: false }}
+                />
+
+                {/* Main app with tabs - handles authentication internally */}
+                <Stack.Screen
+                  name="(tabs)"
+                  options={{ headerShown: false }}
+                />
+
+                {/* Login screen */}
+                <Stack.Screen
+                  name="login"
+                  options={{ headerShown: false }}
+                />
+
+                {/* Auth flow screens - these will be stack screens */}
+                <Stack.Screen
+                  name="registration"
+                  options={{
+                    title: 'Registration',
+                    headerShown: true,
+                    headerStyle: {
+                      backgroundColor: '#1e40af',
+                    },
+                    headerTintColor: '#ffffff',
+                    headerTitleStyle: {
+                      fontWeight: 'bold',
+                    },
+                  }}
+                />
+                <Stack.Screen
+                  name="setup-profile"
+                  options={{
+                    title: 'Setup Profile',
+                    headerShown: true,
+                    headerStyle: {
+                      backgroundColor: '#1e40af',
+                    },
+                    headerTintColor: '#ffffff',
+                    headerTitleStyle: {
+                      fontWeight: 'bold',
+                    },
+                  }}
+                />
+                <Stack.Screen
+                  name="survey"
+                  options={{
+                    title: 'Survey',
+                    headerShown: true,
+                    headerStyle: {
+                      backgroundColor: '#1e40af',
+                    },
+                    headerTintColor: '#ffffff',
+                    headerTitleStyle: {
+                      fontWeight: 'bold',
+                    },
+                  }}
+                />
+                <Stack.Screen
+                  name="evaluation"
+                  options={{
+                    title: 'Evaluation',
+                    headerShown: false,
+                  }}
+                />
+                <Stack.Screen
+                  name="terms"
+                  options={{
+                    title: 'Terms & Conditions',
+                    headerShown: true,
+                    headerStyle: {
+                      backgroundColor: '#1e40af',
+                    },
+                    headerTintColor: '#ffffff',
+                    headerTitleStyle: {
+                      fontWeight: 'bold',
+                    },
+                  }}
+                />
+                <Stack.Screen
+                  name="event-details"
+                  options={{
+                    title: 'Event Details',
+                    headerShown: true,
+                    headerStyle: {
+                      backgroundColor: '#1e40af',
+                    },
+                    headerTintColor: '#ffffff',
+                    headerTitleStyle: {
+                      fontWeight: 'bold',
+                    },
+                  }}
+                />
+                <Stack.Screen
+                  name="participant-details"
+                  options={{
+                    headerShown: false,
+                  }}
+                />
+                <Stack.Screen
+                  name="reset-password"
+                  options={{
+                    title: 'Reset Password',
+                    headerShown: true,
+                    headerStyle: {
+                      backgroundColor: '#1e40af',
+                    },
+                    headerTintColor: '#ffffff',
+                    headerTitleStyle: {
+                      fontWeight: 'bold',
+                    },
+                  }}
+                />
+                <Stack.Screen
+                  name="support"
+                  options={{
+                    headerShown: false,
+                  }}
+                />
+              </Stack>
+              <StatusBar style="light" />
             </AuthProvider>
           </SweetAlertProvider>
         </ToastProvider>

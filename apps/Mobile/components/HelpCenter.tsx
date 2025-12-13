@@ -6,251 +6,296 @@ import {
   Modal,
   ScrollView,
   StyleSheet,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
-interface TutorialStep {
+interface Article {
   id: string;
   title: string;
-  description: string;
+  content: string;
 }
 
-interface ScreenTutorial {
-  screenId: string;
-  screenName: string;
-  steps: TutorialStep[];
+interface Category {
+  id: string;
+  title: string;
+  icon: string;
+  articles: Article[];
 }
 
-const allTutorials: ScreenTutorial[] = [
+const categories: Category[] = [
   {
-    screenId: 'home',
-    screenName: 'Home',
-    steps: [
+    id: 'getting-started',
+    title: 'Getting Started',
+    icon: 'book',
+    articles: [
       {
-        id: '1',
-        title: 'Welcome to GanApp!',
-        description: 'This is your home screen. Here you can browse featured events and upcoming events. Swipe left or right on event cards to see more events.',
+        id: 'create-account',
+        title: 'How to Create an Account',
+        content: `To create an account:
+1. Click on the "Sign Up" button in the navigation bar
+2. Fill in your email address and choose a password
+3. Complete your profile with your first name, last name, and organization
+4. Verify your email address (if required)
+5. You're all set! You can now browse and register for events.`
       },
       {
-        id: '2',
-        title: 'View Event Details',
-        description: 'Tap on any event card to see full details, register, and access event features like surveys and certificates.',
+        id: 'complete-profile',
+        title: 'Completing Your Profile',
+        content: `Your profile must include:
+- First Name
+- Last Name
+- Affiliated Organization
+
+These fields are required to register for events. You can update your profile at any time from the Profile page.`
       },
-    ],
+      {
+        id: 'navigate-platform',
+        title: 'Navigating the Platform',
+        content: `The platform has different sections:
+- Home: View featured and upcoming events
+- Events: Browse all available events
+- My Events: View events you've registered for
+- Profile: Manage your account settings
+- Albums: View event photos
+- Support: Contact support for help`
+      }
+    ]
   },
   {
-    screenId: 'my-events',
-    screenName: 'My Events',
-    steps: [
+    id: 'events',
+    title: 'Events',
+    icon: 'document-text',
+    articles: [
       {
-        id: '1',
-        title: 'My Events',
-        description: 'This screen shows all events you have registered for. You can view event details, access your QR code for check-in, take surveys, and generate certificates.',
+        id: 'register-event',
+        title: 'How to Register for an Event',
+        content: `To register for an event:
+1. Browse events on the Events page
+2. Click on an event to view details
+3. Click the "Register" button
+4. Confirm your registration
+5. You'll receive a confirmation notification
+
+You can view all your registered events on the "My Events" page.`
       },
       {
-        id: '2',
-        title: 'Event Actions',
-        description: 'For each event, you can: View QR code for check-in, Take evaluation surveys, and Generate certificates after completing requirements.',
+        id: 'cancel-registration',
+        title: 'Canceling Event Registration',
+        content: `To cancel your registration:
+1. Go to the "My Events" page
+2. Find the event you want to cancel
+3. Click on the event card
+4. Click "Cancel Registration"
+5. Confirm the cancellation
+
+Note: Some events may have cancellation deadlines.`
       },
-    ],
+      {
+        id: 'event-filters',
+        title: 'Using Event Filters and Search',
+        content: `You can filter events by:
+- Date: Upcoming, Past, or All
+- Venue: Filter by specific locations
+- Sort: By date, title, or number of participants
+
+Advanced Search allows you to search by:
+- Title
+- Description
+- Venue
+- Category
+- Tags
+- Date range
+- Participant count
+- Status
+
+You can also use pagination or infinite scroll to browse through events.`
+      },
+      {
+        id: 'event-status',
+        title: 'Understanding Event Status',
+        content: `Events can have different statuses:
+- Draft: Event is being created, not visible to participants
+- Published: Event is live and open for registration
+- Cancelled: Event has been cancelled
+- Completed: Event has finished
+
+Only published events are visible to participants.`
+      }
+    ]
   },
   {
-    screenId: 'albums',
-    screenName: 'Albums',
-    steps: [
+    id: 'organizers',
+    title: 'For Organizers',
+    icon: 'chatbubbles',
+    articles: [
       {
-        id: '1',
-        title: 'Event Albums',
-        description: 'Browse photos uploaded by participants from different events. Each event has its own photo album.',
+        id: 'create-event',
+        title: 'Creating an Event',
+        content: `To create an event:
+1. Navigate to "Create Event" from the menu
+2. Fill in event details:
+   - Title and description
+   - Date and time
+   - Venue and location
+   - Maximum participants
+   - Banner image
+   - Event materials
+   - Guest speakers
+   - Sponsors
+3. Save as draft or publish immediately
+4. Manage registrations and generate QR codes
+
+You can edit events anytime before they start.`
       },
       {
-        id: '2',
-        title: 'View & Download Photos',
-        description: 'Tap "View All" to see all photos from an event. Tap any photo to view it full screen. Use the download button to save photos to your device.',
+        id: 'manage-registrations',
+        title: 'Managing Event Registrations',
+        content: `To manage registrations:
+1. Go to the Events page
+2. Click "Manage" on your event
+3. View all registered participants
+4. Export registration list (CSV/Excel)
+5. Generate QR codes for check-in
+6. View event statistics
+
+You can also cancel events if needed.`
       },
       {
-        id: '3',
-        title: 'Download All',
-        description: 'Use the "Download All" button to save all photos from an event at once to your Photos/Downloads folder.',
+        id: 'certificates',
+        title: 'Generating Certificates',
+        content: `To generate certificates:
+1. Design a certificate template
+2. Go to your event's certificate generation page
+3. Upload participant data (CSV/Excel)
+4. Configure certificate details
+5. Generate certificates in bulk
+6. Download PDF or PNG files
+
+Certificates are generated in the background and you'll be notified when ready.`
       },
-    ],
+      {
+        id: 'surveys',
+        title: 'Creating Surveys',
+        content: `To create a survey:
+1. Navigate to "Create Survey"
+2. Select the event
+3. Add questions (multiple choice, text, etc.)
+4. Set survey availability dates
+5. Publish the survey
+6. View responses and analytics
+
+Surveys can be sent to event participants automatically.`
+      }
+    ]
   },
   {
-    screenId: 'profile',
-    screenName: 'Profile',
-    steps: [
+    id: 'troubleshooting',
+    title: 'Troubleshooting',
+    icon: 'help-circle',
+    articles: [
       {
-        id: '1',
-        title: 'Edit Your Profile',
-        description: 'Update your personal information, change your profile picture, and manage your account settings.',
+        id: 'login-issues',
+        title: 'Login Issues',
+        content: `If you can't log in:
+1. Check your email and password are correct
+2. Make sure your account is not banned
+3. Try resetting your password
+4. Clear your browser cache and cookies
+5. Try a different browser
+6. Contact support if issues persist`
       },
       {
-        id: '2',
-        title: 'Profile Picture',
-        description: 'Tap on your profile picture to change it. You can take a new photo or select one from your gallery.',
+        id: 'registration-issues',
+        title: 'Event Registration Issues',
+        content: `If you can't register:
+1. Make sure your profile is complete
+2. Check if the event is full
+3. Verify the registration deadline hasn't passed
+4. Ensure you're logged in
+5. Try refreshing the page
+6. Contact support if the problem continues`
       },
       {
-        id: '3',
-        title: 'Save Changes',
-        description: 'After making changes, tap "Save Changes" to update your profile. You\'ll receive a confirmation when changes are saved.',
+        id: 'photo-upload',
+        title: 'Photo Upload Limits',
+        content: `Photo upload limits:
+- Maximum 10 photos per user per event
+- Photos are compressed automatically
+- Supported formats: JPG, PNG, GIF, WebP
+- Maximum file size: 35MB per photo
+
+If you reach the limit, you can delete old photos to upload new ones.`
       },
-    ],
+      {
+        id: 'certificate-issues',
+        title: 'Certificate Generation Issues',
+        content: `If certificates aren't generating:
+1. Check that your template is valid
+2. Verify participant data format
+3. Ensure you have permission
+4. Check the job queue status
+5. Wait a few minutes for processing
+6. Contact support if it fails after 10 minutes`
+      }
+    ]
   },
   {
-    screenId: 'events',
-    screenName: 'Events',
-    steps: [
+    id: 'account',
+    title: 'Account & Settings',
+    icon: 'document-text',
+    articles: [
       {
-        id: '1',
-        title: 'Browse Events',
-        description: 'This screen shows all available events. Browse through events and tap on any event to see details and register.',
+        id: 'update-profile',
+        title: 'Updating Your Profile',
+        content: `To update your profile:
+1. Go to Profile page
+2. Click "Edit Profile"
+3. Update your information
+4. Upload a new avatar (optional)
+5. Save changes
+
+Required fields cannot be left empty.`
       },
       {
-        id: '2',
-        title: 'Register for Events',
-        description: 'Tap on an event card to view full details, read descriptions, and register to participate.',
-      },
-    ],
-  },
-  {
-    screenId: 'qrscanner',
-    screenName: 'QR Scanner',
-    steps: [
-      {
-        id: '1',
-        title: 'QR Code Scanner',
-        description: 'Use this scanner to check in participants at events. Point the camera at a participant\'s QR code to scan it.',
+        id: 'change-password',
+        title: 'Changing Your Password',
+        content: `To change your password:
+1. Go to Settings page
+2. Click "Change Password"
+3. Enter your current password
+4. Enter your new password
+5. Confirm the new password
+6. Save changes
+
+Use a strong password with at least 8 characters.`
       },
       {
-        id: '2',
-        title: 'How to Scan',
-        description: 'Position the QR code within the scanning frame. The app will automatically detect and scan the code. Make sure there\'s good lighting.',
+        id: 'notifications',
+        title: 'Managing Notifications',
+        content: `Notification settings:
+- Event reminders (24 hours before)
+- Survey availability
+- Registration confirmations
+- System updates
+
+You can manage notification preferences in Settings.`
       },
       {
-        id: '3',
-        title: 'Check-in Results',
-        description: 'After scanning, you\'ll see the participant\'s details and can mark them as checked in for the event.',
-      },
-    ],
-  },
-  {
-    screenId: 'certificate',
-    screenName: 'Certificate',
-    steps: [
-      {
-        id: '1',
-        title: 'Generate Certificate',
-        description: 'Generate your certificate of participation for this event. Make sure you have completed attendance and any required surveys.',
-      },
-      {
-        id: '2',
-        title: 'Download Certificate',
-        description: 'After generating, you can download your certificate. It will be saved to your Downloads folder, just like files downloaded from a browser.',
-      },
-    ],
-  },
-  {
-    screenId: 'camera',
-    screenName: 'Camera',
-    steps: [
-      {
-        id: '1',
-        title: 'Upload Event Photos',
-        description: 'Take photos or select from your gallery to upload photos for this event. You can upload up to 10 photos per event.',
-      },
-      {
-        id: '2',
-        title: 'Photo Upload',
-        description: 'After selecting photos, tap "Upload Photos" to share them with other participants. Photos will appear in the event album.',
-      },
-    ],
-  },
-  {
-    screenId: 'setup-profile',
-    screenName: 'Setup Profile',
-    steps: [
-      {
-        id: '1',
-        title: 'Complete Your Profile',
-        description: 'Fill in your personal information to complete your profile setup. This information will be used for event registrations.',
-      },
-      {
-        id: '2',
-        title: 'Profile Picture',
-        description: 'Add a profile picture by tapping on the camera icon. You can take a photo or select one from your gallery.',
-      },
-      {
-        id: '3',
-        title: 'Save Your Profile',
-        description: 'After filling in all required fields, tap "Save Profile" to complete your setup and start using the app.',
-      },
-    ],
-  },
-  {
-    screenId: 'event-details',
-    screenName: 'Event Details',
-    steps: [
-      {
-        id: '1',
-        title: 'Event Details',
-        description: 'View complete information about this event including description, speakers, sponsors, and schedule.',
-      },
-      {
-        id: '2',
-        title: 'Register for Event',
-        description: 'Tap the "Register" button to sign up for this event. After registration, you\'ll be able to access event features.',
-      },
-    ],
-  },
-  {
-    screenId: 'survey',
-    screenName: 'Survey',
-    steps: [
-      {
-        id: '1',
-        title: 'Complete Survey',
-        description: 'Answer all questions in this survey. Some questions may be required. Navigate between questions using the buttons.',
-      },
-      {
-        id: '2',
-        title: 'Submit Your Answers',
-        description: 'After answering all questions, tap "Submit" to save your responses. You can only submit once per survey.',
-      },
-    ],
-  },
-  {
-    screenId: 'evaluation',
-    screenName: 'Evaluation',
-    steps: [
-      {
-        id: '1',
-        title: 'Evaluation Survey',
-        description: 'Provide your feedback about the event. Answer all questions honestly. Some questions may be required.',
-      },
-      {
-        id: '2',
-        title: 'Submit Evaluation',
-        description: 'After completing all questions, tap "Submit" to save your evaluation. You may be able to generate a certificate after submission.',
-      },
-    ],
-  },
-  {
-    screenId: 'participant-details',
-    screenName: 'Participant Details',
-    steps: [
-      {
-        id: '1',
-        title: 'Participant Information',
-        description: 'View detailed information about a participant including their registration status, attendance, and contact details.',
-      },
-      {
-        id: '2',
-        title: 'Check-in Status',
-        description: 'See if the participant has checked in to the event. You can view their QR code and registration details.',
-      },
-    ],
-  },
+        id: 'delete-account',
+        title: 'Account Deletion',
+        content: `To delete your account:
+1. Contact support through the Support page
+2. Request account deletion
+3. Provide reason for deletion
+4. Wait for admin approval
+
+Note: This action cannot be undone.`
+      }
+    ]
+  }
 ];
 
 interface HelpCenterProps {
@@ -260,10 +305,30 @@ interface HelpCenterProps {
 
 export default function HelpCenter({ visible, onClose }: HelpCenterProps) {
   const insets = useSafeAreaInsets();
-  const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const router = useRouter();
 
-  const toggleSection = (screenId: string) => {
-    setExpandedSection(expandedSection === screenId ? null : screenId);
+  const filteredCategories = categories.map(category => ({
+    ...category,
+    articles: category.articles.filter(article =>
+      article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      article.content.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  })).filter(category => category.articles.length > 0);
+
+  const toggleCategory = (categoryId: string) => {
+    setExpandedCategory(expandedCategory === categoryId ? null : categoryId);
+  };
+
+  const getIconName = (iconName: string) => {
+    const iconMap: { [key: string]: keyof typeof Ionicons.glyphMap } = {
+      'book': 'book',
+      'document-text': 'document-text',
+      'chatbubbles': 'chatbubbles',
+      'help-circle': 'help-circle',
+    };
+    return iconMap[iconName] || 'help-circle';
   };
 
   return (
@@ -280,7 +345,12 @@ export default function HelpCenter({ visible, onClose }: HelpCenterProps) {
             <View style={styles.iconContainer}>
               <Ionicons name="help-circle" size={32} color="#1e40af" />
             </View>
-            <Text style={styles.title}>Help Center</Text>
+            <View style={styles.headerText}>
+              <Text style={styles.title}>Help Center</Text>
+              <Text style={styles.subtitle}>
+                Find answers to common questions and learn how to use GanApp
+              </Text>
+            </View>
           </View>
           <TouchableOpacity
             onPress={onClose}
@@ -290,54 +360,112 @@ export default function HelpCenter({ visible, onClose }: HelpCenterProps) {
           </TouchableOpacity>
         </View>
 
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color="#94a3b8" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search for help articles..."
+            placeholderTextColor="#94a3b8"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+
         {/* Content */}
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={true}
         >
-          <Text style={styles.subtitle}>
-            Browse through all app instructions and learn how to use each feature.
-          </Text>
-
-          {allTutorials.map((tutorial) => (
-            <View key={tutorial.screenId} style={styles.section}>
-              <TouchableOpacity
-                onPress={() => toggleSection(tutorial.screenId)}
-                style={styles.sectionHeader}
-                activeOpacity={0.7}
-              >
-                <View style={styles.sectionHeaderContent}>
-                  <Ionicons
-                    name={expandedSection === tutorial.screenId ? 'chevron-down' : 'chevron-forward'}
-                    size={20}
-                    color="#64748b"
-                    style={styles.chevron}
-                  />
-                  <Text style={styles.sectionTitle}>{tutorial.screenName}</Text>
-                </View>
-                <Text style={styles.stepCount}>
-                  {tutorial.steps.length} {tutorial.steps.length === 1 ? 'step' : 'steps'}
-                </Text>
-              </TouchableOpacity>
-
-              {expandedSection === tutorial.screenId && (
-                <View style={styles.stepsContainer}>
-                  {tutorial.steps.map((step, index) => (
-                    <View key={step.id} style={styles.stepCard}>
-                      <View style={styles.stepHeader}>
-                        <View style={styles.stepNumber}>
-                          <Text style={styles.stepNumberText}>{index + 1}</Text>
-                        </View>
-                        <Text style={styles.stepTitle}>{step.title}</Text>
-                      </View>
-                      <Text style={styles.stepDescription}>{step.description}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
+          {/* Quick Links */}
+          <View style={styles.quickLinksContainer}>
+            <TouchableOpacity
+              style={styles.quickLinkCard}
+              onPress={() => {
+                onClose();
+                setTimeout(() => {
+                  router.push('/support' as any);
+                }, 250);
+              }}
+            >
+              <Ionicons name="chatbubbles" size={24} color="#1e40af" />
+              <Text style={styles.quickLinkTitle}>Contact Support</Text>
+              <Text style={styles.quickLinkSubtitle}>Get help from our support team</Text>
+            </TouchableOpacity>
+            <View style={styles.quickLinkCard}>
+              <Ionicons name="videocam" size={24} color="#16a34a" />
+              <Text style={styles.quickLinkTitle}>Video Tutorials</Text>
+              <Text style={styles.quickLinkSubtitle}>Coming soon</Text>
             </View>
-          ))}
+            <View style={styles.quickLinkCard}>
+              <Ionicons name="document-text" size={24} color="#9333ea" />
+              <Text style={styles.quickLinkTitle}>Documentation</Text>
+              <Text style={styles.quickLinkSubtitle}>Detailed guides and API docs</Text>
+            </View>
+          </View>
+
+          {/* Categories */}
+          <View style={styles.categoriesContainer}>
+            {filteredCategories.map((category) => (
+              <View key={category.id} style={styles.categoryCard}>
+                <TouchableOpacity
+                  onPress={() => toggleCategory(category.id)}
+                  style={styles.categoryHeader}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.categoryHeaderLeft}>
+                    <Ionicons
+                      name={getIconName(category.icon)}
+                      size={24}
+                      color="#1e40af"
+                    />
+                    <View style={styles.categoryHeaderText}>
+                      <Text style={styles.categoryTitle}>{category.title}</Text>
+                      <Text style={styles.categoryCount}>
+                        {category.articles.length} articles
+                      </Text>
+                    </View>
+                  </View>
+                  <Ionicons
+                    name={expandedCategory === category.id ? 'chevron-down' : 'chevron-forward'}
+                    size={24}
+                    color="#94a3b8"
+                  />
+                </TouchableOpacity>
+
+                {expandedCategory === category.id && (
+                  <View style={styles.articlesContainer}>
+                    {category.articles.map((article) => (
+                      <View key={article.id} style={styles.articleCard}>
+                        <Text style={styles.articleTitle}>{article.title}</Text>
+                        <Text style={styles.articleContent}>{article.content}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+
+          {/* No Results */}
+          {searchQuery && filteredCategories.length === 0 && (
+            <View style={styles.noResultsContainer}>
+              <Ionicons name="help-circle" size={64} color="#cbd5e1" />
+              <Text style={styles.noResultsTitle}>No Results Found</Text>
+              <Text style={styles.noResultsText}>
+                We couldn't find any articles matching "{searchQuery}"
+              </Text>
+            </View>
+          )}
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerTitle}>Still Need Help?</Text>
+            <Text style={styles.footerText}>
+              Can't find what you're looking for? Our support team is here to help!
+            </Text>
+          </View>
         </ScrollView>
       </View>
     </Modal>
@@ -347,36 +475,42 @@ export default function HelpCenter({ visible, onClose }: HelpCenterProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f8fafc',
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
-    backgroundColor: '#f8fafc',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    marginBottom: 16,
   },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#dbeafe',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
+  },
+  headerText: {
+    flex: 1,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#1e293b',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#64748b',
+    lineHeight: 22,
   },
   closeButton: {
     width: 40,
@@ -385,6 +519,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 20,
     backgroundColor: '#f1f5f9',
+    position: 'absolute',
+    top: 16,
+    right: 20,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1e293b',
+    padding: 0,
   },
   scrollView: {
     flex: 1,
@@ -393,88 +552,134 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#64748b',
+  quickLinksContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
     marginBottom: 24,
-    lineHeight: 24,
   },
-  section: {
+  quickLinkCard: {
+    flex: 1,
+    minWidth: '30%',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    alignItems: 'center',
     marginBottom: 12,
+  },
+  quickLinkTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginTop: 8,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  quickLinkSubtitle: {
+    fontSize: 12,
+    color: '#64748b',
+    textAlign: 'center',
+  },
+  categoriesContainer: {
+    gap: 16,
+  },
+  categoryCard: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     overflow: 'hidden',
   },
-  sectionHeader: {
+  categoryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
-    backgroundColor: '#f8fafc',
   },
-  sectionHeaderContent: {
+  categoryHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  chevron: {
-    marginRight: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1e293b',
+  categoryHeaderText: {
+    marginLeft: 16,
     flex: 1,
   },
-  stepCount: {
+  categoryTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  categoryCount: {
     fontSize: 14,
     color: '#64748b',
-    fontWeight: '500',
   },
-  stepsContainer: {
+  articlesContainer: {
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
     padding: 16,
-    paddingTop: 8,
+    gap: 16,
   },
-  stepCard: {
-    marginBottom: 16,
-    padding: 16,
-    backgroundColor: '#f8fafc',
-    borderRadius: 8,
-    borderLeftWidth: 3,
+  articleCard: {
+    borderLeftWidth: 4,
     borderLeftColor: '#1e40af',
+    paddingLeft: 16,
   },
-  stepHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  stepNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#1e40af',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  stepNumberText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  stepTitle: {
+  articleTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1e293b',
-    flex: 1,
+    marginBottom: 8,
   },
-  stepDescription: {
+  articleContent: {
     fontSize: 14,
     color: '#64748b',
-    lineHeight: 20,
-    marginLeft: 40,
+    lineHeight: 22,
+  },
+  noResultsContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 48,
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  noResultsTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  noResultsText: {
+    fontSize: 16,
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  footer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 32,
+    alignItems: 'center',
+    marginTop: 32,
+  },
+  footerTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 16,
+  },
+  footerText: {
+    fontSize: 16,
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 24,
   },
 });
-
