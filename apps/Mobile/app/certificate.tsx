@@ -6,14 +6,9 @@ import { useAuth } from '../lib/authContext';
 import { supabase } from '../lib/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
-
-let MediaLibrary: any = null;
-try {
-  MediaLibrary = require('expo-media-library');
-} catch (e) {
-  console.log('expo-media-library not available:', e);
-}
+import * as MediaLibrary from 'expo-media-library';
+import { saveFileToGanApp } from '../lib/mediaStoreSaver';
+import { useToast } from '../components/Toast';
 
 // Get web app URL - supports environment variable or platform-specific defaults
 const getWebAppUrl = (): string => {
@@ -45,6 +40,7 @@ export default function Certificate() {
   const router = useRouter();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const toast = useToast();
   const eventId = params.eventId as string;
   
   const webViewRef = useRef<WebView>(null);
@@ -99,9 +95,44 @@ export default function Certificate() {
     router.back();
   };
 
+  // Helper function to request media permissions (iOS only)
+  const requestMediaPermissionsIfNeeded = async (): Promise<boolean> => {
+    if (Platform.OS !== 'ios') {
+      // Android doesn't need permissions (uses MediaStore API)
+      return true;
+    }
+
+    try {
+      const { status, canAskAgain } = await MediaLibrary.getPermissionsAsync();
+      
+      if (status === 'granted') {
+        return true;
+      }
+      
+      if (status === 'denied' && !canAskAgain) {
+        // Permission permanently denied
+        toast.warning('Photo library access is required. Please enable it in your device settings.');
+        return false;
+      }
+      
+      // Request permission
+      const { status: newStatus } = await MediaLibrary.requestPermissionsAsync(false);
+      return newStatus === 'granted';
+    } catch (error) {
+      console.error('Error requesting media permissions:', error);
+      return false;
+    }
+  };
+
   const handleDownload = async (data: string, filename: string, mimeType: string, url?: string) => {
     try {
       console.log('📥 Starting download:', filename, url ? 'from URL' : 'from base64');
+      
+      // Request permissions if needed (iOS only)
+      const hasPermission = await requestMediaPermissionsIfNeeded();
+      if (!hasPermission) {
+        throw new Error('Media library permission is required to save certificate');
+      }
       
       let fileUri: string;
       
@@ -109,6 +140,10 @@ export default function Certificate() {
       if (url) {
         console.log('📥 Downloading from URL:', url);
         const downloadResult = await FileSystem.downloadAsync(url, `${FileSystem.cacheDirectory}${filename}`);
+        
+        if (downloadResult.status !== 200) {
+          throw new Error(`Failed to download file: HTTP ${downloadResult.status}`);
+        }
         
         if (!downloadResult.uri) {
           throw new Error('Failed to download file from URL');
@@ -132,34 +167,33 @@ export default function Certificate() {
         console.log('✅ File written to:', fileUri);
       }
       
-      // Try to save to media library if available
-      if (MediaLibrary && MediaLibrary.requestPermissionsAsync && MediaLibrary.createAssetAsync) {
-        try {
-          const permissionResult = await MediaLibrary.requestPermissionsAsync(true);
-          
-          if (permissionResult.granted) {
-            const asset = await MediaLibrary.createAssetAsync(fileUri);
-            console.log('✅ Saved to media library:', asset.uri);
-            Alert.alert('Success', 'Certificate saved to your gallery!');
-            return;
-          }
-        } catch (mediaError) {
-          console.warn('⚠️ Media library save failed:', mediaError);
-        }
-      }
+      // Ensure URI has file:// prefix
+      const assetUri = fileUri.startsWith('file://') 
+        ? fileUri 
+        : `file://${fileUri}`;
       
-      // Fallback: Use sharing API
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: mimeType,
-          dialogTitle: 'Save Certificate',
-        });
+      // Get file extension
+      const fileType = filename.split('.').pop()?.toLowerCase() || (mimeType.includes('pdf') ? 'pdf' : 'png');
+      
+      // Save using the same method as albums
+      if (Platform.OS === 'android') {
+        // Android: Use MediaStore API (no permissions needed on Android 10+)
+        await saveFileToGanApp(assetUri, filename, fileType);
+        toast.success('Certificate saved to your Downloads/GanApp folder!');
       } else {
-        Alert.alert('Download Complete', `Certificate saved to: ${fileUri}`);
+        // iOS: Use MediaLibrary (permissions already checked above)
+        const asset = await MediaLibrary.createAssetAsync(assetUri);
+        const album = await MediaLibrary.getAlbumAsync('GanApp');
+        if (album) {
+          await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+        } else {
+          await MediaLibrary.createAlbumAsync('GanApp', asset, false);
+        }
+        toast.success('Certificate saved to your Photos/GanApp album!');
       }
     } catch (err: any) {
       console.error('❌ Download error:', err);
-      Alert.alert('Download Failed', err.message || 'Failed to download certificate');
+      toast.error(err.message || 'Failed to download certificate');
     }
   };
 
