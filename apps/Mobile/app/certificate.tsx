@@ -99,22 +99,38 @@ export default function Certificate() {
     router.back();
   };
 
-  const handleDownload = async (base64Data: string, filename: string, mimeType: string) => {
+  const handleDownload = async (data: string, filename: string, mimeType: string, url?: string) => {
     try {
-      console.log('📥 Starting download:', filename);
+      console.log('📥 Starting download:', filename, url ? 'from URL' : 'from base64');
       
-      // Remove data URL prefix if present
-      const base64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+      let fileUri: string;
       
-      // Create file URI
-      const fileUri = `${FileSystem.cacheDirectory}${filename}`;
-      
-      // Write file to cache
-      await FileSystem.writeAsStringAsync(fileUri, base64, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      
-      console.log('✅ File written to:', fileUri);
+      // If URL is provided, download directly (better for mobile)
+      if (url) {
+        console.log('📥 Downloading from URL:', url);
+        const downloadResult = await FileSystem.downloadAsync(url, `${FileSystem.cacheDirectory}${filename}`);
+        
+        if (!downloadResult.uri) {
+          throw new Error('Failed to download file from URL');
+        }
+        
+        fileUri = downloadResult.uri;
+        console.log('✅ File downloaded to:', fileUri);
+      } else {
+        // Use base64 data (fallback)
+        // Remove data URL prefix if present
+        const base64 = data.includes(',') ? data.split(',')[1] : data;
+        
+        // Create file URI
+        fileUri = `${FileSystem.cacheDirectory}${filename}`;
+        
+        // Write file to cache
+        await FileSystem.writeAsStringAsync(fileUri, base64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        
+        console.log('✅ File written to:', fileUri);
+      }
       
       // Try to save to media library if available
       if (MediaLibrary && MediaLibrary.requestPermissionsAsync && MediaLibrary.createAssetAsync) {
@@ -177,7 +193,11 @@ export default function Certificate() {
       } else if (data.type === 'download') {
         // Handle download from WebView
         console.log('📥 Download request received:', data.format, data.filename);
-        if (data.data && data.filename && data.mimeType) {
+        
+        // Prefer URL download (more reliable), fallback to base64
+        if (data.url && data.filename && data.mimeType) {
+          handleDownload('', data.filename, data.mimeType, data.url);
+        } else if (data.data && data.filename && data.mimeType) {
           handleDownload(data.data, data.filename, data.mimeType);
         } else {
           console.error('❌ Invalid download data:', data);

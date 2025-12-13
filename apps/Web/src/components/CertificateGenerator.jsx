@@ -1368,6 +1368,29 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
       return;
     }
 
+    // For mobile WebView, send URL directly to let native app handle download
+    // This avoids CORS and fetch issues in WebView
+    if (isMobile && window.ReactNativeWebView) {
+      console.log('📤 Sending download URL to mobile app:', format, url);
+      try {
+        const message = {
+          type: 'download',
+          format: format,
+          url: url, // Send URL instead of base64
+          filename: `certificate-${certificate.certificate_number}.${format}`,
+          mimeType: format === 'pdf' ? 'application/pdf' : 'image/png'
+        };
+        window.ReactNativeWebView.postMessage(JSON.stringify(message));
+        toast.success('Preparing download...');
+        return;
+      } catch (err) {
+        console.error('❌ Error sending download message:', err);
+        toast.error('Failed to send download to mobile app');
+        return;
+      }
+    }
+
+    // For desktop/web, use fetch to download
     try {
       // Use fetch with CORS mode and credentials to ensure we get the correct file
       // Add cache-busting parameter to ensure we get the latest version
@@ -1397,37 +1420,6 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
       const expectedType = format === 'pdf' ? 'application/pdf' : 'image/png';
       if (blob.type && blob.type !== expectedType && !blob.type.includes(format)) {
         console.warn(`Unexpected blob type: ${blob.type}, expected: ${expectedType}`);
-      }
-
-      // For mobile WebView, always use postMessage (don't create download link)
-      if (isMobile && window.ReactNativeWebView) {
-        console.log('📤 Sending download to mobile app:', format);
-        // Convert blob to base64 and send to mobile app
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64data = reader.result;
-          const message = {
-            type: 'download',
-            format: format,
-            data: base64data,
-            filename: `certificate-${certificate.certificate_number}.${format}`,
-            mimeType: expectedType
-          };
-          console.log('📤 Sending download message:', { format, filename: message.filename, dataLength: base64data?.length });
-          try {
-            window.ReactNativeWebView.postMessage(JSON.stringify(message));
-            toast.success('Preparing download...');
-          } catch (err) {
-            console.error('❌ Error sending download message:', err);
-            toast.error('Failed to send download to mobile app');
-          }
-        };
-        reader.onerror = (error) => {
-          console.error('❌ FileReader error:', error);
-          toast.error('Failed to process certificate for download');
-        };
-        reader.readAsDataURL(blob);
-        return; // IMPORTANT: Return early to prevent browser download
       }
 
       // Standard browser download (only for non-mobile)
