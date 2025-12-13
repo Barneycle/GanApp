@@ -142,35 +142,18 @@ export default function QRScanner() {
           deviceInfo
         );
 
-        setIsProcessing(false);
-
         if (result.success && result.event) {
           const isOrganizer = user?.role === 'organizer' || user?.role === 'admin';
 
-          // Get participant info to display full name
-          let participant: ParticipantInfo | null = null;
+          // Extract participant ID immediately for navigation
+          let participantId: string | null = null;
           try {
-            let participantId: string | null = null;
-            try {
-              const parsed = JSON.parse(qrData);
-              participantId = parsed.userId || parsed.id;
-            } catch {
-              participantId = qrData;
-            }
-
-            if (participantId) {
-              participant = await ParticipantService.getParticipantInfo(
-                participantId,
-                result.event.id
-              );
-            }
-          } catch (err) {
-            console.error('Error fetching participant:', err);
+            const parsed = JSON.parse(qrData);
+            participantId = parsed.userId || parsed.id;
+          } catch {
+            participantId = qrData;
           }
 
-          // Get first name only
-          const firstName = participant?.first_name || 'Participant';
-          
           // Format check-in details
           const checkInTime = result.attendanceLog?.check_in_time 
             ? new Date(result.attendanceLog.check_in_time).toLocaleString()
@@ -180,24 +163,42 @@ export default function QRScanner() {
             ? result.attendanceLog.check_in_method.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
             : 'QR Code Scan';
 
-          // Navigate based on user role
-          if (isOrganizer && participant) {
-            // For organizers: navigate first, then show alert on participant details screen
+          // Navigate immediately for organizers (participant info will be fetched on the details screen)
+          if (isOrganizer && participantId) {
+            // Clear processing state immediately to remove loading indicator
+            setIsProcessing(false);
+            // Navigate immediately without waiting, participant details screen will fetch the data
             router.push({
               pathname: '/participant-details',
               params: {
-                participantId: participant.id,
+                participantId: participantId,
                 eventId: result.event.id,
                 eventTitle: result.event.title,
                 showAlert: 'true',
-                alertTitle: `Welcome, ${firstName}!`,
+                alertTitle: `Welcome!`,
                 alertMessage: `Event: ${result.event.title}\n\nCheck-in Time: ${checkInTime}\nMethod: ${checkInMethod}\n\n${result.message}`,
               },
             });
+            return;
           } else {
-            // For participants: show alert first, then navigate to survey
-            console.log('QRScanner: About to call showSuccess', { firstName, eventTitle: result.event.title });
+            // For participants: fetch participant info for the alert message
+            setIsProcessing(false);
             
+            // Get participant info to display first name in alert
+            let participant: ParticipantInfo | null = null;
+            try {
+              if (participantId) {
+                participant = await ParticipantService.getParticipantInfo(
+                  participantId,
+                  result.event.id
+                );
+              }
+            } catch (err) {
+              console.error('Error fetching participant:', err);
+            }
+
+            // Get first name only
+            const firstName = participant?.first_name || 'Participant';
             // Store navigation params and router reference to avoid closure issues
             const surveyParams = {
               eventId: result.event!.id,
@@ -225,9 +226,9 @@ export default function QRScanner() {
               `Event: ${result.event.title}\n\nCheck-in Time: ${checkInTime}\nMethod: ${checkInMethod}\n\n${result.message}`,
               navigateToSurvey
             );
-            console.log('QRScanner: showSuccess called');
           }
         } else {
+          setIsProcessing(false);
           showError('Check-in Failed', result.message || result.error || 'Unable to process QR code');
         }
       } catch (err) {
