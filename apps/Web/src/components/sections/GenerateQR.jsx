@@ -1,14 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { createQRDataString, getQRTokenInfo } from '../../lib/jwtUtils';
-import { X, Download, Calendar, MapPin, Clock } from 'lucide-react';
+import { generateQRCodeID, formatQRCodeID } from '../../utils/qrCodeUtils';
+import { X, Download, Calendar, MapPin, Clock, Loader } from 'lucide-react';
+import { useToast } from '../Toast';
 
 // Modal version for event QR codes
 export const GenerateQRModal = ({ isOpen, onClose, event }) => {
   const { user } = useAuth();
+  const toast = useToast();
   const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [qrCodeToken, setQrCodeToken] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -36,17 +40,17 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
         type: 'event_registration'
       };
 
-      // Create a unique token for this user+event combination
-      const qrDataString = `EVENT_${event.id}_USER_${user?.id}_${Date.now()}`;
+      // Create a unique 8-character QR code ID
+      const qrCodeID = generateQRCodeID();
 
       // Check if QR code already exists for this user+event combination
-      // Check both: QR codes created by the user AND QR codes created by organizers for this user
+      // Check both created_by and owner_id to find QR codes created from either web or mobile
       const { data: existingQRs, error: fetchError } = await supabase
         .from('qr_codes')
         .select('*')
         .eq('event_id', event.id)
         .eq('code_type', 'event_checkin')
-        .eq('owner_id', user?.id) // Check by owner_id to find organizer-generated QR codes too
+        .or(`created_by.eq.${user?.id},owner_id.eq.${user?.id}`)
         .limit(1);
 
       if (fetchError) {
@@ -61,8 +65,20 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
         // Generate QR code URL from existing qr_data
         const existingQrData = existingQR.qr_data || qrData;
         const qrCodeData = JSON.stringify(existingQrData);
-        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData)}`;
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=1e3a8a&data=${encodeURIComponent(qrCodeData)}`;
         setQrCodeUrl(qrUrl);
+
+        // If existing token is not 8 characters, generate a new random one and update
+        let finalToken = existingQR.qr_token;
+        if (!finalToken || finalToken.length !== 8) {
+          finalToken = generateQRCodeID();
+          // Update the QR code with the new random 8-character ID
+          await supabase
+            .from('qr_codes')
+            .update({ qr_token: finalToken })
+            .eq('id', existingQR.id);
+        }
+        setQrCodeToken(finalToken);
         return; // Exit early - reuse existing QR code
       } else {
         // Create new QR code
@@ -76,7 +92,7 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
             owner_id: user?.id,
             event_id: event.id,
             qr_data: qrData,
-            qr_token: qrDataString,
+            qr_token: qrCodeID,
             is_active: true,
             is_public: true,
             created_at: new Date().toISOString(),
@@ -86,11 +102,12 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
 
         if (error) throw error;
         qrRecord = data && data.length > 0 ? data[0] : null;
+        setQrCodeToken(qrRecord?.qr_token || qrCodeID);
       }
 
       // Generate QR code URL with full qrData
       const qrCodeData = JSON.stringify(qrData);
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData)}`;
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=1e3a8a&data=${encodeURIComponent(qrCodeData)}`;
       setQrCodeUrl(qrUrl);
 
     } catch (err) {
@@ -107,13 +124,79 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
     }
   };
 
-  const downloadQRCode = () => {
-    if (!qrCodeUrl) return;
+  const qrCardRef = useRef(null);
 
-    const link = document.createElement('a');
-    link.href = qrCodeUrl;
-    link.download = `${event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_qr_code.png`;
-    link.click();
+  const [downloading, setDownloading] = useState(false);
+
+  const downloadQRCode = async () => {
+    if (!qrCodeUrl || !qrCardRef.current) return;
+
+    if (downloading) return; // Prevent multiple simultaneous downloads
+
+    try {
+      setDownloading(true);
+
+      // Import html2canvas dynamically
+      const html2canvas = (await import('html2canvas')).default;
+
+      // Capture the entire QR code card
+      const canvas = await html2canvas(qrCardRef.current, {
+        backgroundColor: '#0f172a', // Match the dark blue background
+        scale: 2, // Higher quality
+        useCORS: true,
+        logging: false,
+      });
+
+      // Convert canvas to blob
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          throw new Error('Failed to create image blob');
+        }
+
+        // Create download link with blob URL
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `${event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_qr_code.png`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+
+        // Clean up after a delay to ensure download starts
+        setTimeout(() => {
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(downloadUrl);
+          setDownloading(false);
+        }, 100);
+      }, 'image/png', 1.0);
+    } catch (err) {
+      console.error('Error downloading QR code:', err);
+      setDownloading(false);
+      // Fallback: try downloading just the QR code image
+      try {
+        const response = await fetch(qrCodeUrl, {
+          method: 'GET',
+          mode: 'cors',
+          cache: 'no-cache',
+        });
+        if (response.ok) {
+          const blob = await response.blob();
+          const downloadUrl = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = downloadUrl;
+          link.download = `${event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_qr_code.png`;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => {
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(downloadUrl);
+          }, 100);
+        }
+      } catch (fallbackErr) {
+        console.error('Fallback download also failed:', fallbackErr);
+      }
+    }
   };
 
   const formatDate = (dateString) => {
@@ -183,10 +266,10 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
           {qrCodeUrl && !loading && !error && (
             <>
               {/* Modern QR Code Card - Matching Mobile Design */}
-              <div className="bg-slate-900 rounded-3xl p-6 mb-6 shadow-2xl relative overflow-hidden">
+              <div ref={qrCardRef} className="bg-slate-900 rounded-3xl p-6 mb-6 shadow-2xl relative overflow-hidden">
                 {/* Background Pattern Effect */}
                 <div className="absolute inset-0 bg-blue-900 opacity-10 rounded-3xl"></div>
-                
+
                 {/* White Card Container */}
                 <div className="bg-white rounded-2xl p-5 max-w-xs mx-auto relative z-10 shadow-lg">
                   {/* QR Code */}
@@ -201,7 +284,7 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
 
                   {/* User Name */}
                   {user && (
-                    <p className="text-lg font-bold text-blue-600 mt-2 mb-1 text-center">
+                    <p className="text-lg font-bold text-black mt-2 mb-1 text-center">
                       {user.first_name && user.last_name
                         ? `${user.first_name} ${user.last_name}`
                         : user.email?.split('@')[0] || 'User'}
@@ -209,9 +292,41 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
                   )}
 
                   {/* Event Title */}
-                  <p className="text-sm text-slate-500 text-center mb-3">
+                  <p className="text-sm text-slate-500 text-center mb-4">
                     {event.title}
                   </p>
+
+                  {/* QR Code ID for Manual Entry */}
+                  {qrCodeToken && (
+                    <div className="mt-4 pt-4 border-t border-slate-200">
+                      <p className="text-xs text-slate-500 mb-2 text-center font-medium">
+                        Manual Entry ID
+                      </p>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const idToCopy = formatQRCodeID(qrCodeToken).replace(/-/g, '');
+                            await navigator.clipboard.writeText(idToCopy);
+                            toast.success('ID copied to clipboard!');
+                          } catch (err) {
+                            console.error('Failed to copy:', err);
+                            toast.error('Failed to copy ID. Please select and copy manually.');
+                          }
+                        }}
+                        className="w-full bg-slate-50 rounded-lg p-3 border border-slate-300 hover:border-blue-900 hover:bg-blue-50 transition-all flex items-center justify-center gap-2 group"
+                      >
+                        <code className="text-xl text-blue-900 font-mono font-bold tracking-widest select-all">
+                          {formatQRCodeID(qrCodeToken)}
+                        </code>
+                        <svg className="w-4 h-4 text-blue-900 opacity-60 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                      <p className="text-xs text-slate-400 mt-2 text-center">
+                        Use if camera doesn't work
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Scan Instruction */}
@@ -244,10 +359,20 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
               {/* Download Button */}
               <button
                 onClick={downloadQRCode}
-                className="w-full flex items-center justify-center space-x-2 bg-blue-900 text-white px-6 py-3 rounded-lg hover:bg-blue-800 transition-colors font-semibold"
+                disabled={downloading}
+                className="w-full flex items-center justify-center space-x-2 bg-blue-900 text-white px-6 py-3 rounded-lg hover:bg-blue-800 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Download className="w-5 h-5" />
-                <span>Download PNG</span>
+                {downloading ? (
+                  <>
+                    <Loader className="w-5 h-5 animate-spin" />
+                    <span>Downloading...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-5 h-5" />
+                    <span>Download PNG</span>
+                  </>
+                )}
               </button>
             </>
           )}
@@ -284,7 +409,7 @@ export default function GenerateQR() {
 
       // Create JWT-based QR data string in format: userID | timestamp | signature
       const qrDataString = createQRDataString(user);
-      
+
       // Create QR data object for database storage
       const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
       const qrData = {
@@ -353,7 +478,7 @@ export default function GenerateQR() {
       setQrCodeData(qrRecord);
 
       // Generate QR code URL using the JWT-based data string
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrDataString)}`;
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=1e3a8a&data=${encodeURIComponent(qrDataString)}`;
       setQrCodeUrl(qrUrl);
 
     } catch (err) {
@@ -390,7 +515,7 @@ export default function GenerateQR() {
       setQrCodeData(demoData);
 
       // Generate demo QR code URL
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent('DEMO_QR_CODE_DATA')}`;
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=1e3a8a&data=${encodeURIComponent('DEMO_QR_CODE_DATA')}`;
       setQrCodeUrl(qrUrl);
 
       // Set empty scan history for demo
@@ -478,7 +603,7 @@ export default function GenerateQR() {
               </h2>
               <div className="w-16 h-1 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full mx-auto"></div>
             </div>
-            
+
             {qrCodeUrl && (
               <div className="text-center">
                 <div className="mb-8">
@@ -490,23 +615,23 @@ export default function GenerateQR() {
                     />
                   </div>
                 </div>
-                
+
                 <div className="space-y-3 mb-8">
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
                     <p className="text-gray-500 text-xs uppercase tracking-wide font-medium mb-1">Name</p>
                     <p className="text-gray-800 font-semibold">{demoMode ? 'Demo User' : `${user?.first_name} ${user?.last_name}`}</p>
                   </div>
-                  
+
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
                     <p className="text-gray-500 text-xs uppercase tracking-wide font-medium mb-1">Email</p>
                     <p className="text-gray-800 font-semibold text-sm">{demoMode ? 'demo@example.com' : user?.email}</p>
                   </div>
-                  
+
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
                     <p className="text-gray-500 text-xs uppercase tracking-wide font-medium mb-1">Role</p>
                     <p className="text-gray-800 font-semibold">{demoMode ? 'Participant' : user?.role}</p>
                   </div>
-                  
+
                   <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-4 border border-gray-200">
                     <p className="text-gray-500 text-xs uppercase tracking-wide font-medium mb-1">Generated</p>
                     <p className="text-gray-800 font-semibold text-sm">{qrCodeData?.generatedAt ? formatDate(qrCodeData.generatedAt) : 'N/A'}</p>

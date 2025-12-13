@@ -8,7 +8,6 @@ import {
   Image,
   Alert,
   ActivityIndicator,
-  Modal,
   Platform,
   Linking,
   StyleSheet,
@@ -18,15 +17,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
-import * as FileSystem from 'expo-file-system';
-import QRCode from 'react-native-qrcode-svg';
-import ViewShot, { captureRef } from 'react-native-view-shot';
-let MediaLibrary: any = null;
-try {
-  MediaLibrary = require('expo-media-library');
-} catch (e) {
-  console.log('expo-media-library not available:', e);
-}
 import { EventService, Event } from '../../lib/eventService';
 import { SurveyService } from '../../lib/surveyService';
 import { useAuth } from '../../lib/authContext';
@@ -51,20 +41,12 @@ export default function MyEvents() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [isQRModalOpen, setIsQRModalOpen] = useState(false);
-  const [qrEvent, setQrEvent] = useState<RegisteredEvent | null>(null);
-  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
-  const [qrCodeData, setQrCodeData] = useState<string>('');
-  const [qrLoading, setQrLoading] = useState(false);
-  const [qrError, setQrError] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState(false);
   const [expandedRationale, setExpandedRationale] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [venueFilter, setVenueFilter] = useState<string>('all');
   const [sortOption, setSortOption] = useState<SortOption>('date-asc');
   const [showFilters, setShowFilters] = useState(false);
-  const qrCodeViewRef = React.useRef<any>(null);
   const insets = useSafeAreaInsets();
   
   const router = useRouter();
@@ -314,18 +296,22 @@ export default function MyEvents() {
     }
   };
 
-  const handleGenerateQR = async (event: RegisteredEvent) => {
+  const handleGenerateQR = (event: RegisteredEvent) => {
     if (!user?.id) {
       toast.error('You must be logged in to generate a QR code');
       return;
     }
 
-    setQrEvent(event);
-    setQrCodeUrl('');
-    setQrCodeData('');
-    setQrError(null);
-    setIsQRModalOpen(true);
-    await generateEventQRCode(event);
+    router.push({
+      pathname: '/qr-generator',
+      params: {
+        eventId: event.id,
+        eventTitle: event.title,
+        eventDate: event.start_date,
+        eventTime: event.start_time,
+        eventVenue: event.venue || '',
+      },
+    } as any);
   };
 
   const handleSnapPhoto = async (event: RegisteredEvent) => {
@@ -336,181 +322,6 @@ export default function MyEvents() {
     } as any);
   };
 
-  const generateEventQRCode = async (event: RegisteredEvent) => {
-    if (!user?.id) return;
-
-    try {
-      setQrLoading(true);
-      setQrError(null);
-
-      // Create QR data for event registration
-      const qrData = {
-        eventId: event.id,
-        title: event.title,
-        date: event.start_date,
-        time: event.start_time,
-        venue: event.venue,
-        userId: user.id,
-        createdBy: user.id,
-        createdAt: new Date().toISOString(),
-        type: 'event_registration',
-        registrationId: event.registration_id
-      };
-
-      // Create a unique token for this user+event combination
-      const qrDataString = `EVENT_${event.id}_USER_${user.id}_${Date.now()}`;
-
-      // Check if QR code already exists for this user+event combination
-      const { data: existingQRs, error: fetchError } = await supabase
-        .from('qr_codes')
-        .select('*')
-        .eq('event_id', event.id)
-        .eq('code_type', 'event_checkin')
-        .eq('created_by', user.id)
-        .limit(1);
-
-      if (fetchError) {
-        throw fetchError;
-      }
-
-      const existingQR = existingQRs && existingQRs.length > 0 ? existingQRs[0] : null;
-
-      let qrRecord;
-      if (existingQR) {
-        // Update existing QR code (don't create a new entry)
-        // Preserve the existing qr_token to keep the QR code the same
-        const { data, error } = await supabase
-          .from('qr_codes')
-          .update({
-            qr_data: qrData,
-            updated_at: new Date().toISOString()
-            // Note: We preserve the existing qr_token so the QR code doesn't change
-          })
-          .eq('id', existingQR.id)
-          .select();
-
-        if (error) throw error;
-        qrRecord = data && data.length > 0 ? data[0] : null;
-        
-        // Store QR code data for client-side generation
-        const qrCodeDataString = JSON.stringify(qrData);
-        setQrCodeData(qrCodeDataString);
-        // Also keep URL for backward compatibility
-        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&format=png&data=${encodeURIComponent(qrCodeDataString)}`;
-        setQrCodeUrl(qrUrl);
-        return; // Exit early since we're using existing QR code
-      } else {
-        // Create new QR code only if it doesn't exist
-        const { data, error } = await supabase
-          .from('qr_codes')
-          .insert({
-            code_type: 'event_checkin',
-            title: `${event.title} - Check-in QR Code`,
-            description: `QR code for event check-in: ${event.title}`,
-            created_by: user.id,
-            owner_id: user.id,
-            event_id: event.id,
-            qr_data: qrData,
-            qr_token: qrDataString,
-            is_active: true,
-            is_public: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .select();
-
-        if (error) throw error;
-        qrRecord = data && data.length > 0 ? data[0] : null;
-        
-        // Store QR code data for client-side generation
-        const qrCodeDataString = JSON.stringify(qrData);
-        setQrCodeData(qrCodeDataString);
-        // Also keep URL for backward compatibility
-        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&format=png&data=${encodeURIComponent(qrCodeDataString)}`;
-        setQrCodeUrl(qrUrl);
-      }
-
-    } catch (err: any) {
-      console.error('Error generating event QR code:', err);
-      setQrError(`Failed to generate QR code: ${err.message || 'Unknown error'}`);
-    } finally {
-      setQrLoading(false);
-    }
-  };
-
-  const downloadQRCode = async () => {
-    if (!qrCodeViewRef.current || !qrEvent) {
-      toast.error('QR code not available');
-      return;
-    }
-
-    try {
-      setDownloading(true);
-
-      // Check if FileSystem is available
-      if (!FileSystem.cacheDirectory) {
-        toast.error('File system not available. Please rebuild the app.');
-        return;
-      }
-
-      // Generate filename from event title
-      const sanitizedTitle = qrEvent.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      const filename = `${sanitizedTitle}_qr_code.png`;
-      const fileUri = `${FileSystem.cacheDirectory}${filename}`;
-
-      // Capture the styled QR code view as an image
-      const uri = await captureRef(qrCodeViewRef.current, {
-        format: 'png',
-        quality: 1.0,
-      });
-
-      if (!uri) {
-        throw new Error('Failed to capture QR code');
-      }
-
-      // Try to save directly to media library (Photos/Downloads)
-      if (!MediaLibrary || !MediaLibrary.requestPermissionsAsync || !MediaLibrary.createAssetAsync) {
-        toast.error('Media library not available. Please rebuild the app with native modules enabled.');
-        return;
-      }
-
-      // Request permissions
-      const permissionResult = await MediaLibrary.requestPermissionsAsync(true);
-      
-      if (!permissionResult.granted) {
-        toast.warning('Please grant photo library access to save the QR code. You can enable it in your device settings.');
-        return;
-      }
-
-      // Create asset in media library
-      const asset = await MediaLibrary.createAssetAsync(uri);
-      
-      // On Android, try to save to Downloads/GanApp folder
-      if (Platform.OS === 'android') {
-        try {
-          const albumName = 'GanApp';
-          let album = await MediaLibrary.getAlbumAsync(albumName);
-          
-          if (!album) {
-            album = await MediaLibrary.createAlbumAsync(albumName, asset, false);
-          } else {
-            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
-          }
-        } catch (albumError) {
-          // Album creation failed, but asset is still saved to Photos
-          console.log('Album creation error (asset still saved to Photos):', albumError);
-        }
-      }
-      
-      toast.success('QR code downloaded to your Photos/Downloads!');
-      
-    } catch (err: any) {
-      console.error('Error downloading QR code:', err);
-      toast.error(err.message || 'Unable to download QR code. Please make sure you have granted photo library permissions.');
-    } finally {
-      setDownloading(false);
-    }
-  };
 
   if (!user?.role || user?.role !== 'participant') {
     return null; // Will redirect in useEffect
@@ -1021,243 +832,6 @@ export default function MyEvents() {
           </View>
       </ScrollView>
 
-      {/* QR Code Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={isQRModalOpen}
-        onRequestClose={() => setIsQRModalOpen(false)}
-      >
-        <View className="flex-1 bg-black/50 justify-center items-center px-4">
-          <ScrollView 
-            className="w-full max-w-md"
-            contentContainerStyle={{ flexGrow: 1 }}
-            showsVerticalScrollIndicator={false}
-          >
-            <View className="bg-white rounded-2xl overflow-hidden my-8">
-              {/* Header */}
-              <View className="flex-row justify-between items-center px-6 pt-6 pb-4 border-b border-gray-200">
-                <Text className="text-xl font-semibold text-gray-900">Event QR Code</Text>
-                <TouchableOpacity 
-                  onPress={() => {
-                    setIsQRModalOpen(false);
-                    setQrCodeUrl('');
-                    setQrCodeData('');
-                    setQrError(null);
-                    setQrEvent(null);
-                  }}
-                  className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center"
-                >
-                  <Ionicons name="close" size={24} color="#333" />
-                </TouchableOpacity>
-              </View>
-
-              {/* Content */}
-              <View className="p-6">
-              {/* Loading State */}
-              {qrLoading && (
-                <View className="items-center py-8">
-                  <ActivityIndicator size="large" color="#2563eb" />
-                  <Text className="text-gray-600 mt-4">Generating QR code...</Text>
-                </View>
-              )}
-
-              {/* Error State */}
-              {qrError && !qrLoading && (
-                <View className="items-center py-8">
-                  <View className="w-16 h-16 bg-red-100 rounded-full items-center justify-center mb-4">
-                    <Ionicons name="alert-circle" size={32} color="#dc2626" />
-                  </View>
-                  <Text className="text-red-600 mb-4 text-center">{qrError}</Text>
-                  <TouchableOpacity
-                    onPress={() => qrEvent && generateEventQRCode(qrEvent)}
-                    className="bg-blue-600 px-6 py-3 rounded-lg"
-                  >
-                    <Text className="text-white font-medium">Try Again</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* QR Code */}
-              {qrCodeData && !qrLoading && !qrError && qrEvent && (
-                <View>
-                  {/* Modern QR Code Card */}
-                  <ViewShot 
-                    ref={qrCodeViewRef}
-                    options={{ format: 'png', quality: 1.0 }}
-                    style={{
-                      backgroundColor: '#0f172a', // Dark blue background
-                      borderRadius: 24,
-                      padding: 24,
-                      marginBottom: 24,
-                      alignItems: 'center',
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 10 },
-                      shadowOpacity: 0.3,
-                      shadowRadius: 20,
-                      elevation: 10,
-                    }}
-                  >
-                    {/* Background Pattern Effect */}
-                    <View 
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        borderRadius: 24,
-                        opacity: 0.1,
-                        backgroundColor: '#1e40af', // Subtle pattern overlay
-                      }}
-                    />
-
-                    {/* White Card Container */}
-                    <View
-                      style={{
-                        backgroundColor: '#ffffff',
-                        borderRadius: 20,
-                        padding: 20,
-                        width: '100%',
-                        maxWidth: 320,
-                        alignItems: 'center',
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 4 },
-                        shadowOpacity: 0.1,
-                        shadowRadius: 8,
-                        elevation: 5,
-                      }}
-                    >
-                      {/* QR Code with Gradient */}
-                      <View
-                        style={{
-                          backgroundColor: '#ffffff',
-                          borderRadius: 16,
-                          padding: 16,
-                          marginBottom: 16,
-                        }}
-                      >
-                        {qrCodeData ? (
-                          <View style={{ position: 'relative' }}>
-                            <QRCode
-                              value={qrCodeData}
-                              size={240}
-                              color="#1e3a8a" // Dark blue
-                              backgroundColor="#ffffff"
-                              quietZone={8}
-                              enableLinearGradient={true}
-                              linearGradient={['#3b82f6', '#1e40af', '#1e3a8a']}
-                              gradientDirection={['0', '0', '240', '240']}
-                            />
-                          </View>
-                        ) : null}
-                      </View>
-
-                      {/* User Name */}
-                      {user && (
-                        <Text
-                          style={{
-                            fontSize: 18,
-                            fontWeight: 'bold',
-                            color: '#2563eb',
-                            marginTop: 8,
-                            marginBottom: 4,
-                          }}
-                        >
-                          {user.first_name && user.last_name
-                            ? `${user.first_name} ${user.last_name}`
-                            : user.email?.split('@')[0] || 'User'}
-                        </Text>
-                      )}
-
-                      {/* Event Title */}
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: '#64748b',
-                          textAlign: 'center',
-                          marginBottom: 12,
-                        }}
-                      >
-                        {qrEvent.title}
-                      </Text>
-                    </View>
-
-                    {/* Scan Instruction */}
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        color: '#94a3b8',
-                        marginTop: 16,
-                        textAlign: 'center',
-                      }}
-                    >
-                      Scan for event check-in
-                    </Text>
-                  </ViewShot>
-
-                  {/* Event Info */}
-                  <View className="bg-blue-50 rounded-xl p-4 mb-4">
-                    <Text className="font-semibold text-gray-800 mb-2">{qrEvent.title}</Text>
-                    <View className="space-y-1">
-                      <View className="flex-row items-center">
-                        <Ionicons name="calendar-outline" size={14} color="#6b7280" />
-                        <Text className="text-sm text-gray-600 ml-2">
-                          {formatDate(qrEvent.start_date)}
-                        </Text>
-                      </View>
-                      <View className="flex-row items-center">
-                        <Ionicons name="time-outline" size={14} color="#6b7280" />
-                        <Text className="text-sm text-gray-600 ml-2">
-                          {formatTime(qrEvent.start_time)}
-                        </Text>
-                      </View>
-                      {qrEvent.venue && (
-                        <View className="flex-row items-center">
-                          <Ionicons name="location-outline" size={14} color="#6b7280" />
-                          <Text className="text-sm text-gray-600 ml-2">{qrEvent.venue}</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-
-                  {/* Download Button */}
-                  <TouchableOpacity
-                    onPress={downloadQRCode}
-                    disabled={downloading}
-                    style={{
-                      backgroundColor: '#16a34a',
-                      paddingHorizontal: 24,
-                      paddingVertical: 12,
-                      borderRadius: 8,
-                      alignItems: 'center',
-                      flexDirection: 'row',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {downloading ? (
-                      <>
-                        <ActivityIndicator size="small" color="#ffffff" />
-                        <Text style={{ color: '#ffffff', fontWeight: '500', marginLeft: 8 }}>
-                          Downloading...
-                        </Text>
-                      </>
-                    ) : (
-                      <>
-                        <Ionicons name="download-outline" size={20} color="#ffffff" />
-                        <Text style={{ color: '#ffffff', fontWeight: '500', marginLeft: 8 }}>
-                          Download PNG
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              )}
-              </View>
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
 
     </SafeAreaView>
   );
