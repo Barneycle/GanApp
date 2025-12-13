@@ -1,10 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ActivityIndicator, Text, TouchableOpacity, SafeAreaView, Platform } from 'react-native';
+import { View, ActivityIndicator, Text, TouchableOpacity, SafeAreaView, Platform, Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../lib/authContext';
 import { supabase } from '../lib/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+
+let MediaLibrary: any = null;
+try {
+  MediaLibrary = require('expo-media-library');
+} catch (e) {
+  console.log('expo-media-library not available:', e);
+}
 
 // Get web app URL - supports environment variable or platform-specific defaults
 const getWebAppUrl = (): string => {
@@ -90,10 +99,58 @@ export default function Certificate() {
     router.back();
   };
 
+  const handleDownload = async (base64Data: string, filename: string, mimeType: string) => {
+    try {
+      console.log('📥 Starting download:', filename);
+      
+      // Remove data URL prefix if present
+      const base64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+      
+      // Create file URI
+      const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+      
+      // Write file to cache
+      await FileSystem.writeAsStringAsync(fileUri, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      
+      console.log('✅ File written to:', fileUri);
+      
+      // Try to save to media library if available
+      if (MediaLibrary && MediaLibrary.requestPermissionsAsync && MediaLibrary.createAssetAsync) {
+        try {
+          const permissionResult = await MediaLibrary.requestPermissionsAsync(true);
+          
+          if (permissionResult.granted) {
+            const asset = await MediaLibrary.createAssetAsync(fileUri);
+            console.log('✅ Saved to media library:', asset.uri);
+            Alert.alert('Success', 'Certificate saved to your gallery!');
+            return;
+          }
+        } catch (mediaError) {
+          console.warn('⚠️ Media library save failed:', mediaError);
+        }
+      }
+      
+      // Fallback: Use sharing API
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: mimeType,
+          dialogTitle: 'Save Certificate',
+        });
+      } else {
+        Alert.alert('Download Complete', `Certificate saved to: ${fileUri}`);
+      }
+    } catch (err: any) {
+      console.error('❌ Download error:', err);
+      Alert.alert('Download Failed', err.message || 'Failed to download certificate');
+    }
+  };
+
   const handleMessage = (event: any) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
-      console.log('📨 Message from WebView:', data);
+      console.log('📨 Message from WebView:', data.type);
       if (data.type === 'close') {
         handleClose();
       } else if (data.type === 'loaded' || data.type === 'ready') {
@@ -117,6 +174,10 @@ export default function Certificate() {
         }
         setLoading(false);
         setError(data.message || 'An error occurred while loading the certificate');
+      } else if (data.type === 'download') {
+        // Handle download from WebView
+        console.log('📥 Download request received');
+        handleDownload(data.data, data.filename, data.mimeType);
       }
     } catch (error) {
       console.error('❌ Error parsing message:', error);

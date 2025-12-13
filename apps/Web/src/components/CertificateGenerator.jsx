@@ -1369,19 +1369,83 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     }
 
     try {
-      const response = await fetch(url);
+      // Use fetch with CORS mode and credentials to ensure we get the correct file
+      // Add cache-busting parameter to ensure we get the latest version
+      const urlWithCacheBust = `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+      
+      const response = await fetch(urlWithCacheBust, {
+        method: 'GET',
+        mode: 'cors',
+        cache: 'no-cache',
+        credentials: 'include',
+        headers: {
+          'Accept': format === 'pdf' ? 'application/pdf' : 'image/png',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch certificate: ${response.status} ${response.statusText}`);
+      }
+
       const blob = await response.blob();
+      
+      // Verify blob is not empty and has correct type
+      if (blob.size === 0) {
+        throw new Error('Downloaded file is empty');
+      }
+
+      const expectedType = format === 'pdf' ? 'application/pdf' : 'image/png';
+      if (blob.type && blob.type !== expectedType && !blob.type.includes(format)) {
+        console.warn(`Unexpected blob type: ${blob.type}, expected: ${expectedType}`);
+      }
+
+      // For mobile WebView, use a different download approach
+      if (isMobile && window.ReactNativeWebView) {
+        // Convert blob to base64 and send to mobile app
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64data = reader.result;
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'download',
+            format: format,
+            data: base64data,
+            filename: `certificate-${certificate.certificate_number}.${format}`,
+            mimeType: expectedType
+          }));
+        };
+        reader.onerror = () => {
+          toast.error('Failed to process certificate for download');
+        };
+        reader.readAsDataURL(blob);
+        toast.info('Preparing download...');
+        return;
+      }
+
+      // Standard browser download
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.download = `certificate-${certificate.certificate_number}.${format}`;
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
+      
+      // Clean up after a delay to ensure download starts
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+      }, 100);
+      
       toast.success('Certificate downloaded successfully!');
     } catch (err) {
+      console.error('Download error:', err);
       toast.error(`Failed to download certificate: ${err.message || 'Unknown error'}`);
+      
+      // If download fails, try opening in new tab as fallback
+      if (isMobile) {
+        toast.info('Trying alternative download method...');
+        window.open(url, '_blank');
+      }
     }
   };
 
