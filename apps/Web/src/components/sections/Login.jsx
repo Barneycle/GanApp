@@ -16,8 +16,8 @@ export const Login = () => {
         <div className="text-center p-8">
           <h1 className="text-2xl font-bold text-slate-800 mb-4">Error Loading Login</h1>
           <p className="text-slate-600 mb-4">Please refresh the page.</p>
-          <button 
-            onClick={() => window.location.reload()} 
+          <button
+            onClick={() => window.location.reload()}
             className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
           >
             Refresh Page
@@ -26,12 +26,12 @@ export const Login = () => {
       </section>
     );
   }
-  
+
   const { signIn, loading, error, clearError, isAuthenticated, getRedirectPath, user } = authContext || {
     signIn: null,
     loading: false,
     error: null,
-    clearError: () => {},
+    clearError: () => { },
     isAuthenticated: false,
     getRedirectPath: () => '/',
     user: null
@@ -47,7 +47,7 @@ export const Login = () => {
   const [isSendingReset, setIsSendingReset] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [resetError, setResetError] = useState('');
-  
+
   // New state for enhanced features
   const [successMessage, setSuccessMessage] = useState('');
   const [loginAttempts, setLoginAttempts] = useState(0);
@@ -55,6 +55,7 @@ export const Login = () => {
   const [lockoutTime, setLockoutTime] = useState(null);
   const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
   const [modalContentType, setModalContentType] = useState('terms');
+  const [localError, setLocalError] = useState(null);
 
   // Load saved email from localStorage if remember me was checked
   useEffect(() => {
@@ -129,17 +130,17 @@ export const Login = () => {
           // Allow scrolling within modal - don't prevent the event
           return;
         }
-        
+
         // Prevent scroll on the page itself
         e.preventDefault();
         e.stopPropagation();
         return false;
       };
-      
+
       // Add no-scroll class to html and body
       document.documentElement.classList.add('no-scroll');
       document.body.classList.add('no-scroll');
-      
+
       // Also set inline styles as backup
       document.documentElement.style.setProperty('overflow', 'hidden', 'important');
       document.documentElement.style.setProperty('height', '100%', 'important');
@@ -154,17 +155,17 @@ export const Login = () => {
         root.style.setProperty('overflow', 'hidden', 'important');
         root.style.setProperty('max-height', '100vh', 'important');
       }
-      
+
       // Prevent scroll events
       document.addEventListener('wheel', preventScroll, { passive: false });
       document.addEventListener('touchmove', preventScroll, { passive: false });
       document.addEventListener('scroll', preventScroll, { passive: false });
-      
+
       return () => {
         // Remove no-scroll class
         document.documentElement.classList.remove('no-scroll');
         document.body.classList.remove('no-scroll');
-        
+
         // Remove inline styles
         document.documentElement.style.removeProperty('overflow');
         document.documentElement.style.removeProperty('height');
@@ -179,7 +180,7 @@ export const Login = () => {
           root.style.removeProperty('overflow');
           root.style.removeProperty('max-height');
         }
-        
+
         // Remove event listeners
         document.removeEventListener('wheel', preventScroll);
         document.removeEventListener('touchmove', preventScroll);
@@ -196,15 +197,18 @@ export const Login = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
-    
+
     // Clear success message when user starts typing
     if (successMessage) {
       setSuccessMessage('');
     }
-    
+
     // Clear error when user starts typing
     if (error) {
       clearError();
+    }
+    if (localError) {
+      setLocalError(null);
     }
   };
 
@@ -223,7 +227,7 @@ export const Login = () => {
 
   const handleSendResetEmail = async () => {
     const trimmedEmail = forgotPasswordEmail.trim();
-    
+
     if (!trimmedEmail) {
       setResetError('Please enter your email address');
       return;
@@ -241,7 +245,7 @@ export const Login = () => {
 
     try {
       const result = await UserService.resetPassword(trimmedEmail);
-      
+
       if (result.error) {
         setResetError(result.error);
       } else if (result.success) {
@@ -262,64 +266,105 @@ export const Login = () => {
     setResetError('');
   };
 
-  // Enhanced error message parsing
-  const getErrorMessage = (errorMsg) => {
+  // Enhanced error message parsing with specific email/password detection
+  const getErrorMessage = (errorMsg, errorType) => {
     if (!errorMsg) return 'An error occurred. Please try again.';
-    
+
     const lowerError = errorMsg.toLowerCase();
-    
+
     // Account lockout/ban messages
     if (lowerError.includes('banned') || lowerError.includes('ban')) {
       return errorMsg; // Keep original ban message
     }
-    
+
     if (lowerError.includes('inactive')) {
       return errorMsg; // Keep original inactive message
     }
-    
-    // Invalid credentials
-    if (lowerError.includes('invalid') && (lowerError.includes('email') || lowerError.includes('password') || lowerError.includes('credential'))) {
-      return 'Invalid email or password. Please check your credentials and try again.';
+
+    // Email not confirmed
+    if (lowerError.includes('email') && lowerError.includes('confirm')) {
+      return 'Please confirm your email address before signing in. Check your inbox for the confirmation link.';
     }
-    
-    // Email not found
-    if (lowerError.includes('email') && (lowerError.includes('not found') || lowerError.includes('does not exist'))) {
-      return 'No account found with this email address. Please check your email or sign up.';
+
+    // Use errorType if provided from signIn
+    if (errorType === 'email') {
+      return 'Email is wrong. No account found with this email address. Please check your email or sign up.';
     }
-    
+
+    if (errorType === 'password') {
+      return 'Password is wrong. Please try again or use "Forgot password?" to reset.';
+    }
+
+    // Invalid login credentials - Supabase's generic error
+    // Note: We check email existence before sign-in, so if we get here, email exists and it's a password issue
+    if (lowerError.includes('invalid login credentials') ||
+      lowerError.includes('invalid credentials') ||
+      (lowerError.includes('invalid') && lowerError.includes('credential'))) {
+      // For generic errors, we'll try to check email format first
+      // If email format is invalid, it's likely an email issue
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const trimmedEmail = formData.email.trim();
+      if (!emailRegex.test(trimmedEmail)) {
+        return 'Email is wrong. Please check your email format.';
+      }
+      // Since we check email existence before sign-in, if we get here the email exists
+      // So it's definitely a password issue
+      return 'Password is wrong. Please check your password and try again.';
+    }
+
+    // Email not found (though Supabase usually doesn't reveal this for security)
+    if (lowerError.includes('email') && (lowerError.includes('not found') || lowerError.includes('does not exist') || lowerError.includes('user not found'))) {
+      return 'Email is wrong. No account found with this email address. Please check your email or sign up.';
+    }
+
     // Password incorrect
-    if (lowerError.includes('password') && (lowerError.includes('incorrect') || lowerError.includes('wrong'))) {
-      return 'Incorrect password. Please try again or use "Forgot password?" to reset.';
+    if (lowerError.includes('password') && (lowerError.includes('incorrect') || lowerError.includes('wrong') || lowerError.includes('invalid'))) {
+      return 'Password is wrong. Please try again or use "Forgot password?" to reset.';
     }
-    
+
     // Too many attempts
     if (lowerError.includes('too many') || lowerError.includes('rate limit') || lowerError.includes('attempt')) {
       return 'Too many login attempts. Please wait a few minutes before trying again.';
     }
-    
+
     // Network errors
     if (lowerError.includes('network') || lowerError.includes('connection') || lowerError.includes('fetch')) {
       return 'Network error. Please check your internet connection and try again.';
     }
-    
+
     // Return original error if no specific match
     return errorMsg;
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Check if account is locked
     if (isLocked) {
       const remainingTime = Math.ceil((lockoutTime - new Date()) / 1000 / 60);
       setSuccessMessage('');
       return;
     }
-    
+
+    // Set submitting state immediately for instant button feedback
+    setIsSubmitting(true);
+    clearError();
+    setLocalError(null);
+    setSuccessMessage('');
+
     // Trim email and password before submitting
     const trimmedEmail = formData.email.trim();
     const trimmedPassword = formData.password.trim();
-    
+
+    // Basic validation
+    if (!trimmedEmail || !trimmedPassword) {
+      setIsSubmitting(false);
+      setLocalError('Please enter both email and password.');
+      return;
+    }
+
     // Rate limiting check
     try {
       const { RateLimitService } = await import('../../services/rateLimitService');
@@ -329,19 +374,29 @@ export const Login = () => {
         RateLimitService.limits.login.maxRequests,
         RateLimitService.limits.login.windowSeconds
       );
-      
+
       if (!rateLimitResult.allowed) {
-        setError(`Too many login attempts. Please try again after ${new Date(rateLimitResult.resetAt).toLocaleTimeString()}.`);
+        setIsSubmitting(false);
+        setLocalError(`Too many login attempts. Please try again after ${new Date(rateLimitResult.resetAt).toLocaleTimeString()}.`);
         return;
       }
     } catch (rateLimitError) {
       // Fail open - allow login if rate limit check fails
       console.warn('Rate limit check failed, allowing login:', rateLimitError);
     }
-    
+
     try {
+      // Attempt sign-in first
       const result = await signIn(trimmedEmail, trimmedPassword, formData.rememberMe);
-      
+
+      setIsSubmitting(false);
+
+      // Check if signIn returned a result
+      if (!result) {
+        setLocalError('Login failed. Please try again.');
+        return;
+      }
+
       if (result && result.success && result.user) {
         // Handle remember me
         if (formData.rememberMe) {
@@ -351,26 +406,26 @@ export const Login = () => {
           localStorage.removeItem('rememberedEmail');
           localStorage.removeItem('rememberMe');
         }
-        
+
         // Reset login attempts on success
         setLoginAttempts(0);
         localStorage.removeItem('loginAttempts');
-        
+
         // Show success message
         setSuccessMessage('Login successful! Redirecting...');
-        
+
         // Navigate after a brief delay to show success message
         setTimeout(() => {
-        if (result.redirectPath) {
-          navigate(result.redirectPath);
-        }
+          if (result.redirectPath) {
+            navigate(result.redirectPath);
+          }
         }, 500);
       } else {
         // Handle failed login attempts
         const newAttempts = loginAttempts + 1;
         setLoginAttempts(newAttempts);
         localStorage.setItem('loginAttempts', newAttempts.toString());
-        
+
         // Lock account after 5 failed attempts
         if (newAttempts >= 5) {
           const lockoutEnd = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
@@ -378,9 +433,55 @@ export const Login = () => {
           setLockoutTime(lockoutEnd);
           localStorage.setItem('accountLockoutEnd', lockoutEnd.toISOString());
         }
+
+        // Determine if it's email or password issue
+        if (result && result.error) {
+          const errorMsg = result.error.toLowerCase();
+
+          // Check if it's a generic "Invalid login credentials" error
+          if (errorMsg.includes('invalid login credentials') ||
+            errorMsg.includes('invalid credentials') ||
+            (errorMsg.includes('invalid') && errorMsg.includes('credential'))) {
+
+            // Check email existence to determine which credential is wrong
+            try {
+              const { UserService } = await import('../../services/userService');
+              const emailCheck = await UserService.checkEmailExists(trimmedEmail);
+
+              // Only show email error if we successfully checked and email doesn't exist
+              // If check failed or returned error, default to password error (safer)
+              if (emailCheck.error) {
+                // Email check failed - default to password error to avoid false positives
+                console.warn('Email check failed, defaulting to password error:', emailCheck.error);
+                setLocalError('Password is wrong. Please try again or use "Forgot password?" to reset.');
+              } else if (emailCheck.exists === false) {
+                // Email check succeeded and email doesn't exist
+                setLocalError('Email is wrong. No account found with this email address. Please check your email or sign up.');
+              } else {
+                // Email exists, so it's a password issue
+                setLocalError('Password is wrong. Please try again or use "Forgot password?" to reset.');
+              }
+            } catch (emailCheckError) {
+              // If email check throws exception, default to password error (safer assumption)
+              console.error('Exception checking email existence:', emailCheckError);
+              setLocalError('Password is wrong. Please check your password and try again.');
+            }
+          } else {
+            // Use the formatted error message for other error types
+            const formattedError = getErrorMessage(result.error, result.errorType);
+            setLocalError(formattedError);
+          }
+
+          clearError(); // Clear context error to avoid duplicate
+        } else {
+          // Fallback if no error in result
+          setLocalError('Login failed. Please check your credentials and try again.');
+        }
       }
     } catch (err) {
       console.error('Login error:', err);
+      setIsSubmitting(false);
+      setLocalError('An unexpected error occurred. Please try again.');
     }
   };
 
@@ -423,15 +524,15 @@ export const Login = () => {
   }
 
   return (
-    <section 
-      className="fixed inset-0 overflow-hidden bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4" 
-      style={{ 
-        height: '100vh', 
-        width: '100vw', 
-        position: 'fixed', 
-        top: 0, 
-        left: 0, 
-        right: 0, 
+    <section
+      className="fixed inset-0 overflow-hidden bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4"
+      style={{
+        height: '100vh',
+        width: '100vw',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
         bottom: 0,
         overflow: 'hidden',
         maxHeight: '100vh'
@@ -491,12 +592,12 @@ export const Login = () => {
           )}
 
           {/* Error Message */}
-          {error && (
+          {(error || localError) && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-start" role="alert" aria-live="assertive">
               <svg className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span>{getErrorMessage(error)}</span>
+              <span>{localError || (error ? getErrorMessage(error) : 'An error occurred. Please try again.')}</span>
             </div>
           )}
 
@@ -588,11 +689,11 @@ export const Login = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || isLocked}
+              disabled={loading || isSubmitting || isLocked}
               className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 px-6 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-900 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none focus:outline-none focus:ring-4 focus:ring-blue-300"
               aria-label="Sign in to your account"
             >
-              {loading ? (
+              {loading || isSubmitting ? (
                 <span className="flex items-center justify-center">
                   <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -646,7 +747,7 @@ export const Login = () => {
 
       {/* Forgot Password Modal */}
       {showForgotPassword && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
           role="dialog"
           aria-modal="true"

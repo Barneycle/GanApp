@@ -282,10 +282,20 @@ export function AuthProvider({ children }) {
       } else {
         if (result.error) {
           banMessageRef.current = result.error;
+          // Format error message based on errorType for better user feedback
+          let formattedError = result.error;
+          if (result.errorType === 'email') {
+            formattedError = 'Email is wrong. No account found with this email address. Please check your email or sign up.';
+          } else if (result.errorType === 'password') {
+            formattedError = 'Password is wrong. Please try again or use "Forgot password?" to reset.';
+          } else if (result.error && result.error.toLowerCase().includes('invalid login credentials')) {
+            // For generic "Invalid login credentials", default to password error
+            formattedError = 'Password is wrong. Please check your password and try again.';
+          }
+          setError(formattedError);
         }
-        setError(result.error);
         setLoading(false);
-        return { success: false, error: result.error };
+        return { success: false, error: result.error, errorType: result.errorType };
       }
     } catch (error) {
       setError('An unexpected error occurred');

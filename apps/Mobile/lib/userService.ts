@@ -19,23 +19,61 @@ export interface User {
 }
 
 export class UserService {
+  static async checkEmailExists(email: string): Promise<{ exists: boolean; error?: string }> {
+    try {
+      const trimmedEmail = email.trim().toLowerCase();
+
+      if (!trimmedEmail || !trimmedEmail.includes('@')) {
+        return { exists: false, error: 'Invalid email format' };
+      }
+
+      // Call RPC function to check if email exists in auth.users
+      const { data, error } = await supabase.rpc('check_email_exists', {
+        user_email: trimmedEmail
+      });
+
+      if (error) {
+        console.error('RPC error checking email existence:', error);
+        return { exists: false, error: error.message || 'Unable to check email' };
+      }
+
+      // Verify we got valid data
+      if (data === null || data === undefined) {
+        console.warn('Email check returned null/undefined');
+        return { exists: false, error: 'No response from email check' };
+      }
+
+      // Check if the response has an error field (from SQL exception)
+      if (data.error) {
+        console.error('SQL error in email check:', data.error);
+        return { exists: false, error: data.error };
+      }
+
+      // Return the exists value (should be boolean)
+      return { exists: data.exists === true };
+    } catch (error: any) {
+      console.error('Exception checking email existence:', error);
+      return { exists: false, error: error?.message || 'Unable to check email' };
+    }
+  }
+
   static async signUp(email: string, password: string, userData: Partial<User>): Promise<{ user?: User; error?: string; message?: string }> {
     try {
       // Build metadata object, only including fields that are provided
       const metadata: any = {
         role: userData.role || 'participant',
       };
-      
+
       // Only include first_name if provided and not empty
       if (userData.first_name && userData.first_name.trim() !== '') {
         metadata.first_name = userData.first_name.trim();
       }
-      
+
       // Only include last_name if provided and not empty
       if (userData.last_name && userData.last_name.trim() !== '') {
         metadata.last_name = userData.last_name.trim();
       }
-      
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -55,11 +93,11 @@ export class UserService {
           id: data.user.id,
           email: data.user.email || '',
           role: data.user.user_metadata?.role || 'participant',
-          first_name: data.user.user_metadata?.first_name && data.user.user_metadata.first_name.trim() !== '' 
-            ? data.user.user_metadata.first_name 
+          first_name: data.user.user_metadata?.first_name && data.user.user_metadata.first_name.trim() !== ''
+            ? data.user.user_metadata.first_name
             : '',
-          last_name: data.user.user_metadata?.last_name && data.user.user_metadata.last_name.trim() !== '' 
-            ? data.user.user_metadata.last_name 
+          last_name: data.user.user_metadata?.last_name && data.user.user_metadata.last_name.trim() !== ''
+            ? data.user.user_metadata.last_name
             : '',
           affiliated_organization: data.user.user_metadata?.affiliated_organization && data.user.user_metadata.affiliated_organization.trim() !== ''
             ? data.user.user_metadata.affiliated_organization
@@ -67,7 +105,7 @@ export class UserService {
           created_at: data.user.created_at,
           updated_at: data.user.updated_at || data.user.created_at
         };
-        
+
         return { user, message: 'User created successfully' };
       }
 
@@ -78,7 +116,7 @@ export class UserService {
     }
   }
 
-  static async signIn(email: string, password: string): Promise<{ user?: User; error?: string }> {
+  static async signIn(email: string, password: string): Promise<{ user?: User; error?: string; errorType?: 'email' | 'password' | 'generic' }> {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -86,7 +124,21 @@ export class UserService {
       });
 
       if (error) {
-        return { error: error.message };
+        // Parse error to determine if it's email or password issue
+        const errorMsg = error.message.toLowerCase();
+        let errorType: 'email' | 'password' | 'generic' = 'generic';
+
+        // Check for specific error patterns
+        if (errorMsg.includes('email') && (errorMsg.includes('not found') || errorMsg.includes('does not exist') || errorMsg.includes('user not found'))) {
+          errorType = 'email';
+        } else if (errorMsg.includes('password') && (errorMsg.includes('incorrect') || errorMsg.includes('wrong') || errorMsg.includes('invalid'))) {
+          errorType = 'password';
+        } else if (errorMsg.includes('invalid login credentials') || errorMsg.includes('invalid credentials')) {
+          // For generic "Invalid login credentials", we'll check email existence later
+          errorType = 'generic';
+        }
+
+        return { error: error.message, errorType };
       }
 
       if (data.user) {
@@ -106,7 +158,7 @@ export class UserService {
 
         // Use Supabase Auth user metadata for role
         const role = data.user.user_metadata?.role || 'participant';
-        
+
         // Create user object from Supabase Auth data
         const userData: User = {
           id: data.user.id,
@@ -122,7 +174,7 @@ export class UserService {
           created_at: data.user.created_at,
           updated_at: data.user.updated_at || data.user.created_at
         };
-        
+
         return { user: userData };
       }
 
@@ -136,7 +188,7 @@ export class UserService {
   static async signOut(): Promise<{ error?: string }> {
     try {
       const { error } = await supabase.auth.signOut();
-      
+
       if (error) {
         return { error: error.message };
       }
@@ -153,7 +205,7 @@ export class UserService {
       // Get the app scheme for deep linking
       // For Expo, this will be the app's scheme (e.g., 'ganapp://')
       const redirectTo = `${Linking.createURL('reset-password')}`;
-      
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectTo,
       });
@@ -173,7 +225,7 @@ export class UserService {
     try {
       // Get current user to preserve existing metadata
       const { data: { user: currentUser } } = await supabase.auth.getUser();
-      
+
       // Prepare update object for metadata - preserve existing values
       const updateData: any = {
         ...(currentUser?.user_metadata || {}), // Preserve existing metadata
@@ -212,7 +264,7 @@ export class UserService {
       const updateParams: any = {
         data: updateData
       };
-      
+
       // Only add email if it's being changed
       if (isEmailChanging) {
         updateParams.email = updates.email;
@@ -228,7 +280,7 @@ export class UserService {
 
       if (data.user) {
         console.log('User updated, metadata:', data.user.user_metadata);
-        
+
         const userData: User = {
           id: data.user.id,
           email: data.user.email || '',
@@ -243,24 +295,24 @@ export class UserService {
           created_at: data.user.created_at,
           updated_at: data.user.updated_at || data.user.created_at
         };
-        
+
         console.log('Returning user data:', {
           first_name: userData.first_name,
           last_name: userData.last_name,
           affiliated_organization: userData.affiliated_organization
         });
-        
+
         // Check if email confirmation is needed
         // If email was changed and data.user.email matches the new email, confirmation was NOT needed (email updated immediately)
         // If email was changed but data.user.email still shows old email, confirmation IS needed
-        const emailUpdatedImmediately = isEmailChanging && 
-          data.user.email && 
+        const emailUpdatedImmediately = isEmailChanging &&
+          data.user.email &&
           updates.email &&
           data.user.email.toLowerCase() === updates.email.toLowerCase();
-        
+
         const needsEmailConfirmation = Boolean(isEmailChanging && !emailUpdatedImmediately);
-        
-        return { 
+
+        return {
           user: userData,
           needsEmailConfirmation: needsEmailConfirmation
         };
@@ -276,7 +328,7 @@ export class UserService {
     try {
       // First verify the current password by attempting to sign in
       const { data: { user }, error: verifyError } = await supabase.auth.getUser();
-      
+
       if (verifyError || !user) {
         return { error: 'Unable to verify current session. Please sign in again.' };
       }
@@ -300,7 +352,7 @@ export class UserService {
     try {
       // Convert file path to URI format for React Native
       const imageUri = fileUri.startsWith('file://') ? fileUri : `file://${fileUri}`;
-      
+
       // Compress and resize image before upload (reduce file size for faster uploads)
       // Using same logic as camera.tsx for consistency and speed
       const manipulatedImage = await ImageManipulator.manipulateAsync(
@@ -338,12 +390,12 @@ export class UserService {
       if (uploadError) {
         console.error('Upload error:', uploadError);
         if (uploadError.message?.includes('row-level security') || uploadError.message?.includes('RLS')) {
-          return { 
-            error: 'Permission denied. Please ensure the storage bucket allows authenticated users to upload files. Contact your administrator.' 
+          return {
+            error: 'Permission denied. Please ensure the storage bucket allows authenticated users to upload files. Contact your administrator.'
           };
         }
-        return { 
-          error: uploadError.message || 'Failed to upload avatar. Please ensure you have permission to upload files.' 
+        return {
+          error: uploadError.message || 'Failed to upload avatar. Please ensure you have permission to upload files.'
         };
       }
 

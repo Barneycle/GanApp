@@ -2871,8 +2871,63 @@ export const CreateEvent = () => {
     sessionStorage.setItem('pending-event-speakers', JSON.stringify(speakersWithImages));
     sessionStorage.setItem('pending-event-sponsors', JSON.stringify(sponsorsWithImages));
     
-    // Navigate to certificate design step
-    navigate('/design-certificate');
+    // Ask user if event will use certificates
+    const useCertificate = window.confirm(
+      'Will this event use certificates?\n\n' +
+      'Click "OK" to design a certificate template.\n' +
+      'Click "Cancel" to skip certificate design and complete event creation.'
+    );
+    
+    if (useCertificate) {
+      // Navigate to certificate design step
+      navigate('/design-certificate');
+    } else {
+      // Complete event creation without certificate
+      // Save event data and navigate to events list or event details
+      try {
+        const { data: createdEvent, error: eventError } = await supabase
+          .from('events')
+          .insert([eventData])
+          .select()
+          .single();
+
+        if (eventError) {
+          throw eventError;
+        }
+
+        // Handle speakers
+        if (speakersWithImages.length > 0) {
+          for (const speaker of speakersWithImages) {
+            await SpeakerService.createSpeaker({
+              ...speaker,
+              event_id: createdEvent.id
+            });
+          }
+        }
+
+        // Handle sponsors
+        if (sponsorsWithImages.length > 0) {
+          for (const sponsor of sponsorsWithImages) {
+            await SponsorService.createSponsor({
+              ...sponsor,
+              event_id: createdEvent.id
+            });
+          }
+        }
+
+        // Clear session storage
+        sessionStorage.removeItem('pending-event-data');
+        sessionStorage.removeItem('pending-event-files');
+        sessionStorage.removeItem('pending-event-speakers');
+        sessionStorage.removeItem('pending-event-sponsors');
+
+        toast.success('Event created successfully!');
+        navigate(`/events/${createdEvent.id}`);
+      } catch (error) {
+        console.error('Error creating event:', error);
+        toast.error('Failed to create event. Please try again.');
+      }
+    }
 
   };
 

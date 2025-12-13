@@ -49,7 +49,7 @@ export default function LoginDashboard() {
   const router = useRouter();
   const { signIn, user } = useAuth();
   const toast = useToast();
-  
+
   const scrollViewRef = useRef<ScrollView>(null);
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
@@ -74,13 +74,13 @@ export default function LoginDashboard() {
         if (focusedField && inputYPositions.current[focusedField] !== undefined) {
           const keyboardHeight = e.endCoordinates.height;
           const inputY = inputYPositions.current[focusedField];
-          
+
           // For password field, scroll enough to show the button as well
           if (focusedField === 'password') {
             // Scroll to show both the input and the button below it
             const screenHeight = Dimensions.get('window').height;
             const availableHeight = screenHeight - keyboardHeight;
-            
+
             // If button position is known, scroll to show it with some padding
             if (buttonYPosition.current > 0) {
               const buttonBottom = buttonYPosition.current + 60; // Button height + padding
@@ -133,7 +133,7 @@ export default function LoginDashboard() {
       try {
         const savedEmail = await AsyncStorage.getItem(REMEMBERED_EMAIL_KEY);
         const shouldRemember = await AsyncStorage.getItem(REMEMBER_ME_KEY);
-        
+
         if (savedEmail && shouldRemember === 'true') {
           // Trim saved email when loading
           const trimmedEmail = savedEmail.trim();
@@ -173,19 +173,50 @@ export default function LoginDashboard() {
     // Trim email and password before validation and submission
     const trimmedEmail = formData.email.trim();
     const trimmedPassword = formData.password.trim();
-    
+
     if (!trimmedEmail || !trimmedPassword) {
       toast.error('Please fill in all fields');
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
       const result = await signIn(trimmedEmail, trimmedPassword);
-      
+
       if (result.error) {
-        toast.error(result.error);
+        // Check if it's a generic "Invalid login credentials" error
+        const errorMsg = result.error.toLowerCase();
+        if (errorMsg.includes('invalid login credentials') ||
+          errorMsg.includes('invalid credentials') ||
+          (errorMsg.includes('invalid') && errorMsg.includes('credential'))) {
+
+          // Check email existence to determine which credential is wrong
+          try {
+            const emailCheck = await UserService.checkEmailExists(trimmedEmail);
+
+            // Only show email error if we successfully checked and email doesn't exist
+            // If check failed or returned error, default to password error (safer)
+            if (emailCheck.error) {
+              // Email check failed - default to password error to avoid false positives
+              console.warn('Email check failed, defaulting to password error:', emailCheck.error);
+              toast.error('Password is wrong. Please try again or use "Forgot password?" to reset.');
+            } else if (emailCheck.exists === false) {
+              // Email check succeeded and email doesn't exist
+              toast.error('Email is wrong. No account found with this email address. Please check your email or sign up.');
+            } else {
+              // Email exists, so it's a password issue
+              toast.error('Password is wrong. Please try again or use "Forgot password?" to reset.');
+            }
+          } catch (emailCheckError) {
+            // If email check throws exception, default to password error (safer assumption)
+            console.error('Exception checking email existence:', emailCheckError);
+            toast.error('Password is wrong. Please check your password and try again.');
+          }
+        } else {
+          // For other error types, show the formatted error from authContext
+          toast.error(result.error);
+        }
       } else if (result.user) {
         toast.success('Successfully signed in!');
         // Save email if remember me is checked (non-blocking)
@@ -224,7 +255,7 @@ export default function LoginDashboard() {
 
   const handleSendResetEmail = async () => {
     const trimmedEmail = forgotPasswordEmail.trim();
-    
+
     if (!trimmedEmail) {
       toast.error('Please enter your email address');
       return;
@@ -241,7 +272,7 @@ export default function LoginDashboard() {
 
     try {
       const result = await UserService.resetPassword(trimmedEmail);
-      
+
       if (result.error) {
         toast.error(result.error);
       } else if (result.success) {
@@ -269,7 +300,7 @@ export default function LoginDashboard() {
   const handleRememberMeToggle = async () => {
     const newValue = !rememberMe;
     setRememberMe(newValue);
-    
+
     try {
       // Clear saved email if unchecking remember me
       if (!newValue) {
@@ -303,22 +334,22 @@ export default function LoginDashboard() {
           <ScrollView
             ref={scrollViewRef}
             scrollEnabled={false}
-            contentContainerStyle={{ 
-          flexGrow: 1,
-          paddingTop: insets.top + 20,
+            contentContainerStyle={{
+              flexGrow: 1,
+              paddingTop: insets.top + 20,
               paddingBottom: Math.max(insets.bottom, 20)
-        }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+            }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
             automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
             keyboardDismissMode="interactive"
-        className="px-6 py-8"
-      >
+            className="px-6 py-8"
+          >
             {/* Centered Content Container */}
             <View className="flex-1 justify-center">
               {/* Header */}
               <View className="items-center mb-12">
-                <Text 
+                <Text
                   className="text-6xl font-black text-white mb-6 tracking-tight"
                   style={{ fontFamily: Platform.OS === 'ios' ? 'Times New Roman' : 'serif' }}
                 >GanApp</Text>
@@ -328,90 +359,90 @@ export default function LoginDashboard() {
 
               {/* Login Form Container */}
               <View className="rounded-3xl p-8 shadow-2xl mx-2 border border-slate-100" style={{ backgroundColor: '#FAFAFA' }}>
-              {/* Email Input */}
-                <View 
+                {/* Email Input */}
+                <View
                   className="mb-6"
                   onLayout={handleInputLayout('email')}
                 >
-                <Text className="text-lg font-bold text-slate-900 mb-3">Email Address</Text>
-                <View className="flex-row items-center border-2 border-slate-200 rounded-2xl px-5 bg-slate-50 h-14">
-                  <Ionicons name="mail-outline" size={22} color="#6b7280" style={{ marginRight: 12 }} />
-                  <TextInput
+                  <Text className="text-lg font-bold text-slate-900 mb-3">Email Address</Text>
+                  <View className="flex-row items-center border-2 border-slate-200 rounded-2xl px-5 bg-slate-50 h-14">
+                    <Ionicons name="mail-outline" size={22} color="#6b7280" style={{ marginRight: 12 }} />
+                    <TextInput
                       ref={emailRef}
-                    className="flex-1 h-full text-lg text-slate-900"
-                    placeholder="Enter your email address"
-                    placeholderTextColor="#9ca3af"
-                    value={formData.email}
-                    onChangeText={(text) => handleInputChange('email', text)}
-                    onBlur={() => handleInputBlur('email')}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    returnKeyType="next"
-                    blurOnSubmit={false}
+                      className="flex-1 h-full text-lg text-slate-900"
+                      placeholder="Enter your email address"
+                      placeholderTextColor="#9ca3af"
+                      value={formData.email}
+                      onChangeText={(text) => handleInputChange('email', text)}
+                      onBlur={() => handleInputBlur('email')}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      returnKeyType="next"
+                      blurOnSubmit={false}
                       onSubmitEditing={() => passwordRef.current?.focus()}
-                  />
+                    />
+                  </View>
                 </View>
-              </View>
 
-              {/* Password Input */}
-                <View 
+                {/* Password Input */}
+                <View
                   className="mb-6"
                   onLayout={handleInputLayout('password')}
                 >
-                <Text className="text-lg font-bold text-slate-900 mb-3">Password</Text>
-                <View className="flex-row items-center border-2 border-slate-200 rounded-2xl px-5 bg-slate-50 h-14">
-                  <Ionicons name="lock-closed-outline" size={22} color="#6b7280" style={{ marginRight: 12 }} />
-                  <TextInput
+                  <Text className="text-lg font-bold text-slate-900 mb-3">Password</Text>
+                  <View className="flex-row items-center border-2 border-slate-200 rounded-2xl px-5 bg-slate-50 h-14">
+                    <Ionicons name="lock-closed-outline" size={22} color="#6b7280" style={{ marginRight: 12 }} />
+                    <TextInput
                       ref={passwordRef}
-                    className="flex-1 h-full text-lg text-slate-900"
-                    placeholder="Enter your password"
-                    placeholderTextColor="#9ca3af"
-                    value={formData.password}
-                    onChangeText={(text) => handleInputChange('password', text)}
-                    onBlur={() => handleInputBlur('password')}
-                    secureTextEntry={!showPassword}
-                    returnKeyType="done"
-                    blurOnSubmit={true}
+                      className="flex-1 h-full text-lg text-slate-900"
+                      placeholder="Enter your password"
+                      placeholderTextColor="#9ca3af"
+                      value={formData.password}
+                      onChangeText={(text) => handleInputChange('password', text)}
+                      onBlur={() => handleInputBlur('password')}
+                      secureTextEntry={!showPassword}
+                      returnKeyType="done"
+                      blurOnSubmit={true}
                       onSubmitEditing={() => {
                         passwordRef.current?.blur();
                         Keyboard.dismiss();
                       }}
-                  />
-                  <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
-                    className="p-2"
-                  >
-                    <Ionicons
-                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                      size={22}
-                      color="#6b7280"
                     />
+                    <TouchableOpacity
+                      onPress={() => setShowPassword(!showPassword)}
+                      className="p-2"
+                    >
+                      <Ionicons
+                        name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                        size={22}
+                        color="#6b7280"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Remember Me and Forgot Password Row */}
+                <View className="flex-row items-center justify-between mb-8">
+                  {/* Remember Me Checkbox */}
+                  <TouchableOpacity
+                    className="flex-row items-center"
+                    onPress={handleRememberMeToggle}
+                  >
+                    <View className={`w-6 h-6 border-2 rounded-lg mr-3 items-center justify-center ${rememberMe ? 'bg-slate-900 border-slate-900' : 'border-slate-300'}`}>
+                      {rememberMe && (
+                        <Ionicons name="checkmark" size={16} color="white" />
+                      )}
+                    </View>
+                    <Text className="text-base text-slate-700 font-medium">Remember Me</Text>
+                  </TouchableOpacity>
+
+                  {/* Forgot Password */}
+                  <TouchableOpacity onPress={handleForgotPassword}>
+                    <Text className="text-blue-700 text-base font-semibold underline">Forgot Password?</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
 
-              {/* Remember Me and Forgot Password Row */}
-              <View className="flex-row items-center justify-between mb-8">
-                {/* Remember Me Checkbox */}
-                <TouchableOpacity
-                  className="flex-row items-center"
-                  onPress={handleRememberMeToggle}
-                >
-                  <View className={`w-6 h-6 border-2 rounded-lg mr-3 items-center justify-center ${rememberMe ? 'bg-slate-900 border-slate-900' : 'border-slate-300'}`}>
-                    {rememberMe && (
-                      <Ionicons name="checkmark" size={16} color="white" />
-                    )}
-                  </View>
-                  <Text className="text-base text-slate-700 font-medium">Remember Me</Text>
-                </TouchableOpacity>
-
-                {/* Forgot Password */}
-                <TouchableOpacity onPress={handleForgotPassword}>
-                  <Text className="text-blue-700 text-base font-semibold underline">Forgot Password?</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Login Button */}
+                {/* Login Button */}
                 <View
                   onLayout={(e) => {
                     e.target.measureInWindow((x: number, y: number, width: number, height: number) => {
@@ -419,34 +450,34 @@ export default function LoginDashboard() {
                     });
                   }}
                 >
-              <TouchableOpacity
-                className={`bg-blue-700 rounded-2xl py-5 items-center mb-6 shadow-lg ${isLoading ? 'bg-blue-400' : ''}`}
-                onPress={handleLogin}
-                disabled={isLoading}
-              >
-                <Text className="text-white text-lg font-bold">
-                  {isLoading ? 'Logging In...' : 'Sign In'}
-                </Text>
-              </TouchableOpacity>
+                  <TouchableOpacity
+                    className={`bg-blue-700 rounded-2xl py-5 items-center mb-6 shadow-lg ${isLoading ? 'bg-blue-400' : ''}`}
+                    onPress={handleLogin}
+                    disabled={isLoading}
+                  >
+                    <Text className="text-white text-lg font-bold">
+                      {isLoading ? 'Logging In...' : 'Sign In'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
 
-              {/* Divider */}
-              <View className="flex-row items-center mb-6">
-                <View className="flex-1 h-px bg-slate-200" />
-                <Text className="px-4 text-slate-500 text-base font-medium">or</Text>
-                <View className="flex-1 h-px bg-slate-200" />
-              </View>
+                {/* Divider */}
+                <View className="flex-row items-center mb-6">
+                  <View className="flex-1 h-px bg-slate-200" />
+                  <Text className="px-4 text-slate-500 text-base font-medium">or</Text>
+                  <View className="flex-1 h-px bg-slate-200" />
+                </View>
 
-              {/* Create New Account Button */}
-              <TouchableOpacity
-                className="border-2 border-slate-200 rounded-2xl py-5 items-center"
-                onPress={() => router.push('/registration')}
-              >
-                <Text className="text-blue-900 text-lg font-bold">Create New Account</Text>
-              </TouchableOpacity>
+                {/* Create New Account Button */}
+                <TouchableOpacity
+                  className="border-2 border-slate-200 rounded-2xl py-5 items-center"
+                  onPress={() => router.push('/registration')}
+                >
+                  <Text className="text-blue-900 text-lg font-bold">Create New Account</Text>
+                </TouchableOpacity>
               </View>
             </View>
-            
+
             {/* Bottom Spacing */}
             <View className="h-6" />
           </ScrollView>
@@ -602,7 +633,7 @@ export default function LoginDashboard() {
             </KeyboardAvoidingView>
           </SafeAreaView>
         </Modal>
-    </SafeAreaView>
+      </SafeAreaView>
     </>
   );
 }

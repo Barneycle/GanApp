@@ -17,24 +17,52 @@ export interface User {
 
 export class UserService {
   static async checkEmailExists(email: string): Promise<{ exists: boolean; error?: string }> {
-    // Note: Supabase Auth doesn't provide a reliable public API to check email existence
-    // without potentially sending emails or causing side effects.
-    // The most reliable approach is to let signUp handle duplicate email detection.
-    // This function is kept for potential future use with RPC functions or admin APIs.
-    
-    // For now, we'll return false to allow signup attempts
-    // The actual signUp will properly detect and report duplicate emails
-    return { exists: false };
+    try {
+      const trimmedEmail = email.trim().toLowerCase();
+
+      if (!trimmedEmail || !trimmedEmail.includes('@')) {
+        return { exists: false, error: 'Invalid email format' };
+      }
+
+      // Call RPC function to check if email exists in auth.users
+      const { data, error } = await supabase.rpc('check_email_exists', {
+        user_email: trimmedEmail
+      });
+
+      if (error) {
+        console.error('RPC error checking email existence:', error);
+        // Return error so caller knows the check failed
+        return { exists: false, error: error.message || 'Unable to check email' };
+      }
+
+      // Verify we got valid data
+      if (data === null || data === undefined) {
+        console.warn('Email check returned null/undefined');
+        return { exists: false, error: 'No response from email check' };
+      }
+
+      // Check if the response has an error field (from SQL exception)
+      if (data.error) {
+        console.error('SQL error in email check:', data.error);
+        return { exists: false, error: data.error };
+      }
+
+      // Return the exists value (should be boolean)
+      return { exists: data.exists === true };
+    } catch (error: any) {
+      console.error('Exception checking email existence:', error);
+      return { exists: false, error: error?.message || 'Unable to check email' };
+    }
   }
 
   static async getCurrentUser(): Promise<User | null> {
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
+
       if (authError) {
         return null;
       }
-      
+
       if (!user) {
         return null;
       }
@@ -51,7 +79,7 @@ export class UserService {
 
       // Use Supabase Auth user metadata for role
       const role = user.user_metadata?.role || 'participant';
-      
+
       // Create user object from Supabase Auth data
       const userData: User = {
         id: user.id,
@@ -67,7 +95,7 @@ export class UserService {
         created_at: user.created_at,
         updated_at: user.updated_at || user.created_at
       };
-      
+
       return userData;
     } catch (error) {
       return null;
@@ -113,7 +141,7 @@ export class UserService {
           created_at: data.user.created_at,
           updated_at: data.user.updated_at || data.user.created_at
         };
-        
+
         return { user, message: 'User created successfully' };
       }
 
@@ -123,7 +151,7 @@ export class UserService {
     }
   }
 
-  static async signIn(email: string, password: string, rememberMe: boolean = false): Promise<{ user?: User; error?: string }> {
+  static async signIn(email: string, password: string, rememberMe: boolean = false): Promise<{ user?: User; error?: string; errorType?: 'email' | 'password' | 'generic' }> {
     try {
       // Set session persistence based on rememberMe
       // If rememberMe is true, use localStorage (persistent session)
@@ -132,7 +160,7 @@ export class UserService {
         email,
         password,
       });
-      
+
       // Store rememberMe preference
       if (rememberMe) {
         localStorage.setItem('rememberMe', 'true');
@@ -141,7 +169,23 @@ export class UserService {
       }
 
       if (error) {
-        return { error: error.message };
+        // Parse error to determine if it's email or password issue
+        const errorMsg = error.message.toLowerCase();
+        let errorType: 'email' | 'password' | 'generic' = 'generic';
+
+        // Check for specific error patterns
+        if (errorMsg.includes('email') && (errorMsg.includes('not found') || errorMsg.includes('does not exist') || errorMsg.includes('user not found'))) {
+          errorType = 'email';
+        } else if (errorMsg.includes('password') && (errorMsg.includes('incorrect') || errorMsg.includes('wrong') || errorMsg.includes('invalid'))) {
+          errorType = 'password';
+        } else if (errorMsg.includes('invalid login credentials') || errorMsg.includes('invalid credentials')) {
+          // For generic "Invalid login credentials", try to determine which one
+          // We can't reliably check email existence without exposing user data
+          // So we'll return a generic error but let the UI handle it
+          errorType = 'generic';
+        }
+
+        return { error: error.message, errorType };
       }
 
       if (!data.session || !data.user) {
@@ -150,13 +194,13 @@ export class UserService {
 
       // Small delay to ensure session is fully established
       await new Promise(resolve => setTimeout(resolve, 100));
-      
+
       // Verify session is properly established
       const { data: { session: verifySession }, error: verifyError } = await supabase.auth.getSession();
       if (verifyError) {
         return { error: verifyError.message || 'Session could not be verified. Please try again.' };
       }
-      
+
       if (!verifySession || !verifySession.user) {
         return { error: 'Session could not be verified. Please try again.' };
       }
@@ -178,7 +222,7 @@ export class UserService {
 
         // Use Supabase Auth user metadata for role
         const role = data.user.user_metadata?.role || 'participant';
-        
+
         // Create user object from Supabase Auth data
         const userData: User = {
           id: data.user.id,
@@ -194,7 +238,7 @@ export class UserService {
           created_at: data.user.created_at,
           updated_at: data.user.updated_at || data.user.created_at
         };
-        
+
         return { user: userData };
       }
 
@@ -208,7 +252,7 @@ export class UserService {
     try {
       // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
-      
+
       if (error) {
         return { error: error.message };
       }
@@ -230,7 +274,7 @@ export class UserService {
     try {
       // Get the current origin for web redirect
       const redirectTo = `${window.location.origin}/reset-password`;
-      
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectTo,
       });
@@ -250,7 +294,7 @@ export class UserService {
     try {
       // Get current user to preserve existing metadata
       const { data: { user: currentUser } } = await supabase.auth.getUser();
-      
+
       // Prepare update object for metadata - preserve existing values
       const updateData: any = {
         ...(currentUser?.user_metadata || {}), // Preserve existing metadata
@@ -289,7 +333,7 @@ export class UserService {
       const updateParams: any = {
         data: updateData
       };
-      
+
       // Only add email if it's being changed
       if (isEmailChanging) {
         updateParams.email = updates.email;
@@ -318,18 +362,18 @@ export class UserService {
           created_at: data.user.created_at,
           updated_at: data.user.updated_at || data.user.created_at
         };
-        
+
         // Check if email confirmation is needed
         // If email was changed and data.user.email matches the new email, confirmation was NOT needed (email updated immediately)
         // If email was changed but data.user.email still shows old email, confirmation IS needed
-        const emailUpdatedImmediately = isEmailChanging && 
-          data.user.email && 
+        const emailUpdatedImmediately = isEmailChanging &&
+          data.user.email &&
           updates.email &&
           data.user.email.toLowerCase() === updates.email.toLowerCase();
-        
+
         const needsEmailConfirmation = Boolean(isEmailChanging && !emailUpdatedImmediately);
-        
-        return { 
+
+        return {
           user: userData,
           needsEmailConfirmation: needsEmailConfirmation
         };
@@ -345,7 +389,7 @@ export class UserService {
     try {
       // First verify the current password by attempting to sign in
       const { data: { user }, error: verifyError } = await supabase.auth.getUser();
-      
+
       if (verifyError || !user) {
         return { error: 'Unable to verify current session. Please sign in again.' };
       }
@@ -384,12 +428,12 @@ export class UserService {
         console.error('Upload error:', uploadError);
         // Provide helpful error message for RLS issues
         if (uploadError.message?.includes('row-level security') || uploadError.message?.includes('RLS')) {
-          return { 
-            error: 'Permission denied. Please ensure the storage bucket allows authenticated users to upload files. Contact your administrator.' 
+          return {
+            error: 'Permission denied. Please ensure the storage bucket allows authenticated users to upload files. Contact your administrator.'
           };
         }
-        return { 
-          error: uploadError.message || 'Failed to upload avatar. Please ensure you have permission to upload files.' 
+        return {
+          error: uploadError.message || 'Failed to upload avatar. Please ensure you have permission to upload files.'
         };
       }
 
