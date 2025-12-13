@@ -5,10 +5,10 @@ import {
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
-  Alert,
   TextInput,
   ActivityIndicator,
 } from 'react-native';
+import { showError, showSuccess, showWarning } from '../lib/sweetAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -96,12 +96,12 @@ export default function Survey() {
 
   const nextQuestion = () => {
     if (currentQuestion.required && !answers[currentQuestion.id] && currentQuestion.type !== 'text') {
-      Alert.alert('Required Question', 'Please answer this question before continuing.');
+      showWarning('Required Question', 'Please answer this question before continuing.');
       return;
     }
 
     if (currentQuestion.type === 'text' && currentQuestion.required && !textInputs[currentQuestion.id]?.trim()) {
-      Alert.alert('Required Question', 'Please provide an answer before continuing.');
+      showWarning('Required Question', 'Please provide an answer before continuing.');
       return;
     }
 
@@ -120,7 +120,7 @@ export default function Survey() {
 
   const submitSurvey = async () => {
     if (!survey || !user) {
-      Alert.alert('Error', 'Survey or user data is missing');
+      showError('Error', 'Survey or user data is missing');
       return;
     }
 
@@ -137,24 +137,19 @@ export default function Survey() {
       );
 
       if (result.error) {
-        Alert.alert('Error', result.error);
+        showError('Error', result.error);
         return;
       }
 
-      Alert.alert(
+      showSuccess(
         'Survey Completed!',
         'Thank you for your feedback.',
-        [
-          {
-            text: 'Continue',
-            onPress: () => {
-              router.back();
-            }
-          }
-        ]
+        () => {
+          router.back();
+        }
       );
     } catch (err) {
-      Alert.alert('Error', 'Failed to submit survey');
+      showError('Error', 'Failed to submit survey');
     } finally {
       setIsSubmitting(false);
     }
@@ -592,17 +587,10 @@ export default function Survey() {
           {/* Skip Survey Option - Google Forms Style */}
           <TouchableOpacity
             onPress={() => {
-              Alert.alert(
+              showConfirm(
                 'Skip Survey',
                 'Are you sure you want to skip this survey?',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  { 
-                    text: 'Skip', 
-                    style: 'destructive',
-                    onPress: () => router.back()
-                  }
-                ]
+                () => router.back()
               );
             }}
             className="mt-6 text-center"

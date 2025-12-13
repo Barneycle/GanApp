@@ -35,7 +35,6 @@ import { decodeHtml, getHtmlContentWidth, defaultHtmlStyles, stripHtmlTags } fro
 import RenderHTML from 'react-native-render-html';
 import TutorialOverlay from '../../components/TutorialOverlay';
 import { useToast } from '../../components/Toast';
-import CertificateGeneratorModal from '../../components/CertificateGeneratorModal';
 
 type DateFilter = 'all' | 'upcoming' | 'ongoing' | 'completed';
 type SortOption = 'date-asc' | 'date-desc' | 'title-asc' | 'title-desc' | 'registration-asc' | 'registration-desc';
@@ -60,8 +59,6 @@ export default function MyEvents() {
   const [qrError, setQrError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [expandedRationale, setExpandedRationale] = useState<Set<string>>(new Set());
-  const [isCertificateModalOpen, setIsCertificateModalOpen] = useState(false);
-  const [certificateEventId, setCertificateEventId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [venueFilter, setVenueFilter] = useState<string>('all');
@@ -958,8 +955,7 @@ export default function MyEvents() {
                     
                     <TouchableOpacity
                       onPress={() => {
-                        setCertificateEventId(event.id);
-                        setIsCertificateModalOpen(true);
+                        router.push(`/certificate?eventId=${event.id}`);
                       }}
                       style={{
                         width: '31%',
@@ -1263,17 +1259,6 @@ export default function MyEvents() {
         </View>
       </Modal>
 
-      {/* Certificate Generator Modal */}
-      {isCertificateModalOpen && certificateEventId && (
-        <CertificateGeneratorModal
-          visible={isCertificateModalOpen}
-          eventId={certificateEventId}
-          onClose={() => {
-            setIsCertificateModalOpen(false);
-            setCertificateEventId(null);
-          }}
-        />
-      )}
     </SafeAreaView>
   );
 }

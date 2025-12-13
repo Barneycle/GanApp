@@ -8,8 +8,8 @@ import { JobQueueService } from '../services/jobQueueService';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './Toast';
 
-const CertificateGenerator = ({ eventId, onClose }) => {
-  const { user } = useAuth();
+const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
+  const { user, loading: authLoading } = useAuth();
   const toast = useToast();
   const canvasRef = useRef(null);
 
@@ -22,23 +22,128 @@ const CertificateGenerator = ({ eventId, onClose }) => {
   const [previewData, setPreviewData] = useState(null);
   const [jobStatus, setJobStatus] = useState('idle');
   const [jobId, setJobId] = useState(null);
+  const hasLoadedRef = useRef(false);
+  const authTimeoutRef = useRef(null);
+  const readyMessageSentRef = useRef(false);
 
+  // Wait for auth to finish loading before attempting to load data
   useEffect(() => {
-    if (eventId && user?.id) {
+    // Clear any existing timeout
+    if (authTimeoutRef.current) {
+      clearTimeout(authTimeoutRef.current);
+      authTimeoutRef.current = null;
+    }
+
+    // Don't load if auth is still loading
+    if (authLoading) {
+      return;
+    }
+
+    // If auth finished loading but no user, show error after a short delay
+    if (!authLoading && !user?.id && eventId) {
+      authTimeoutRef.current = setTimeout(() => {
+        if (!hasLoadedRef.current) {
+          console.error('❌ No user found after auth loading completed');
+          setError('Authentication required. Please make sure you are logged in. If you came from the mobile app, try logging in again.');
+          setLoading(false);
+          hasLoadedRef.current = true;
+          
+          // Notify mobile app of error
+          if (isMobile && window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'error',
+              message: 'Authentication failed. Please log in again.'
+            }));
+          }
+        }
+      }, 3000); // Give 3 seconds for token auth to complete
+      
+      return () => {
+        if (authTimeoutRef.current) {
+          clearTimeout(authTimeoutRef.current);
+          authTimeoutRef.current = null;
+        }
+      };
+    }
+
+    // Load data when we have both eventId and user
+    if (eventId && user?.id && !hasLoadedRef.current) {
+      console.log('✅ User found, loading certificate data. User ID:', user.id);
+      hasLoadedRef.current = true;
+      if (authTimeoutRef.current) {
+        clearTimeout(authTimeoutRef.current);
+        authTimeoutRef.current = null;
+      }
       loadData();
       // Check for pending job after page refresh
       checkPendingJob();
+    } else if (eventId && !user?.id && !authLoading) {
+      console.log('⚠️ No user found but auth loading is complete. EventId:', eventId);
     }
-  }, [eventId, user?.id]);
+  }, [eventId, user?.id, authLoading, isMobile]);
 
-  // Prevent body scroll when modal is open
+  // Notify mobile WebView when loading completes or error occurs
   useEffect(() => {
-    const originalStyle = window.getComputedStyle(document.body).overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = originalStyle;
-    };
-  }, []);
+    if (isMobile && window.ReactNativeWebView && eventId && !readyMessageSentRef.current) {
+      // Send error message immediately if there's an error
+      if (error) {
+        console.log('📤 Sending error message to mobile:', error);
+        readyMessageSentRef.current = true;
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'error',
+          message: error
+        }));
+        return;
+      }
+      
+      // Send ready message when:
+      // 1. Auth has finished loading
+      // 2. Data loading has finished (either successfully or with error)
+      // 3. We have some data to show (certificate, config, event) OR we've determined there's no user
+      if (!authLoading && !loading) {
+        const hasData = certificate || config || event;
+        const hasNoUser = !user?.id && !authLoading; // User check completed but no user
+        
+        if (hasData || hasNoUser) {
+          console.log('📤 Sending ready message to mobile. Has data:', hasData, 'Has no user:', hasNoUser);
+          readyMessageSentRef.current = true;
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'ready'
+          }));
+        } else {
+          console.log('⏳ Waiting for data. Loading:', loading, 'AuthLoading:', authLoading, 'User:', user?.id);
+        }
+      }
+    }
+  }, [loading, authLoading, error, certificate, config, event, isMobile, eventId, user?.id]);
+
+  // Fallback: Send ready message after 15 seconds if we haven't sent it yet
+  useEffect(() => {
+    if (isMobile && window.ReactNativeWebView && eventId && !readyMessageSentRef.current) {
+      const fallbackTimeout = setTimeout(() => {
+        if (!readyMessageSentRef.current) {
+          console.warn('⏱️ Fallback: Sending ready message after timeout');
+          readyMessageSentRef.current = true;
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'ready'
+          }));
+        }
+      }, 15000); // 15 second fallback
+
+      return () => clearTimeout(fallbackTimeout);
+    }
+  }, [isMobile, eventId]);
+
+  // Prevent body scroll when modal is open (only for non-mobile)
+  useEffect(() => {
+    if (!isMobile) {
+      const originalStyle = window.getComputedStyle(document.body).overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalStyle;
+      };
+    }
+  }, [isMobile]);
 
   // Check for pending job in sessionStorage
   const checkPendingJob = async () => {
@@ -191,6 +296,7 @@ const CertificateGenerator = ({ eventId, onClose }) => {
       if (eventResult.error) {
         setError(eventResult.error);
         toast.error(eventResult.error);
+        setLoading(false);
         return;
       }
       setEvent(eventResult.event);
@@ -1284,12 +1390,13 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     return null;
   }
 
-  // Render modal content
-  const modalContent = (
+  // Render content based on mobile or modal mode
+  const content = (
     <>
       {loading ? (
         <div 
-          style={{
+          className={isMobile ? 'h-screen flex items-center justify-center bg-white' : ''}
+          style={isMobile ? {} : {
             position: 'fixed',
             top: 0,
             left: 0,
@@ -1312,7 +1419,8 @@ const CertificateGenerator = ({ eventId, onClose }) => {
         </div>
       ) : (
         <div 
-          style={{
+          className={isMobile ? 'h-screen bg-white flex flex-col' : ''}
+          style={isMobile ? {} : {
             position: 'fixed',
             top: 0,
             left: 0,
@@ -1326,14 +1434,14 @@ const CertificateGenerator = ({ eventId, onClose }) => {
             padding: '1rem'
           }}
           onClick={(e) => {
-            if (e.target === e.currentTarget) {
+            if (!isMobile && e.target === e.currentTarget) {
               onClose();
             }
           }}
         >
-          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-slate-800">Certificate</h2>
+          <div className={`bg-white ${isMobile ? 'flex-1 flex flex-col' : 'rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh]'} overflow-y-auto`}>
+        <div className={`sticky top-0 bg-white border-b border-slate-200 ${isMobile ? 'p-4' : 'p-6'} flex justify-between items-center`}>
+          <h2 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-slate-800`}>Certificate</h2>
           <button
             onClick={onClose}
             className="text-slate-500 hover:text-slate-700 transition-colors"
@@ -1344,7 +1452,7 @@ const CertificateGenerator = ({ eventId, onClose }) => {
           </button>
         </div>
 
-        <div className="p-6">
+        <div className={`${isMobile ? 'p-4 flex-1' : 'p-6'}`}>
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-red-800 text-sm">{error}</p>
@@ -1378,11 +1486,11 @@ const CertificateGenerator = ({ eventId, onClose }) => {
               </div>
 
               {/* Download Buttons */}
-              <div className="flex gap-4 justify-center">
+              <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} gap-4 ${isMobile ? 'w-full' : 'justify-center'}`}>
                 {certificate.certificate_pdf_url && (
                   <button
                     onClick={() => handleDownload('pdf')}
-                    className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"
+                    className={`${isMobile ? 'w-full' : ''} px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center gap-2`}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -1393,7 +1501,7 @@ const CertificateGenerator = ({ eventId, onClose }) => {
                 {certificate.certificate_png_url && (
                   <button
                     onClick={() => handleDownload('png')}
-                    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center gap-2"
+                    className={`${isMobile ? 'w-full' : ''} px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2`}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -1461,10 +1569,14 @@ const CertificateGenerator = ({ eventId, onClose }) => {
     </>
   );
 
-  // Use portal to render outside the normal DOM hierarchy
-  const modalRoot = document.getElementById('root') || document.body;
+  // For mobile, render directly; for desktop, use portal
+  if (isMobile) {
+    return content;
+  }
   
-  return createPortal(modalContent, modalRoot);
+  // Use portal to render outside the normal DOM hierarchy for modal
+  const modalRoot = document.getElementById('root') || document.body;
+  return createPortal(content, modalRoot);
 };
 
 export default CertificateGenerator;

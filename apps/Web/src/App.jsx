@@ -27,7 +27,9 @@ function App() {
     // Pages that should skip loading screen and hide navbar
     const authPages = ['/login', '/registration', '/reset-password'];
     const isAuthPage = authPages.includes(location.pathname);
-    const shouldHideNavbar = isAuthPage;
+    // Also hide navbar for mobile certificate page
+    const isMobileCertificate = location.pathname === '/certificate' && new URLSearchParams(location.search).get('mobile') === 'true';
+    const shouldHideNavbar = isAuthPage || isMobileCertificate;
 
     const handleLoadingComplete = () => {
         setIsLoaded(true);
