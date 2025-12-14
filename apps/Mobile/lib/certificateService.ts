@@ -196,6 +196,90 @@ export class CertificateService {
   }
 
   /**
+   * Get all certificates for a user with event details
+   */
+  static async getUserCertificates(userId: string): Promise<{ certificates?: Array<Certificate & { event?: any }>; error?: string }> {
+    try {
+      // Get all certificates for the user
+      const { data: certificates, error: certError } = await supabase
+        .from('certificates')
+        .select('*')
+        .eq('user_id', userId)
+        .order('generated_at', { ascending: false });
+
+      if (certError) {
+        return { error: certError.message };
+      }
+
+      if (!certificates || certificates.length === 0) {
+        return { certificates: [] };
+      }
+
+      // Collect unique event IDs
+      const eventIds = [...new Set(certificates.map(cert => cert.event_id))];
+
+      // Batch fetch active events
+      const { data: activeEvents } = await supabase
+        .from('events')
+        .select('id, title, start_date, end_date, status, venue')
+        .in('id', eventIds);
+
+      // Batch fetch archived events
+      const { data: archivedEvents } = await supabase
+        .from('archived_events')
+        .select('original_event_id, title, start_date, end_date, status, venue, archived_at')
+        .in('original_event_id', eventIds);
+
+      // Create maps for quick lookup
+      const activeEventsMap = new Map(
+        (activeEvents || []).map(event => [event.id, event])
+      );
+      const archivedEventsMap = new Map(
+        (archivedEvents || []).map(event => [event.original_event_id, event])
+      );
+
+      // Combine certificates with event details
+      const certificatesWithEvents = certificates.map((cert) => {
+        // Try active events first
+        const activeEvent = activeEventsMap.get(cert.event_id);
+        if (activeEvent) {
+          return {
+            ...cert,
+            event: activeEvent
+          };
+        }
+
+        // Try archived events
+        const archivedEvent = archivedEventsMap.get(cert.event_id);
+        if (archivedEvent) {
+          return {
+            ...cert,
+            event: {
+              id: archivedEvent.original_event_id,
+              title: archivedEvent.title,
+              start_date: archivedEvent.start_date,
+              end_date: archivedEvent.end_date,
+              status: archivedEvent.status,
+              venue: archivedEvent.venue,
+              archived_at: archivedEvent.archived_at
+            }
+          };
+        }
+
+        // If event not found in either table, return certificate without event details
+        return {
+          ...cert,
+          event: null
+        };
+      });
+
+      return { certificates: certificatesWithEvents };
+    } catch (err: any) {
+      return { error: err.message || 'Failed to fetch user certificates' };
+    }
+  }
+
+  /**
    * Save generated certificate to database
    */
   static async saveCertificate(

@@ -65,6 +65,17 @@ export default function TabLayout() {
           href: isParticipant ? '/(tabs)/my-events' : null,
         }}
       />
+      {/* Show My Certificates for participants */}
+      <Tabs.Screen
+        name="my-certificates"
+        options={{
+          title: 'Certificates',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="document-text-outline" size={size} color={color} />
+          ),
+          href: isParticipant ? '/(tabs)/my-certificates' : null,
+        }}
+      />
       {/* Show QR Scanner for organizers/admins */}
       <Tabs.Screen
         name="qrscanner"
