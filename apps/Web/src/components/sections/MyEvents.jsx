@@ -11,6 +11,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { usePageVisibility } from '../../hooks/usePageVisibility';
 import { useToast } from '../Toast';
 import { ConfirmationDialog } from '../ConfirmationDialog';
+import { EventChatModal } from '../EventChatModal';
 
 export const MyEvents = () => {
   const navigate = useNavigate();
@@ -28,6 +29,8 @@ export const MyEvents = () => {
   const [qrEvent, setQrEvent] = useState(null);
   const [isCertificateModalOpen, setIsCertificateModalOpen] = useState(false);
   const [certificateEventId, setCertificateEventId] = useState(null);
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [chatEvent, setChatEvent] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('all'); // 'all', 'upcoming', 'ongoing', 'completed'
   const [venueFilter, setVenueFilter] = useState('all');
@@ -79,6 +82,14 @@ export const MyEvents = () => {
     }
   }, [user, isAuthenticated, navigate]);
 
+  // Reset certificate modal state when component unmounts or user changes
+  useEffect(() => {
+    return () => {
+      setIsCertificateModalOpen(false);
+      setCertificateEventId(null);
+    };
+  }, [user?.id]);
+
   const loadRegisteredEvents = async () => {
     if (!user?.id) return;
 
@@ -116,15 +127,35 @@ export const MyEvents = () => {
           // Check check-in and survey completion status for each event
           if (user?.id && events.length > 0) {
             const statusPromises = events.map(async (event) => {
-              const [checkInResult, surveyResult] = await Promise.all([
+              const [checkInResult, surveyResult, surveyAvailabilityResult] = await Promise.all([
                 EventService.checkUserCheckInStatus(event.id, user.id),
-                EventService.checkUserSurveyCompletion(event.id, user.id)
+                EventService.checkUserSurveyCompletion(event.id, user.id),
+                SurveyService.getSurveysByEvent(event.id)
               ]);
+
+              // Check if survey is available (active and open)
+              let isSurveyAvailable = false;
+              if (surveyAvailabilityResult.surveys && surveyAvailabilityResult.surveys.length > 0) {
+                const activeSurvey = surveyAvailabilityResult.surveys.find(s => s.is_active) || surveyAvailabilityResult.surveys[0];
+                if (activeSurvey) {
+                  const now = new Date();
+                  const isActive = activeSurvey.is_active;
+                  const isOpen = activeSurvey.is_open;
+                  const opensAt = activeSurvey.opens_at ? new Date(activeSurvey.opens_at) : null;
+                  const closesAt = activeSurvey.closes_at ? new Date(activeSurvey.closes_at) : null;
+
+                  isSurveyAvailable = isActive && isOpen &&
+                    (!opensAt || now >= opensAt) &&
+                    (!closesAt || now <= closesAt);
+                }
+              }
 
               return {
                 eventId: event.id,
                 isCheckedIn: checkInResult.isCheckedIn || false,
-                surveyCompleted: surveyResult.isCompleted || false
+                isValidated: checkInResult.isValidated || false,
+                surveyCompleted: surveyResult.isCompleted || false,
+                isSurveyAvailable: isSurveyAvailable
               };
             });
 
@@ -133,7 +164,9 @@ export const MyEvents = () => {
             statuses.forEach(status => {
               statusMap[status.eventId] = {
                 isCheckedIn: status.isCheckedIn,
-                surveyCompleted: status.surveyCompleted
+                isValidated: status.isValidated,
+                surveyCompleted: status.surveyCompleted,
+                isSurveyAvailable: status.isSurveyAvailable
               };
             });
             setEventStatuses(statusMap);
@@ -589,9 +622,9 @@ export const MyEvents = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredAndSortedEvents.map((event) => {
                 const eventStatus = getEventStatus(event);
-                const eventStatusData = eventStatuses[event.id] || { isCheckedIn: false, surveyCompleted: false };
-                const canTakeSurvey = eventStatusData.isCheckedIn;
-                const canGenerateCert = eventStatusData.isCheckedIn && eventStatusData.surveyCompleted;
+                const eventStatusData = eventStatuses[event.id] || { isCheckedIn: false, isValidated: false, surveyCompleted: false, isSurveyAvailable: false };
+                const canTakeSurvey = eventStatusData.isCheckedIn && eventStatusData.isSurveyAvailable;
+                const canGenerateCert = eventStatusData.isCheckedIn && eventStatusData.isValidated && eventStatusData.surveyCompleted;
 
                 return (
                   <div
@@ -690,8 +723,12 @@ export const MyEvents = () => {
                         </button>
                         <button
                           onClick={async () => {
-                            if (!canTakeSurvey) {
+                            if (!eventStatusData.isCheckedIn) {
                               toast.warning('Please check in to the event first before taking the survey.');
+                              return;
+                            }
+                            if (!eventStatusData.isSurveyAvailable) {
+                              toast.warning('The survey for this event is currently closed.');
                               return;
                             }
                             try {
@@ -713,15 +750,17 @@ export const MyEvents = () => {
                             ? 'bg-blue-800 text-white hover:bg-blue-700'
                             : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                             }`}
-                          title={!canTakeSurvey ? 'Please check in to the event first' : ''}
+                          title={!canTakeSurvey ? (!eventStatusData.isCheckedIn ? 'Please check in to the event first' : 'The survey is currently closed') : ''}
                         >
-                          Take Survey
+                          Take Evaluation
                         </button>
                         <button
                           onClick={() => {
                             if (!canGenerateCert) {
                               if (!eventStatusData.isCheckedIn) {
                                 toast.warning('Please check in to the event first.');
+                              } else if (!eventStatusData.isValidated) {
+                                toast.warning('Your attendance must be validated by the organizer before generating a certificate.');
                               } else if (!eventStatusData.surveyCompleted) {
                                 toast.warning('Please complete the survey/evaluation first.');
                               }
@@ -735,13 +774,31 @@ export const MyEvents = () => {
                             ? 'bg-blue-500 text-white hover:bg-blue-600'
                             : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                             }`}
-                          title={!canGenerateCert ? (!eventStatusData.isCheckedIn ? 'Please check in first' : 'Please complete the survey first') : ''}
+                          title={!canGenerateCert ? (
+                            !eventStatusData.isCheckedIn
+                              ? 'Please check in first'
+                              : !eventStatusData.isValidated
+                                ? 'Your attendance must be validated first'
+                                : 'Please complete the survey first'
+                          ) : ''}
                         >
                           Generate Certificate
                         </button>
                         <button
+                          onClick={() => {
+                            setChatEvent(event);
+                            setShowChatModal(true);
+                          }}
+                          className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          </svg>
+                          Contact Organizer
+                        </button>
+                        <button
                           onClick={() => handleUnregisterClick(event.id, event.title)}
-                          className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm col-span-2"
+                          className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
                         >
                           Unregister
                         </button>
@@ -795,6 +852,19 @@ export const MyEvents = () => {
           type="danger"
           loading={isUnregistering}
         />
+
+        {/* Contact Organizer Chat Modal */}
+        {showChatModal && chatEvent && (
+          <EventChatModal
+            isOpen={showChatModal}
+            onClose={() => {
+              setShowChatModal(false);
+              setChatEvent(null);
+            }}
+            eventId={chatEvent.id}
+            eventTitle={chatEvent.title}
+          />
+        )}
       </section>
     </>
   );

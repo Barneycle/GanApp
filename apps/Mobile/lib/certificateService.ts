@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 import * as FileSystem from 'expo-file-system';
+import { NetworkStatusMonitor } from './offline/networkStatus';
+import { LocalDatabaseService } from './offline/localDatabase';
 
 export interface CertificateConfig {
   id?: string;
@@ -198,82 +200,114 @@ export class CertificateService {
   /**
    * Get all certificates for a user with event details
    */
-  static async getUserCertificates(userId: string): Promise<{ certificates?: Array<Certificate & { event?: any }>; error?: string }> {
+  static async getUserCertificates(userId: string): Promise<{ certificates?: Array<Certificate & { event?: any }>; error?: string; fromCache?: boolean }> {
     try {
-      // Get all certificates for the user
-      const { data: certificates, error: certError } = await supabase
-        .from('certificates')
-        .select('*')
-        .eq('user_id', userId)
-        .order('generated_at', { ascending: false });
+      // Try to fetch from server if online
+      if (NetworkStatusMonitor.isOnline()) {
+        try {
+          // Get all certificates for the user
+          const { data: certificates, error: certError } = await supabase
+            .from('certificates')
+            .select('*')
+            .eq('user_id', userId)
+            .order('generated_at', { ascending: false });
 
-      if (certError) {
-        return { error: certError.message };
-      }
-
-      if (!certificates || certificates.length === 0) {
-        return { certificates: [] };
-      }
-
-      // Collect unique event IDs
-      const eventIds = [...new Set(certificates.map(cert => cert.event_id))];
-
-      // Batch fetch active events
-      const { data: activeEvents } = await supabase
-        .from('events')
-        .select('id, title, start_date, end_date, status, venue')
-        .in('id', eventIds);
-
-      // Batch fetch archived events
-      const { data: archivedEvents } = await supabase
-        .from('archived_events')
-        .select('original_event_id, title, start_date, end_date, status, venue, archived_at')
-        .in('original_event_id', eventIds);
-
-      // Create maps for quick lookup
-      const activeEventsMap = new Map(
-        (activeEvents || []).map(event => [event.id, event])
-      );
-      const archivedEventsMap = new Map(
-        (archivedEvents || []).map(event => [event.original_event_id, event])
-      );
-
-      // Combine certificates with event details
-      const certificatesWithEvents = certificates.map((cert) => {
-        // Try active events first
-        const activeEvent = activeEventsMap.get(cert.event_id);
-        if (activeEvent) {
-          return {
-            ...cert,
-            event: activeEvent
-          };
-        }
-
-        // Try archived events
-        const archivedEvent = archivedEventsMap.get(cert.event_id);
-        if (archivedEvent) {
-          return {
-            ...cert,
-            event: {
-              id: archivedEvent.original_event_id,
-              title: archivedEvent.title,
-              start_date: archivedEvent.start_date,
-              end_date: archivedEvent.end_date,
-              status: archivedEvent.status,
-              venue: archivedEvent.venue,
-              archived_at: archivedEvent.archived_at
+          if (certError) {
+            // Fall through to cache
+          } else if (certificates) {
+            // Save certificates to local database
+            for (const cert of certificates) {
+              await LocalDatabaseService.saveCertificate({
+                id: cert.id,
+                event_id: cert.event_id,
+                user_id: cert.user_id,
+                certificate_url: cert.certificate_pdf_url || cert.certificate_png_url || '',
+                issued_at: cert.generated_at || cert.created_at,
+              });
             }
-          };
+
+            // Collect unique event IDs
+            const eventIds = [...new Set(certificates.map(cert => cert.event_id))];
+
+            // Batch fetch active events
+            const { data: activeEvents } = await supabase
+              .from('events')
+              .select('id, title, start_date, end_date, status, venue')
+              .in('id', eventIds);
+
+            // Batch fetch archived events
+            const { data: archivedEvents } = await supabase
+              .from('archived_events')
+              .select('original_event_id, title, start_date, end_date, status, venue, archived_at')
+              .in('original_event_id', eventIds);
+
+            // Create maps for quick lookup
+            const activeEventsMap = new Map(
+              (activeEvents || []).map(event => [event.id, event])
+            );
+            const archivedEventsMap = new Map(
+              (archivedEvents || []).map(event => [event.original_event_id, event])
+            );
+
+            // Combine certificates with event details
+            const certificatesWithEvents = certificates.map((cert) => {
+              // Try active events first
+              const activeEvent = activeEventsMap.get(cert.event_id);
+              if (activeEvent) {
+                return {
+                  ...cert,
+                  event: activeEvent
+                };
+              }
+
+              // Try archived events
+              const archivedEvent = archivedEventsMap.get(cert.event_id);
+              if (archivedEvent) {
+                return {
+                  ...cert,
+                  event: {
+                    id: archivedEvent.original_event_id,
+                    title: archivedEvent.title,
+                    start_date: archivedEvent.start_date,
+                    end_date: archivedEvent.end_date,
+                    status: archivedEvent.status,
+                    venue: archivedEvent.venue,
+                    archived_at: archivedEvent.archived_at
+                  }
+                };
+              }
+
+              // If event not found in either table, return certificate without event details
+              return {
+                ...cert,
+                event: null
+              };
+            });
+
+            return { certificates: certificatesWithEvents, fromCache: false };
+          }
+        } catch (error) {
+          console.error('Network error, falling back to cache:', error);
+          // Fall through to cache
         }
+      }
 
-        // If event not found in either table, return certificate without event details
-        return {
+      // Fallback to local database
+      const cachedCertificates = await LocalDatabaseService.getCertificates(userId);
+      const certificatesWithEvents = [];
+
+      for (const cert of cachedCertificates) {
+        const event = await LocalDatabaseService.getEventById(cert.event_id);
+        certificatesWithEvents.push({
           ...cert,
-          event: null
-        };
-      });
+          certificate_pdf_url: cert.certificate_url,
+          certificate_png_url: cert.certificate_url,
+          generated_at: cert.issued_at,
+          event: event || null,
+        });
+      }
 
-      return { certificates: certificatesWithEvents };
+      return { certificates: certificatesWithEvents as any, fromCache: true };
     } catch (err: any) {
       return { error: err.message || 'Failed to fetch user certificates' };
     }
@@ -354,7 +388,7 @@ export class CertificateService {
 
       // For React Native, read the file using FileSystem
       const normalizedUri = fileUri.startsWith('file://') ? fileUri : `file://${fileUri}`;
-      
+
       // Read file as base64
       const base64Data = await FileSystem.readAsStringAsync(normalizedUri, {
         encoding: FileSystem.EncodingType.Base64,
@@ -365,33 +399,33 @@ export class CertificateService {
       const base64Decode = (str: string): Uint8Array => {
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
         let output = '';
-        
+
         str = str.replace(/[^A-Za-z0-9\+\/\=]/g, '');
-        
+
         for (let i = 0; i < str.length; i += 4) {
           const enc1 = chars.indexOf(str.charAt(i));
           const enc2 = chars.indexOf(str.charAt(i + 1));
           const enc3 = chars.indexOf(str.charAt(i + 2));
           const enc4 = chars.indexOf(str.charAt(i + 3));
-          
+
           const chr1 = (enc1 << 2) | (enc2 >> 4);
           const chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
           const chr3 = ((enc3 & 3) << 6) | enc4;
-          
+
           output += String.fromCharCode(chr1);
           if (enc3 !== 64) output += String.fromCharCode(chr2);
           if (enc4 !== 64) output += String.fromCharCode(chr3);
         }
-        
+
         const bytes = new Uint8Array(output.length);
         for (let i = 0; i < output.length; i++) {
           bytes[i] = output.charCodeAt(i);
         }
         return bytes;
       };
-      
+
       const byteArray = base64Decode(base64Data);
-      
+
       // Upload to Supabase storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from(bucketName)

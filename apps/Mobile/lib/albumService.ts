@@ -1,5 +1,10 @@
 import { supabase } from './supabase';
 import { Event } from './eventService';
+import { NetworkStatusMonitor } from './offline/networkStatus';
+import { SyncQueueService, SyncPriority } from './offline/syncQueue';
+import { DataType } from './offline/conflictResolution';
+import { LocalDatabaseService } from './offline/localDatabase';
+import * as FileSystem from 'expo-file-system';
 
 export interface EventPhoto {
   id: string;
@@ -138,7 +143,7 @@ export class AlbumService {
 
       // Count files that match the user ID pattern (userId_timestamp.jpg)
       // Match mobile app pattern exactly: files starting with userId_ and ending with .jpg
-      const userPhotoCount = files?.filter(file => 
+      const userPhotoCount = files?.filter(file =>
         file.name.startsWith(`${userId}_`) && file.name.endsWith('.jpg')
       ).length || 0;
 
@@ -150,21 +155,92 @@ export class AlbumService {
 
   /**
    * Upload a photo to an event album
+   * Supports offline queueing - photos are saved locally and queued for sync
    */
   static async uploadPhoto(
     fileUri: string,
     eventId: string,
     userId: string,
     onProgress?: (progress: number) => void
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<{ success: boolean; error?: string; queued?: boolean }> {
     try {
       // Convert file path to URI format for React Native
       const imageUri = fileUri.startsWith('file://') ? fileUri : `file://${fileUri}`;
-      
+
+      onProgress?.(10);
+
+      // Check if file exists
+      const fileInfo = await FileSystem.getInfoAsync(imageUri);
+      if (!fileInfo.exists) {
+        return { success: false, error: 'Photo file not found' };
+      }
+
+      // Generate unique filename
+      const timestamp = Date.now();
+      const filename = `${userId}_${timestamp}.jpg`;
+
+      // If offline, save to local storage and queue for sync
+      if (!NetworkStatusMonitor.isOnline()) {
+        onProgress?.(30);
+
+        // Copy photo to app's document directory for offline storage
+        const offlinePhotoDir = `${FileSystem.documentDirectory}offline-photos/`;
+        const dirInfo = await FileSystem.getInfoAsync(offlinePhotoDir);
+        if (!dirInfo.exists) {
+          await FileSystem.makeDirectoryAsync(offlinePhotoDir, { intermediates: true });
+        }
+
+        const offlinePhotoPath = `${offlinePhotoDir}${eventId}_${filename}`;
+        await FileSystem.copyAsync({
+          from: imageUri,
+          to: offlinePhotoPath,
+        });
+
+        onProgress?.(60);
+
+        // Get file size
+        const photoInfo = await FileSystem.getInfoAsync(offlinePhotoPath);
+        const fileSize = photoInfo.exists && 'size' in photoInfo ? photoInfo.size : 0;
+
+        // Save photo metadata to local database
+        const photoId = `photo-${Date.now()}-${Math.random()}`;
+        await LocalDatabaseService.savePhotoUpload({
+          id: photoId,
+          event_id: eventId,
+          user_id: userId,
+          local_file_path: offlinePhotoPath,
+          file_name: filename,
+          file_size: fileSize,
+          status: 'pending',
+        });
+
+        onProgress?.(80);
+
+        // Queue for sync
+        await SyncQueueService.enqueue(
+          DataType.IMAGE_UPLOAD,
+          'create',
+          'photo_uploads',
+          {
+            id: photoId,
+            event_id: eventId,
+            user_id: userId,
+            local_file_path: offlinePhotoPath,
+            file_name: filename,
+            file_size: fileSize,
+            uploaded_at: new Date().toISOString(),
+          },
+          SyncPriority.LOW // Photos are low priority (can be cached)
+        );
+
+        onProgress?.(100);
+        return { success: true, queued: true };
+      }
+
+      // Online: Upload directly
       onProgress?.(20);
 
-      // Read file as base64 using expo-file-system
-      const FileSystem = require('expo-file-system');
+      // Read file as base64
       const base64 = await FileSystem.readAsStringAsync(imageUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
@@ -179,16 +255,15 @@ export class AlbumService {
       }
       const bytes = new Uint8Array(byteNumbers);
 
-      // Generate unique filename (always .jpg to match mobile app)
-      const timestamp = Date.now();
-      const filename = `${eventId}/${userId}_${timestamp}.jpg`;
+      // Generate unique filename
+      const storageFilename = `${eventId}/${filename}`;
 
       onProgress?.(60);
 
       // Upload to Supabase storage
       const { error: uploadError } = await supabase.storage
         .from('event-photos')
-        .upload(filename, bytes, {
+        .upload(storageFilename, bytes, {
           contentType: 'image/jpeg',
           upsert: false,
         });
@@ -200,11 +275,11 @@ export class AlbumService {
       }
 
       onProgress?.(100);
-      return { success: true };
+      return { success: true, queued: false };
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to upload photo' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to upload photo'
       };
     }
   }

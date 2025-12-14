@@ -47,6 +47,30 @@ export class SurveyService {
         return { error: error.message };
       }
 
+      // Auto-open/close based on schedule before returning
+      // Only auto-open/close if not manually controlled
+      if (data) {
+        // Store original state before auto-open/close checks
+        const wasOpen = data.is_open;
+
+        await this.autoOpenScheduledSurveys(data);
+        await this.autoCloseScheduledSurveys(data);
+
+        // Only reload if the state actually changed (to avoid unnecessary DB calls)
+        // and only if there's a schedule
+        if ((data.opens_at || data.closes_at) && wasOpen !== data.is_open) {
+          const { data: updatedData, error: updateError } = await supabase
+            .from('surveys')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+          if (!updateError && updatedData) {
+            return { survey: updatedData };
+          }
+        }
+      }
+
       return { survey: data };
     } catch (error) {
       return { error: 'An unexpected error occurred' };
@@ -143,14 +167,14 @@ export class SurveyService {
    * Get survey by event ID with comprehensive security validation (for mobile app compatibility)
    */
   static async getSurveyByEventId(
-    eventId: string, 
+    eventId: string,
     userId: string
   ): Promise<{ survey?: Survey; error?: string; availabilityInfo?: any; validationInfo?: any }> {
     try {
       // Step 1: Event Validation
       const eventValidation = await this.validateEventAccess(eventId, userId);
       if (eventValidation.error) {
-        return { 
+        return {
           error: eventValidation.error,
           validationInfo: { step: 'event_validation', failed: true }
         };
@@ -159,14 +183,14 @@ export class SurveyService {
       // Step 2: Attendance Verification
       const attendanceCheck = await this.checkUserAttendance(eventId, userId);
       if (attendanceCheck.error) {
-        return { 
+        return {
           error: attendanceCheck.error,
           validationInfo: { step: 'attendance_verification', failed: true }
         };
       }
-      
+
       if (!attendanceCheck.isCheckedIn) {
-        return { 
+        return {
           error: 'You must check in to this event before accessing the survey. Please scan the QR code at the event venue.',
           validationInfo: { step: 'attendance_verification', failed: true, reason: 'not_checked_in' }
         };
@@ -184,12 +208,12 @@ export class SurveyService {
 
       if (error) {
         if (error.code === 'PGRST116') {
-          return { 
+          return {
             error: 'No survey is available for this event yet.',
             validationInfo: { step: 'survey_retrieval', failed: true, reason: 'not_found' }
           };
         }
-        return { 
+        return {
           error: error.message,
           validationInfo: { step: 'survey_retrieval', failed: true }
         };
@@ -197,34 +221,34 @@ export class SurveyService {
 
       // Step 4: Cross-Reference Validation
       if (data.event_id !== eventId) {
-        return { 
+        return {
           error: 'Survey does not belong to the specified event.',
           validationInfo: { step: 'cross_reference', failed: true, reason: 'event_mismatch' }
         };
       }
 
       // Step 5: Availability Validation
-      const availabilityCheck = this.checkSurveyAvailability(data);
+      const availabilityCheck = await this.checkSurveyAvailability(data);
       if (!availabilityCheck.isAvailable) {
-        return { 
+        return {
           error: availabilityCheck.error,
           availabilityInfo: availabilityCheck.info,
           validationInfo: { step: 'availability_check', failed: true }
         };
       }
 
-      return { 
+      return {
         survey: data,
         availabilityInfo: availabilityCheck.info,
-        validationInfo: { 
-          step: 'complete', 
+        validationInfo: {
+          step: 'complete',
           passed: true,
           eventId: eventValidation.event?.id,
           attendanceLogId: attendanceCheck.attendanceLog?.id
         }
       };
     } catch (error) {
-      return { 
+      return {
         error: 'An unexpected error occurred during survey validation',
         validationInfo: { step: 'exception', failed: true }
       };
@@ -250,7 +274,7 @@ export class SurveyService {
 
       const now = new Date();
       const eventEndDateTime = new Date(`${data.end_date}T${data.end_time}`);
-      
+
       if (now > eventEndDateTime) {
         return { error: 'This event has already ended. Survey access is no longer available.' };
       }
@@ -263,41 +287,66 @@ export class SurveyService {
 
   private static async checkUserAttendance(eventId: string, userId: string) {
     try {
-      const { data, error } = await supabase
+      // For multi-day events, get the most recent check-in (or today's if available)
+      // First try to get today's check-in
+      const today = new Date().toISOString().split('T')[0];
+      const { data: todayCheckIn, error: todayError } = await supabase
         .from('attendance_logs')
-        .select('id, check_in_time, check_in_method, is_validated, event_id, user_id')
+        .select('id, check_in_time, check_in_date, check_in_method, is_validated, event_id, user_id')
         .eq('event_id', eventId)
         .eq('user_id', userId)
-        .single();
+        .eq('check_in_date', today)
+        .maybeSingle();
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return { 
-            isCheckedIn: false, 
-            error: 'You are not registered for this event. Please register first before checking in.' 
-          };
-        }
+      // If today's check-in exists, use it; otherwise get the most recent one
+      let data = todayCheckIn;
+      let error = todayError;
+
+      if (!data || error) {
+        // Fallback: get the most recent check-in
+        const { data: recentCheckIn, error: recentError } = await supabase
+          .from('attendance_logs')
+          .select('id, check_in_time, check_in_date, check_in_method, is_validated, event_id, user_id')
+          .eq('event_id', eventId)
+          .eq('user_id', userId)
+          .order('check_in_time', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        data = recentCheckIn;
+        error = recentError;
+      }
+
+      if (error && error.code !== 'PGRST116') {
         return { isCheckedIn: false, error: error.message };
       }
 
+      if (!data) {
+        return {
+          isCheckedIn: false,
+          error: 'You are not registered for this event. Please register first before checking in.'
+        };
+      }
+
       if (!data.check_in_time) {
-        return { 
-          isCheckedIn: false, 
-          error: 'You are registered but have not checked in yet. Please scan the QR code at the event venue to check in.' 
+        return {
+          isCheckedIn: false,
+          error: 'You are registered but have not checked in yet. Please scan the QR code at the event venue to check in.'
         };
       }
 
       if (data.event_id !== eventId) {
-        return { 
-          isCheckedIn: false, 
-          error: 'Attendance record does not match the requested event. Please contact support.' 
+        return {
+          isCheckedIn: false,
+          error: 'Attendance record does not match the requested event. Please contact support.'
         };
       }
 
+      // IMPORTANT: Check if the attendance is validated
       if (!data.is_validated) {
-        return { 
-          isCheckedIn: false, 
-          error: 'Your attendance has not been validated yet. Please contact the event organizer.' 
+        return {
+          isCheckedIn: false,
+          error: 'Your attendance has not been validated yet. Please contact the event organizer to validate your check-in before accessing the survey.'
         };
       }
 
@@ -307,7 +356,123 @@ export class SurveyService {
     }
   }
 
-  private static checkSurveyAvailability(survey: Survey) {
+  /**
+   * Auto-open surveys when opens_at time arrives
+   * This should be called before checking availability
+   * Respects manual closes - won't auto-open if survey was manually closed
+   */
+  private static async autoOpenScheduledSurveys(survey: Survey): Promise<void> {
+    if (!survey.is_active || survey.is_open) {
+      return; // Already open or inactive, no need to check
+    }
+
+    if (survey.opens_at) {
+      // Parse the opens_at time (stored as UTC ISO string)
+      const opensAt = new Date(survey.opens_at);
+      const now = new Date();
+
+      // Debug logging
+      console.log('Auto-open check:', {
+        surveyId: survey.id,
+        opensAt: opensAt.toISOString(),
+        opensAtLocal: opensAt.toLocaleString(),
+        now: now.toISOString(),
+        nowLocal: now.toLocaleString(),
+        shouldOpen: now >= opensAt,
+        updatedAt: survey.updated_at
+      });
+
+      // If opens_at time has arrived, check if we should auto-open
+      if (now >= opensAt) {
+        // Check if the survey was manually closed after the opens_at time
+        // If updated_at is after opens_at, it means the user manually closed it
+        // and we should respect that manual close
+        if (survey.updated_at) {
+          const updatedAt = new Date(survey.updated_at);
+          // If the survey was updated (manually closed) after the opens_at time,
+          // don't auto-open it - respect the manual close
+          if (updatedAt > opensAt) {
+            console.log('Survey was manually closed after opens_at time, respecting manual close:', survey.id);
+            return;
+          }
+        }
+
+        // Only auto-open if opens_at time has passed AND the survey wasn't manually closed after that time
+        try {
+          const { error } = await supabase
+            .from('surveys')
+            .update({ is_open: true })
+            .eq('id', survey.id);
+
+          if (error) {
+            console.error('Failed to auto-open survey:', error);
+          } else {
+            console.log('Survey auto-opened:', survey.id);
+            // Update the survey object in memory
+            survey.is_open = true;
+          }
+        } catch (error) {
+          console.error('Failed to auto-open survey:', error);
+        }
+      }
+    }
+  }
+
+  /**
+   * Auto-close surveys when closes_at time passes
+   * This should be called before checking availability
+   * Respects manual opens - if survey was manually opened after closes_at, don't auto-close
+   */
+  private static async autoCloseScheduledSurveys(survey: Survey): Promise<void> {
+    if (!survey.is_active || !survey.is_open) {
+      return; // Already closed or inactive, no need to check
+    }
+
+    if (survey.closes_at) {
+      const closesAt = new Date(survey.closes_at);
+      const now = new Date();
+
+      // If closes_at time has passed, check if we should auto-close
+      if (now > closesAt) {
+        // Check if the survey was manually opened after the closes_at time
+        // If updated_at is after closes_at, it means the user manually opened it
+        // and we should respect that manual open
+        if (survey.updated_at) {
+          const updatedAt = new Date(survey.updated_at);
+          // If the survey was updated (manually opened) after the closes_at time,
+          // don't auto-close it - respect the manual open
+          if (updatedAt > closesAt) {
+            console.log('Survey was manually opened after closes_at time, respecting manual open:', survey.id);
+            return;
+          }
+        }
+
+        // Only auto-close if closes_at time has passed AND the survey wasn't manually opened after that time
+        try {
+          const { error } = await supabase
+            .from('surveys')
+            .update({ is_open: false })
+            .eq('id', survey.id);
+
+          if (error) {
+            console.error('Failed to auto-close survey:', error);
+          } else {
+            console.log('Survey auto-closed:', survey.id);
+            // Update the survey object in memory
+            survey.is_open = false;
+          }
+        } catch (error) {
+          console.error('Failed to auto-close survey:', error);
+        }
+      }
+    }
+  }
+
+  private static async checkSurveyAvailability(survey: Survey) {
+    // Auto-open/close based on schedule before checking availability
+    await this.autoOpenScheduledSurveys(survey);
+    await this.autoCloseScheduledSurveys(survey);
+
     if (!survey.is_active) {
       return {
         isAvailable: false,
@@ -317,10 +482,26 @@ export class SurveyService {
     }
 
     if (!survey.is_open) {
+      // Check if it's scheduled to open in the future
+      if (survey.opens_at) {
+        const opensAt = new Date(survey.opens_at);
+        const now = new Date();
+        if (now < opensAt) {
+          return {
+            isAvailable: false,
+            error: `Survey will be available starting ${opensAt.toLocaleString()}`,
+            info: {
+              status: 'scheduled_to_open',
+              opensAt: survey.opens_at
+            }
+          };
+        }
+      }
+
       return {
         isAvailable: false,
         error: 'This survey is currently closed. The organizer will open it when ready.',
-        info: { 
+        info: {
           status: 'closed_by_organizer',
           message: 'Survey is closed by the event organizer'
         }
@@ -330,12 +511,12 @@ export class SurveyService {
     if (survey.opens_at) {
       const opensAt = new Date(survey.opens_at);
       const now = new Date();
-      
+
       if (now < opensAt) {
         return {
           isAvailable: false,
           error: `Survey will be available starting ${opensAt.toLocaleString()}`,
-          info: { 
+          info: {
             status: 'scheduled_to_open',
             opensAt: survey.opens_at
           }
@@ -346,12 +527,12 @@ export class SurveyService {
     if (survey.closes_at) {
       const closesAt = new Date(survey.closes_at);
       const now = new Date();
-      
+
       if (now > closesAt) {
         return {
           isAvailable: false,
           error: `Survey closed on ${closesAt.toLocaleString()}`,
-          info: { 
+          info: {
             status: 'closed_by_schedule',
             closesAt: survey.closes_at
           }
@@ -361,7 +542,7 @@ export class SurveyService {
 
     return {
       isAvailable: true,
-      info: { 
+      info: {
         status: 'available',
         opensAt: survey.opens_at,
         closesAt: survey.closes_at
@@ -390,9 +571,13 @@ export class SurveyService {
   // Google Forms-like availability control methods
   static async openSurvey(surveyId: string): Promise<{ error?: string }> {
     try {
+      // Explicitly set updated_at to track manual open
       const { error } = await supabase
         .from('surveys')
-        .update({ is_open: true })
+        .update({
+          is_open: true,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', surveyId);
 
       if (error) {
@@ -407,9 +592,13 @@ export class SurveyService {
 
   static async closeSurvey(surveyId: string): Promise<{ error?: string }> {
     try {
+      // Explicitly set updated_at to track manual close
       const { error } = await supabase
         .from('surveys')
-        .update({ is_open: false })
+        .update({
+          is_open: false,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', surveyId);
 
       if (error) {
@@ -438,9 +627,13 @@ export class SurveyService {
       const newState = !currentSurvey.is_open;
 
       // Update to opposite state
+      // Explicitly set updated_at to current time to track manual changes
       const { error } = await supabase
         .from('surveys')
-        .update({ is_open: newState })
+        .update({
+          is_open: newState,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', surveyId);
 
       if (error) {
@@ -454,20 +647,37 @@ export class SurveyService {
   }
 
   static async scheduleSurvey(
-    surveyId: string, 
-    opensAt?: string, 
-    closesAt?: string
+    surveyId: string,
+    opensAt?: string | null,
+    closesAt?: string | null
   ): Promise<{ error?: string }> {
     try {
       const updates: any = {};
-      
-      if (opensAt) updates.opens_at = opensAt;
-      if (closesAt) updates.closes_at = closesAt;
-      
-      // If scheduling, automatically open the survey
-      if (opensAt || closesAt) {
-        updates.is_open = true;
+
+      // Explicitly handle null values to allow clearing schedules
+      // If opensAt is explicitly null or empty string, clear it
+      if (opensAt === null || opensAt === '') {
+        updates.opens_at = null;
+      } else if (opensAt) {
+        updates.opens_at = opensAt;
       }
+      // If closesAt is explicitly null or empty string, clear it
+      if (closesAt === null || closesAt === '') {
+        updates.closes_at = null;
+      } else if (closesAt) {
+        updates.closes_at = closesAt;
+      }
+
+      // Only update if we have at least one field to update
+      if (Object.keys(updates).length === 0) {
+        return {}; // No changes to make
+      }
+
+      // Don't automatically open the survey - let the schedule control availability
+      // The survey availability is controlled by:
+      // 1. is_open flag (manual control)
+      // 2. opens_at and closes_at (automatic schedule control)
+      // These work together in checkSurveyAvailability()
 
       const { error } = await supabase
         .from('surveys')

@@ -9,6 +9,7 @@ import { ToastProvider } from '../components/Toast';
 import { SweetAlertProvider, SweetAlertRef } from '../components/SweetAlertProvider';
 import { setSweetAlertRef } from '../lib/sweetAlert';
 import { AttributionRenderer } from '../components/AttributionRenderer';
+import { initializeOfflineFirst } from '../lib/offline';
 import './global.css';
 
 // Configure notification behavior
@@ -55,6 +56,11 @@ export default function RootLayout() {
     setTimeout(() => {
       console.log('RootLayout: Ref check after delay', { hasRef: !!sweetAlertRef, hasCurrent: !!sweetAlertRef.current });
     }, 1000);
+
+    // Initialize offline-first architecture
+    initializeOfflineFirst().catch((error) => {
+      console.error('Failed to initialize offline-first:', error);
+    });
   }, []);
 
   return (

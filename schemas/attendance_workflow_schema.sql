@@ -327,17 +327,29 @@ BEGIN
         );
     END IF;
     
-    -- Check if already checked in
-    IF attendance_record.check_in_time IS NOT NULL THEN
-        RETURN json_build_object(
-            'success', false,
-            'error', 'User has already checked in for this event'
-        );
-    END IF;
+    -- Check if already checked in today (for multi-day event support)
+    DECLARE
+        current_date DATE := CURRENT_DATE;
+        existing_check_in_today RECORD;
+    BEGIN
+        SELECT * INTO existing_check_in_today FROM attendance_logs
+        WHERE user_id = scanner_user_id 
+          AND event_id = qr_record.event_id
+          AND check_in_date = current_date
+          AND check_in_time IS NOT NULL;
+        
+        IF existing_check_in_today IS NOT NULL THEN
+            RETURN json_build_object(
+                'success', false,
+                'error', 'User has already checked in for this event today'
+            );
+        END IF;
+    END;
     
-    -- Update attendance log with check-in
+    -- Update attendance log with check-in (set check_in_date for multi-day support)
     UPDATE attendance_logs SET
         check_in_time = NOW(),
+        check_in_date = CURRENT_DATE,
         check_in_method = 'qr_scan',
         is_validated = true,
         validated_by = scanner_user_id

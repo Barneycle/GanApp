@@ -73,7 +73,7 @@ export const Navbar = () => {
   const handleSignOut = async () => {
     try {
       const result = await signOut();
-      
+
       if (result && result.success) {
         navigate('/');
       } else {
@@ -127,7 +127,7 @@ export const Navbar = () => {
 
   const loadNotifications = async () => {
     if (!user?.id) return;
-    
+
     try {
       setNotificationsLoading(true);
       const result = await NotificationService.getNotifications(user.id);
@@ -151,7 +151,7 @@ export const Navbar = () => {
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
     }
-    
+
     // Only navigate if there's an action_url and it's not the notifications page
     if (notification.action_url && !notification.action_url.includes('/notifications')) {
       navigate(notification.action_url);
@@ -171,7 +171,7 @@ export const Navbar = () => {
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
-    
+
     return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric'
@@ -217,13 +217,13 @@ export const Navbar = () => {
   };
 
   return (
-         <nav className="bg-blue-900 text-white shadow-2xl border-b border-blue-800/50 backdrop-blur-sm relative z-50">
+    <nav className="bg-blue-900 text-white shadow-2xl border-b border-blue-800/50 backdrop-blur-sm relative z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
           <div className="flex-shrink-0">
-            <Link 
-              to="/" 
+            <Link
+              to="/"
               className="text-2xl font-bold text-white"
             >
               GanApp
@@ -239,7 +239,7 @@ export const Navbar = () => {
             >
               Home
             </Link>
-            
+
             {/* Events Link - Only for unauthenticated users */}
             {!user && (
               <Link
@@ -249,7 +249,7 @@ export const Navbar = () => {
                 Events
               </Link>
             )}
-            
+
 
             {/* Role-specific Navigation */}
             {user?.role === 'admin' && (
@@ -275,7 +275,7 @@ export const Navbar = () => {
                 </Link>
               </>
             )}
-            
+
             {user?.role === 'organizer' && (
               <>
                 {/* Organizer Navigation */}
@@ -291,9 +291,9 @@ export const Navbar = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  
+
                   {isEventsDropdownOpen && (
-                    <div 
+                    <div
                       className="absolute top-full left-0 mt-2 w-48 bg-blue-950 rounded-xl shadow-xl border border-blue-800/50 py-2 z-50"
                       onMouseLeave={() => setIsEventsDropdownOpen(false)}
                     >
@@ -325,6 +325,13 @@ export const Navbar = () => {
                       >
                         Certificate Generator
                       </Link>
+                      <Link
+                        to="/event-messages"
+                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-blue-900 hover:text-white transition-colors"
+                        onClick={closeEventsDropdown}
+                      >
+                        Event Messages
+                      </Link>
                     </div>
                   )}
                 </div>
@@ -341,9 +348,9 @@ export const Navbar = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  
+
                   {isEvaluationDropdownOpen && (
-                    <div 
+                    <div
                       className="absolute top-full left-0 mt-2 w-48 bg-blue-950 rounded-xl shadow-xl border border-blue-800/50 py-2 z-50"
                       onMouseLeave={() => setIsEvaluationDropdownOpen(false)}
                     >
@@ -366,35 +373,35 @@ export const Navbar = () => {
                 </div>
               </>
             )}
-            
-                         {user?.role === 'participant' && (
-               <>
-                 {/* Participant Navigation */}
-                 {/* Events Dropdown */}
-                 <div className="relative">
-                   <button
-                     onClick={toggleEventsDropdown}
-                     onMouseEnter={() => setIsEventsDropdownOpen(true)}
-                     className="text-lg font-medium text-gray-300 hover:text-white transition-colors flex items-center space-x-1"
-                   >
-                     <span>Events</span>
-                     <svg className="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                     </svg>
-                   </button>
-                   
-                   {isEventsDropdownOpen && (
-                     <div 
-                       className="absolute top-full left-0 mt-2 w-48 bg-blue-950 rounded-xl shadow-xl border border-blue-800/50 py-2 z-50"
-                       onMouseLeave={() => setIsEventsDropdownOpen(false)}
-                     >
-                       <Link
-                         to="/events"
-                         className="block px-4 py-2 text-sm text-gray-300 hover:bg-blue-900 hover:text-white transition-colors"
-                         onClick={closeEventsDropdown}
-                       >
-                         All Events
-                       </Link>
+
+            {user?.role === 'participant' && (
+              <>
+                {/* Participant Navigation */}
+                {/* Events Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={toggleEventsDropdown}
+                    onMouseEnter={() => setIsEventsDropdownOpen(true)}
+                    className="text-lg font-medium text-gray-300 hover:text-white transition-colors flex items-center space-x-1"
+                  >
+                    <span>Events</span>
+                    <svg className="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {isEventsDropdownOpen && (
+                    <div
+                      className="absolute top-full left-0 mt-2 w-48 bg-blue-950 rounded-xl shadow-xl border border-blue-800/50 py-2 z-50"
+                      onMouseLeave={() => setIsEventsDropdownOpen(false)}
+                    >
+                      <Link
+                        to="/events"
+                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-blue-900 hover:text-white transition-colors"
+                        onClick={closeEventsDropdown}
+                      >
+                        All Events
+                      </Link>
                       <Link
                         to="/my-events"
                         className="block px-4 py-2 text-sm text-gray-300 hover:bg-blue-900 hover:text-white transition-colors"
@@ -416,11 +423,11 @@ export const Navbar = () => {
                       >
                         Albums
                       </Link>
-                     </div>
-                   )}
-                 </div>
-               </>
-             )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Desktop Profile/Login Section - Far Right */}
@@ -488,9 +495,8 @@ export const Navbar = () => {
                             {notifications.slice(0, 10).map((notification) => (
                               <div
                                 key={notification.id}
-                                className={`w-full px-4 py-3 hover:bg-gray-50 transition-colors ${
-                                  !notification.read ? 'bg-blue-50/50' : ''
-                                }`}
+                                className={`w-full px-4 py-3 hover:bg-gray-50 transition-colors ${!notification.read ? 'bg-blue-50/50' : ''
+                                  }`}
                               >
                                 <div className="flex items-start space-x-3">
                                   <div className="flex-shrink-0 mt-0.5">
@@ -555,119 +561,119 @@ export const Navbar = () => {
                 </div>
 
                 {/* Avatar Button */}
-              <div className="relative">
-                <button
-                  onClick={toggleProfileDropdown}
-                  className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors focus:outline-none"
-                >
-                  {user?.avatar_url ? (
-                    <img
-                      src={user.avatar_url}
-                      alt={`${user.first_name} ${user.last_name}`}
-                      className="w-16 h-16 rounded-full object-cover border-2 border-blue-400/50 shadow-md hover:shadow-lg transition-shadow cursor-pointer"
-                    />
-                  ) : (
+                <div className="relative">
+                  <button
+                    onClick={toggleProfileDropdown}
+                    className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors focus:outline-none"
+                  >
+                    {user?.avatar_url ? (
+                      <img
+                        src={user.avatar_url}
+                        alt={`${user.first_name} ${user.last_name}`}
+                        className="w-16 h-16 rounded-full object-cover border-2 border-blue-400/50 shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+                      />
+                    ) : (
                       <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-lg shadow-md hover:shadow-lg transition-shadow border-2 border-blue-400/50">
-                      {getUserInitials()}
+                        {getUserInitials()}
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Profile Dropdown - Facebook Style */}
+                  {isProfileDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-2xl border border-gray-200 overflow-hidden z-50">
+                      {/* Profile Section at Top */}
+                      <button
+                        onClick={() => {
+                          navigate('/profile');
+                          closeProfileDropdown();
+                        }}
+                        className="w-full px-4 py-3 border-b border-gray-200 hover:bg-gray-50 transition-colors text-left flex items-center space-x-3"
+                      >
+                        {user?.avatar_url ? (
+                          <img
+                            src={user.avatar_url}
+                            alt={`${user.first_name} ${user.last_name}`}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                            {getUserInitials()}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{user?.first_name} {user?.last_name}</p>
+                          <p className="text-xs text-gray-500 truncate">See your profile</p>
+                        </div>
+                        <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+
+                      {/* Menu Items */}
+                      <div className="py-2">
+                        <Link
+                          to="/settings"
+                          className="flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-gray-700"
+                          onClick={closeProfileDropdown}
+                        >
+                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <span className="text-sm font-medium">Settings</span>
+                          <svg className="w-4 h-4 text-gray-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                          </svg>
+                        </Link>
+
+                        <Link
+                          to="/help"
+                          className="flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-gray-700"
+                          onClick={closeProfileDropdown}
+                        >
+                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-sm font-medium">Help Center</span>
+                          <svg className="w-4 h-4 text-gray-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                          </svg>
+                        </Link>
+
+                        <Link
+                          to="/support"
+                          className="flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-gray-700"
+                          onClick={closeProfileDropdown}
+                        >
+                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          </svg>
+                          <span className="text-sm font-medium">Support</span>
+                          <svg className="w-4 h-4 text-gray-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                          </svg>
+                        </Link>
+                        <div className="border-t border-gray-200 my-1"></div>
+                        <button
+                          onClick={handleSignOut}
+                          className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-gray-700 text-left"
+                        >
+                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                          </svg>
+                          <span className="text-sm font-medium">Sign Out</span>
+                        </button>
+                      </div>
                     </div>
                   )}
-                </button>
-
-                {/* Profile Dropdown - Facebook Style */}
-                {isProfileDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-2xl border border-gray-200 overflow-hidden z-50">
-                    {/* Profile Section at Top */}
-                    <button
-                      onClick={() => {
-                        navigate('/profile');
-                        closeProfileDropdown();
-                      }}
-                      className="w-full px-4 py-3 border-b border-gray-200 hover:bg-gray-50 transition-colors text-left flex items-center space-x-3"
-                    >
-                      {user?.avatar_url ? (
-                        <img
-                          src={user.avatar_url}
-                          alt={`${user.first_name} ${user.last_name}`}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                          {getUserInitials()}
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">{user?.first_name} {user?.last_name}</p>
-                        <p className="text-xs text-gray-500 truncate">See your profile</p>
-                      </div>
-                      <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-
-                    {/* Menu Items */}
-                    <div className="py-2">
-                    <Link
-                        to="/settings"
-                        className="flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-gray-700"
-                      onClick={closeProfileDropdown}
-                    >
-                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <span className="text-sm font-medium">Settings</span>
-                        <svg className="w-4 h-4 text-gray-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                        </svg>
-                      </Link>
-                      
-                      <Link
-                        to="/help"
-                        className="flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-gray-700"
-                        onClick={closeProfileDropdown}
-                      >
-                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="text-sm font-medium">Help Center</span>
-                        <svg className="w-4 h-4 text-gray-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                        </svg>
-                      </Link>
-                      
-                      <Link
-                        to="/support"
-                        className="flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-gray-700"
-                        onClick={closeProfileDropdown}
-                      >
-                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                        </svg>
-                        <span className="text-sm font-medium">Support</span>
-                        <svg className="w-4 h-4 text-gray-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                        </svg>
-                      </Link>
-                      <div className="border-t border-gray-200 my-1"></div>
-                    <button
-                      onClick={handleSignOut}
-                        className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-gray-700 text-left"
-                    >
-                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                        </svg>
-                        <span className="text-sm font-medium">Sign Out</span>
-                    </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+                </div>
               </>
             ) : (
-                             <Link
-                 to="/login"
-                 className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/25 hover:scale-105"
-               >
+              <Link
+                to="/login"
+                className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/25 hover:scale-105"
+              >
                 Sign In
               </Link>
             )}
@@ -687,150 +693,150 @@ export const Navbar = () => {
         </div>
       </div>
 
-                {/* Mobile Navigation */}
-          {isMobileMenuOpen && (
-            <div className="md:hidden">
-              <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-blue-900 border-t border-blue-800/50">
-                {/* Home Link - Always goes to home page */}
+      {/* Mobile Navigation */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden">
+          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-blue-900 border-t border-blue-800/50">
+            {/* Home Link - Always goes to home page */}
+            <Link
+              to="/"
+              className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Home
+            </Link>
+
+            {/* Events Link - Only for unauthenticated users */}
+            {!user && (
+              <Link
+                to="/events"
+                className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Events
+              </Link>
+            )}
+
+
+            {/* Role-specific Mobile Navigation */}
+            {user?.role === 'admin' && (
+              <>
                 <Link
-                  to="/"
+                  to="/admin"
                   className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  Home
+                  Admin Dashboard
                 </Link>
-                
-                {/* Events Link - Only for unauthenticated users */}
-                {!user && (
-                  <Link
-                    to="/events"
-                    className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Events
-                  </Link>
-                )}
-                
+                <Link
+                  to="/support"
+                  className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Support Tickets
+                </Link>
+                <Link
+                  to="/activity-log"
+                  className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Activity Log
+                </Link>
+              </>
+            )}
 
-                {/* Role-specific Mobile Navigation */}
-                {user?.role === 'admin' && (
-                  <>
+            {user?.role === 'organizer' && (
+              <>
+                {/* Mobile Events Section */}
+                <div className="px-3 py-2">
+                  <div className="text-lg font-medium text-gray-300 mb-2">Events</div>
+                  <div className="ml-4 space-y-1">
                     <Link
-                      to="/admin"
-                      className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md"
+                      to="/events"
+                      className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
-                      Admin Dashboard
+                      All Events
                     </Link>
                     <Link
-                      to="/support"
-                      className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md"
+                      to="/create-event"
+                      className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
-                      Support Tickets
+                      Create Event
                     </Link>
                     <Link
-                      to="/activity-log"
-                      className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md"
+                      to="/albums"
+                      className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
-                      Activity Log
+                      Albums
                     </Link>
-                  </>
-                )}
-                
-                {user?.role === 'organizer' && (
-                  <>
-                    {/* Mobile Events Section */}
-                    <div className="px-3 py-2">
-                      <div className="text-lg font-medium text-gray-300 mb-2">Events</div>
-                      <div className="ml-4 space-y-1">
-                        <Link
-                          to="/events"
-                          className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
-                          onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                          All Events
-                        </Link>
-                        <Link
-                          to="/create-event"
-                          className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
-                          onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                          Create Event
-                        </Link>
-                        <Link
-                          to="/albums"
-                          className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
-                          onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                          Albums
-                        </Link>
-                      </div>
-                    </div>
-                    
-                    {/* Mobile Evaluation Section */}
-                    <div className="px-3 py-2">
-                      <div className="text-lg font-medium text-gray-300 mb-2">Evaluation</div>
-                      <div className="ml-4 space-y-1">
-                        <Link
-                          to="/survey-management"
-                          className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
-                          onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                          Evaluation Management
-                        </Link>
-                        <Link
-                          to="/event-statistics"
-                          className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
-                          onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                          Event Statistics
-                        </Link>
-                      </div>
-                    </div>
-                  </>
-                )}
-                
-                {user?.role === 'participant' && (
-                  <>
-                    {/* Mobile Events Section */}
-                    <div className="px-3 py-2">
-                      <div className="text-lg font-medium text-gray-300 mb-2">Events</div>
-                      <div className="ml-4 space-y-1">
-                        <Link
-                          to="/events"
-                          className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
-                          onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                          All Events
-                        </Link>
-                        <Link
-                          to="/my-events"
-                          className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
-                          onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                          My Events
-                        </Link>
-                        <Link
-                          to="/my-certificates"
-                          className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
-                          onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                          My Certificates
-                        </Link>
-                        <Link
-                          to="/albums"
-                          className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
-                          onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                          Albums
-                        </Link>
-                      </div>
-                    </div>
-                  </>
-                )}
-            
+                  </div>
+                </div>
+
+                {/* Mobile Evaluation Section */}
+                <div className="px-3 py-2">
+                  <div className="text-lg font-medium text-gray-300 mb-2">Evaluation</div>
+                  <div className="ml-4 space-y-1">
+                    <Link
+                      to="/survey-management"
+                      className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Evaluation Management
+                    </Link>
+                    <Link
+                      to="/event-statistics"
+                      className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Event Statistics
+                    </Link>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {user?.role === 'participant' && (
+              <>
+                {/* Mobile Events Section */}
+                <div className="px-3 py-2">
+                  <div className="text-lg font-medium text-gray-300 mb-2">Events</div>
+                  <div className="ml-4 space-y-1">
+                    <Link
+                      to="/events"
+                      className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      All Events
+                    </Link>
+                    <Link
+                      to="/my-events"
+                      className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      My Events
+                    </Link>
+                    <Link
+                      to="/my-certificates"
+                      className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      My Certificates
+                    </Link>
+                    <Link
+                      to="/albums"
+                      className="text-base font-medium text-gray-400 hover:text-white transition-colors block py-1 rounded-md"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Albums
+                    </Link>
+                  </div>
+                </div>
+              </>
+            )}
+
             {/* Mobile Profile/Login Section */}
             {isAuthenticated ? (
               <div className="pt-4 border-t border-blue-800/50">
@@ -872,25 +878,25 @@ export const Navbar = () => {
                   Sign Out
                 </button>
               </div>
-                         ) : (
-               <div className="pt-4 border-t border-blue-800/50">
-                                   <Link
-                    to="/login"
-                    className="block w-full px-6 py-4 bg-blue-500 hover:bg-blue-600 text-white text-lg font-semibold rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/25 text-center"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                   Sign In
-                 </Link>
-               </div>
-             )}
+            ) : (
+              <div className="pt-4 border-t border-blue-800/50">
+                <Link
+                  to="/login"
+                  className="block w-full px-6 py-4 bg-blue-500 hover:bg-blue-600 text-white text-lg font-semibold rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/25 text-center"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Sign In
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {/* Click outside to close dropdowns */}
       {(isProfileDropdownOpen || isEventsDropdownOpen || isEvaluationDropdownOpen) && (
-        <div 
-          className="fixed inset-0 z-40" 
+        <div
+          className="fixed inset-0 z-40"
           onClick={() => {
             closeProfileDropdown();
             closeEventsDropdown();

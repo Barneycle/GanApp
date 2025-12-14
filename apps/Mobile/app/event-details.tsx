@@ -64,7 +64,7 @@ export default function EventDetails() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [isRationaleExpanded, setIsRationaleExpanded] = useState(false);
   const insets = useSafeAreaInsets();
-  
+
   const router = useRouter();
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
   const { user } = useAuth();
@@ -99,26 +99,26 @@ export default function EventDetails() {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Load event details
       const eventResult = await EventService.getEventById(eventId!);
-      
+
       if (eventResult.error || !eventResult.event) {
         setError(eventResult.error || 'Event not found');
         return;
       }
-      
+
       setEvent(eventResult.event);
-      
+
       // Load speakers and sponsors in parallel
       loadSpeakers(eventId!);
       loadSponsors(eventId!);
-      
+
       // Check if user is registered for this event
       if (user) {
         checkRegistrationStatus(eventId!);
       }
-      
+
     } catch (err) {
       setError('Failed to load event details');
     } finally {
@@ -128,7 +128,7 @@ export default function EventDetails() {
 
   const checkRegistrationStatus = async (eventId: string) => {
     if (!user) return;
-    
+
     try {
       const result = await EventService.getUserRegistration(eventId, user.id);
       setIsRegistered(!!result.registration);
@@ -140,14 +140,14 @@ export default function EventDetails() {
   // Helper function to check if registration is allowed
   const canRegister = useMemo(() => {
     if (!event) return { allowed: false, reason: 'Event not loaded' };
-    
+
     // Must be published
     if (event.status !== 'published') {
       return { allowed: false, reason: 'Event is not available for registration' };
     }
 
     const now = new Date();
-    
+
     // Check if event is past (ended)
     const endDateTime = new Date(`${event.end_date}T${event.end_time || '23:59:59'}`);
     if (endDateTime < now) {
@@ -198,7 +198,7 @@ export default function EventDetails() {
 
     try {
       const result = await EventService.registerForEvent(eventId, user.id);
-      
+
       if (result.error) {
         toast.error(result.error);
       } else if (result.registration) {
@@ -324,9 +324,9 @@ export default function EventDetails() {
           },
         ]}
       />
-      <ScrollView 
-        className="flex-1" 
-        contentContainerStyle={{ 
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
           paddingBottom: Math.max(insets.bottom, 20)
         }}
         showsVerticalScrollIndicator={false}
@@ -340,7 +340,7 @@ export default function EventDetails() {
               className="w-full h-48"
               resizeMode="cover"
             />
-            
+
             {/* Event Content */}
             <View className="p-6">
               {/* Event Title and Description */}
@@ -378,14 +378,13 @@ export default function EventDetails() {
                 ) : (() => {
                   const registrationAllowed = canRegister.allowed;
                   const isDisabled = !registrationAllowed || isRegistering;
-                  
+
                   return (
                     <TouchableOpacity
-                      className={`rounded-2xl py-4 px-6 shadow-lg ${
-                        isDisabled 
-                          ? 'bg-gray-400 opacity-60' 
+                      className={`rounded-2xl py-4 px-6 shadow-lg ${isDisabled
+                          ? 'bg-gray-400 opacity-60'
                           : 'bg-blue-700'
-                      } ${isRegistering ? 'opacity-50' : ''}`}
+                        } ${isRegistering ? 'opacity-50' : ''}`}
                       onPress={handleRegister}
                       disabled={isDisabled}
                     >
@@ -423,6 +422,26 @@ export default function EventDetails() {
                 })()}
               </View>
 
+              {/* Contact Organizer Button - Show for registered users */}
+              {isRegistered && user && (
+                <View className="mb-6">
+                  <TouchableOpacity
+                    className="bg-purple-600 rounded-2xl py-4 px-6 shadow-lg"
+                    onPress={() => router.push(`/event-messages?eventId=${eventId}`)}
+                  >
+                    <View className="flex-row items-center justify-center">
+                      <Ionicons name="chatbubbles" size={24} color="#ffffff" />
+                      <Text className="text-white font-bold text-lg ml-3">
+                        Contact Organizer
+                      </Text>
+                    </View>
+                    <Text className="text-white text-center mt-2 text-sm opacity-90">
+                      Send a message to the event organizer
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {/* Event Rationale */}
               {event.rationale && (
                 <View className="mb-6">
@@ -450,10 +469,10 @@ export default function EventDetails() {
                         <Text className="text-blue-600 font-semibold text-sm">
                           {isRationaleExpanded ? 'Read Less' : 'Read More'}
                         </Text>
-                        <Ionicons 
-                          name={isRationaleExpanded ? 'chevron-up' : 'chevron-down'} 
-                          size={16} 
-                          color="#2563eb" 
+                        <Ionicons
+                          name={isRationaleExpanded ? 'chevron-up' : 'chevron-down'}
+                          size={16}
+                          color="#2563eb"
                           style={{ marginLeft: 4 }}
                         />
                       </TouchableOpacity>
@@ -471,7 +490,7 @@ export default function EventDetails() {
                     </View>
                     <Text className="text-lg font-semibold text-gray-800">Event Materials</Text>
                   </View>
-                  
+
                   {/* Event Kits */}
                   {(event.event_kits_url || event.materials_url) && (
                     <View className="mb-4">
@@ -532,7 +551,7 @@ export default function EventDetails() {
                   </View>
                   <Text className="text-lg font-semibold text-gray-800">Event Details</Text>
                 </View>
-                
+
                 <View className="space-y-3">
                   {/* Date */}
                   <View className="bg-purple-50 rounded-xl p-4">
@@ -578,7 +597,7 @@ export default function EventDetails() {
                     </View>
                     <Text className="text-lg font-semibold text-gray-800">Guest Speakers</Text>
                   </View>
-                  
+
                   {loadingSpeakers ? (
                     <View className="items-center py-8">
                       <ActivityIndicator size="large" color="#3b82f6" />
@@ -631,7 +650,7 @@ export default function EventDetails() {
                   )}
                 </View>
               )}
-              
+
               {/* Sponsors */}
               {(loadingSponsors || sponsors.length > 0) && (
                 <View>
@@ -641,7 +660,7 @@ export default function EventDetails() {
                     </View>
                     <Text className="text-lg font-semibold text-gray-800">Sponsors</Text>
                   </View>
-                  
+
                   {loadingSponsors ? (
                     <View className="items-center py-8">
                       <ActivityIndicator size="large" color="#10b981" />

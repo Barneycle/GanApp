@@ -189,7 +189,7 @@ Note: You must be registered for the event first.`
         content: `To complete a survey or evaluation:
 1. Go to "My Events" tab
 2. Find the event with an available survey
-3. Tap "Take Survey" or "Evaluation" button
+3. Tap "Take Evaluation" button
 4. Answer all required questions
 5. Submit your responses
 
@@ -667,7 +667,7 @@ You can update your profile anytime from the Profile page.`
 Actions available:
 - Register/Unregister
 - View QR Code (for check-in)
-- Take Survey/Evaluation
+- Take Evaluation
 - Generate Certificate (if eligible)
 - View Materials
 - Share Event

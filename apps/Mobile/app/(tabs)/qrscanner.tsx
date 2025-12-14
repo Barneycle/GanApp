@@ -28,6 +28,7 @@ import {
 } from 'react-native-vision-camera';
 import { QRScanService, QRScanResult } from '../../lib/qrScanService';
 import { ParticipantService, ParticipantInfo } from '../../lib/participantService';
+import { NetworkStatusMonitor } from '../../lib/offline/networkStatus';
 import { useAuth } from '../../lib/authContext';
 import TutorialOverlay from '../../components/TutorialOverlay';
 
@@ -42,11 +43,11 @@ export default function QRScanner() {
   const [cameraType, setCameraType] = useState<'front' | 'back'>('back');
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualEntryId, setManualEntryId] = useState('');
-  
+
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
-  
+
   const devices = Camera.getAvailableCameraDevices();
   const device = getCameraDevice(devices, cameraType);
   const activeDevice = device || devices.find(d => d.position === 'back') || devices[0];
@@ -155,11 +156,11 @@ export default function QRScanner() {
           }
 
           // Format check-in details
-          const checkInTime = result.attendanceLog?.check_in_time 
+          const checkInTime = result.attendanceLog?.check_in_time
             ? new Date(result.attendanceLog.check_in_time).toLocaleString()
             : new Date().toLocaleString();
-          
-          const checkInMethod = result.attendanceLog?.check_in_method 
+
+          const checkInMethod = result.attendanceLog?.check_in_method
             ? result.attendanceLog.check_in_method.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
             : 'QR Code Scan';
 
@@ -183,7 +184,7 @@ export default function QRScanner() {
           } else {
             // For participants: fetch participant info for the alert message
             setIsProcessing(false);
-            
+
             // Get participant info to display first name in alert
             let participant: ParticipantInfo | null = null;
             try {
@@ -205,7 +206,7 @@ export default function QRScanner() {
               eventTitle: result.event!.title,
               attendanceLogId: result.attendanceLog?.id,
             };
-            
+
             // Create a navigation function that will be called from the alert callback
             const navigateToSurvey = () => {
               // Use InteractionManager to ensure navigation happens after interactions
@@ -220,7 +221,7 @@ export default function QRScanner() {
                 }
               });
             };
-            
+
             showSuccess(
               `Welcome, ${firstName}!`,
               `Event: ${result.event.title}\n\nCheck-in Time: ${checkInTime}\nMethod: ${checkInMethod}\n\n${result.message}`,
@@ -243,9 +244,15 @@ export default function QRScanner() {
     if (!manualEntryId.trim() || isProcessing) return;
 
     const cleanId = manualEntryId.replace(/[-\s]/g, '').toUpperCase().trim();
-    
-    if (cleanId.length !== 8) {
-      showError('Invalid ID', 'Please enter an 8-character QR code ID');
+    const originalId = manualEntryId.trim();
+
+    // Check if it's a valid format (8-char token or UUID event ID)
+    const is8CharToken = cleanId.length === 8;
+    const uuidPattern = /^[0-9A-F]{8}-?[0-9A-F]{4}-?[0-9A-F]{4}-?[0-9A-F]{4}-?[0-9A-F]{12}$/i;
+    const isEventId = uuidPattern.test(originalId);
+
+    if (!is8CharToken && !isEventId) {
+      showError('Invalid ID', 'Please enter either:\n• An 8-character QR code token\n• An event ID (UUID format)');
       return;
     }
 
@@ -253,14 +260,46 @@ export default function QRScanner() {
     setShowManualEntry(false);
 
     try {
-      // Look up QR code by token
-      const qrData = await QRScanService.lookupQRCodeByToken(cleanId);
-      
-      if (!qrData) {
-        setIsProcessing(false);
-        showError('QR Code Not Found', 'The entered ID does not match any active QR code. Please check and try again.');
-        setManualEntryId('');
-        return;
+      // Look up QR code by token or use event ID directly
+      let qrData: string | null = null;
+
+      if (isEventId) {
+        // SECURITY: Event ID entry requires online verification to prevent abuse
+        // This ensures we can verify event exists, is published, and participant is registered
+        if (!NetworkStatusMonitor.isOnline()) {
+          setIsProcessing(false);
+          showError(
+            'Event ID Verification Required',
+            'Event ID entry requires an internet connection for security verification to prevent unauthorized access. Please connect to the internet or use a scanned QR code instead.'
+          );
+          setManualEntryId('');
+          return;
+        }
+
+        // Verify event exists and is published before allowing
+        const qrDataResult = await QRScanService.lookupQRCodeByToken(originalId, true);
+        if (!qrDataResult) {
+          setIsProcessing(false);
+          showError('Event Not Found', 'The entered event ID does not match any published event. Please check and try again.');
+          setManualEntryId('');
+          return;
+        }
+        qrData = qrDataResult;
+      } else {
+        // If it's an 8-character token, look it up
+        // Offline: Will be validated on sync (deferred validation)
+        qrData = await QRScanService.lookupQRCodeByToken(cleanId);
+
+        if (!qrData) {
+          setIsProcessing(false);
+          showError('QR Code Not Found', 'The entered ID does not match any active QR code. Please check and try again.');
+          setManualEntryId('');
+          return;
+        }
+
+        // Offline: Allow token entry and queue for validation
+        // The token will be validated when syncing to server
+        // This allows organizers to manually enter participant QR tokens when offline
       }
 
       // Process the QR code data
@@ -416,7 +455,7 @@ export default function QRScanner() {
         >
           <TouchableOpacity
             onPress={() => setShowManualEntry(true)}
-            style={{ 
+            style={{
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
@@ -432,13 +471,13 @@ export default function QRScanner() {
               Manual Entry
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             onPress={() => setCameraType(prev => prev === 'back' ? 'front' : 'back')}
-            style={{ 
-              width: 56, 
-              height: 56, 
-              alignItems: 'center', 
+            style={{
+              width: 56,
+              height: 56,
+              alignItems: 'center',
               justifyContent: 'center',
               backgroundColor: 'rgba(0, 0, 0, 0.5)',
               borderRadius: 28,
@@ -459,50 +498,50 @@ export default function QRScanner() {
 
           {/* Dimmed overlay - 4 rectangles covering everything except scanning area */}
           <View className="absolute inset-0" pointerEvents="none" style={{ zIndex: 1 }}>
-          {/* Top dimmed area */}
-          <View
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: frameTop,
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            }}
-          />
-          {/* Bottom dimmed area - covers from frame bottom to screen bottom, but leaves space for text */}
-          <View
-            style={{
-              position: 'absolute',
-              bottom: 100, // Leave space for bottom text
-              left: 0,
-              right: 0,
-              top: frameBottom,
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            }}
-          />
-          {/* Left dimmed area */}
-          <View
-            style={{
-              position: 'absolute',
-              top: frameTop,
-              left: 0,
-              width: frameLeft,
-              height: SCAN_SIZE,
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            }}
-          />
-          {/* Right dimmed area */}
-          <View
-            style={{
-              position: 'absolute',
-              top: frameTop,
-              right: 0,
-              width: SCREEN_WIDTH - frameRight,
-              height: SCAN_SIZE,
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            }}
-          />
+            {/* Top dimmed area */}
+            <View
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: frameTop,
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              }}
+            />
+            {/* Bottom dimmed area - covers from frame bottom to screen bottom, but leaves space for text */}
+            <View
+              style={{
+                position: 'absolute',
+                bottom: 100, // Leave space for bottom text
+                left: 0,
+                right: 0,
+                top: frameBottom,
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              }}
+            />
+            {/* Left dimmed area */}
+            <View
+              style={{
+                position: 'absolute',
+                top: frameTop,
+                left: 0,
+                width: frameLeft,
+                height: SCAN_SIZE,
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              }}
+            />
+            {/* Right dimmed area */}
+            <View
+              style={{
+                position: 'absolute',
+                top: frameTop,
+                right: 0,
+                width: SCREEN_WIDTH - frameRight,
+                height: SCAN_SIZE,
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              }}
+            />
           </View>
 
           {/* Message above scanning frame - on top of dimmed overlay */}
@@ -544,100 +583,100 @@ export default function QRScanner() {
             }}
             pointerEvents="none"
           >
-          {/* Corner brackets */}
-          <View
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: 40,
-              height: 40,
-              borderTopWidth: 4,
-              borderLeftWidth: 4,
-              borderColor: '#ffffff',
-            }}
-          />
-          <View
-            style={{
-              position: 'absolute',
-              top: 0,
-              right: 0,
-              width: 40,
-              height: 40,
-              borderTopWidth: 4,
-              borderRightWidth: 4,
-              borderColor: '#ffffff',
-            }}
-          />
-          <View
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              width: 40,
-              height: 40,
-              borderBottomWidth: 4,
-              borderLeftWidth: 4,
-              borderColor: '#ffffff',
-            }}
-          />
-          <View
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              right: 0,
-              width: 40,
-              height: 40,
-              borderBottomWidth: 4,
-              borderRightWidth: 4,
-              borderColor: '#ffffff',
-            }}
-          />
-
-          {/* Scanning line */}
-          <Animated.View
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 2,
-              backgroundColor: '#ffffff',
-              transform: [{ translateY: scanLineAnim }],
-            }}
-          />
-
-          {/* Success flash */}
-          <Animated.View
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(255, 255, 255, 0.3)',
-              opacity: successAnim,
-            }}
-          />
-
-          {/* Processing overlay */}
-          {isProcessing && (
+            {/* Corner brackets */}
             <View
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: 40,
+                height: 40,
+                borderTopWidth: 4,
+                borderLeftWidth: 4,
+                borderColor: '#ffffff',
+              }}
+            />
+            <View
+              style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: 40,
+                height: 40,
+                borderTopWidth: 4,
+                borderRightWidth: 4,
+                borderColor: '#ffffff',
+              }}
+            />
+            <View
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                width: 40,
+                height: 40,
+                borderBottomWidth: 4,
+                borderLeftWidth: 4,
+                borderColor: '#ffffff',
+              }}
+            />
+            <View
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                right: 0,
+                width: 40,
+                height: 40,
+                borderBottomWidth: 4,
+                borderRightWidth: 4,
+                borderColor: '#ffffff',
+              }}
+            />
+
+            {/* Scanning line */}
+            <Animated.View
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 2,
+                backgroundColor: '#ffffff',
+                transform: [{ translateY: scanLineAnim }],
+              }}
+            />
+
+            {/* Success flash */}
+            <Animated.View
               style={{
                 position: 'absolute',
                 top: 0,
                 left: 0,
                 right: 0,
                 bottom: 0,
-                backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                justifyContent: 'center',
-                alignItems: 'center',
+                backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                opacity: successAnim,
               }}
-            >
-              <ActivityIndicator size="large" color="#ffffff" />
-              <Text className="text-white mt-4 font-medium">Processing...</Text>
-            </View>
-          )}
+            />
+
+            {/* Processing overlay */}
+            {isProcessing && (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <ActivityIndicator size="large" color="#ffffff" />
+                <Text className="text-white mt-4 font-medium">Processing...</Text>
+              </View>
+            )}
           </View>
         </View>
       </SafeAreaView>
@@ -682,51 +721,73 @@ export default function QRScanner() {
             </View>
 
             <Text style={{ color: '#e2e8f0', fontSize: 14, marginBottom: 12 }}>
-              Enter the 8-character QR code ID
+              Enter QR code token (8 chars) or Event ID (UUID)
             </Text>
 
             <TextInput
               value={manualEntryId}
               onChangeText={(text) => {
-                // Remove any non-alphanumeric characters and limit to 8
-                const cleaned = text.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8);
+                // Allow alphanumeric and dashes (for UUIDs)
+                const cleaned = text.replace(/[^A-Za-z0-9-]/g, '');
                 setManualEntryId(cleaned);
               }}
-              placeholder="XXXX-XXXX"
+              placeholder="XXXX-XXXX or event-id-uuid"
               placeholderTextColor="#94a3b8"
               style={{
                 backgroundColor: '#ffffff',
                 borderRadius: 12,
                 padding: 16,
-                fontSize: 24,
+                fontSize: manualEntryId.length > 20 ? 14 : 20,
                 fontFamily: 'monospace',
                 fontWeight: 'bold',
-                letterSpacing: 4,
+                letterSpacing: manualEntryId.length === 8 ? 4 : 1,
                 textAlign: 'center',
                 color: '#1e3a8a',
                 marginBottom: 20,
                 borderWidth: 2,
-                borderColor: manualEntryId.length === 8 ? '#16a34a' : '#cbd5e1',
+                borderColor: (manualEntryId.length === 8 || /^[0-9A-F]{8}-?[0-9A-F]{4}-?[0-9A-F]{4}-?[0-9A-F]{4}-?[0-9A-F]{12}$/i.test(manualEntryId)) ? '#16a34a' : '#cbd5e1',
               }}
               autoCapitalize="characters"
               autoCorrect={false}
-              maxLength={8}
+              maxLength={50} // Allow UUIDs (36 chars) with some buffer
               autoFocus={true}
             />
 
             <Text style={{ color: '#94a3b8', fontSize: 12, marginBottom: 20, textAlign: 'center' }}>
-              {manualEntryId.length === 8 ? '✓ Ready to submit' : `${manualEntryId.length}/8 characters`}
+              {(() => {
+                const is8Char = manualEntryId.replace(/[-\s]/g, '').length === 8;
+                const isUUID = /^[0-9A-F]{8}-?[0-9A-F]{4}-?[0-9A-F]{4}-?[0-9A-F]{4}-?[0-9A-F]{12}$/i.test(manualEntryId);
+                if (is8Char) return '✓ 8-character token ready';
+                if (isUUID) return '✓ Event ID (UUID) ready';
+                if (manualEntryId.length > 0) return 'Enter 8-char token or Event ID';
+                return 'Enter QR code token or Event ID';
+              })()}
             </Text>
 
             <TouchableOpacity
               onPress={handleManualEntry}
-              disabled={manualEntryId.length !== 8 || isProcessing}
+              disabled={(() => {
+                const cleanId = manualEntryId.replace(/[-\s]/g, '').toUpperCase();
+                const is8Char = cleanId.length === 8;
+                const isUUID = /^[0-9A-F]{8}-?[0-9A-F]{4}-?[0-9A-F]{4}-?[0-9A-F]{4}-?[0-9A-F]{12}$/i.test(manualEntryId);
+                return !(is8Char || isUUID) || isProcessing;
+              })() || isProcessing}
               style={{
-                backgroundColor: manualEntryId.length === 8 && !isProcessing ? '#16a34a' : '#64748b',
+                backgroundColor: (() => {
+                  const cleanId = manualEntryId.replace(/[-\s]/g, '').toUpperCase();
+                  const is8Char = cleanId.length === 8;
+                  const isUUID = /^[0-9A-F]{8}-?[0-9A-F]{4}-?[0-9A-F]{4}-?[0-9A-F]{4}-?[0-9A-F]{12}$/i.test(manualEntryId);
+                  return (is8Char || isUUID) && !isProcessing ? '#16a34a' : '#64748b';
+                })(),
                 borderRadius: 12,
                 padding: 16,
                 alignItems: 'center',
-                opacity: manualEntryId.length === 8 && !isProcessing ? 1 : 0.6,
+                opacity: (() => {
+                  const cleanId = manualEntryId.replace(/[-\s]/g, '').toUpperCase();
+                  const is8Char = cleanId.length === 8;
+                  const isUUID = /^[0-9A-F]{8}-?[0-9A-F]{4}-?[0-9A-F]{4}-?[0-9A-F]{4}-?[0-9A-F]{12}$/i.test(manualEntryId);
+                  return (is8Char || isUUID) && !isProcessing ? 1 : 0.6;
+                })(),
               }}
             >
               {isProcessing ? (

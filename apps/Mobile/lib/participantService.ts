@@ -55,12 +55,14 @@ export class ParticipantService {
 
       console.log('Registration data:', registration, 'Error:', regError);
 
-      // Get attendance information
+      // Get attendance information (check for today's check-in for multi-day event support)
+      const today = new Date().toISOString().split('T')[0];
       const { data: attendance, error: attError } = await supabase
         .from('attendance_logs')
-        .select('id, check_in_time, check_in_method')
+        .select('id, check_in_time, check_in_date, check_in_method')
         .eq('user_id', userId)
         .eq('event_id', eventId)
+        .eq('check_in_date', today) // Get today's check-in
         .eq('is_validated', true)
         .single();
 

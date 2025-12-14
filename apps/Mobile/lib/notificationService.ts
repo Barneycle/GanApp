@@ -285,7 +285,7 @@ export class NotificationService {
       'info',
       {
         action_url: `/evaluation?id=${surveyId}`,
-        action_text: 'Take Survey',
+        action_text: 'Take Evaluation',
         priority: 'normal',
       }
     );
@@ -333,7 +333,7 @@ export class NotificationService {
         async (payload) => {
           const notification = payload.new as Notification;
           onNotification(notification);
-          
+
           // Send push notification when new notification is created
           try {
             const { PushNotificationService } = await import('./pushNotificationService');

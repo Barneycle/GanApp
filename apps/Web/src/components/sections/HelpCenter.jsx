@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { 
-  BookOpen, 
-  Search, 
-  MessageSquare, 
-  FileText, 
-  Video, 
+import {
+  BookOpen,
+  Search,
+  MessageSquare,
+  FileText,
+  Video,
   HelpCircle,
   ChevronRight,
   ChevronDown,
@@ -180,7 +180,7 @@ Note: You must be registered for the event first.`
           content: `To complete a survey or evaluation:
 1. Go to "My Events" page
 2. Find the event with an available survey
-3. Click "Take Survey" or "Evaluation" button
+3. Click "Take Evaluation" button
 4. Answer all required questions
 5. Submit your responses
 
@@ -657,7 +657,7 @@ You can update your profile anytime from the Profile page.`
 Actions available:
 - Register/Unregister
 - View QR Code (for check-in)
-- Take Survey/Evaluation
+- Take Evaluation
 - Generate Certificate (if eligible)
 - View Materials
 - Share Event
@@ -694,7 +694,7 @@ Use event details to manage your participation.`
           <p className="text-xl text-slate-600 mb-6">
             Find answers to common questions and learn how to use GanApp
           </p>
-          
+
           {/* Search Bar */}
           <div className="max-w-2xl mx-auto">
             <div className="relative">

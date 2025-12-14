@@ -1,5 +1,9 @@
 import { supabase } from './supabase';
 import { logActivity } from './utils/activityLogger';
+import { NetworkStatusMonitor } from './offline/networkStatus';
+import { LocalDatabaseService } from './offline/localDatabase';
+import { SyncQueueService, SyncPriority } from './offline/syncQueue';
+import { DataType } from './offline/conflictResolution';
 
 export interface Survey {
   id: string;
@@ -35,14 +39,14 @@ export class SurveyService {
    * 5. Availability Validation: Google Forms-like availability control
    */
   static async getSurveyByEventId(
-    eventId: string, 
+    eventId: string,
     userId: string
   ): Promise<{ survey?: Survey; error?: string; availabilityInfo?: any; validationInfo?: any }> {
     try {
       // Step 1: Event Validation - Verify event exists, is published, and hasn't ended
       const eventValidation = await this.validateEventAccess(eventId, userId);
       if (eventValidation.error) {
-        return { 
+        return {
           error: eventValidation.error,
           validationInfo: { step: 'event_validation', failed: true }
         };
@@ -52,14 +56,14 @@ export class SurveyService {
       // Note: We only require registration, not check-in, for evaluations
       const registrationCheck = await this.checkUserRegistration(eventId, userId);
       if (registrationCheck.error) {
-        return { 
+        return {
           error: registrationCheck.error,
           validationInfo: { step: 'registration_verification', failed: true }
         };
       }
-      
+
       if (!registrationCheck.isRegistered) {
-        return { 
+        return {
           error: 'You are not registered for this event. Please register first before accessing the evaluation.',
           validationInfo: { step: 'registration_verification', failed: true, reason: 'not_registered' }
         };
@@ -77,12 +81,12 @@ export class SurveyService {
 
       if (error) {
         if (error.code === 'PGRST116') { // Not found
-          return { 
+          return {
             error: 'No survey is available for this event yet.',
             validationInfo: { step: 'survey_retrieval', failed: true, reason: 'not_found' }
           };
         }
-        return { 
+        return {
           error: error.message,
           validationInfo: { step: 'survey_retrieval', failed: true }
         };
@@ -90,34 +94,35 @@ export class SurveyService {
 
       // Step 4: Cross-Reference Validation - Ensure survey belongs to the requested event
       if (data.event_id !== eventId) {
-        return { 
+        return {
           error: 'Survey does not belong to the specified event.',
           validationInfo: { step: 'cross_reference', failed: true, reason: 'event_mismatch' }
         };
       }
 
       // Step 5: Availability Validation - Google Forms-like availability control
-      const availabilityCheck = this.checkSurveyAvailability(data);
+      // Auto-open/close based on schedule before checking (for participants)
+      const availabilityCheck = await this.checkSurveyAvailability(data);
       if (!availabilityCheck.isAvailable) {
-        return { 
+        return {
           error: availabilityCheck.error,
           availabilityInfo: availabilityCheck.info,
           validationInfo: { step: 'availability_check', failed: true }
         };
       }
 
-      return { 
+      return {
         survey: data,
         availabilityInfo: availabilityCheck.info,
-        validationInfo: { 
-          step: 'complete', 
+        validationInfo: {
+          step: 'complete',
           passed: true,
           eventId: eventValidation.event?.id,
           isRegistered: registrationCheck.isRegistered
         }
       };
     } catch (error) {
-      return { 
+      return {
         error: 'An unexpected error occurred during survey validation',
         validationInfo: { step: 'exception', failed: true }
       };
@@ -128,7 +133,7 @@ export class SurveyService {
    * Event Validation: Verifies event exists, is published, and hasn't ended
    */
   private static async validateEventAccess(
-    eventId: string, 
+    eventId: string,
     userId: string
   ): Promise<{ event?: any; error?: string }> {
     try {
@@ -149,7 +154,7 @@ export class SurveyService {
       // Additional validation: Check if event has ended
       const now = new Date();
       const eventEndDateTime = new Date(`${data.end_date}T${data.end_time}`);
-      
+
       if (now > eventEndDateTime) {
         return { error: 'This event has already ended. Survey access is no longer available.' };
       }
@@ -171,7 +176,7 @@ export class SurveyService {
    * This is used for evaluation access - registered users can take evaluations
    */
   private static async checkUserRegistration(
-    eventId: string, 
+    eventId: string,
     userId: string
   ): Promise<{ isRegistered: boolean; registration?: any; error?: string }> {
     try {
@@ -192,24 +197,24 @@ export class SurveyService {
           return { isRegistered: false, error: registrationError.message };
         }
         // If it's "not found" (PGRST116), user is not registered
-        return { 
-          isRegistered: false, 
-          error: 'You are not registered for this event. Please register first before accessing the evaluation.' 
+        return {
+          isRegistered: false,
+          error: 'You are not registered for this event. Please register first before accessing the evaluation.'
         };
       }
 
       // If user is not registered, return appropriate error
       if (!registration) {
-        return { 
-          isRegistered: false, 
-          error: 'You are not registered for this event. Please register first before accessing the evaluation.' 
+        return {
+          isRegistered: false,
+          error: 'You are not registered for this event. Please register first before accessing the evaluation.'
         };
       }
 
       // User is registered
-      return { 
-        isRegistered: true, 
-        registration: registration 
+      return {
+        isRegistered: true,
+        registration: registration
       };
     } catch (error) {
       console.error('Unexpected error checking registration:', error);
@@ -218,13 +223,119 @@ export class SurveyService {
   }
 
   /**
-   * Check if survey is currently available (like Google Forms)
+   * Auto-open surveys when opens_at time arrives (for participants)
+   * This should be called before checking availability
+   * Respects manual closes - won't auto-open if survey was manually closed
    */
-  private static checkSurveyAvailability(survey: Survey): { 
-    isAvailable: boolean; 
-    error?: string; 
-    info?: any 
-  } {
+  private static async autoOpenScheduledSurveys(survey: Survey): Promise<void> {
+    if (!survey.is_active || survey.is_open) {
+      return; // Already open or inactive, no need to check
+    }
+
+    if (survey.opens_at) {
+      // Parse the opens_at time (stored as UTC ISO string)
+      const opensAt = new Date(survey.opens_at);
+      const now = new Date();
+
+      // If opens_at time has arrived, check if we should auto-open
+      if (now >= opensAt) {
+        // Check if the survey was manually closed after the opens_at time
+        // If updated_at is after opens_at, it means the user manually closed it
+        // and we should respect that manual close
+        if (survey.updated_at) {
+          const updatedAt = new Date(survey.updated_at);
+          // If the survey was updated (manually closed) after the opens_at time,
+          // don't auto-open it - respect the manual close
+          if (updatedAt > opensAt) {
+            console.log('Survey was manually closed after opens_at time, respecting manual close:', survey.id);
+            return;
+          }
+        }
+
+        // Only auto-open if opens_at time has passed AND the survey wasn't manually closed after that time
+        try {
+          const { error } = await supabase
+            .from('surveys')
+            .update({ is_open: true })
+            .eq('id', survey.id);
+
+          if (error) {
+            console.error('Failed to auto-open survey:', error);
+          } else {
+            console.log('Survey auto-opened:', survey.id);
+            // Update the survey object in memory
+            survey.is_open = true;
+          }
+        } catch (error) {
+          console.error('Failed to auto-open survey:', error);
+        }
+      }
+    }
+  }
+
+  /**
+   * Auto-close surveys when closes_at time passes (for participants)
+   * This should be called before checking availability
+   * Respects manual opens - if survey was manually opened after closes_at, don't auto-close
+   */
+  private static async autoCloseScheduledSurveys(survey: Survey): Promise<void> {
+    if (!survey.is_active || !survey.is_open) {
+      return; // Already closed or inactive, no need to check
+    }
+
+    if (survey.closes_at) {
+      const closesAt = new Date(survey.closes_at);
+      const now = new Date();
+
+      // If closes_at time has passed, check if we should auto-close
+      if (now > closesAt) {
+        // Check if the survey was manually opened after the closes_at time
+        // If updated_at is after closes_at, it means the user manually opened it
+        // and we should respect that manual open
+        if (survey.updated_at) {
+          const updatedAt = new Date(survey.updated_at);
+          // If the survey was updated (manually opened) after the closes_at time,
+          // don't auto-close it - respect the manual open
+          if (updatedAt > closesAt) {
+            console.log('Survey was manually opened after closes_at time, respecting manual open:', survey.id);
+            return;
+          }
+        }
+
+        // Only auto-close if closes_at time has passed AND the survey wasn't manually opened after that time
+        try {
+          const { error } = await supabase
+            .from('surveys')
+            .update({ is_open: false })
+            .eq('id', survey.id);
+
+          if (error) {
+            console.error('Failed to auto-close survey:', error);
+          } else {
+            console.log('Survey auto-closed:', survey.id);
+            // Update the survey object in memory
+            survey.is_open = false;
+          }
+        } catch (error) {
+          console.error('Failed to auto-close survey:', error);
+        }
+      }
+    }
+  }
+
+  /**
+   * Check if survey is currently available (like Google Forms)
+   * For participants - auto-opens/closes based on schedule before checking
+   */
+  private static async checkSurveyAvailability(survey: Survey): Promise<{
+    isAvailable: boolean;
+    error?: string;
+    info?: any
+  }> {
+    // Auto-open/close based on schedule before checking availability (for participants)
+    await this.autoOpenScheduledSurveys(survey);
+    await this.autoCloseScheduledSurveys(survey);
+
     // Survey must be active
     if (!survey.is_active) {
       return {
@@ -236,10 +347,26 @@ export class SurveyService {
 
     // Survey must be opened by organizer (Google Forms-like control)
     if (!survey.is_open) {
+      // Check if it's scheduled to open in the future
+      if (survey.opens_at) {
+        const opensAt = new Date(survey.opens_at);
+        const now = new Date();
+        if (now < opensAt) {
+          return {
+            isAvailable: false,
+            error: `Survey will be available starting ${opensAt.toLocaleString()}`,
+            info: {
+              status: 'scheduled_to_open',
+              opensAt: survey.opens_at
+            }
+          };
+        }
+      }
+
       return {
         isAvailable: false,
         error: 'This survey is currently closed. The organizer will open it when ready.',
-        info: { 
+        info: {
           status: 'closed_by_organizer',
           message: 'Survey is closed by the event organizer'
         }
@@ -250,12 +377,12 @@ export class SurveyService {
     if (survey.opens_at) {
       const opensAt = new Date(survey.opens_at);
       const now = new Date();
-      
+
       if (now < opensAt) {
         return {
           isAvailable: false,
           error: `Survey will be available starting ${opensAt.toLocaleString()}`,
-          info: { 
+          info: {
             status: 'scheduled_to_open',
             opensAt: survey.opens_at
           }
@@ -267,12 +394,12 @@ export class SurveyService {
     if (survey.closes_at) {
       const closesAt = new Date(survey.closes_at);
       const now = new Date();
-      
+
       if (now > closesAt) {
         return {
           isAvailable: false,
           error: `Survey closed on ${closesAt.toLocaleString()}`,
-          info: { 
+          info: {
             status: 'closed_by_schedule',
             closesAt: survey.closes_at
           }
@@ -283,7 +410,7 @@ export class SurveyService {
     // Survey is available
     return {
       isAvailable: true,
-      info: { 
+      info: {
         status: 'available',
         opensAt: survey.opens_at,
         closesAt: survey.closes_at
@@ -329,16 +456,16 @@ export class SurveyService {
   }
 
   static async scheduleSurvey(
-    surveyId: string, 
-    opensAt?: string, 
+    surveyId: string,
+    opensAt?: string,
     closesAt?: string
   ): Promise<{ error?: string }> {
     try {
       const updates: any = {};
-      
+
       if (opensAt) updates.opens_at = opensAt;
       if (closesAt) updates.closes_at = closesAt;
-      
+
       // If scheduling, automatically open the survey
       if (opensAt || closesAt) {
         updates.is_open = true;
@@ -409,48 +536,132 @@ export class SurveyService {
   }
 
   static async submitSurveyResponse(
-    surveyId: string, 
-    userId: string, 
+    surveyId: string,
+    userId: string,
     responses: Record<string, any>
-  ): Promise<{ response?: SurveyResponse; error?: string }> {
+  ): Promise<{ response?: SurveyResponse; error?: string; queued?: boolean }> {
     try {
-      const { data, error } = await supabase
-        .from('survey_responses')
-        .insert([{
-          survey_id: surveyId,
-          user_id: userId,
-          responses: responses
-        }])
-        .select()
-        .single();
+      const responseData = {
+        survey_id: surveyId,
+        user_id: userId,
+        responses: responses,
+        created_at: new Date().toISOString(),
+      };
 
-      if (error) {
-        return { error: error.message };
+      // If online, try to submit immediately
+      if (NetworkStatusMonitor.isOnline()) {
+        try {
+          const { data, error } = await supabase
+            .from('survey_responses')
+            .upsert([{
+              survey_id: surveyId,
+              user_id: userId,
+              responses: responses
+            }], {
+              onConflict: 'survey_id,user_id'
+            })
+            .select()
+            .single();
+
+          if (error) {
+            console.error('Error submitting survey response:', error);
+            // Queue for later
+          } else if (data) {
+            // Save to local database
+            await LocalDatabaseService.saveSurveyResponse(data);
+            return { response: data, error: undefined, queued: false };
+          }
+        } catch (error) {
+          console.error('Network error, queueing response:', error);
+          // Fall through to queue
+        }
       }
 
-      return { response: data };
+      // Queue for sync (last-write-wins strategy)
+      await SyncQueueService.enqueue(
+        DataType.SURVEY_RESPONSE,
+        'update', // Use update to allow upsert behavior
+        'survey_responses',
+        responseData,
+        SyncPriority.HIGH // High priority for user submissions
+      );
+
+      // Save to local database immediately
+      await LocalDatabaseService.saveSurveyResponse(responseData);
+
+      // Send notification for queued response
+      try {
+        const { NotificationService } = await import('./notificationService');
+        const { EventService } = await import('./eventService');
+        const { data: survey } = await supabase
+          .from('surveys')
+          .select('event_id, title')
+          .eq('id', surveyId)
+          .single();
+
+        if (survey) {
+          const eventResult = await EventService.getEventById(survey.event_id);
+
+          await NotificationService.createNotification(
+            userId,
+            'Survey Response Saved',
+            `Your response for "${survey.title || eventResult.event?.title || 'the survey'}" has been saved offline and will be submitted when online.`,
+            'info',
+            {
+              action_url: `/evaluation?id=${surveyId}`,
+              action_text: 'View Survey',
+              priority: 'normal'
+            }
+          );
+        }
+      } catch (err) {
+        console.error('Failed to create survey notification:', err);
+      }
+
+      return {
+        response: responseData as SurveyResponse,
+        error: undefined,
+        queued: true
+      };
     } catch (error) {
       return { error: 'An unexpected error occurred' };
     }
   }
 
   static async checkExistingResponse(
-    surveyId: string, 
+    surveyId: string,
     userId: string
   ): Promise<{ hasResponse: boolean; error?: string }> {
     try {
-      const { data, error } = await supabase
-        .from('survey_responses')
-        .select('id')
-        .eq('survey_id', surveyId)
-        .eq('user_id', userId)
-        .single();
-
-      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
-        return { hasResponse: false, error: error.message };
+      // Check local database first
+      const localResponse = await LocalDatabaseService.getSurveyResponse(surveyId, userId);
+      if (localResponse) {
+        return { hasResponse: true };
       }
 
-      return { hasResponse: !!data };
+      // If online, check server
+      if (NetworkStatusMonitor.isOnline()) {
+        try {
+          const { data, error } = await supabase
+            .from('survey_responses')
+            .select('id')
+            .eq('survey_id', surveyId)
+            .eq('user_id', userId)
+            .single();
+
+          if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
+            return { hasResponse: false, error: error.message };
+          }
+
+          if (data) {
+            return { hasResponse: true };
+          }
+        } catch (error) {
+          // Network error, return false (no response found)
+        }
+      }
+
+      return { hasResponse: false };
     } catch (error) {
       return { hasResponse: false, error: 'An unexpected error occurred' };
     }

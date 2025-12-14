@@ -47,7 +47,7 @@ export default function MyEvents() {
   const [venueFilter, setVenueFilter] = useState<string>('all');
   const [sortOption, setSortOption] = useState<SortOption>('date-asc');
   const [showFilters, setShowFilters] = useState(false);
-  const [eventStatuses, setEventStatuses] = useState<Record<string, { isCheckedIn: boolean; surveyCompleted: boolean }>>({});
+  const [eventStatuses, setEventStatuses] = useState<Record<string, { isCheckedIn: boolean; isValidated: boolean; surveyCompleted: boolean; isSurveyAvailable: boolean }>>({});
   const insets = useSafeAreaInsets();
 
   const router = useRouter();
@@ -124,24 +124,46 @@ export default function MyEvents() {
         // Check check-in and survey completion status for each event
         if (user?.id && events.length > 0) {
           const statusPromises = events.map(async (event) => {
-            const [checkInResult, surveyResult] = await Promise.all([
+            const [checkInResult, surveyResult, surveyAvailabilityResult] = await Promise.all([
               EventService.checkUserCheckInStatus(event.id, user.id),
-              EventService.checkUserSurveyCompletion(event.id, user.id)
+              EventService.checkUserSurveyCompletion(event.id, user.id),
+              SurveyService.getSurveysByEvent(event.id)
             ]);
+
+            // Check if survey is available (active and open)
+            let isSurveyAvailable = false;
+            if (surveyAvailabilityResult.surveys && surveyAvailabilityResult.surveys.length > 0) {
+              const activeSurvey = surveyAvailabilityResult.surveys.find(s => s.is_active) || surveyAvailabilityResult.surveys[0];
+              if (activeSurvey) {
+                const now = new Date();
+                const isActive = activeSurvey.is_active;
+                const isOpen = activeSurvey.is_open;
+                const opensAt = activeSurvey.opens_at ? new Date(activeSurvey.opens_at) : null;
+                const closesAt = activeSurvey.closes_at ? new Date(activeSurvey.closes_at) : null;
+
+                isSurveyAvailable = isActive && isOpen &&
+                  (!opensAt || now >= opensAt) &&
+                  (!closesAt || now <= closesAt);
+              }
+            }
 
             return {
               eventId: event.id,
               isCheckedIn: checkInResult.isCheckedIn || false,
-              surveyCompleted: surveyResult.isCompleted || false
+              isValidated: checkInResult.isValidated || false,
+              surveyCompleted: surveyResult.isCompleted || false,
+              isSurveyAvailable: isSurveyAvailable
             };
           });
 
           const statuses = await Promise.all(statusPromises);
-          const statusMap: Record<string, { isCheckedIn: boolean; surveyCompleted: boolean }> = {};
+          const statusMap: Record<string, { isCheckedIn: boolean; isValidated: boolean; surveyCompleted: boolean; isSurveyAvailable: boolean }> = {};
           statuses.forEach(status => {
             statusMap[status.eventId] = {
               isCheckedIn: status.isCheckedIn,
-              surveyCompleted: status.surveyCompleted
+              isValidated: status.isValidated,
+              surveyCompleted: status.surveyCompleted,
+              isSurveyAvailable: status.isSurveyAvailable
             };
           });
           setEventStatuses(statusMap);
@@ -418,7 +440,7 @@ export default function MyEvents() {
           {
             id: '1',
             title: 'My Events',
-            description: 'This screen shows all events you have registered for. You can view event details, access your QR code for check-in, and take surveys.',
+            description: 'This screen shows all events you have registered for. You can view event details, access your QR code for check-in, and take evaluations.',
           },
           {
             id: '2',
@@ -608,9 +630,9 @@ export default function MyEvents() {
             ) : (
               filteredAndSortedEvents.map((event) => {
                 const eventStatus = getEventStatus(event);
-                const eventStatusData = eventStatuses[event.id] || { isCheckedIn: false, surveyCompleted: false };
-                const canTakeSurvey = eventStatusData.isCheckedIn;
-                const canGenerateCert = eventStatusData.isCheckedIn && eventStatusData.surveyCompleted;
+                const eventStatusData = eventStatuses[event.id] || { isCheckedIn: false, isValidated: false, surveyCompleted: false, isSurveyAvailable: false };
+                const canTakeSurvey = eventStatusData.isCheckedIn && eventStatusData.isSurveyAvailable;
+                const canGenerateCert = eventStatusData.isCheckedIn && eventStatusData.isValidated && eventStatusData.surveyCompleted;
 
                 return (
                   <View
@@ -771,8 +793,12 @@ export default function MyEvents() {
 
                         <TouchableOpacity
                           onPress={() => {
-                            if (!canTakeSurvey) {
+                            if (!eventStatusData.isCheckedIn) {
                               toast.warning('Please check in to the event first before taking the survey.');
+                              return;
+                            }
+                            if (!eventStatusData.isSurveyAvailable) {
+                              toast.warning('The survey for this event is currently closed or not available.');
                               return;
                             }
                             handleTakeEvaluation(event);
@@ -801,6 +827,8 @@ export default function MyEvents() {
                             if (!canGenerateCert) {
                               if (!eventStatusData.isCheckedIn) {
                                 toast.warning('Please check in to the event first.');
+                              } else if (!eventStatusData.isValidated) {
+                                toast.warning('Your attendance must be validated by the organizer before generating a certificate.');
                               } else if (!eventStatusData.surveyCompleted) {
                                 toast.warning('Please complete the survey/evaluation first.');
                               }
@@ -843,6 +871,25 @@ export default function MyEvents() {
                           <Ionicons name="camera" size={24} color="#ffffff" />
                           <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
                             Snap Photo
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={() => router.push(`/event-messages?eventId=${event.id}`)}
+                          style={{
+                            width: '31%',
+                            margin: '1%',
+                            backgroundColor: '#10b981',
+                            borderRadius: 10,
+                            padding: 12,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            minHeight: 75,
+                          }}
+                        >
+                          <Ionicons name="chatbubbles" size={24} color="#ffffff" />
+                          <Text className="text-white text-xs text-center font-semibold mt-1.5" numberOfLines={2}>
+                            Contact Organizer
                           </Text>
                         </TouchableOpacity>
 

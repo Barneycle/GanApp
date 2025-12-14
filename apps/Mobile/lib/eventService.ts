@@ -1,4 +1,8 @@
 import { supabase } from './supabase';
+import { NetworkStatusMonitor } from './offline/networkStatus';
+import { LocalDatabaseService } from './offline/localDatabase';
+import { SyncQueueService, SyncPriority } from './offline/syncQueue';
+import { DataType } from './offline/conflictResolution';
 
 export interface Event {
   id: string;
@@ -33,20 +37,36 @@ export interface EventRegistration {
 }
 
 export class EventService {
-  static async getPublishedEvents(): Promise<{ events: Event[]; error?: string }> {
+  static async getPublishedEvents(): Promise<{ events: Event[]; error?: string; fromCache?: boolean }> {
     try {
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .eq('status', 'published')
-        .order('start_date', { ascending: true });
+      // Try to fetch from server if online
+      if (NetworkStatusMonitor.isOnline()) {
+        try {
+          const { data, error } = await supabase
+            .from('events')
+            .select('*')
+            .eq('status', 'published')
+            .order('start_date', { ascending: true });
 
-      if (error) {
-        console.error('Error fetching published events:', error);
-        return { events: [], error: error.message };
+          if (error) {
+            console.error('Error fetching published events:', error);
+            // Fall through to cache
+          } else if (data) {
+            // Save to local database
+            for (const event of data) {
+              await LocalDatabaseService.saveEvent(event);
+            }
+            return { events: data || [], error: undefined, fromCache: false };
+          }
+        } catch (error) {
+          console.error('Network error, falling back to cache:', error);
+          // Fall through to cache
+        }
       }
 
-      return { events: data || [], error: undefined };
+      // Fallback to local database
+      const cachedEvents = await LocalDatabaseService.getEvents('published');
+      return { events: cachedEvents || [], error: undefined, fromCache: true };
     } catch (error) {
       console.error('Unexpected error in getPublishedEvents:', error);
       return { events: [], error: 'An unexpected error occurred' };
@@ -73,20 +93,34 @@ export class EventService {
     }
   }
 
-  static async getEventById(eventId: string): Promise<{ event: Event | null; error?: string }> {
+  static async getEventById(eventId: string): Promise<{ event: Event | null; error?: string; fromCache?: boolean }> {
     try {
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .eq('id', eventId)
-        .maybeSingle();
+      // Try to fetch from server if online
+      if (NetworkStatusMonitor.isOnline()) {
+        try {
+          const { data, error } = await supabase
+            .from('events')
+            .select('*')
+            .eq('id', eventId)
+            .maybeSingle();
 
-      if (error) {
-        console.error('Error fetching event by ID:', error);
-        return { event: null, error: error.message };
+          if (error) {
+            console.error('Error fetching event by ID:', error);
+            // Fall through to cache
+          } else if (data) {
+            // Save to local database
+            await LocalDatabaseService.saveEvent(data);
+            return { event: data, error: undefined, fromCache: false };
+          }
+        } catch (error) {
+          console.error('Network error, falling back to cache:', error);
+          // Fall through to cache
+        }
       }
 
-      return { event: data, error: undefined };
+      // Fallback to local database
+      const cachedEvent = await LocalDatabaseService.getEventById(eventId);
+      return { event: cachedEvent, error: undefined, fromCache: true };
     } catch (error) {
       console.error('Unexpected error in getEventById:', error);
       return { event: null, error: 'An unexpected error occurred' };
@@ -113,21 +147,52 @@ export class EventService {
     }
   }
 
-  static async updateEvent(eventId: string, updates: Partial<Event>): Promise<{ event: Event | null; error?: string }> {
+  static async updateEvent(eventId: string, updates: Partial<Event>): Promise<{ event: Event | null; error?: string; queued?: boolean }> {
     try {
-      const { data, error } = await supabase
-        .from('events')
-        .update(updates)
-        .eq('id', eventId)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error updating event:', error);
-        return { event: null, error: error.message };
+      // Get current event data
+      const currentEvent = await this.getEventById(eventId);
+      if (!currentEvent.event) {
+        return { event: null, error: 'Event not found' };
       }
 
-      return { event: data, error: undefined };
+      const updatedEvent = { ...currentEvent.event, ...updates, updated_at: new Date().toISOString() };
+
+      // If online, try to update immediately
+      if (NetworkStatusMonitor.isOnline()) {
+        try {
+          const { data, error } = await supabase
+            .from('events')
+            .update(updates)
+            .eq('id', eventId)
+            .select()
+            .single();
+
+          if (error) {
+            console.error('Error updating event:', error);
+            // Queue for later
+          } else if (data) {
+            await LocalDatabaseService.saveEvent(data);
+            return { event: data, error: undefined, queued: false };
+          }
+        } catch (error) {
+          console.error('Network error, queueing update:', error);
+          // Fall through to queue
+        }
+      }
+
+      // Queue update for sync
+      await SyncQueueService.enqueue(
+        DataType.EVENT_METADATA,
+        'update',
+        'events',
+        updatedEvent,
+        SyncPriority.MEDIUM
+      );
+
+      // Save to local database immediately
+      await LocalDatabaseService.saveEvent(updatedEvent);
+
+      return { event: updatedEvent, error: undefined, queued: true };
     } catch (error) {
       console.error('Unexpected error in updateEvent:', error);
       return { event: null, error: 'An unexpected error occurred' };
@@ -153,43 +218,81 @@ export class EventService {
     }
   }
 
-  static async getUserRegistrations(userId: string): Promise<{ registrations?: Array<{ events: Event; registration_date: string; registration_id: string }>; error?: string }> {
+  static async getUserRegistrations(userId: string): Promise<{ registrations?: Array<{ events: Event; registration_date: string; registration_id: string }>; error?: string; fromCache?: boolean }> {
     try {
-      const { data, error } = await supabase
-        .from('event_registrations')
-        .select(`
-          id,
-          registration_date,
-          created_at,
-          events (*)
-        `)
-        .eq('user_id', userId)
-        .eq('status', 'registered')
-        .order('registration_date', { ascending: false });
+      // Try to fetch from server if online
+      if (NetworkStatusMonitor.isOnline()) {
+        try {
+          const { data, error } = await supabase
+            .from('event_registrations')
+            .select(`
+              id,
+              registration_date,
+              created_at,
+              events (*)
+            `)
+            .eq('user_id', userId)
+            .eq('status', 'registered')
+            .order('registration_date', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching user registrations:', error);
-        return { registrations: [], error: error.message };
+          if (error) {
+            console.error('Error fetching user registrations:', error);
+            // Fall through to cache
+          } else if (data) {
+            // Save registrations to local database
+            for (const registration of data) {
+              if (registration.events) {
+                await LocalDatabaseService.saveEvent(registration.events as any);
+              }
+              await LocalDatabaseService.saveEventRegistration({
+                id: registration.id,
+                event_id: (registration.events as any)?.id || '',
+                user_id: userId,
+                status: 'registered',
+                registration_date: registration.registration_date || registration.created_at?.split('T')[0],
+                created_at: registration.created_at,
+              });
+            }
+
+            // Filter out any registrations where the event is null (deleted events)
+            const validRegistrations = data.filter(registration => registration.events !== null);
+
+            if (validRegistrations.length === 0) {
+              return { registrations: [], error: undefined, fromCache: false };
+            }
+
+            const registrations = validRegistrations.map(registration => ({
+              events: registration.events as unknown as Event,
+              registration_date: registration.registration_date || registration.created_at,
+              registration_id: registration.id
+            }));
+
+            return { registrations, error: undefined, fromCache: false };
+          }
+        } catch (error) {
+          console.error('Network error, falling back to cache:', error);
+          // Fall through to cache
+        }
       }
 
-      if (!data || data.length === 0) {
-        return { registrations: [], error: undefined };
+      // Fallback to local database
+      const localRegistrations = await LocalDatabaseService.getEventRegistrations(undefined, userId);
+      const registered = localRegistrations.filter(r => r.status === 'registered');
+
+      const registrations: Array<{ events: Event; registration_date: string; registration_id: string }> = [];
+
+      for (const reg of registered) {
+        const event = await LocalDatabaseService.getEventById(reg.event_id);
+        if (event) {
+          registrations.push({
+            events: event,
+            registration_date: reg.registration_date || reg.created_at?.split('T')[0] || '',
+            registration_id: reg.id,
+          });
+        }
       }
 
-      // Filter out any registrations where the event is null (deleted events)
-      const validRegistrations = data.filter(registration => registration.events !== null);
-
-      if (validRegistrations.length === 0) {
-        return { registrations: [], error: undefined };
-      }
-
-      const registrations = validRegistrations.map(registration => ({
-        events: registration.events as unknown as Event,
-        registration_date: registration.registration_date || registration.created_at,
-        registration_id: registration.id
-      }));
-
-      return { registrations, error: undefined };
+      return { registrations, error: undefined, fromCache: true };
     } catch (error) {
       console.error('Unexpected error in getUserRegistrations:', error);
       return { registrations: [], error: 'An unexpected error occurred' };
@@ -217,31 +320,54 @@ export class EventService {
     }
   }
 
-  static async getUserRegistration(eventId: string, userId: string): Promise<{ registration?: EventRegistration; error?: string }> {
+  static async getUserRegistration(eventId: string, userId: string): Promise<{ registration?: EventRegistration; error?: string; fromCache?: boolean }> {
     try {
-      const { data, error } = await supabase
-        .from('event_registrations')
-        .select('*')
-        .eq('event_id', eventId)
-        .eq('user_id', userId)
-        .eq('status', 'registered')
-        .maybeSingle();
+      // Try to fetch from server if online
+      if (NetworkStatusMonitor.isOnline()) {
+        try {
+          const { data, error } = await supabase
+            .from('event_registrations')
+            .select('*')
+            .eq('event_id', eventId)
+            .eq('user_id', userId)
+            .eq('status', 'registered')
+            .maybeSingle();
 
-      if (error) {
-        return { error: error.message };
+          if (error && error.code !== 'PGRST116') {
+            // Fall through to cache for other errors
+          } else if (data) {
+            // Save to local database
+            await LocalDatabaseService.saveEventRegistration({
+              id: data.id,
+              event_id: data.event_id,
+              user_id: data.user_id,
+              status: data.status,
+              registration_date: data.registration_date || data.created_at?.split('T')[0],
+              created_at: data.created_at,
+            });
+            return { registration: data, fromCache: false };
+          }
+        } catch (error) {
+          console.error('Network error, falling back to cache:', error);
+          // Fall through to cache
+        }
       }
 
-      if (!data) {
-        return {};
+      // Fallback to local database
+      const localRegistrations = await LocalDatabaseService.getEventRegistrations(eventId, userId);
+      const registration = localRegistrations.find(r => r.status === 'registered');
+
+      if (!registration) {
+        return { fromCache: true };
       }
 
-      return { registration: data };
+      return { registration: registration as EventRegistration, fromCache: true };
     } catch (error) {
       return { error: 'An unexpected error occurred' };
     }
   }
 
-  static async registerForEvent(eventId: string, userId: string): Promise<{ registration?: EventRegistration; error?: string }> {
+  static async registerForEvent(eventId: string, userId: string): Promise<{ registration?: EventRegistration; error?: string; queued?: boolean }> {
     try {
       // Check if user is already registered (active registration)
       const existingRegistration = await this.getUserRegistration(eventId, userId);
@@ -249,16 +375,7 @@ export class EventService {
         return { error: 'You are already registered for this event' };
       }
 
-      // Check if THIS USER has a cancelled registration that we can reactivate
-      const { data: cancelledRegistration, error: cancelledError } = await supabase
-        .from('event_registrations')
-        .select('*')
-        .eq('event_id', eventId)
-        .eq('user_id', userId)
-        .eq('status', 'cancelled')
-        .maybeSingle();
-
-      // Check if event exists and is published
+      // Check if event exists and is published (use cached if offline)
       const eventResult = await this.getEventById(eventId);
       if (eventResult.error) {
         return { error: eventResult.error };
@@ -297,6 +414,65 @@ export class EventService {
       if (eventResult.event.max_participants && eventResult.event.current_participants && eventResult.event.current_participants >= eventResult.event.max_participants) {
         return { error: 'This event has reached maximum capacity' };
       }
+
+      // If offline, queue registration and save locally
+      if (!NetworkStatusMonitor.isOnline()) {
+        // Check if THIS USER has a cancelled registration that we can reactivate
+        const localRegistrations = await LocalDatabaseService.getEventRegistrations(eventId, userId);
+        const cancelledRegistration = localRegistrations.find(r => r.status === 'cancelled');
+
+        const registrationId = cancelledRegistration?.id || `local-reg-${Date.now()}-${Math.random()}`;
+        const registrationData = {
+          id: registrationId,
+          event_id: eventId,
+          user_id: userId,
+          status: 'registered',
+          registration_date: new Date().toISOString().split('T')[0],
+          created_at: new Date().toISOString(),
+        };
+
+        // Save to local database
+        await LocalDatabaseService.saveEventRegistration(registrationData);
+
+        // Queue for sync (server wins for registrations)
+        await SyncQueueService.enqueue(
+          DataType.EVENT_REGISTRATION,
+          cancelledRegistration ? 'update' : 'create',
+          'event_registrations',
+          registrationData,
+          SyncPriority.HIGH
+        );
+
+        // Send notification when online (will be sent on sync)
+        // For now, create a local notification
+        try {
+          const { NotificationService } = await import('./notificationService');
+          await NotificationService.createNotification(
+            userId,
+            'Registration Queued',
+            `Your registration for "${eventResult.event.title}" has been saved offline and will be confirmed when online.`,
+            'info',
+            {
+              action_url: `/event-details?eventId=${eventId}`,
+              action_text: 'View Event',
+              priority: 'normal'
+            }
+          );
+        } catch (err) {
+          console.error('Failed to create registration notification:', err);
+        }
+
+        return { registration: registrationData as EventRegistration, queued: true };
+      }
+
+      // Online: Check if THIS USER has a cancelled registration that we can reactivate
+      const { data: cancelledRegistration, error: cancelledError } = await supabase
+        .from('event_registrations')
+        .select('*')
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
+        .eq('status', 'cancelled')
+        .maybeSingle();
 
       // Create or reactivate registration
       let registrationData;
@@ -339,6 +515,9 @@ export class EventService {
         return { error: 'Failed to create registration' };
       }
 
+      // Save to local database
+      await LocalDatabaseService.saveEventRegistration(registrationData);
+
       // Create registration confirmation notification
       try {
         const { NotificationService } = await import('./notificationService');
@@ -368,35 +547,90 @@ export class EventService {
         // Don't fail the registration if count update fails
       }
 
-      return { registration: registrationData };
+      return { registration: registrationData, queued: false };
     } catch (error) {
       return { error: 'An unexpected error occurred' };
     }
   }
 
   /**
-   * Check if user has checked in to an event
+   * Check if user has checked in to an event today (for multi-day event support)
+   * Supports offline - checks local database
    */
-  static async checkUserCheckInStatus(eventId: string, userId: string): Promise<{ isCheckedIn: boolean; error?: string }> {
+  static async checkUserCheckInStatus(eventId: string, userId: string): Promise<{ isCheckedIn: boolean; isValidated?: boolean; error?: string; fromCache?: boolean }> {
     try {
-      const { data, error } = await supabase
-        .from('attendance_logs')
-        .select('id, check_in_time, is_validated')
-        .eq('event_id', eventId)
-        .eq('user_id', userId)
-        .eq('is_validated', true)
-        .single();
+      // Get current date in YYYY-MM-DD format
+      const today = new Date().toISOString().split('T')[0];
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return { isCheckedIn: false };
+      // Try server first if online
+      if (NetworkStatusMonitor.isOnline()) {
+        try {
+          // First, check for any check-in (validated or not) for today
+          const { data: todayCheckIn, error: todayError } = await supabase
+            .from('attendance_logs')
+            .select('id, check_in_time, check_in_date, is_validated')
+            .eq('event_id', eventId)
+            .eq('user_id', userId)
+            .eq('check_in_date', today)
+            .order('check_in_time', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          // If no check-in today, check for most recent check-in (for multi-day events)
+          let checkInData = todayCheckIn;
+          if (!todayCheckIn && todayError?.code !== 'PGRST116') {
+            const { data: recentCheckIn } = await supabase
+              .from('attendance_logs')
+              .select('id, check_in_time, check_in_date, is_validated')
+              .eq('event_id', eventId)
+              .eq('user_id', userId)
+              .order('check_in_time', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            checkInData = recentCheckIn;
+          }
+
+          if (checkInData) {
+            // Save to local database
+            await LocalDatabaseService.saveAttendanceLog({
+              id: checkInData.id,
+              event_id: eventId,
+              user_id: userId,
+              check_in_time: checkInData.check_in_time,
+              check_in_date: checkInData.check_in_date || today,
+              is_validated: checkInData.is_validated || false,
+            });
+            return {
+              isCheckedIn: !!checkInData?.check_in_time,
+              isValidated: checkInData?.is_validated || false,
+              fromCache: false
+            };
+          }
+        } catch (error) {
+          console.error('Network error, falling back to cache:', error);
+          // Fall through to cache
         }
-        return { isCheckedIn: false, error: error.message };
       }
 
-      return { isCheckedIn: !!data?.check_in_time };
+      // Fallback to local database
+      const localAttendance = await LocalDatabaseService.getAttendanceLogs(eventId, userId);
+      // Check for today's check-in first, then most recent
+      const todayCheckIn = localAttendance.find(
+        (att) => att.check_in_date === today
+      );
+      const checkInData = todayCheckIn || localAttendance[0];
+
+      if (checkInData) {
+        return {
+          isCheckedIn: !!checkInData.check_in_time,
+          isValidated: checkInData.is_validated || false,
+          fromCache: true
+        };
+      }
+
+      return { isCheckedIn: false, isValidated: false, fromCache: true };
     } catch (error) {
-      return { isCheckedIn: false, error: 'An unexpected error occurred' };
+      return { isCheckedIn: false, isValidated: false, error: 'An unexpected error occurred' };
     }
   }
 
@@ -441,13 +675,45 @@ export class EventService {
 
   /**
    * Unregister user from an event
+   * Supports offline queueing
    */
-  static async unregisterFromEvent(eventId: string, userId: string): Promise<{ error?: string }> {
+  static async unregisterFromEvent(eventId: string, userId: string): Promise<{ error?: string; queued?: boolean }> {
     try {
-      // First check if registration exists
+      // Check local database first (works offline)
+      const localRegistrations = await LocalDatabaseService.getEventRegistrations(eventId, userId);
+      const localRegistration = localRegistrations.find(r => r.status === 'registered');
+
+      // If offline, queue cancellation and update locally
+      if (!NetworkStatusMonitor.isOnline()) {
+        if (!localRegistration) {
+          return { error: 'You are not registered for this event' };
+        }
+
+        const cancelledRegistration = {
+          ...localRegistration,
+          status: 'cancelled',
+          updated_at: new Date().toISOString(),
+        };
+
+        // Save to local database
+        await LocalDatabaseService.saveEventRegistration(cancelledRegistration);
+
+        // Queue for sync (server wins for registrations)
+        await SyncQueueService.enqueue(
+          DataType.EVENT_REGISTRATION,
+          'update',
+          'event_registrations',
+          cancelledRegistration,
+          SyncPriority.HIGH
+        );
+
+        return { queued: true };
+      }
+
+      // Online: Check if registration exists
       const { data: registration, error: checkError } = await supabase
         .from('event_registrations')
-        .select('id, status')
+        .select('*')
         .eq('event_id', eventId)
         .eq('user_id', userId)
         .eq('status', 'registered')
@@ -471,7 +737,18 @@ export class EventService {
         return { error: error.message };
       }
 
-      return {};
+      // Save to local database with cancelled status
+      await LocalDatabaseService.saveEventRegistration({
+        id: registration.id,
+        event_id: registration.event_id,
+        user_id: registration.user_id,
+        status: 'cancelled',
+        registration_date: registration.registration_date || registration.created_at?.split('T')[0],
+        created_at: registration.created_at,
+        updated_at: new Date().toISOString(),
+      });
+
+      return { queued: false };
     } catch (error) {
       return { error: 'An unexpected error occurred' };
     }

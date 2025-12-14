@@ -1245,33 +1245,39 @@ RETURNS JSON AS $$
 DECLARE
     result JSON;
     attendance_id UUID;
-    existing_attendance RECORD;
+    existing_attendance_today RECORD;
+    current_date DATE := CURRENT_DATE;
 BEGIN
-    -- Check if attendance already exists
-    SELECT * INTO existing_attendance FROM attendance_logs 
-    WHERE event_id = event_uuid AND user_id = user_uuid;
+    -- Check if attendance already exists for today (for multi-day event support)
+    SELECT * INTO existing_attendance_today FROM attendance_logs 
+    WHERE event_id = event_uuid 
+      AND user_id = user_uuid
+      AND check_in_date = current_date;
     
-    IF existing_attendance IS NOT NULL THEN
-        -- Update existing attendance
+    IF existing_attendance_today IS NOT NULL THEN
+        -- Update existing attendance for today
         UPDATE attendance_logs SET
             check_in_time = NOW(),
+            check_in_date = current_date,
             check_in_method = check_in_method_text,
             is_validated = true,
             validated_by = COALESCE(validated_by_uuid, user_uuid),
             validation_notes = 'Attendance updated'
-        WHERE id = existing_attendance.id
+        WHERE id = existing_attendance_today.id
         RETURNING id INTO attendance_id;
     ELSE
-        -- Create new attendance record
+        -- Create new attendance record for today
         INSERT INTO attendance_logs (
             event_id,
             user_id,
+            check_in_date,
             check_in_method,
             is_validated,
             validated_by
         ) VALUES (
             event_uuid,
             user_uuid,
+            current_date,
             check_in_method_text,
             true,
             COALESCE(validated_by_uuid, user_uuid)
@@ -1283,6 +1289,7 @@ BEGIN
         'success', true,
         'attendance_id', attendance_id,
         'check_in_time', NOW(),
+        'check_in_date', current_date,
         'check_in_method', check_in_method_text,
         'is_validated', true,
         'message', 'Attendance validated successfully'

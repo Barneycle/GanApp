@@ -7,6 +7,8 @@ import { useToast } from '../Toast';
 import { exportToCSV, exportToExcel } from '../../utils/exportUtils';
 import { BulkQRCodeGenerator } from './BulkQRCodeGenerator';
 import { CertificateGenerationsView } from './CertificateGenerationsView';
+import { EventChatModal } from '../EventChatModal';
+import { EventMessageService } from '../../services/eventMessageService';
 
 // Sample events data for placeholders
 const sampleEvents = [
@@ -157,9 +159,30 @@ export const Events = () => {
   const [showRegistrationsModal, setShowRegistrationsModal] = useState(false);
   const [registrations, setRegistrations] = useState([]);
   const [loadingRegistrations, setLoadingRegistrations] = useState(false);
+  const [showCheckInsModal, setShowCheckInsModal] = useState(false);
+  const [checkIns, setCheckIns] = useState([]);
+  const [loadingCheckIns, setLoadingCheckIns] = useState(false);
+  const [checkInStats, setCheckInStats] = useState(null);
+  const [checkInFilters, setCheckInFilters] = useState({
+    search: '',
+    method: 'all',
+    validationStatus: 'all',
+    date: 'all'
+  });
+  const [checkInSortBy, setCheckInSortBy] = useState('time-desc');
+  const [autoRefreshCheckIns, setAutoRefreshCheckIns] = useState(false);
+  const [showAddCheckInModal, setShowAddCheckInModal] = useState(false);
+  const [showParticipantSelectModal, setShowParticipantSelectModal] = useState(false);
+  const [availableParticipants, setAvailableParticipants] = useState([]);
+  const [loadingParticipants, setLoadingParticipants] = useState(false);
+  const [selectedParticipantForCheckIn, setSelectedParticipantForCheckIn] = useState(null);
+  const [checkInDate, setCheckInDate] = useState(new Date().toISOString().split('T')[0]);
   const [showBulkQRModal, setShowBulkQRModal] = useState(false);
   const [showCertificateGenerationsModal, setShowCertificateGenerationsModal] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
+  const [showEventChatModal, setShowEventChatModal] = useState(false);
+  const [chatEventForOrganizer, setChatEventForOrganizer] = useState(null);
+  const [eventUnreadCounts, setEventUnreadCounts] = useState({});
   const [eventToCancel, setEventToCancel] = useState(null);
   const [cancellationReason, setCancellationReason] = useState('');
   const [cancellationDate, setCancellationDate] = useState('');
@@ -221,7 +244,7 @@ export const Events = () => {
     try {
       setArchivedLoading(true);
       const result = await EventService.getArchivedEvents();
-      
+
       if (isVisible) {
         if (result.error) {
           console.error('Error loading archived events:', result.error);
@@ -257,16 +280,16 @@ export const Events = () => {
       loadingRef.current = true;
       setLoading(true);
       setError('');
-      
+
       if (user?.role === 'organizer' || user?.role === 'admin') {
         // Load user's own events
         const result = await EventService.getEventsByCreator(user.id);
         // Only update state if page is still visible
         if (isVisible) {
-        if (result.error) {
-          setError(result.error);
-        } else {
-          setEvents(result.events || []);
+          if (result.error) {
+            setError(result.error);
+          } else {
+            setEvents(result.events || []);
           }
         }
       } else if (user) {
@@ -274,10 +297,10 @@ export const Events = () => {
         const result = await EventService.getPublishedEvents();
         // Only update state if page is still visible
         if (isVisible) {
-        if (result.error) {
-          setError(result.error);
-        } else {
-          setEvents(result.events || []);
+          if (result.error) {
+            setError(result.error);
+          } else {
+            setEvents(result.events || []);
           }
         }
       } else {
@@ -285,23 +308,23 @@ export const Events = () => {
         const result = await EventService.getPublishedEvents();
         // Only update state if page is still visible
         if (isVisible) {
-        if (result.error) {
-          setError(result.error);
-        } else {
-          setEvents(result.events || []);
+          if (result.error) {
+            setError(result.error);
+          } else {
+            setEvents(result.events || []);
           }
         }
       }
     } catch (err) {
       // Only update error if page is still visible
       if (isVisible) {
-      setError('Failed to load events. Please try again.');
+        setError('Failed to load events. Please try again.');
       }
     } finally {
       loadingRef.current = false;
       // Only set loading to false if page is still visible
       if (isVisible) {
-      setLoading(false);
+        setLoading(false);
       }
     }
   };
@@ -311,15 +334,15 @@ export const Events = () => {
       setLoading(true);
       setError('');
       setSuccessMessage('');
-      
+
       await EventService.updateEventStatus(eventId, 'published');
-      
+
       // Reload events to show updated status
       await loadEvents();
-      
+
       // Show success message
       setSuccessMessage('Event published successfully!');
-      
+
       // Clear success message after 3 seconds
       setTimeout(() => {
         setSuccessMessage('');
@@ -335,7 +358,7 @@ export const Events = () => {
     try {
       setLoading(true);
       setError('');
-      
+
       const result = await EventService.setFeaturedEvent(eventId);
       if (result.error) {
         setError(result.error);
@@ -360,7 +383,7 @@ export const Events = () => {
     try {
       setLoading(true);
       setError('');
-      
+
       const result = await EventService.unfeatureEvent(eventId);
       if (result.error) {
         setError(result.error);
@@ -383,7 +406,7 @@ export const Events = () => {
 
   const loadUserRegistrations = async () => {
     if (!user) return;
-    
+
     try {
       const result = await EventService.getUserRegistrations(user.id);
       if (result.registrations) {
@@ -422,7 +445,7 @@ export const Events = () => {
       }
 
       const now = new Date();
-      
+
       // Check if event is past (ended)
       const endDateTime = new Date(`${event.end_date}T${event.end_time || '23:59:59'}`);
       if (endDateTime < now) {
@@ -467,7 +490,7 @@ export const Events = () => {
         toast.error(registrationCheck.reason);
         return;
       }
-      
+
       setEventToRegister(event);
       setShowConfirmationModal(true);
     }
@@ -477,7 +500,7 @@ export const Events = () => {
     if (!eventToRegister) return;
 
     const eventId = eventToRegister.id;
-    
+
     // Check if this is a sample event
     const isSampleEvent = sampleEvents.some(event => event.id === eventId);
     if (isSampleEvent) {
@@ -485,7 +508,7 @@ export const Events = () => {
       setSuccessModalMessage('Successfully registered for the sample event! (This is a demo registration)');
       setShowSuccessModal(true);
       setUserRegistrations(prev => new Set(prev).add(eventId));
-      
+
       setShowConfirmationModal(false);
       setEventToRegister(null);
       return;
@@ -506,7 +529,7 @@ export const Events = () => {
       // Don't clear success message here - let it show after registration
 
       const result = await EventService.registerForEvent(eventId, user.id);
-      
+
       if (result.error) {
         setError(result.error);
       } else {
@@ -552,9 +575,9 @@ export const Events = () => {
     try {
       setLoadingRegistrations(true);
       setError('');
-      
+
       const result = await EventService.getEventParticipants(eventId);
-      
+
       if (result.error) {
         setError(result.error);
         toast.error(result.error);
@@ -570,6 +593,241 @@ export const Events = () => {
       setLoadingRegistrations(false);
     }
   };
+
+  const loadCheckIns = async (eventId) => {
+    try {
+      setLoadingCheckIns(true);
+      setError('');
+
+      const [checkInsResult, statsResult] = await Promise.all([
+        EventService.getEventCheckIns(eventId),
+        EventService.getCheckInStatistics(eventId)
+      ]);
+
+      if (checkInsResult.error) {
+        setError(checkInsResult.error);
+        toast.error(checkInsResult.error);
+      } else {
+        setCheckIns(checkInsResult.checkIns || []);
+      }
+
+      if (statsResult.error) {
+        console.error('Failed to load check-in statistics:', statsResult.error);
+      } else {
+        setCheckInStats(statsResult.stats);
+      }
+    } catch (err) {
+      const errorMsg = 'Failed to load check-ins. Please try again.';
+      setError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setLoadingCheckIns(false);
+    }
+  };
+
+  const handleViewCheckIns = async (eventId) => {
+    setShowCheckInsModal(true);
+    await loadCheckIns(eventId);
+  };
+
+  const loadEventUnreadCount = async (eventId) => {
+    if (!user?.id) return;
+    try {
+      const result = await EventMessageService.getUnreadCount(user.id, eventId);
+      if (!result.error && result.count !== undefined) {
+        setEventUnreadCounts(prev => ({ ...prev, [eventId]: result.count }));
+      }
+    } catch (error) {
+      console.error('Failed to load unread count:', error);
+    }
+  };
+
+  useEffect(() => {
+    if ((user?.role === 'organizer' || user?.role === 'admin') && events.length > 0) {
+      // Load unread counts for all events
+      const eventIds = events.map(e => e.id);
+      eventIds.forEach(eventId => {
+        loadEventUnreadCount(eventId);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events.length, user?.id, user?.role]);
+
+  const handleAddCheckIn = async () => {
+    if (!selectedParticipantForCheckIn || !selectedEvent || !user) return;
+
+    try {
+      setLoadingCheckIns(true);
+      setError('');
+
+      const result = await EventService.addManualCheckIn(
+        selectedEvent.id,
+        selectedParticipantForCheckIn.user_id,
+        user.id,
+        checkInDate
+      );
+
+      if (result.error) {
+        setError(result.error);
+        toast.error(result.error);
+      } else {
+        toast.success('Check-in added successfully');
+        setShowAddCheckInModal(false);
+        setShowParticipantSelectModal(false);
+        setSelectedParticipantForCheckIn(null);
+        await loadCheckIns(selectedEvent.id);
+      }
+    } catch (err) {
+      const errorMsg = 'Failed to add check-in. Please try again.';
+      setError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setLoadingCheckIns(false);
+    }
+  };
+
+  const handleToggleValidation = async (checkInId, currentStatus) => {
+    if (!selectedEvent || !user) return;
+
+    try {
+      setLoadingCheckIns(true);
+      setError('');
+
+      // Optimistically update the UI
+      setCheckIns(prevCheckIns =>
+        prevCheckIns.map(ci =>
+          ci.id === checkInId
+            ? { ...ci, is_validated: !currentStatus, validated_by: !currentStatus ? user.id : null }
+            : ci
+        )
+      );
+
+      const result = await EventService.updateCheckInValidation(
+        checkInId,
+        !currentStatus,
+        user.id
+      );
+
+      if (result.error) {
+        // Revert the optimistic update on error
+        setCheckIns(prevCheckIns =>
+          prevCheckIns.map(ci =>
+            ci.id === checkInId
+              ? { ...ci, is_validated: currentStatus }
+              : ci
+          )
+        );
+        setError(result.error);
+        toast.error(result.error);
+      } else {
+        toast.success(`Check-in ${!currentStatus ? 'validated' : 'unvalidated'} successfully`);
+        // Reload to get fresh data and update stats
+        await loadCheckIns(selectedEvent.id);
+      }
+    } catch (err) {
+      // Revert the optimistic update on error
+      setCheckIns(prevCheckIns =>
+        prevCheckIns.map(ci =>
+          ci.id === checkInId
+            ? { ...ci, is_validated: currentStatus }
+            : ci
+        )
+      );
+      const errorMsg = 'Failed to update validation. Please try again.';
+      setError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setLoadingCheckIns(false);
+    }
+  };
+
+  const loadAvailableParticipants = async (eventId) => {
+    try {
+      setLoadingParticipants(true);
+      const result = await EventService.getEventParticipants(eventId);
+
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setAvailableParticipants(result.participants || []);
+      }
+    } catch (err) {
+      setError('Failed to load participants');
+    } finally {
+      setLoadingParticipants(false);
+    }
+  };
+
+  const openAddCheckInModal = async (eventId) => {
+    setShowParticipantSelectModal(true);
+    await loadAvailableParticipants(eventId);
+  };
+
+  const getFilteredAndSortedCheckIns = () => {
+    let filtered = [...checkIns];
+
+    // Apply search filter
+    if (checkInFilters.search.trim()) {
+      const searchLower = checkInFilters.search.toLowerCase();
+      filtered = filtered.filter(ci =>
+        ci.participant_name.toLowerCase().includes(searchLower) ||
+        ci.participant_email.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply method filter
+    if (checkInFilters.method !== 'all') {
+      filtered = filtered.filter(ci => ci.check_in_method === checkInFilters.method);
+    }
+
+    // Apply validation status filter
+    if (checkInFilters.validationStatus !== 'all') {
+      filtered = filtered.filter(ci =>
+        checkInFilters.validationStatus === 'validated' ? ci.is_validated : !ci.is_validated
+      );
+    }
+
+    // Apply date filter
+    if (checkInFilters.date && checkInFilters.date !== 'all') {
+      filtered = filtered.filter(ci => {
+        const checkInDate = ci.check_in_date || new Date(ci.check_in_time).toISOString().split('T')[0];
+        return checkInDate === checkInFilters.date;
+      });
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      switch (checkInSortBy) {
+        case 'time-desc':
+          return new Date(b.check_in_time).getTime() - new Date(a.check_in_time).getTime();
+        case 'time-asc':
+          return new Date(a.check_in_time).getTime() - new Date(b.check_in_time).getTime();
+        case 'name-asc':
+          return a.participant_name.localeCompare(b.participant_name);
+        case 'name-desc':
+          return b.participant_name.localeCompare(a.participant_name);
+        case 'method-asc':
+          return a.check_in_method.localeCompare(b.check_in_method);
+        case 'method-desc':
+          return b.check_in_method.localeCompare(a.check_in_method);
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  };
+
+  // Auto-refresh check-ins
+  useEffect(() => {
+    if (!autoRefreshCheckIns || !showCheckInsModal || !selectedEvent) return;
+
+    const interval = setInterval(() => {
+      loadCheckIns(selectedEvent.id);
+    }, 10000); // Refresh every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [autoRefreshCheckIns, showCheckInsModal, selectedEvent]);
 
   const handleGenerateQRCode = (eventId) => {
     const event = events.find(e => e.id === eventId);
@@ -614,7 +872,7 @@ export const Events = () => {
     try {
       setSubmittingCancellation(true);
       setError('');
-      
+
       const result = await EventService.requestEventCancellation(
         eventToCancel.id,
         user.id,
@@ -652,24 +910,24 @@ export const Events = () => {
 
   const formatTime = (timeString) => {
     if (!timeString) return '';
-    
+
     // Handle both "HH:MM:SS" and "HH:MM" formats
     const time = timeString.includes(':') ? timeString.split(':').slice(0, 2).join(':') : timeString;
     const [hours, minutes] = time.split(':');
-    
+
     const hour24 = parseInt(hours, 10);
     const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
     const ampm = hour24 >= 12 ? 'PM' : 'AM';
-    
+
     return `${hour12}:${minutes} ${ampm}`;
   };
 
   const formatCheckInTime = (event) => {
     if (!event.check_in_before_minutes) return formatTime(event.start_time);
-    
+
     const startTime = new Date(`${event.start_date}T${event.start_time}`);
     const checkInTime = new Date(startTime.getTime() - (event.check_in_before_minutes * 60000));
-    
+
     return checkInTime.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
@@ -679,10 +937,10 @@ export const Events = () => {
 
   const formatCheckInEndTime = (event) => {
     if (!event.check_in_during_minutes) return formatTime(event.start_time);
-    
+
     const startTime = new Date(`${event.start_date}T${event.start_time}`);
     const checkInEndTime = new Date(startTime.getTime() + (event.check_in_during_minutes * 60000));
-    
+
     return checkInEndTime.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
@@ -760,16 +1018,16 @@ export const Events = () => {
       if (event.status === 'cancelled') {
         return 'cancelled';
       }
-      
+
       const now = new Date();
       const endDateTime = new Date(`${event.end_date}T${event.end_time || '23:59:59'}`);
-      
+
       if (event.status === 'published' && endDateTime >= now) {
         return 'published'; // Published/Ongoing
       } else if (event.status === 'published' && endDateTime < now) {
         return 'past';
       }
-      
+
       return null; // Draft or other statuses
     };
   }, []);
@@ -777,7 +1035,7 @@ export const Events = () => {
   // Count events by category for tab badges
   const categoryCounts = useMemo(() => {
     if (!Array.isArray(events)) return { published: 0, past: 0, cancelled: 0 };
-    
+
     const counts = { published: 0, past: 0, cancelled: 0 };
     events.forEach(event => {
       const category = getEventCategory(event);
@@ -800,7 +1058,7 @@ export const Events = () => {
     // Basic search filter
     if (!useAdvancedSearch && searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      const matchesSearch = 
+      const matchesSearch =
         event.title.toLowerCase().includes(query) ||
         (event.venue && event.venue.toLowerCase().includes(query)) ||
         (event.rationale && event.rationale.toLowerCase().includes(query));
@@ -850,7 +1108,7 @@ export const Events = () => {
     // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      const matchesSearch = 
+      const matchesSearch =
         event.title.toLowerCase().includes(query) ||
         (event.venue && event.venue.toLowerCase().includes(query)) ||
         (event.rationale && event.rationale.toLowerCase().includes(query));
@@ -891,20 +1149,20 @@ export const Events = () => {
   });
 
   // Determine which events to display based on active tab
-  const allFilteredEvents = activeTab === 'archived' 
+  const allFilteredEvents = activeTab === 'archived'
     ? (filteredAndSortedArchivedEvents || [])
     : (filteredAndSortedEvents || []);
   const isLoading = activeTab === 'archived' ? archivedLoading : loading;
 
   // Pagination logic - calculate displayed events directly
   const totalPages = Math.max(1, Math.ceil((allFilteredEvents?.length || 0) / itemsPerPage));
-  
+
   // Ensure currentPage is valid
   const validCurrentPage = Math.max(1, Math.min(currentPage || 1, totalPages));
-  
+
   let displayEvents = [];
   let hasMore = false;
-  
+
   try {
     if (allFilteredEvents && Array.isArray(allFilteredEvents) && allFilteredEvents.length > 0) {
       if (useInfiniteScroll) {
@@ -934,11 +1192,11 @@ export const Events = () => {
   // Infinite scroll observer
   useEffect(() => {
     if (!useInfiniteScroll || isLoading || !allFilteredEvents || !Array.isArray(allFilteredEvents)) return;
-    
+
     // Calculate if there are more events to load
     const endIndex = currentPage * itemsPerPage;
     const currentHasMore = endIndex < allFilteredEvents.length;
-    
+
     if (!currentHasMore) return;
 
     const observer = new IntersectionObserver(
@@ -1063,176 +1321,634 @@ export const Events = () => {
           margin: 8px 0;
         }
       `}</style>
-    <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8 sm:mb-12">
-        </div>
+      <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
+        <div className="max-w-6xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-8 sm:mb-12">
+          </div>
 
-        {/* Category Tabs */}
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-2 mb-8 flex gap-2 flex-wrap">
-          <button
-            onClick={() => setActiveTab('published')}
-            className={`flex-1 min-w-[120px] px-6 py-3 rounded-xl font-medium transition-colors ${
-              activeTab === 'published'
-                ? 'bg-blue-900 text-white'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Published/Ongoing
-            {categoryCounts.published > 0 && (
-              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-700 text-white">
-                {categoryCounts.published}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('past')}
-            className={`flex-1 min-w-[120px] px-6 py-3 rounded-xl font-medium transition-colors ${
-              activeTab === 'past'
-                ? 'bg-blue-900 text-white'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Past Events
-            {categoryCounts.past > 0 && (
-              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-700 text-white">
-                {categoryCounts.past}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('cancelled')}
-            className={`flex-1 min-w-[120px] px-6 py-3 rounded-xl font-medium transition-colors ${
-              activeTab === 'cancelled'
-                ? 'bg-blue-900 text-white'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Cancelled
-            {categoryCounts.cancelled > 0 && (
-              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-700 text-white">
-                {categoryCounts.cancelled}
-              </span>
-            )}
-          </button>
-          {/* Archived tab - Admin only */}
-          {user?.role === 'admin' && (
+          {/* Category Tabs */}
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-2 mb-8 flex gap-2 flex-wrap">
             <button
-              onClick={() => setActiveTab('archived')}
-              className={`flex-1 min-w-[120px] px-6 py-3 rounded-xl font-medium transition-colors ${
-                activeTab === 'archived'
+              onClick={() => setActiveTab('published')}
+              className={`flex-1 min-w-[120px] px-6 py-3 rounded-xl font-medium transition-colors ${activeTab === 'published'
+                ? 'bg-blue-900 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+                }`}
+            >
+              Published/Ongoing
+              {categoryCounts.published > 0 && (
+                <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-700 text-white">
+                  {categoryCounts.published}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('past')}
+              className={`flex-1 min-w-[120px] px-6 py-3 rounded-xl font-medium transition-colors ${activeTab === 'past'
+                ? 'bg-blue-900 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+                }`}
+            >
+              Past Events
+              {categoryCounts.past > 0 && (
+                <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-700 text-white">
+                  {categoryCounts.past}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('cancelled')}
+              className={`flex-1 min-w-[120px] px-6 py-3 rounded-xl font-medium transition-colors ${activeTab === 'cancelled'
+                ? 'bg-blue-900 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+                }`}
+            >
+              Cancelled
+              {categoryCounts.cancelled > 0 && (
+                <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-700 text-white">
+                  {categoryCounts.cancelled}
+                </span>
+              )}
+            </button>
+            {/* Archived tab - Admin only */}
+            {user?.role === 'admin' && (
+              <button
+                onClick={() => setActiveTab('archived')}
+                className={`flex-1 min-w-[120px] px-6 py-3 rounded-xl font-medium transition-colors ${activeTab === 'archived'
                   ? 'bg-blue-900 text-white'
                   : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              Archived
-            </button>
-          )}
-        </div>
+                  }`}
+              >
+                Archived
+              </button>
+            )}
+          </div>
 
-        {/* Search and Filter Bar */}
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8">
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Search Bar */}
-            <div className="flex-1">
-              <div className="relative">
-                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          {/* Search and Filter Bar */}
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8">
+            <div className="flex flex-col lg:flex-row gap-4">
+              {/* Search Bar */}
+              <div className="flex-1">
+                <div className="relative">
+                  <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Search events by title, venue, or description..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Filter Button */}
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="px-6 py-3 bg-blue-900 text-white rounded-xl hover:bg-blue-800 transition-colors font-medium flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                 </svg>
-                <input
-                  type="text"
-                  placeholder="Search events by title, venue, or description..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                {searchQuery && (
+                Filters & Sort
+              </button>
+            </div>
+
+            {/* Filters Panel */}
+            {showFilters && (
+              <div className="mt-6 pt-6 border-t border-slate-200">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Date Filter */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Date</label>
+                    <div className="flex flex-wrap gap-2">
+                      {['all', 'upcoming', 'past'].map((filter) => (
+                        <button
+                          key={filter}
+                          onClick={() => setDateFilter(filter)}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${dateFilter === filter
+                            ? 'bg-blue-900 text-white'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            }`}
+                        >
+                          {filter === 'all' ? 'All Events' : filter === 'upcoming' ? 'Upcoming' : 'Past'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Venue Filter */}
+                  {(activeTab !== 'archived' ? uniqueVenues : uniqueArchivedVenues).length > 0 && (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Venue</label>
+                      <select
+                        value={venueFilter}
+                        onChange={(e) => setVenueFilter(e.target.value)}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="all">All Venues</option>
+                        {(activeTab !== 'archived' ? uniqueVenues : uniqueArchivedVenues).map((venue) => (
+                          <option key={venue} value={venue}>{venue}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Sort Options */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Sort By</label>
+                    <select
+                      value={sortOption}
+                      onChange={(e) => setSortOption(e.target.value)}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="date-asc">Date (Earliest First)</option>
+                      <option value="date-desc">Date (Latest First)</option>
+                      <option value="title-asc">Title (A-Z)</option>
+                      <option value="title-desc">Title (Z-A)</option>
+                      <option value="participants-asc">Participants (Fewest First)</option>
+                      <option value="participants-desc">Participants (Most First)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Clear Filters */}
+                <div className="mt-4 pt-4 border-t border-slate-200">
                   <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setDateFilter('all');
+                      setVenueFilter('all');
+                      setSortOption('date-asc');
+                      setUseAdvancedSearch(false);
+                      setAdvancedSearch({
+                        title: '',
+                        description: '',
+                        venue: '',
+                        category: '',
+                        tags: '',
+                        dateFrom: '',
+                        dateTo: '',
+                        minParticipants: '',
+                        maxParticipants: '',
+                        status: ''
+                      });
+                    }}
+                    className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-medium text-sm"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    Clear All Filters
+                  </button>
+                </div>
+
+                {/* Advanced Search Toggle */}
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useAdvancedSearch}
+                      onChange={(e) => {
+                        setUseAdvancedSearch(e.target.checked);
+                        if (!e.target.checked) {
+                          // Reset advanced search fields
+                          setAdvancedSearch({
+                            title: '',
+                            description: '',
+                            venue: '',
+                            category: '',
+                            tags: '',
+                            dateFrom: '',
+                            dateTo: '',
+                            minParticipants: '',
+                            maxParticipants: '',
+                            status: ''
+                          });
+                        }
+                      }}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium text-slate-700">Use Advanced Search</span>
+                  </label>
+                </div>
+
+                {/* Advanced Search Fields */}
+                {useAdvancedSearch && (
+                  <div className="mt-4 pt-4 border-t border-slate-200 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Title</label>
+                        <input
+                          type="text"
+                          value={advancedSearch.title}
+                          onChange={(e) => setAdvancedSearch({ ...advancedSearch, title: e.target.value })}
+                          placeholder="Search in title..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Description</label>
+                        <input
+                          type="text"
+                          value={advancedSearch.description}
+                          onChange={(e) => setAdvancedSearch({ ...advancedSearch, description: e.target.value })}
+                          placeholder="Search in description..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Venue</label>
+                        <input
+                          type="text"
+                          value={advancedSearch.venue}
+                          onChange={(e) => setAdvancedSearch({ ...advancedSearch, venue: e.target.value })}
+                          placeholder="Search venue..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Category</label>
+                        <input
+                          type="text"
+                          value={advancedSearch.category}
+                          onChange={(e) => setAdvancedSearch({ ...advancedSearch, category: e.target.value })}
+                          placeholder="Event category..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Tags (comma-separated)</label>
+                        <input
+                          type="text"
+                          value={advancedSearch.tags}
+                          onChange={(e) => setAdvancedSearch({ ...advancedSearch, tags: e.target.value })}
+                          placeholder="tag1, tag2, tag3..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Status</label>
+                        <select
+                          value={advancedSearch.status}
+                          onChange={(e) => setAdvancedSearch({ ...advancedSearch, status: e.target.value })}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        >
+                          <option value="">All Statuses</option>
+                          <option value="draft">Draft</option>
+                          <option value="published">Published</option>
+                          <option value="cancelled">Cancelled</option>
+                          <option value="completed">Completed</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Date From</label>
+                        <input
+                          type="date"
+                          value={advancedSearch.dateFrom}
+                          onChange={(e) => setAdvancedSearch({ ...advancedSearch, dateFrom: e.target.value })}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Date To</label>
+                        <input
+                          type="date"
+                          value={advancedSearch.dateTo}
+                          onChange={(e) => setAdvancedSearch({ ...advancedSearch, dateTo: e.target.value })}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Min Participants</label>
+                        <input
+                          type="number"
+                          value={advancedSearch.minParticipants}
+                          onChange={(e) => setAdvancedSearch({ ...advancedSearch, minParticipants: e.target.value })}
+                          placeholder="Minimum..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Max Participants</label>
+                        <input
+                          type="number"
+                          value={advancedSearch.maxParticipants}
+                          onChange={(e) => setAdvancedSearch({ ...advancedSearch, maxParticipants: e.target.value })}
+                          placeholder="Maximum..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Pagination Controls */}
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center space-x-2 text-sm text-slate-700">
+                        <span>Items per page:</span>
+                        <select
+                          value={itemsPerPage}
+                          onChange={(e) => {
+                            setItemsPerPage(parseInt(e.target.value));
+                            setCurrentPage(1);
+                          }}
+                          className="px-2 py-1 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        >
+                          <option value={6}>6</option>
+                          <option value={12}>12</option>
+                          <option value={24}>24</option>
+                          <option value={48}>48</option>
+                        </select>
+                      </label>
+                      <label className="flex items-center space-x-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={useInfiniteScroll}
+                          onChange={(e) => {
+                            setUseInfiniteScroll(e.target.checked);
+                            setCurrentPage(1);
+                          }}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <span>Infinite Scroll</span>
+                      </label>
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      Showing {displayEvents.length} of {allFilteredEvents.length} {activeTab === 'archived' ? 'archived' : ''} events
+                      {!useInfiniteScroll && totalPages > 1 && ` (Page ${currentPage} of ${totalPages})`}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Call to Action for Unauthenticated Users */}
+          {!user && (
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8 text-center">
+              <h3 className="text-xl font-semibold text-slate-800 mb-3">Want to Join Events?</h3>
+              <p className="text-slate-600 mb-4">Create an account to register for events and get updates</p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <button
+                  onClick={() => navigate('/login')}
+                  className="px-6 py-3 bg-blue-900 text-white rounded-xl hover:bg-blue-800 transition-colors font-medium"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => navigate('/registration')}
+                  className="px-6 py-3 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium"
+                >
+                  Sign Up
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Events Grid */}
+          {(activeTab === 'archived' ? (!archivedEvents || !Array.isArray(archivedEvents) || archivedEvents.length === 0) : (!events || !Array.isArray(events) || events.length === 0)) ? (
+            <div className="text-center py-12">
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto mb-8">
+                <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <h3 className="text-xl font-semibold text-slate-800 mb-2">No Events Found</h3>
+                <p className="text-slate-600 mb-4">
+                  {user?.role === 'organizer' || user?.role === 'admin'
+                    ? 'You haven\'t created any events yet. Start by creating your first event!'
+                    : 'There are no published events available at the moment.'
+                  }
+                </p>
+                {(user?.role === 'organizer' || user?.role === 'admin') && (
+                  <button
+                    onClick={() => navigate('/create-event')}
+                    className="px-6 py-3 bg-blue-900 text-white rounded-xl hover:bg-blue-800 transition-colors font-medium"
+                  >
+                    Create Your First Event
                   </button>
                 )}
               </div>
-            </div>
 
-            {/* Filter Button */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="px-6 py-3 bg-blue-900 text-white rounded-xl hover:bg-blue-800 transition-colors font-medium flex items-center justify-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              Filters & Sort
-            </button>
-          </div>
+              {/* Sample Events for Preview */}
+              {!user || user?.role === 'participant' ? (
+                <div className="text-left">
+                  <h3 className="text-2xl font-bold text-slate-800 mb-6 text-center">Sample Events Preview</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {sampleEvents.map((event) => (
+                      <div key={event.id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden">
+                        {/* Event Banner */}
+                        {event.banner_url && (
+                          <div className="h-48 overflow-hidden">
+                            <img
+                              src={event.banner_url}
+                              alt={event.title}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        )}
 
-          {/* Filters Panel */}
-          {showFilters && (
-            <div className="mt-6 pt-6 border-t border-slate-200">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Date Filter */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Date</label>
-                  <div className="flex flex-wrap gap-2">
-                    {['all', 'upcoming', 'past'].map((filter) => (
-                      <button
-                        key={filter}
-                        onClick={() => setDateFilter(filter)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          dateFilter === filter
-                            ? 'bg-blue-900 text-white'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        }`}
-                      >
-                        {filter === 'all' ? 'All Events' : filter === 'upcoming' ? 'Upcoming' : 'Past'}
-                      </button>
+                        {/* Event Content */}
+                        <div className="p-6">
+                          <div className="flex items-start justify-between mb-4">
+                            <h3 className="text-xl font-bold text-slate-800 flex-1">{event.title}</h3>
+                            <span className="ml-2 px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              {event.status}
+                            </span>
+                          </div>
+
+                          {event.rationale && (
+                            <div
+                              className="text-slate-600 mb-4 line-clamp-3 rich-text-content"
+                              dangerouslySetInnerHTML={{ __html: event.rationale }}
+                              style={{
+                                wordWrap: 'break-word'
+                              }}
+                            />
+                          )}
+
+                          <div className="space-y-2 mb-4">
+                            <div className="flex items-center text-sm text-slate-600">
+                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <span>{formatDate(event.start_date)} - {formatDate(event.end_date)}</span>
+                            </div>
+                            <div className="flex items-center text-sm text-slate-600">
+                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <span>{formatTime(event.start_time)} - {formatTime(event.end_time)}</span>
+                            </div>
+                            {/* Check-in Window Info */}
+                            {(event.check_in_before_minutes || event.check_in_during_minutes) && (
+                              <div className="flex items-center text-sm text-blue-600">
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m0 0a2 2 0 012 2m-2-2a2 2 0 00-2 2m2-2V5a2 2 0 00-2-2M9 7a2 2 0 012 2m0 0a2 2 0 012 2m-2-2a2 2 0 00-2 2m2-2V5a2 2 0 00-2-2" />
+                                </svg>
+                                <span>
+                                  Check-in: {formatCheckInTime(event)} - {formatCheckInEndTime(event)}
+                                </span>
+                              </div>
+                            )}
+                            {event.venue && (
+                              <div className="flex items-center text-sm text-slate-600">
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span>{event.venue}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center text-sm text-slate-600">
+                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                              </svg>
+                              <span>
+                                {event.current_participants || 0} registered
+                                {event.max_participants && ` / ${event.max_participants} max`}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Sponsors and Speakers */}
+                          {event.sponsors && event.sponsors.length > 0 && (
+                            <div className="mb-3">
+                              <p className="text-sm font-medium text-slate-700 mb-1">Sponsors:</p>
+                              <div className="flex flex-wrap gap-1">
+                                {event.sponsors.map((sponsor, index) => (
+                                  <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                    {sponsor.name}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {event.guest_speakers && event.guest_speakers.length > 0 && (
+                            <div className="mb-3">
+                              <p className="text-sm font-medium text-slate-700 mb-1">Speakers:</p>
+                              <div className="flex flex-wrap gap-1">
+                                {event.guest_speakers.map((speaker, index) => (
+                                  <span key={index} className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                    {speaker.name}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Action Buttons */}
+                          <div className="flex flex-col space-y-2 mt-4">
+                            {/* Publish button for organizers/admins viewing their own events */}
+                            {(user?.role === 'organizer' || user?.role === 'admin') && event.status === 'draft' && (
+                              <button
+                                onClick={() => handlePublishEvent(event.id)}
+                                disabled={registeringEvents.has(event.id)}
+                                className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {registeringEvents.has(event.id) ? 'Publishing...' : 'Publish Event'}
+                              </button>
+                            )}
+
+                            {/* Feature Event button for organizers/admins */}
+                            {(user?.role === 'organizer' || user?.role === 'admin') && (
+                              <button
+                                onClick={() => event.is_featured ? handleUnfeatureEvent(event.id) : handleSetFeatured(event.id)}
+                                disabled={loading}
+                                className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed mb-2"
+                              >
+                                {event.is_featured ? '⭐ Unfeature Event' : '⭐ Feature Event'}
+                              </button>
+                            )}
+
+                            {/* Debug: Always show feature button for testing */}
+                            <button
+                              onClick={() => toast.info('Feature button clicked! Event: ' + event.title)}
+                              className="w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-bold border-2 border-red-800"
+                            >
+                              🔥 TEST FEATURE BUTTON - CLICK ME!
+                            </button>
+
+                            {/* Existing registration buttons */}
+                            {!user ? (
+                              <div className="w-full text-center">
+                                <button
+                                  onClick={() => navigate('/login')}
+                                  className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm"
+                                >
+                                  Login to Register
+                                </button>
+                              </div>
+                            ) : userRegistrations.has(event.id) ? (
+                              <div className="w-full bg-blue-50 rounded-lg p-3 border border-blue-200">
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="font-medium text-blue-800 text-sm">You're registered for this event!</p>
+                                    {userRegistrationDetails.has(event.id) && (
+                                      <p className="text-xs text-blue-600">
+                                        Registered on {formatRegistrationDate(userRegistrationDetails.get(event.id).registration_date)}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (() => {
+                              const registrationCheck = canRegisterForEvent(event);
+                              const isDisabled = !registrationCheck.allowed || registeringEvents.has(event.id);
+
+                              return (
+                                <button
+                                  onClick={() => handleRegisterForEvent(event.id)}
+                                  disabled={isDisabled}
+                                  className={`w-full px-4 py-2 rounded-lg transition-colors text-sm ${isDisabled
+                                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                                    : 'bg-blue-900 text-white hover:bg-blue-800'
+                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                  title={!registrationCheck.allowed ? registrationCheck.reason : ''}
+                                >
+                                  {registeringEvents.has(event.id)
+                                    ? 'Registering...'
+                                    : !registrationCheck.allowed
+                                      ? 'Registration Closed'
+                                      : 'Register'}
+                                </button>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
-
-                {/* Venue Filter */}
-                {(activeTab !== 'archived' ? uniqueVenues : uniqueArchivedVenues).length > 0 && (
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Venue</label>
-                    <select
-                      value={venueFilter}
-                      onChange={(e) => setVenueFilter(e.target.value)}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="all">All Venues</option>
-                      {(activeTab !== 'archived' ? uniqueVenues : uniqueArchivedVenues).map((venue) => (
-                        <option key={venue} value={venue}>{venue}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {/* Sort Options */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Sort By</label>
-                  <select
-                    value={sortOption}
-                    onChange={(e) => setSortOption(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="date-asc">Date (Earliest First)</option>
-                    <option value="date-desc">Date (Latest First)</option>
-                    <option value="title-asc">Title (A-Z)</option>
-                    <option value="title-desc">Title (Z-A)</option>
-                    <option value="participants-asc">Participants (Fewest First)</option>
-                    <option value="participants-desc">Participants (Most First)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Clear Filters */}
-              <div className="mt-4 pt-4 border-t border-slate-200">
+              ) : null}
+            </div>
+          ) : (!allFilteredEvents || allFilteredEvents.length === 0) && (activeTab === 'archived' ? (archivedEvents && Array.isArray(archivedEvents) && archivedEvents.length > 0) : (events && Array.isArray(events) && events.length > 0)) ? (
+            <div className="text-center py-12">
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto">
+                <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <h3 className="text-xl font-semibold text-slate-800 mb-2">
+                  {activeTab === 'archived' ? 'No Archived Events Match Your Filters' : 'No Events Match Your Filters'}
+                </h3>
+                <p className="text-slate-600 mb-4">Try adjusting your search or filters.</p>
                 <button
                   onClick={() => {
                     setSearchQuery('');
@@ -1253,247 +1969,18 @@ export const Events = () => {
                       status: ''
                     });
                   }}
-                  className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-medium text-sm"
-                >
-                  Clear All Filters
-                </button>
-              </div>
-
-              {/* Advanced Search Toggle */}
-              <div className="mt-4 pt-4 border-t border-slate-200">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={useAdvancedSearch}
-                    onChange={(e) => {
-                      setUseAdvancedSearch(e.target.checked);
-                      if (!e.target.checked) {
-                        // Reset advanced search fields
-                        setAdvancedSearch({
-                          title: '',
-                          description: '',
-                          venue: '',
-                          category: '',
-                          tags: '',
-                          dateFrom: '',
-                          dateTo: '',
-                          minParticipants: '',
-                          maxParticipants: '',
-                          status: ''
-                        });
-                      }
-                    }}
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-sm font-medium text-slate-700">Use Advanced Search</span>
-                </label>
-              </div>
-
-              {/* Advanced Search Fields */}
-              {useAdvancedSearch && (
-                <div className="mt-4 pt-4 border-t border-slate-200 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Title</label>
-                      <input
-                        type="text"
-                        value={advancedSearch.title}
-                        onChange={(e) => setAdvancedSearch({...advancedSearch, title: e.target.value})}
-                        placeholder="Search in title..."
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Description</label>
-                      <input
-                        type="text"
-                        value={advancedSearch.description}
-                        onChange={(e) => setAdvancedSearch({...advancedSearch, description: e.target.value})}
-                        placeholder="Search in description..."
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Venue</label>
-                      <input
-                        type="text"
-                        value={advancedSearch.venue}
-                        onChange={(e) => setAdvancedSearch({...advancedSearch, venue: e.target.value})}
-                        placeholder="Search venue..."
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Category</label>
-                      <input
-                        type="text"
-                        value={advancedSearch.category}
-                        onChange={(e) => setAdvancedSearch({...advancedSearch, category: e.target.value})}
-                        placeholder="Event category..."
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Tags (comma-separated)</label>
-                      <input
-                        type="text"
-                        value={advancedSearch.tags}
-                        onChange={(e) => setAdvancedSearch({...advancedSearch, tags: e.target.value})}
-                        placeholder="tag1, tag2, tag3..."
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Status</label>
-                      <select
-                        value={advancedSearch.status}
-                        onChange={(e) => setAdvancedSearch({...advancedSearch, status: e.target.value})}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                      >
-                        <option value="">All Statuses</option>
-                        <option value="draft">Draft</option>
-                        <option value="published">Published</option>
-                        <option value="cancelled">Cancelled</option>
-                        <option value="completed">Completed</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Date From</label>
-                      <input
-                        type="date"
-                        value={advancedSearch.dateFrom}
-                        onChange={(e) => setAdvancedSearch({...advancedSearch, dateFrom: e.target.value})}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Date To</label>
-                      <input
-                        type="date"
-                        value={advancedSearch.dateTo}
-                        onChange={(e) => setAdvancedSearch({...advancedSearch, dateTo: e.target.value})}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Min Participants</label>
-                      <input
-                        type="number"
-                        value={advancedSearch.minParticipants}
-                        onChange={(e) => setAdvancedSearch({...advancedSearch, minParticipants: e.target.value})}
-                        placeholder="Minimum..."
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-1">Max Participants</label>
-                      <input
-                        type="number"
-                        value={advancedSearch.maxParticipants}
-                        onChange={(e) => setAdvancedSearch({...advancedSearch, maxParticipants: e.target.value})}
-                        placeholder="Maximum..."
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Pagination Controls */}
-              <div className="mt-4 pt-4 border-t border-slate-200">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center space-x-2 text-sm text-slate-700">
-                      <span>Items per page:</span>
-                      <select
-                        value={itemsPerPage}
-                        onChange={(e) => {
-                          setItemsPerPage(parseInt(e.target.value));
-                          setCurrentPage(1);
-                        }}
-                        className="px-2 py-1 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                      >
-                        <option value={6}>6</option>
-                        <option value={12}>12</option>
-                        <option value={24}>24</option>
-                        <option value={48}>48</option>
-                      </select>
-                    </label>
-                    <label className="flex items-center space-x-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={useInfiniteScroll}
-                        onChange={(e) => {
-                          setUseInfiniteScroll(e.target.checked);
-                          setCurrentPage(1);
-                        }}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                      />
-                      <span>Infinite Scroll</span>
-                    </label>
-                  </div>
-                  <div className="text-sm text-slate-600">
-                    Showing {displayEvents.length} of {allFilteredEvents.length} {activeTab === 'archived' ? 'archived' : ''} events
-                    {!useInfiniteScroll && totalPages > 1 && ` (Page ${currentPage} of ${totalPages})`}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Call to Action for Unauthenticated Users */}
-        {!user && (
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8 text-center">
-            <h3 className="text-xl font-semibold text-slate-800 mb-3">Want to Join Events?</h3>
-            <p className="text-slate-600 mb-4">Create an account to register for events and get updates</p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <button
-                onClick={() => navigate('/login')}
-                className="px-6 py-3 bg-blue-900 text-white rounded-xl hover:bg-blue-800 transition-colors font-medium"
-              >
-                Sign In
-              </button>
-              <button
-                onClick={() => navigate('/registration')}
-                className="px-6 py-3 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium"
-              >
-                Sign Up
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Events Grid */}
-        {(activeTab === 'archived' ? (!archivedEvents || !Array.isArray(archivedEvents) || archivedEvents.length === 0) : (!events || !Array.isArray(events) || events.length === 0)) ? (
-          <div className="text-center py-12">
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto mb-8">
-              <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <h3 className="text-xl font-semibold text-slate-800 mb-2">No Events Found</h3>
-              <p className="text-slate-600 mb-4">
-                {user?.role === 'organizer' || user?.role === 'admin' 
-                  ? 'You haven\'t created any events yet. Start by creating your first event!' 
-                  : 'There are no published events available at the moment.'
-                }
-              </p>
-              {(user?.role === 'organizer' || user?.role === 'admin') && (
-                <button
-                  onClick={() => navigate('/create-event')}
                   className="px-6 py-3 bg-blue-900 text-white rounded-xl hover:bg-blue-800 transition-colors font-medium"
                 >
-                  Create Your First Event
+                  Clear Filters
                 </button>
-              )}
+              </div>
             </div>
-            
-            {/* Sample Events for Preview */}
-            {!user || user?.role === 'participant' ? (
-              <div className="text-left">
-                <h3 className="text-2xl font-bold text-slate-800 mb-6 text-center">Sample Events Preview</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {sampleEvents.map((event) => (
+          ) : (displayEvents && Array.isArray(displayEvents) && displayEvents.length > 0) ? (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {displayEvents.map((event) => {
+                  if (!event || !event.id) return null;
+                  return (
                     <div key={event.id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden">
                       {/* Event Banner */}
                       {event.banner_url && (
@@ -1502,21 +1989,36 @@ export const Events = () => {
                             src={event.banner_url}
                             alt={event.title}
                             className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.nextSibling.style.display = 'flex';
+                            }}
                           />
+                          <div className="h-48 bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center" style={{ display: 'none' }}>
+                            <span className="text-white text-lg font-semibold">Event Banner</span>
+                          </div>
                         </div>
                       )}
-                      
+
                       {/* Event Content */}
                       <div className="p-6">
                         <div className="flex items-start justify-between mb-4">
                           <h3 className="text-xl font-bold text-slate-800 flex-1">{event.title}</h3>
-                          <span className="ml-2 px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            {event.status}
+                          <span className={`ml-2 px-3 py-1 rounded-full text-xs font-medium ${activeTab === 'archived'
+                            ? event.status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-800'
+                            : event.status === 'published' ? 'bg-green-100 text-green-800' :
+                              event.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+                                event.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                  'bg-gray-100 text-gray-800'
+                            }`}>
+                            {activeTab === 'archived'
+                              ? event.status === 'cancelled' ? 'Cancelled' : 'Completed'
+                              : event.status}
                           </span>
                         </div>
-                        
+
                         {event.rationale && (
-                          <div 
+                          <div
                             className="text-slate-600 mb-4 line-clamp-3 rich-text-content"
                             dangerouslySetInnerHTML={{ __html: event.rationale }}
                             style={{
@@ -1524,7 +2026,7 @@ export const Events = () => {
                             }}
                           />
                         )}
-                        
+
                         <div className="space-y-2 mb-4">
                           <div className="flex items-center text-sm text-slate-600">
                             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1538,17 +2040,6 @@ export const Events = () => {
                             </svg>
                             <span>{formatTime(event.start_time)} - {formatTime(event.end_time)}</span>
                           </div>
-                          {/* Check-in Window Info */}
-                          {(event.check_in_before_minutes || event.check_in_during_minutes) && (
-                            <div className="flex items-center text-sm text-blue-600">
-                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m0 0a2 2 0 012 2m-2-2a2 2 0 00-2 2m2-2V5a2 2 0 00-2-2M9 7a2 2 0 012 2m0 0a2 2 0 012 2m-2-2a2 2 0 00-2 2m2-2V5a2 2 0 00-2-2" />
-                              </svg>
-                              <span>
-                                Check-in: {formatCheckInTime(event)} - {formatCheckInEndTime(event)}
-                              </span>
-                            </div>
-                          )}
                           {event.venue && (
                             <div className="flex items-center text-sm text-slate-600">
                               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1568,7 +2059,7 @@ export const Events = () => {
                             </span>
                           </div>
                         </div>
-                        
+
                         {/* Sponsors and Speakers */}
                         {event.sponsors && event.sponsors.length > 0 && (
                           <div className="mb-3">
@@ -1582,7 +2073,7 @@ export const Events = () => {
                             </div>
                           </div>
                         )}
-                        
+
                         {event.guest_speakers && event.guest_speakers.length > 0 && (
                           <div className="mb-3">
                             <p className="text-sm font-medium text-slate-700 mb-1">Speakers:</p>
@@ -1595,43 +2086,61 @@ export const Events = () => {
                             </div>
                           </div>
                         )}
-                        
+
                         {/* Action Buttons */}
-                        <div className="flex flex-col space-y-2 mt-4">
-                          {/* Publish button for organizers/admins viewing their own events */}
-                          {(user?.role === 'organizer' || user?.role === 'admin') && event.status === 'draft' && (
-                            <button 
-                              onClick={() => handlePublishEvent(event.id)}
-                              disabled={registeringEvents.has(event.id)}
-                              className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {registeringEvents.has(event.id) ? 'Publishing...' : 'Publish Event'}
-                            </button>
-                          )}
-                          
-                          {/* Feature Event button for organizers/admins */}
-                          {(user?.role === 'organizer' || user?.role === 'admin') && (
-                            <button 
-                              onClick={() => event.is_featured ? handleUnfeatureEvent(event.id) : handleSetFeatured(event.id)}
-                              disabled={loading}
-                              className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed mb-2"
-                            >
-                              {event.is_featured ? '⭐ Unfeature Event' : '⭐ Feature Event'}
-                            </button>
-                          )}
-                          
-                          {/* Debug: Always show feature button for testing */}
-                          <button 
-                            onClick={() => toast.info('Feature button clicked! Event: ' + event.title)}
-                            className="w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-bold border-2 border-red-800"
-                          >
-                            🔥 TEST FEATURE BUTTON - CLICK ME!
-                          </button>
-                          
-                          {/* Existing registration buttons */}
-                          {!user ? (
+                        <div className="flex flex-col space-y-3 mt-6">
+                          {activeTab === 'archived' ? (
+                            <div className="w-full bg-slate-50 rounded-lg p-3 border border-slate-200 text-center">
+                              <p className="text-sm text-slate-600">
+                                {event.status === 'cancelled' ? 'This event was cancelled' : 'This event has been completed'}
+                              </p>
+                              {event.archive_reason && (
+                                <p className="text-xs text-slate-500 mt-1">{event.archive_reason}</p>
+                              )}
+                              {event.archived_at && (
+                                <p className="text-xs text-slate-500 mt-1">
+                                  Archived on {new Date(event.archived_at).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                          ) : user?.role === 'organizer' || user?.role === 'admin' ? (
+                            <>
+                              <div className="flex space-x-3">
+                                <button
+                                  onClick={() => handleEditEvent(event.id)}
+                                  className="flex-1 px-4 py-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-medium"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => event.status === 'draft' ? handlePublishEvent(event.id) : handleManageEvent(event.id)}
+                                  disabled={loading}
+                                  className="flex-1 px-4 py-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {loading ? 'Publishing...' : event.status === 'draft' ? 'Publish' : 'Manage'}
+                                </button>
+                              </div>
+                              <button
+                                onClick={() => event.is_featured ? handleUnfeatureEvent(event.id) : handleSetFeatured(event.id)}
+                                disabled={loading}
+                                className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {event.is_featured ? 'Remove Featured' : 'Set as Featured'}
+                              </button>
+                              {/* Request Cancellation button - only for organizers, not for cancelled events */}
+                              {user?.role === 'organizer' && event.status !== 'cancelled' && (
+                                <button
+                                  onClick={() => handleRequestCancellation(event.id)}
+                                  disabled={loading}
+                                  className="w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  Request Cancellation
+                                </button>
+                              )}
+                            </>
+                          ) : activeTab === 'archived' ? null : !user ? (
                             <div className="w-full text-center">
-                              <button 
+                              <button
                                 onClick={() => navigate('/login')}
                                 className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm"
                               >
@@ -1659,22 +2168,21 @@ export const Events = () => {
                           ) : (() => {
                             const registrationCheck = canRegisterForEvent(event);
                             const isDisabled = !registrationCheck.allowed || registeringEvents.has(event.id);
-                            
+
                             return (
-                              <button 
+                              <button
                                 onClick={() => handleRegisterForEvent(event.id)}
                                 disabled={isDisabled}
-                                className={`w-full px-4 py-2 rounded-lg transition-colors text-sm ${
-                                  isDisabled 
-                                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
-                                    : 'bg-blue-900 text-white hover:bg-blue-800'
-                                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                className={`w-full px-4 py-2 rounded-lg transition-colors text-sm ${isDisabled
+                                  ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                                  : 'bg-blue-900 text-white hover:bg-blue-800'
+                                  } disabled:opacity-50 disabled:cursor-not-allowed`}
                                 title={!registrationCheck.allowed ? registrationCheck.reason : ''}
                               >
-                                {registeringEvents.has(event.id) 
-                                  ? 'Registering...' 
-                                  : !registrationCheck.allowed 
-                                    ? 'Registration Closed' 
+                                {registeringEvents.has(event.id)
+                                  ? 'Registering...'
+                                  : !registrationCheck.allowed
+                                    ? 'Registration Closed'
                                     : 'Register'}
                               </button>
                             );
@@ -1682,827 +2190,1070 @@ export const Events = () => {
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        ) : (!allFilteredEvents || allFilteredEvents.length === 0) && (activeTab === 'archived' ? (archivedEvents && Array.isArray(archivedEvents) && archivedEvents.length > 0) : (events && Array.isArray(events) && events.length > 0)) ? (
-          <div className="text-center py-12">
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto">
-              <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <h3 className="text-xl font-semibold text-slate-800 mb-2">
-                {activeTab === 'archived' ? 'No Archived Events Match Your Filters' : 'No Events Match Your Filters'}
-              </h3>
-              <p className="text-slate-600 mb-4">Try adjusting your search or filters.</p>
-              <button
-                onClick={() => {
-                  setSearchQuery('');
-                  setDateFilter('all');
-                  setVenueFilter('all');
-                  setSortOption('date-asc');
-                  setUseAdvancedSearch(false);
-                  setAdvancedSearch({
-                    title: '',
-                    description: '',
-                    venue: '',
-                    category: '',
-                    tags: '',
-                    dateFrom: '',
-                    dateTo: '',
-                    minParticipants: '',
-                    maxParticipants: '',
-                    status: ''
-                  });
-                }}
-                className="px-6 py-3 bg-blue-900 text-white rounded-xl hover:bg-blue-800 transition-colors font-medium"
-              >
-                Clear Filters
-              </button>
-            </div>
-          </div>
-        ) : (displayEvents && Array.isArray(displayEvents) && displayEvents.length > 0) ? (
-          <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {displayEvents.map((event) => {
-              if (!event || !event.id) return null;
-              return (
-              <div key={event.id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden">
-                {/* Event Banner */}
-                {event.banner_url && (
-                  <div className="h-48 overflow-hidden">
-                    <img
-                      src={event.banner_url}
-                      alt={event.title}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.nextSibling.style.display = 'flex';
-                      }}
-                    />
-                    <div className="h-48 bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center" style={{display: 'none'}}>
-                      <span className="text-white text-lg font-semibold">Event Banner</span>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Event Content */}
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <h3 className="text-xl font-bold text-slate-800 flex-1">{event.title}</h3>
-                    <span className={`ml-2 px-3 py-1 rounded-full text-xs font-medium ${
-                      activeTab === 'archived' 
-                        ? event.status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-800'
-                        : event.status === 'published' ? 'bg-green-100 text-green-800' :
-                          event.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
-                          event.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                          'bg-gray-100 text-gray-800'
-                    }`}>
-                      {activeTab === 'archived' 
-                        ? event.status === 'cancelled' ? 'Cancelled' : 'Completed'
-                        : event.status}
-                    </span>
-                  </div>
-                  
-                  {event.rationale && (
-                    <div 
-                      className="text-slate-600 mb-4 line-clamp-3 rich-text-content"
-                      dangerouslySetInnerHTML={{ __html: event.rationale }}
-                      style={{
-                        wordWrap: 'break-word'
-                      }}
-                    />
-                  )}
-                  
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center text-sm text-slate-600">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <span>{formatDate(event.start_date)} - {formatDate(event.end_date)}</span>
-                    </div>
-                    <div className="flex items-center text-sm text-slate-600">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>{formatTime(event.start_time)} - {formatTime(event.end_time)}</span>
-                    </div>
-                    {event.venue && (
-                      <div className="flex items-center text-sm text-slate-600">
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <span>{event.venue}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center text-sm text-slate-600">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                      <span>
-                        {event.current_participants || 0} registered
-                        {event.max_participants && ` / ${event.max_participants} max`}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {/* Sponsors and Speakers */}
-                  {event.sponsors && event.sponsors.length > 0 && (
-                    <div className="mb-3">
-                      <p className="text-sm font-medium text-slate-700 mb-1">Sponsors:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {event.sponsors.map((sponsor, index) => (
-                          <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                            {sponsor.name}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {event.guest_speakers && event.guest_speakers.length > 0 && (
-                    <div className="mb-3">
-                      <p className="text-sm font-medium text-slate-700 mb-1">Speakers:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {event.guest_speakers.map((speaker, index) => (
-                          <span key={index} className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                            {speaker.name}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Action Buttons */}
-                  <div className="flex flex-col space-y-3 mt-6">
-                    {activeTab === 'archived' ? (
-                      <div className="w-full bg-slate-50 rounded-lg p-3 border border-slate-200 text-center">
-                        <p className="text-sm text-slate-600">
-                          {event.status === 'cancelled' ? 'This event was cancelled' : 'This event has been completed'}
-                        </p>
-                        {event.archive_reason && (
-                          <p className="text-xs text-slate-500 mt-1">{event.archive_reason}</p>
-                        )}
-                        {event.archived_at && (
-                          <p className="text-xs text-slate-500 mt-1">
-                            Archived on {new Date(event.archived_at).toLocaleDateString()}
-                          </p>
-                        )}
-                      </div>
-                    ) : user?.role === 'organizer' || user?.role === 'admin' ? (
-                      <>
-                        <div className="flex space-x-3">
-                          <button 
-                            onClick={() => handleEditEvent(event.id)}
-                            className="flex-1 px-4 py-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-medium"
-                          >
-                            Edit
-                          </button>
-                          <button 
-                            onClick={() => event.status === 'draft' ? handlePublishEvent(event.id) : handleManageEvent(event.id)}
-                            disabled={loading}
-                            className="flex-1 px-4 py-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {loading ? 'Publishing...' : event.status === 'draft' ? 'Publish' : 'Manage'}
-                          </button>
-                        </div>
-                        <button 
-                          onClick={() => event.is_featured ? handleUnfeatureEvent(event.id) : handleSetFeatured(event.id)}
-                          disabled={loading}
-                          className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {event.is_featured ? 'Remove Featured' : 'Set as Featured'}
-                        </button>
-                        {/* Request Cancellation button - only for organizers, not for cancelled events */}
-                        {user?.role === 'organizer' && event.status !== 'cancelled' && (
-                          <button 
-                            onClick={() => handleRequestCancellation(event.id)}
-                            disabled={loading}
-                            className="w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Request Cancellation
-                          </button>
-                        )}
-                      </>
-                    ) : activeTab === 'archived' ? null : !user ? (
-                      <div className="w-full text-center">
-                        <button 
-                          onClick={() => navigate('/login')}
-                          className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm"
-                        >
-                          Login to Register
-                        </button>
-                      </div>
-                    ) : userRegistrations.has(event.id) ? (
-                      <div className="w-full bg-blue-50 rounded-lg p-3 border border-blue-200">
-                        <div className="flex items-center space-x-2">
-                          <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                            </svg>
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-medium text-blue-800 text-sm">You're registered for this event!</p>
-                            {userRegistrationDetails.has(event.id) && (
-                              <p className="text-xs text-blue-600">
-                                Registered on {formatRegistrationDate(userRegistrationDetails.get(event.id).registration_date)}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (() => {
-                      const registrationCheck = canRegisterForEvent(event);
-                      const isDisabled = !registrationCheck.allowed || registeringEvents.has(event.id);
-                      
-                      return (
-                        <button 
-                          onClick={() => handleRegisterForEvent(event.id)}
-                          disabled={isDisabled}
-                          className={`w-full px-4 py-2 rounded-lg transition-colors text-sm ${
-                            isDisabled 
-                              ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
-                              : 'bg-blue-900 text-white hover:bg-blue-800'
-                          } disabled:opacity-50 disabled:cursor-not-allowed`}
-                          title={!registrationCheck.allowed ? registrationCheck.reason : ''}
-                        >
-                          {registeringEvents.has(event.id) 
-                            ? 'Registering...' 
-                            : !registrationCheck.allowed 
-                              ? 'Registration Closed' 
-                              : 'Register'}
-                        </button>
-                      );
-                    })()}
-                  </div>
-                </div>
-              </div>
-              );
-            })}
-          </div>
-          
-          {/* Pagination Controls */}
-          {!useInfiniteScroll && totalPages > 1 && (
-            <div className="mt-8 flex justify-center items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="px-4 py-2 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Previous
-              </button>
-              
-              {/* Page Numbers */}
-              <div className="flex gap-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
-                  
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`px-4 py-2 rounded-lg transition-colors ${
-                        currentPage === pageNum
-                          ? 'bg-blue-900 text-white'
-                          : 'bg-white border border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
                   );
                 })}
               </div>
-              
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="px-4 py-2 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Next
-              </button>
-            </div>
-          )}
-          
-          {/* Infinite Scroll Observer */}
-          {useInfiniteScroll && hasMore && (
-            <div ref={observerTarget} className="h-10 flex items-center justify-center mt-8">
-              {isLoading ? (
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              ) : (
-                <p className="text-slate-600">Loading more events...</p>
+
+              {/* Pagination Controls */}
+              {!useInfiniteScroll && totalPages > 1 && (
+                <div className="mt-8 flex justify-center items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+
+                  {/* Page Numbers */}
+                  <div className="flex gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`px-4 py-2 rounded-lg transition-colors ${currentPage === pageNum
+                            ? 'bg-blue-900 text-white'
+                            : 'bg-white border border-slate-300 hover:bg-slate-50'
+                            }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-4 py-2 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
               )}
+
+              {/* Infinite Scroll Observer */}
+              {useInfiniteScroll && hasMore && (
+                <div ref={observerTarget} className="h-10 flex items-center justify-center mt-8">
+                  {isLoading ? (
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  ) : (
+                    <p className="text-slate-600">Loading more events...</p>
+                  )}
+                </div>
+              )}
+
+              {useInfiniteScroll && !hasMore && displayEvents.length > 0 && (
+                <div className="mt-8 text-center text-slate-600">
+                  <p>You've reached the end of the list</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-12">
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto">
+                <p className="text-slate-600">Loading events...</p>
+              </div>
             </div>
           )}
-          
-          {useInfiniteScroll && !hasMore && displayEvents.length > 0 && (
-            <div className="mt-8 text-center text-slate-600">
-              <p>You've reached the end of the list</p>
-            </div>
-          )}
-          </>
-        ) : (
-          <div className="text-center py-12">
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto">
-              <p className="text-slate-600">Loading events...</p>
+        </div>
+
+        {/* Registration Confirmation Modal */}
+        {showConfirmationModal && eventToRegister && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <div className="text-center">
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
+                  <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                  Confirm Event Registration
+                </h3>
+                <p className="text-slate-600 mb-6">
+                  Are you sure you want to register for <strong>"{eventToRegister.title}"</strong>?
+                  {sampleEvents.some(event => event.id === eventToRegister.id) && (
+                    <span className="block mt-2 text-sm text-blue-600">
+                      (This is a sample event - demo registration only)
+                    </span>
+                  )}
+                </p>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => {
+                      setShowConfirmationModal(false);
+                      setEventToRegister(null);
+                    }}
+                    className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  {(() => {
+                    const registrationCheck = eventToRegister ? canRegisterForEvent(eventToRegister) : { allowed: false };
+                    const isDisabled = !registrationCheck.allowed || registeringEvents.has(eventToRegister.id);
+
+                    return (
+                      <button
+                        onClick={confirmRegistration}
+                        disabled={isDisabled}
+                        className={`flex-1 px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isDisabled
+                          ? 'bg-gray-400 text-gray-600'
+                          : 'bg-blue-900 text-white hover:bg-blue-800'
+                          }`}
+                        title={!registrationCheck.allowed ? registrationCheck.reason : ''}
+                      >
+                        {registeringEvents.has(eventToRegister.id)
+                          ? 'Registering...'
+                          : !registrationCheck.allowed
+                            ? 'Registration Closed'
+                            : 'Confirm Registration'}
+                      </button>
+                    );
+                  })()}
+                </div>
+              </div>
             </div>
           </div>
         )}
-      </div>
 
-      {/* Registration Confirmation Modal */}
-      {showConfirmationModal && eventToRegister && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
-                <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                Confirm Event Registration
-              </h3>
-              <p className="text-slate-600 mb-6">
-                Are you sure you want to register for <strong>"{eventToRegister.title}"</strong>?
-                {sampleEvents.some(event => event.id === eventToRegister.id) && (
-                  <span className="block mt-2 text-sm text-blue-600">
-                    (This is a sample event - demo registration only)
-                  </span>
-                )}
-              </p>
-              <div className="flex space-x-3">
+
+        {/* Success Modal */}
+        {showSuccessModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <div className="text-center">
+                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
+                  <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold text-slate-900 mb-4">
+                  Success!
+                </h3>
+                <p className="text-slate-600 mb-6 text-lg">
+                  {successModalMessage}
+                </p>
                 <button
                   onClick={() => {
-                    setShowConfirmationModal(false);
-                    setEventToRegister(null);
+                    setShowSuccessModal(false);
+                    setSuccessModalMessage('');
                   }}
-                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                  className="w-full px-6 py-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors font-medium"
                 >
-                  Cancel
+                  Got it!
                 </button>
-                {(() => {
-                  const registrationCheck = eventToRegister ? canRegisterForEvent(eventToRegister) : { allowed: false };
-                  const isDisabled = !registrationCheck.allowed || registeringEvents.has(eventToRegister.id);
-                  
-                  return (
-                    <button
-                      onClick={confirmRegistration}
-                      disabled={isDisabled}
-                      className={`flex-1 px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                        isDisabled 
-                          ? 'bg-gray-400 text-gray-600' 
-                          : 'bg-blue-900 text-white hover:bg-blue-800'
-                      }`}
-                      title={!registrationCheck.allowed ? registrationCheck.reason : ''}
-                    >
-                      {registeringEvents.has(eventToRegister.id) 
-                        ? 'Registering...' 
-                        : !registrationCheck.allowed 
-                          ? 'Registration Closed' 
-                          : 'Confirm Registration'}
-                    </button>
-                  );
-                })()}
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-
-      {/* Success Modal */}
-      {showSuccessModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
-                <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold text-slate-900 mb-4">
-                Success!
-              </h3>
-              <p className="text-slate-600 mb-6 text-lg">
-                {successModalMessage}
-              </p>
-              <button
-                onClick={() => {
-                  setShowSuccessModal(false);
-                  setSuccessModalMessage('');
-                }}
-                className="w-full px-6 py-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors font-medium"
-              >
-                Got it!
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Manage Event Modal */}
-      {showManageModal && selectedEvent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
-            <div className="text-center mb-6">
-              <h3 className="text-2xl font-semibold text-slate-900 mb-2">
-                Manage Event
-              </h3>
-              <p className="text-slate-600">
-                Manage "{selectedEvent.title}"
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Event Stats */}
-              <div className="bg-blue-50 rounded-lg p-4">
-                <h4 className="font-semibold text-blue-900 mb-2">Event Statistics</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>Status:</span>
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      selectedEvent.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {selectedEvent.status}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Participants:</span>
-                    <span>{selectedEvent.current_participants || 0}/{selectedEvent.max_participants || '∞'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Created:</span>
-                    <span>{formatDate(selectedEvent.created_at)}</span>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Quick Actions */}
-              <div className="bg-green-50 rounded-lg p-4">
-                <h4 className="font-semibold text-green-900 mb-2">Quick Actions</h4>
-                <div className="space-y-2">
-                  <button 
-                    onClick={() => handleViewRegistrations(selectedEvent.id)}
-                    disabled={loadingRegistrations}
-                    className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loadingRegistrations ? 'Loading...' : 'View Registrations'}
-                  </button>
-                  <button 
-                    onClick={() => handleGenerateQRCode(selectedEvent.id)}
-                    className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors"
-                  >
-                    Generate QR Code
-                  </button>
-                  <button 
-                    onClick={() => navigate(`/event-statistics/${selectedEvent.id}`)}
-                    className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors"
-                  >
-                    View Analytics
-                  </button>
-                  <button 
-                    onClick={() => handleViewCertificateGenerations(selectedEvent.id)}
-                    className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors"
-                  >
-                    View Certificate Generations
-                  </button>
-                </div>
-              </div>
-              
-              {/* Event Details */}
-              <div className="bg-slate-50 rounded-lg p-4">
-                <h4 className="font-semibold text-slate-900 mb-2">Event Details</h4>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="font-medium">Date:</span>
-                    <div>{formatDate(selectedEvent.start_date)}</div>
-                  </div>
-                  <div>
-                    <span className="font-medium">Time:</span>
-                    <div>{selectedEvent.start_time} - {selectedEvent.end_time}</div>
-                  </div>
-                  <div>
-                    <span className="font-medium">Venue:</span>
-                    <div>{selectedEvent.venue}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex space-x-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowManageModal(false);
-                  setSelectedEvent(null);
-                }}
-                className="w-full px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* View Registrations Modal */}
-      {showRegistrationsModal && selectedEvent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <div>
+        {/* Manage Event Modal */}
+        {showManageModal && selectedEvent && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="text-center mb-6">
                 <h3 className="text-2xl font-semibold text-slate-900 mb-2">
-                  Event Registrations
+                  Manage Event
                 </h3>
                 <p className="text-slate-600">
-                  {selectedEvent.title}
+                  Manage "{selectedEvent.title}"
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setShowRegistrationsModal(false);
-                  setRegistrations([]);
-                }}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
 
-            {loadingRegistrations ? (
-              <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p className="text-slate-600">Loading registrations...</p>
-              </div>
-            ) : registrations.length === 0 ? (
-              <div className="text-center py-12">
-                <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                <h4 className="text-xl font-semibold text-slate-800 mb-2">No Registrations Yet</h4>
-                <p className="text-slate-600">No participants have registered for this event.</p>
-              </div>
-            ) : (
-              <>
-                <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-blue-900">
-                      Total Registrations: <span className="font-bold">{registrations.length}</span>
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          const eventTitle = selectedEvent?.title || 'event';
-                          const sanitizedTitle = eventTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-                          exportToCSV(registrations, `${sanitizedTitle}_participants_${new Date().toISOString().split('T')[0]}`);
-                        }}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
-                        title="Export to CSV"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        CSV
-                      </button>
-                      <button
-                        onClick={() => {
-                          const eventTitle = selectedEvent?.title || 'event';
-                          const sanitizedTitle = eventTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-                          exportToExcel(registrations, `${sanitizedTitle}_participants_${new Date().toISOString().split('T')[0]}`, 'Participants');
-                        }}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                        title="Export to Excel"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        Excel
-                      </button>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Event Stats */}
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-blue-900 mb-2">Event Statistics</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Status:</span>
+                      <span className={`px-2 py-1 rounded text-xs ${selectedEvent.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                        {selectedEvent.status}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Participants:</span>
+                      <span>{selectedEvent.current_participants || 0}/{selectedEvent.max_participants || '∞'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Created:</span>
+                      <span>{formatDate(selectedEvent.created_at)}</span>
                     </div>
                   </div>
                 </div>
-                
-                <div className="space-y-3">
-                  {registrations.map((registration) => {
-                    const user = registration.users;
-                    const userName = user?.first_name && user?.last_name 
-                      ? `${user.first_name} ${user.last_name}`
-                      : user?.email || 'Unknown User';
-                    
-                    return (
-                      <div 
-                        key={registration.id} 
-                        className="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:bg-slate-100 transition-colors"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
-                                {userName.charAt(0).toUpperCase()}
-                              </div>
-                              <div>
-                                <h4 className="font-semibold text-slate-900">{userName}</h4>
-                                {user?.email && (
-                                  <p className="text-sm text-slate-600">{user.email}</p>
-                                )}
-                              </div>
-                            </div>
-                            
-                            <div className="ml-12 space-y-1 text-sm text-slate-600">
-                              {user?.organization && (
-                                <div className="flex items-center gap-2">
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                  </svg>
-                                  <span>{user.organization}</span>
-                                </div>
-                              )}
-                              {user?.user_type && (
-                                <div className="flex items-center gap-2">
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                  </svg>
-                                  <span className="capitalize">{user.user_type}</span>
-                                </div>
-                              )}
-                              <div className="flex items-center gap-2">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                                <span>
-                                  Registered on {formatRegistrationDate(registration.registration_date || registration.created_at)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="ml-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              registration.status === 'registered' 
-                                ? 'bg-green-100 text-green-800'
-                                : registration.status === 'cancelled'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-blue-100 text-blue-800'
-                            }`}>
-                              {registration.status || 'registered'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
 
-            <div className="mt-6 pt-4 border-t border-slate-200">
-              <button
-                onClick={() => {
-                  setShowRegistrationsModal(false);
-                  setRegistrations([]);
-                }}
-                className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors"
-              >
-                Close
-              </button>
+                {/* Quick Actions */}
+                <div className="bg-green-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-green-900 mb-2">Quick Actions</h4>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => handleViewRegistrations(selectedEvent.id)}
+                      disabled={loadingRegistrations}
+                      className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {loadingRegistrations ? 'Loading...' : 'View Registrations'}
+                    </button>
+                    <button
+                      onClick={() => handleViewCheckIns(selectedEvent.id)}
+                      disabled={loadingCheckIns}
+                      className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {loadingCheckIns ? 'Loading...' : 'View Check-Ins'}
+                    </button>
+                    <button
+                      onClick={() => navigate('/event-messages')}
+                      className="w-full px-3 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors flex items-center justify-center gap-2 relative"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                      View Messages
+                      {eventUnreadCounts[selectedEvent.id] > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                          {eventUnreadCounts[selectedEvent.id]}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleGenerateQRCode(selectedEvent.id)}
+                      className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors"
+                    >
+                      Generate QR Code
+                    </button>
+                    <button
+                      onClick={() => navigate(`/event-statistics/${selectedEvent.id}`)}
+                      className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors"
+                    >
+                      View Analytics
+                    </button>
+                    <button
+                      onClick={() => handleViewCertificateGenerations(selectedEvent.id)}
+                      className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors"
+                    >
+                      View Certificate Generations
+                    </button>
+                  </div>
+                </div>
+
+                {/* Event Details */}
+                <div className="bg-slate-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-slate-900 mb-2">Event Details</h4>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="font-medium">Date:</span>
+                      <div>{formatDate(selectedEvent.start_date)}</div>
+                    </div>
+                    <div>
+                      <span className="font-medium">Time:</span>
+                      <div>{selectedEvent.start_time} - {selectedEvent.end_time}</div>
+                    </div>
+                    <div>
+                      <span className="font-medium">Venue:</span>
+                      <div>{selectedEvent.venue}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex space-x-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowManageModal(false);
+                    setSelectedEvent(null);
+                  }}
+                  className="w-full px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Bulk QR Code Generator Modal */}
-      {showBulkQRModal && selectedEvent && (
-        <BulkQRCodeGenerator
-          isOpen={showBulkQRModal}
-          onClose={() => {
-            setShowBulkQRModal(false);
-            setSelectedEvent(null);
-          }}
-          event={selectedEvent}
-        />
-      )}
+        {/* View Registrations Modal */}
+        {showRegistrationsModal && selectedEvent && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-2xl font-semibold text-slate-900 mb-2">
+                    Event Registrations
+                  </h3>
+                  <p className="text-slate-600">
+                    {selectedEvent.title}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowRegistrationsModal(false);
+                    setRegistrations([]);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
 
-      {/* Certificate Generations View Modal */}
-      {showCertificateGenerationsModal && selectedEvent && (
-        <CertificateGenerationsView
-          isOpen={showCertificateGenerationsModal}
-          onClose={() => {
-            setShowCertificateGenerationsModal(false);
-            setSelectedEvent(null);
-          }}
-          event={selectedEvent}
-        />
-      )}
+              {loadingRegistrations ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-slate-600">Loading registrations...</p>
+                </div>
+              ) : registrations.length === 0 ? (
+                <div className="text-center py-12">
+                  <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  <h4 className="text-xl font-semibold text-slate-800 mb-2">No Registrations Yet</h4>
+                  <p className="text-slate-600">No participants have registered for this event.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-blue-900">
+                        Total Registrations: <span className="font-bold">{registrations.length}</span>
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            const eventTitle = selectedEvent?.title || 'event';
+                            const sanitizedTitle = eventTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                            exportToCSV(registrations, `${sanitizedTitle}_participants_${new Date().toISOString().split('T')[0]}`);
+                          }}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                          title="Export to CSV"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          CSV
+                        </button>
+                        <button
+                          onClick={() => {
+                            const eventTitle = selectedEvent?.title || 'event';
+                            const sanitizedTitle = eventTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                            exportToExcel(registrations, `${sanitizedTitle}_participants_${new Date().toISOString().split('T')[0]}`, 'Participants');
+                          }}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                          title="Export to Excel"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Excel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
 
-      {/* Cancellation Request Modal */}
-      {showCancellationModal && eventToCancel && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <div className="mb-6">
-              <h3 className="text-xl font-semibold text-slate-900 mb-2">
-                Request Event Cancellation
-              </h3>
-              <p className="text-slate-600 text-sm">
-                Request to cancel "{eventToCancel.title}". An admin will review your request.
-              </p>
+                  <div className="space-y-3">
+                    {registrations.map((registration) => {
+                      const user = registration.users;
+                      const userName = user?.first_name && user?.last_name
+                        ? `${user.first_name} ${user.last_name}`
+                        : user?.email || 'Unknown User';
+
+                      return (
+                        <div
+                          key={registration.id}
+                          className="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:bg-slate-100 transition-colors"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                                  {userName.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold text-slate-900">{userName}</h4>
+                                  {user?.email && (
+                                    <p className="text-sm text-slate-600">{user.email}</p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="ml-12 space-y-1 text-sm text-slate-600">
+                                {user?.organization && (
+                                  <div className="flex items-center gap-2">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                    </svg>
+                                    <span>{user.organization}</span>
+                                  </div>
+                                )}
+                                {user?.user_type && (
+                                  <div className="flex items-center gap-2">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                    <span className="capitalize">{user.user_type}</span>
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                  <span>
+                                    Registered on {formatRegistrationDate(registration.registration_date || registration.created_at)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="ml-4">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${registration.status === 'registered'
+                                ? 'bg-green-100 text-green-800'
+                                : registration.status === 'cancelled'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-blue-100 text-blue-800'
+                                }`}>
+                                {registration.status || 'registered'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              <div className="mt-6 pt-4 border-t border-slate-200">
+                <button
+                  onClick={() => {
+                    setShowRegistrationsModal(false);
+                    setRegistrations([]);
+                  }}
+                  className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
+          </div>
+        )}
 
-            <div className="space-y-4">
-              {/* Cancellation Reason */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Reason for Cancellation <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={cancellationReason}
-                  onChange={(e) => setCancellationReason(e.target.value)}
-                  placeholder="Please provide a reason for cancelling this event..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
-                  rows={4}
-                  required
-                />
+        {/* View Check-Ins Modal */}
+        {showCheckInsModal && selectedEvent && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-2xl font-semibold text-slate-900 mb-2">
+                    Event Check-Ins
+                  </h3>
+                  <p className="text-slate-600">
+                    {selectedEvent.title}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={autoRefreshCheckIns}
+                      onChange={(e) => {
+                        setAutoRefreshCheckIns(e.target.checked);
+                      }}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    Auto-refresh
+                  </label>
+                  <button
+                    onClick={() => {
+                      if (selectedEvent) loadCheckIns(selectedEvent.id);
+                    }}
+                    className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    title="Refresh check-ins"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Refresh
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowCheckInsModal(false);
+                      setCheckIns([]);
+                      setCheckInStats(null);
+                      setAutoRefreshCheckIns(false);
+                      setCheckInFilters({
+                        search: '',
+                        method: 'all',
+                        validationStatus: 'all',
+                        date: 'all'
+                      });
+                    }}
+                    className="text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
-              {/* Cancellation Date */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Cancellation Date <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={cancellationDate}
-                  onChange={(e) => setCancellationDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  required
-                />
-                <p className="text-xs text-slate-500 mt-1">
-                  Select when you want the event to be cancelled
-                </p>
+              {/* Statistics Summary */}
+              {checkInStats && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <p className="text-sm font-medium text-blue-900 mb-1">Total Check-Ins</p>
+                    <p className="text-2xl font-bold text-blue-600">{checkInStats.total_check_ins}</p>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                    <p className="text-sm font-medium text-green-900 mb-1">Validated</p>
+                    <p className="text-2xl font-bold text-green-600">{checkInStats.validated_check_ins}</p>
+                  </div>
+                  <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                    <p className="text-sm font-medium text-yellow-900 mb-1">Unvalidated</p>
+                    <p className="text-2xl font-bold text-yellow-600">{checkInStats.unvalidated_check_ins}</p>
+                  </div>
+                  <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                    <p className="text-sm font-medium text-purple-900 mb-1">Check-In Rate</p>
+                    <p className="text-2xl font-bold text-purple-600">{checkInStats.check_in_rate}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Filters and Actions */}
+              <div className="mb-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Search</label>
+                    <input
+                      type="text"
+                      placeholder="Search by name or email..."
+                      value={checkInFilters.search}
+                      onChange={(e) => setCheckInFilters({ ...checkInFilters, search: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Method</label>
+                    <select
+                      value={checkInFilters.method}
+                      onChange={(e) => setCheckInFilters({ ...checkInFilters, method: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="all">All Methods</option>
+                      <option value="qr_scan">QR Scan</option>
+                      <option value="manual">Manual</option>
+                      <option value="admin_override">Admin Override</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Validation Status</label>
+                    <select
+                      value={checkInFilters.validationStatus}
+                      onChange={(e) => setCheckInFilters({ ...checkInFilters, validationStatus: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="all">All</option>
+                      <option value="validated">Validated</option>
+                      <option value="unvalidated">Unvalidated</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Date</label>
+                    <select
+                      value={checkInFilters.date}
+                      onChange={(e) => setCheckInFilters({ ...checkInFilters, date: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="all">All Dates</option>
+                      {Array.from(new Set(checkIns.map(ci => ci.check_in_date || new Date(ci.check_in_time).toISOString().split('T')[0])))
+                        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+                        .map(date => (
+                          <option key={date} value={date}>
+                            {new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Sort By</label>
+                    <select
+                      value={checkInSortBy}
+                      onChange={(e) => setCheckInSortBy(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="time-desc">Time (Newest First)</option>
+                      <option value="time-asc">Time (Oldest First)</option>
+                      <option value="name-asc">Name (A-Z)</option>
+                      <option value="name-desc">Name (Z-A)</option>
+                      <option value="method-asc">Method (A-Z)</option>
+                      <option value="method-desc">Method (Z-A)</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => openAddCheckInModal(selectedEvent.id)}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Manual Check-In
+                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        const eventTitle = selectedEvent?.title || 'event';
+                        const sanitizedTitle = eventTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                        const filteredCheckIns = getFilteredAndSortedCheckIns();
+                        exportToCSV(filteredCheckIns, `${sanitizedTitle}_checkins_${new Date().toISOString().split('T')[0]}`);
+                      }}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                      title="Export to CSV"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      CSV
+                    </button>
+                    <button
+                      onClick={() => {
+                        const eventTitle = selectedEvent?.title || 'event';
+                        const sanitizedTitle = eventTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                        const filteredCheckIns = getFilteredAndSortedCheckIns();
+                        exportToExcel(filteredCheckIns, `${sanitizedTitle}_checkins_${new Date().toISOString().split('T')[0]}`, 'Check-Ins');
+                      }}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                      title="Export to Excel"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Excel
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              {/* Additional Notes */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Additional Notes (Optional)
-                </label>
-                <textarea
-                  value={cancellationNotes}
-                  onChange={(e) => setCancellationNotes(e.target.value)}
-                  placeholder="Any additional information for the admin..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
-                  rows={3}
-                />
+              {loadingCheckIns ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-slate-600">Loading check-ins...</p>
+                </div>
+              ) : checkIns.length === 0 ? (
+                <div className="text-center py-12">
+                  <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <h4 className="text-xl font-semibold text-slate-800 mb-2">No Check-Ins Yet</h4>
+                  <p className="text-slate-600">No participants have checked in for this event.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-blue-900">
+                        Showing {getFilteredAndSortedCheckIns().length} of {checkIns.length} check-ins
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {getFilteredAndSortedCheckIns().map((checkIn) => {
+                      const checkInTime = new Date(checkIn.check_in_time);
+                      const formattedDate = checkIn.check_in_date || checkInTime.toISOString().split('T')[0];
+                      const formattedTime = checkInTime.toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      });
+
+                      return (
+                        <div
+                          key={checkIn.id}
+                          className="bg-slate-50 rounded-lg p-4 border border-slate-200 hover:bg-slate-100 transition-colors"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                                  {checkIn.participant_name.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold text-slate-900">{checkIn.participant_name}</h4>
+                                  <p className="text-sm text-slate-600">{checkIn.participant_email}</p>
+                                </div>
+                              </div>
+
+                              <div className="ml-12 space-y-1 text-sm text-slate-600">
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                  <span>Date: {new Date(formattedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <span>Time: {formattedTime}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                  </svg>
+                                  <span>Method: {checkIn.check_in_method === 'qr_scan' ? 'QR Scan' : checkIn.check_in_method === 'manual' ? 'Manual' : 'Admin Override'}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="ml-4 flex flex-col items-end gap-2">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${checkIn.is_validated
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                {checkIn.is_validated ? 'Validated' : 'Unvalidated'}
+                              </span>
+                              <button
+                                onClick={() => handleToggleValidation(checkIn.id, checkIn.is_validated)}
+                                className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-colors ${checkIn.is_validated
+                                  ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border border-yellow-300'
+                                  : 'bg-green-100 text-green-800 hover:bg-green-200 border border-green-300'
+                                  }`}
+                              >
+                                {checkIn.is_validated ? 'Unvalidate' : 'Validate'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              <div className="mt-6 pt-4 border-t border-slate-200">
+                <button
+                  onClick={() => {
+                    setShowCheckInsModal(false);
+                    setCheckIns([]);
+                    setCheckInStats(null);
+                    setAutoRefreshCheckIns(false);
+                    setCheckInFilters({
+                      search: '',
+                      method: 'all',
+                      validationStatus: 'all',
+                      date: 'all'
+                    });
+                  }}
+                  className="w-full px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Check-In Modal - Participant Selection */}
+        {showParticipantSelectModal && selectedEvent && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-semibold text-slate-900">Select Participant</h3>
+                <button
+                  onClick={() => {
+                    setShowParticipantSelectModal(false);
+                    setSelectedParticipantForCheckIn(null);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
 
-              {/* Error Message */}
+              {loadingParticipants ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-slate-600">Loading participants...</p>
+                </div>
+              ) : availableParticipants.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-slate-600">No registered participants found.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Check-In Date</label>
+                    <input
+                      type="date"
+                      value={checkInDate}
+                      onChange={(e) => setCheckInDate(e.target.value)}
+                      max={new Date().toISOString().split('T')[0]}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {availableParticipants.map((participant) => {
+                      const user = participant.users;
+                      const userName = user?.first_name && user?.last_name
+                        ? `${user.first_name} ${user.last_name}`
+                        : user?.email || 'Unknown User';
+
+                      // Check if already checked in for this date
+                      const isCheckedIn = checkIns.some(
+                        ci => ci.user_id === participant.user_id &&
+                          (ci.check_in_date === checkInDate || new Date(ci.check_in_date).toISOString().split('T')[0] === checkInDate)
+                      );
+
+                      return (
+                        <button
+                          key={participant.id}
+                          onClick={() => {
+                            if (!isCheckedIn) {
+                              setSelectedParticipantForCheckIn(participant);
+                              setShowParticipantSelectModal(false);
+                              setShowAddCheckInModal(true);
+                            }
+                          }}
+                          disabled={isCheckedIn}
+                          className={`w-full text-left p-3 rounded-lg border transition-colors ${isCheckedIn
+                            ? 'bg-slate-100 border-slate-300 text-slate-500 cursor-not-allowed'
+                            : 'bg-white border-slate-200 hover:bg-blue-50 hover:border-blue-300'
+                            }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium text-slate-900">{userName}</p>
+                              {user?.email && (
+                                <p className="text-sm text-slate-600">{user.email}</p>
+                              )}
+                            </div>
+                            {isCheckedIn && (
+                              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">Already Checked In</span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              <div className="mt-6 pt-4 border-t border-slate-200">
+                <button
+                  onClick={() => {
+                    setShowParticipantSelectModal(false);
+                    setSelectedParticipantForCheckIn(null);
+                  }}
+                  className="w-full px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Check-In Confirmation Modal */}
+        {showAddCheckInModal && selectedParticipantForCheckIn && selectedEvent && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <h3 className="text-xl font-semibold text-slate-900 mb-4">Confirm Manual Check-In</h3>
+              <div className="space-y-3 mb-6">
+                <div>
+                  <p className="text-sm text-slate-600">Participant:</p>
+                  <p className="font-medium text-slate-900">
+                    {selectedParticipantForCheckIn.users?.first_name && selectedParticipantForCheckIn.users?.last_name
+                      ? `${selectedParticipantForCheckIn.users.first_name} ${selectedParticipantForCheckIn.users.last_name}`
+                      : selectedParticipantForCheckIn.users?.email || 'Unknown User'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600">Date:</p>
+                  <p className="font-medium text-slate-900">
+                    {new Date(checkInDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  </p>
+                </div>
+              </div>
               {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
                   <p className="text-sm text-red-600">{error}</p>
                 </div>
               )}
-            </div>
-
-            <div className="flex space-x-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowCancellationModal(false);
-                  setEventToCancel(null);
-                  setCancellationReason('');
-                  setCancellationDate('');
-                  setCancellationNotes('');
-                  setError('');
-                }}
-                disabled={submittingCancellation}
-                className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitCancellationRequest}
-                disabled={submittingCancellation || !cancellationReason.trim() || !cancellationDate}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {submittingCancellation ? 'Submitting...' : 'Submit Request'}
-              </button>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowAddCheckInModal(false);
+                    setSelectedParticipantForCheckIn(null);
+                    setError('');
+                  }}
+                  disabled={loadingCheckIns}
+                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddCheckIn}
+                  disabled={loadingCheckIns}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                >
+                  {loadingCheckIns ? 'Adding...' : 'Confirm Check-In'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </section>
+        )}
+
+        {/* Bulk QR Code Generator Modal */}
+        {showBulkQRModal && selectedEvent && (
+          <BulkQRCodeGenerator
+            isOpen={showBulkQRModal}
+            onClose={() => {
+              setShowBulkQRModal(false);
+              setSelectedEvent(null);
+            }}
+            event={selectedEvent}
+          />
+        )}
+
+        {/* Certificate Generations View Modal */}
+        {showCertificateGenerationsModal && selectedEvent && (
+          <CertificateGenerationsView
+            isOpen={showCertificateGenerationsModal}
+            onClose={() => {
+              setShowCertificateGenerationsModal(false);
+              setSelectedEvent(null);
+            }}
+            event={selectedEvent}
+          />
+        )}
+
+        {/* Event Chat Modal for Organizer */}
+        {showEventChatModal && chatEventForOrganizer && (
+          <EventChatModal
+            isOpen={showEventChatModal}
+            onClose={() => {
+              setShowEventChatModal(false);
+              setChatEventForOrganizer(null);
+            }}
+            eventId={chatEventForOrganizer.id}
+            eventTitle={chatEventForOrganizer.title}
+          />
+        )}
+
+        {/* Cancellation Request Modal */}
+        {showCancellationModal && eventToCancel && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <div className="mb-6">
+                <h3 className="text-xl font-semibold text-slate-900 mb-2">
+                  Request Event Cancellation
+                </h3>
+                <p className="text-slate-600 text-sm">
+                  Request to cancel "{eventToCancel.title}". An admin will review your request.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Cancellation Reason */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Reason for Cancellation <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={cancellationReason}
+                    onChange={(e) => setCancellationReason(e.target.value)}
+                    placeholder="Please provide a reason for cancelling this event..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                    rows={4}
+                    required
+                  />
+                </div>
+
+                {/* Cancellation Date */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Cancellation Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={cancellationDate}
+                    onChange={(e) => setCancellationDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    required
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Select when you want the event to be cancelled
+                  </p>
+                </div>
+
+                {/* Additional Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Additional Notes (Optional)
+                  </label>
+                  <textarea
+                    value={cancellationNotes}
+                    onChange={(e) => setCancellationNotes(e.target.value)}
+                    placeholder="Any additional information for the admin..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                    rows={3}
+                  />
+                </div>
+
+                {/* Error Message */}
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-sm text-red-600">{error}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex space-x-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowCancellationModal(false);
+                    setEventToCancel(null);
+                    setCancellationReason('');
+                    setCancellationDate('');
+                    setCancellationNotes('');
+                    setError('');
+                  }}
+                  disabled={submittingCancellation}
+                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitCancellationRequest}
+                  disabled={submittingCancellation || !cancellationReason.trim() || !cancellationDate}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submittingCancellation ? 'Submitting...' : 'Submit Request'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
     </>
   );
 };

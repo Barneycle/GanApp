@@ -31,6 +31,7 @@ import { VerifyCertificate } from "./sections/VerifyCertificate";
 import { StandaloneCertificateGenerator } from "./sections/StandaloneCertificateGenerator";
 import { Support } from "./sections/Support";
 import { HelpCenter } from "./sections/HelpCenter";
+import { EventMessages } from "./sections/EventMessages";
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -71,6 +72,7 @@ function AnimatedRoutes() {
         <Route path="/standalone-certificate-generator" element={<StandaloneCertificateGenerator />} />
         <Route path="/support" element={<Support />} />
         <Route path="/help" element={<HelpCenter />} />
+        <Route path="/event-messages" element={<EventMessages />} />
       </Routes>
     </div>
   );

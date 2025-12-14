@@ -307,6 +307,7 @@ export default function CameraScreen() {
       };
 
       // Upload all photos in parallel with progress tracking
+      const uploadResults: { queued: boolean }[] = [];
       const uploadPromises = capturedPhotos.map((photo, index) =>
         uploadPhoto(photo.path, eventId, user.id, (progress) => {
           // Update this photo's progress (0-100), ensuring it only increases
@@ -315,6 +316,10 @@ export default function CameraScreen() {
             Math.min(progress, 100)
           );
           updateProgress();
+        }).then((result) => {
+          uploadResults[index] = { queued: result.queued || false };
+        }).catch(() => {
+          uploadResults[index] = { queued: false };
         })
       );
 
@@ -322,18 +327,33 @@ export default function CameraScreen() {
 
       // Store the count before clearing
       const uploadedCount = capturedPhotos.length;
+      const queuedCount = uploadResults.filter(r => r.queued).length;
+      const onlineUploadedCount = uploadedCount - queuedCount;
 
-      // Update photo count
-      setPhotoCount(prev => prev + uploadedCount);
+      // Update photo count (only count online uploads immediately)
+      setPhotoCount(prev => prev + onlineUploadedCount);
 
       // Clear captured photos and reset progress
       setCapturedPhotos([]);
       setUploadProgress({ current: 0, total: 0, percentage: 0 });
 
-      showSuccess(
-        'Success',
-        `Successfully uploaded ${uploadedCount} photo(s)!`
-      );
+      // Show appropriate success message
+      if (queuedCount > 0 && onlineUploadedCount > 0) {
+        showSuccess(
+          'Photos Saved',
+          `${onlineUploadedCount} photo(s) uploaded successfully. ${queuedCount} photo(s) saved offline and will upload when online.`
+        );
+      } else if (queuedCount > 0) {
+        showSuccess(
+          'Photos Saved Offline',
+          `${queuedCount} photo(s) saved offline and will upload when online.`
+        );
+      } else {
+        showSuccess(
+          'Success',
+          `Successfully uploaded ${uploadedCount} photo(s)!`
+        );
+      }
     } catch (err: any) {
       console.error('Error uploading photos:', err);
       setError(err.message || 'Failed to upload photos. Please try again.');
@@ -349,7 +369,7 @@ export default function CameraScreen() {
     eventId: string,
     userId: string,
     onProgress?: (progress: number) => void
-  ) => {
+  ): Promise<{ queued?: boolean }> => {
     try {
       // Convert file path to URI format for React Native
       const fileUri = photoPath.startsWith('file://') ? photoPath : `file://${photoPath}`;
@@ -361,49 +381,29 @@ export default function CameraScreen() {
         { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG } // 80% quality, JPEG format
       );
 
-      // Report compression progress (20% of total)
-      onProgress?.(20);
+      // Report compression progress (10% of total)
+      onProgress?.(10);
 
-      // Read compressed file as base64 using expo-file-system
-      const base64 = await FileSystem.readAsStringAsync(manipulatedImage.uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      // Use AlbumService which handles offline queueing
+      const { AlbumService } = await import('../lib/albumService');
+      const result = await AlbumService.uploadPhoto(
+        manipulatedImage.uri,
+        eventId,
+        userId,
+        (progress) => {
+          // Map progress from 10-100% (since compression is done)
+          onProgress?.(10 + (progress * 0.9));
+        }
+      );
 
-      // Report reading progress (40% cumulative)
-      onProgress?.(40);
-
-      // Convert base64 to Uint8Array
-      const byteCharacters = atob(base64);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const uint8Array = new Uint8Array(byteNumbers);
-
-      // Report conversion progress (50% cumulative)
-      onProgress?.(50);
-
-      // Generate unique filename
-      const timestamp = Date.now();
-      const filename = `${eventId}/${userId}_${timestamp}.jpg`;
-
-      // Upload to Supabase storage using Uint8Array
-      const { data, error: uploadError } = await supabase.storage
-        .from('event-photos')
-        .upload(filename, uint8Array, {
-          contentType: 'image/jpeg',
-          upsert: false,
-        });
-
-      // Report upload progress (90% cumulative)
-      onProgress?.(90);
-
-      if (uploadError) {
-        throw uploadError;
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to upload photo');
       }
 
-      // Report final progress (100% cumulative)
+      // Report final progress
       onProgress?.(100);
+
+      return { queued: result.queued || false };
     } catch (err: any) {
       console.error('Error uploading photo:', err);
       throw new Error(err.message || 'Failed to upload photo.');

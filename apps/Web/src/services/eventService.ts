@@ -842,28 +842,48 @@ export class EventService {
   }
 
   /**
-   * Check if user has checked in to an event
+   * Check if user has checked in to an event today (for multi-day event support)
    */
-  static async checkUserCheckInStatus(eventId: string, userId: string): Promise<{ isCheckedIn: boolean; error?: string }> {
+  static async checkUserCheckInStatus(eventId: string, userId: string): Promise<{ isCheckedIn: boolean; isValidated?: boolean; error?: string }> {
     try {
-      const { data, error } = await supabase
+      // Get current date in YYYY-MM-DD format
+      const today = new Date().toISOString().split('T')[0];
+
+      // First, check for any check-in (validated or not) for today
+      const { data: todayCheckIn, error: todayError } = await supabase
         .from('attendance_logs')
-        .select('id, check_in_time, is_validated')
+        .select('id, check_in_time, check_in_date, is_validated')
         .eq('event_id', eventId)
         .eq('user_id', userId)
-        .eq('is_validated', true)
-        .single();
+        .eq('check_in_date', today)
+        .order('check_in_time', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return { isCheckedIn: false };
-        }
-        return { isCheckedIn: false, error: error.message };
+      // If no check-in today, check for most recent check-in (for multi-day events)
+      let checkInData = todayCheckIn;
+      if (!todayCheckIn && todayError?.code !== 'PGRST116') {
+        const { data: recentCheckIn } = await supabase
+          .from('attendance_logs')
+          .select('id, check_in_time, check_in_date, is_validated')
+          .eq('event_id', eventId)
+          .eq('user_id', userId)
+          .order('check_in_time', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        checkInData = recentCheckIn;
       }
 
-      return { isCheckedIn: !!data?.check_in_time };
+      if (!checkInData) {
+        return { isCheckedIn: false, isValidated: false };
+      }
+
+      return {
+        isCheckedIn: !!checkInData?.check_in_time,
+        isValidated: checkInData?.is_validated || false
+      };
     } catch (error) {
-      return { isCheckedIn: false, error: 'An unexpected error occurred' };
+      return { isCheckedIn: false, isValidated: false, error: 'An unexpected error occurred' };
     }
   }
 
@@ -903,6 +923,316 @@ export class EventService {
       return { isCompleted: false };
     } catch (error) {
       return { isCompleted: false, error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Get all check-ins for an event (for organizers)
+   */
+  static async getEventCheckIns(eventId: string): Promise<{ checkIns?: any[]; error?: string }> {
+    try {
+      const { data: logs, error } = await supabase
+        .from('attendance_logs')
+        .select(`
+          id,
+          event_id,
+          user_id,
+          check_in_time,
+          check_in_date,
+          check_in_method,
+          is_validated,
+          validated_by,
+          validation_notes
+        `)
+        .eq('event_id', eventId)
+        .order('check_in_time', { ascending: false });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      // Fetch user data for each check-in
+      const checkInsWithUsers = await Promise.all(
+        (logs || []).map(async (log: any) => {
+          let userData = null;
+          try {
+            const { data } = await supabase.rpc('get_user_profile', {
+              user_id: log.user_id
+            });
+            userData = data;
+          } catch (err) {
+            console.error('Error fetching user profile:', err);
+          }
+
+          return {
+            id: log.id,
+            event_id: log.event_id,
+            user_id: log.user_id,
+            check_in_time: log.check_in_time,
+            check_in_date: log.check_in_date,
+            check_in_method: log.check_in_method,
+            is_validated: log.is_validated,
+            validated_by: log.validated_by,
+            validation_notes: log.validation_notes,
+            user: userData || null,
+            participant_name: userData
+              ? `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || userData.email
+              : 'Unknown User',
+            participant_email: userData?.email || 'N/A'
+          };
+        })
+      );
+
+      return { checkIns: checkInsWithUsers };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Add a manual check-in (for organizers)
+   */
+  static async addManualCheckIn(
+    eventId: string,
+    userId: string,
+    organizerId: string,
+    checkInDate?: string
+  ): Promise<{ checkIn?: any; error?: string }> {
+    try {
+      // Verify organizer is the event creator
+      const eventResult = await this.getEventById(eventId);
+      if (eventResult.error || !eventResult.event) {
+        return { error: 'Event not found' };
+      }
+
+      if (eventResult.event.created_by !== organizerId) {
+        return { error: 'Only the event organizer can add manual check-ins' };
+      }
+
+      // Use provided date or current date
+      const date = checkInDate || new Date().toISOString().split('T')[0];
+      const now = new Date().toISOString();
+
+      const { data, error } = await supabase
+        .from('attendance_logs')
+        .insert({
+          event_id: eventId,
+          user_id: userId,
+          check_in_time: now,
+          check_in_date: date,
+          check_in_method: 'manual',
+          is_validated: true,
+          validated_by: organizerId,
+          validation_notes: 'Manual check-in by organizer'
+        })
+        .select(`
+          id,
+          event_id,
+          user_id,
+          check_in_time,
+          check_in_date,
+          check_in_method,
+          is_validated,
+          validated_by,
+          validation_notes
+        `)
+        .single();
+
+      if (error) {
+        // Check if it's a unique constraint violation (already checked in)
+        if (error.code === '23505') {
+          return { error: 'User has already checked in for this date' };
+        }
+        return { error: error.message };
+      }
+
+      // Log activity
+      logActivity(
+        organizerId,
+        'create',
+        'check_in',
+        {
+          resourceId: data.id,
+          resourceName: 'Manual Check-In',
+          details: { event_id: eventId, user_id: userId, method: 'manual' }
+        }
+      ).catch(err => console.error('Failed to log check-in:', err));
+
+      return { checkIn: data };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Validate or unvalidate a check-in (for organizers)
+   */
+  static async updateCheckInValidation(
+    checkInId: string,
+    isValidated: boolean,
+    organizerId: string,
+    validationNotes?: string
+  ): Promise<{ checkIn?: any; error?: string }> {
+    try {
+      // Get the check-in to get the event_id
+      const { data: checkIn, error: fetchError } = await supabase
+        .from('attendance_logs')
+        .select('event_id')
+        .eq('id', checkInId)
+        .maybeSingle();
+
+      if (fetchError) {
+        return { error: fetchError.message || 'Failed to fetch check-in' };
+      }
+
+      if (!checkIn) {
+        return { error: 'Check-in not found' };
+      }
+
+      // Get the event to verify ownership
+      const eventResult = await this.getEventById(checkIn.event_id);
+      if (eventResult.error || !eventResult.event) {
+        return { error: 'Event not found' };
+      }
+
+      // Verify organizer is the event creator
+      if (eventResult.event.created_by !== organizerId) {
+        return { error: 'Only the event organizer can validate check-ins' };
+      }
+
+      const updateData: any = {
+        is_validated: isValidated,
+        validated_by: isValidated ? organizerId : null
+      };
+
+      if (validationNotes !== undefined) {
+        updateData.validation_notes = validationNotes;
+      }
+
+      // Update the check-in and get the count of affected rows
+      const { data: updatedRows, error: updateError, count } = await supabase
+        .from('attendance_logs')
+        .update(updateData)
+        .eq('id', checkInId)
+        .select('id', { count: 'exact' });
+
+      if (updateError) {
+        console.error('Update error:', updateError);
+        return { error: updateError.message || 'Failed to update check-in' };
+      }
+
+      // Check if any rows were actually updated
+      if (!updatedRows || updatedRows.length === 0) {
+        console.error('No rows updated - likely blocked by RLS policy');
+        return { error: 'Update failed: No rows were updated. This may be due to missing UPDATE permissions on attendance_logs table. Please ensure the RLS UPDATE policy exists.' };
+      }
+
+      // Fetch the updated check-in to return it
+      const { data: updatedCheckIn, error: selectError } = await supabase
+        .from('attendance_logs')
+        .select('*')
+        .eq('id', checkInId)
+        .maybeSingle();
+
+      if (selectError) {
+        console.error('Select error:', selectError);
+        return { error: selectError.message || 'Failed to fetch updated check-in' };
+      }
+
+      if (!updatedCheckIn) {
+        return { error: 'Check-in not found after update. The update may have been blocked by permissions.' };
+      }
+
+      // Verify the update actually changed the validation status
+      if (updatedCheckIn.is_validated !== isValidated) {
+        console.error('Update did not change validation status', {
+          expected: isValidated,
+          actual: updatedCheckIn.is_validated,
+          checkInId
+        });
+        return { error: 'Update did not change the validation status. Please check database permissions.' };
+      }
+
+      // Log activity
+      logActivity(
+        organizerId,
+        'update',
+        'check_in',
+        {
+          resourceId: checkInId,
+          resourceName: 'Check-In Validation',
+          details: { is_validated: isValidated, method: 'organizer_update' }
+        }
+      ).catch(err => console.error('Failed to log validation update:', err));
+
+      return { checkIn: updatedCheckIn };
+    } catch (error: any) {
+      console.error('Error in updateCheckInValidation:', error);
+      return { error: error?.message || 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Get check-in statistics for an event
+   */
+  static async getCheckInStatistics(eventId: string): Promise<{ stats?: any; error?: string }> {
+    try {
+      // Get all check-ins
+      const { data: checkIns, error: checkInsError } = await supabase
+        .from('attendance_logs')
+        .select('user_id, check_in_method, is_validated, check_in_date, check_in_time')
+        .eq('event_id', eventId);
+
+      if (checkInsError) {
+        return { error: checkInsError.message };
+      }
+
+      // Get total registrations
+      const { count: totalRegistrations } = await supabase
+        .from('event_registrations')
+        .select('*', { count: 'exact', head: true })
+        .eq('event_id', eventId)
+        .eq('status', 'registered');
+
+      const totalCheckIns = checkIns?.length || 0;
+      const validatedCheckIns = checkIns?.filter(c => c.is_validated).length || 0;
+      const unvalidatedCheckIns = totalCheckIns - validatedCheckIns;
+
+      // Count by method
+      const byMethod = {
+        qr_scan: checkIns?.filter(c => c.check_in_method === 'qr_scan').length || 0,
+        manual: checkIns?.filter(c => c.check_in_method === 'manual').length || 0,
+        admin_override: checkIns?.filter(c => c.check_in_method === 'admin_override').length || 0
+      };
+
+      // Count by date (for multi-day events)
+      const byDate: Record<string, number> = {};
+      checkIns?.forEach(checkIn => {
+        const date = checkIn.check_in_date || new Date(checkIn.check_in_time).toISOString().split('T')[0];
+        byDate[date] = (byDate[date] || 0) + 1;
+      });
+
+      // Calculate check-in rate based on unique users who checked in
+      // (not total check-ins, since multi-day events allow multiple check-ins per user)
+      const uniqueUsersCheckedIn = new Set(checkIns?.map(c => c.user_id) || []).size;
+      const checkInRate = totalRegistrations && totalRegistrations > 0
+        ? ((uniqueUsersCheckedIn / totalRegistrations) * 100).toFixed(2)
+        : '0.00';
+
+      return {
+        stats: {
+          total_check_ins: totalCheckIns,
+          validated_check_ins: validatedCheckIns,
+          unvalidated_check_ins: unvalidatedCheckIns,
+          total_registrations: totalRegistrations || 0,
+          unique_users_checked_in: uniqueUsersCheckedIn,
+          check_in_rate: `${checkInRate}%`,
+          by_method: byMethod,
+          by_date: byDate
+        }
+      };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
     }
   }
 }
