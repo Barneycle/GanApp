@@ -280,6 +280,13 @@ export default function Albums() {
         throw new Error(`Failed to download image: HTTP ${downloadResult.status}`);
       }
 
+      // Verify downloaded file is stable before proceeding
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      console.log('Downloaded image ready:', { exists: fileInfo.exists, size: fileInfo.size });
+      if (!fileInfo.exists || (fileInfo.size || 0) === 0) {
+        throw new Error('Downloaded image file is invalid');
+      }
+
       // Add attribution watermark (Reddit-style)
       let finalImageUri = fileUri;
       try {
@@ -441,75 +448,80 @@ export default function Albums() {
           const downloadResult = await FileSystem.downloadAsync(photo.photo_url, fileUri);
           
           if (downloadResult.status === 200) {
+            // Verify downloaded file is stable before proceeding
+            const fileInfo = await FileSystem.getInfoAsync(fileUri);
+            console.log('Downloaded image ready (bulk):', { exists: fileInfo.exists, size: fileInfo.size });
+            
             // Add attribution watermark (Reddit-style)
             let finalImageUri = fileUri;
-            try {
-              // Get uploader's user ID from filename (format: userId_timestamp.jpg)
-              let uploaderUserId = photo.uploaded_by;
-              if (!uploaderUserId && photo.file_name) {
-                // Extract userId from filename: userId_timestamp.jpg
-                const fileNameParts = photo.file_name.split('_');
-                if (fileNameParts.length >= 2) {
-                  uploaderUserId = fileNameParts[0];
-                }
-              }
-              
-              // Get uploader's full name for attribution
-              let userName = 'User';
-              if (uploaderUserId) {
-                // Try to get user profile from RPC function
-                const { data: userProfile, error: rpcError } = await supabase.rpc('get_user_profile', { user_id: uploaderUserId });
-                
-                if (!rpcError && userProfile) {
-                  const profile = typeof userProfile === 'string' ? JSON.parse(userProfile) : userProfile;
-                  const firstName = profile.first_name || '';
-                  const lastName = profile.last_name || '';
-                  
-                  if (firstName && lastName) {
-                    userName = `${firstName} ${lastName}`;
-                  } else if (firstName) {
-                    userName = firstName;
-                  } else if (lastName) {
-                    userName = lastName;
-                  } else if (profile.email) {
-                    userName = profile.email.split('@')[0];
-                  }
-                } else {
-                  // Fallback: use filename pattern
-                  userName = uploaderUserId.substring(0, 8) + '...';
-                }
-              }
-              
-              // Add attribution overlay to the image (wrapped in try-catch to prevent crashes)
-              // Use Promise.resolve to ensure it never throws
+            if (fileInfo.exists && (fileInfo.size || 0) > 0) {
               try {
-                const attributedUri = await Promise.resolve(addAttributionToImage(fileUri, userName)).catch((err) => {
-                  console.error('Attribution promise rejected (bulk):', err);
-                  return fileUri;
-                });
+                // Get uploader's user ID from filename (format: userId_timestamp.jpg)
+                let uploaderUserId = photo.uploaded_by;
+                if (!uploaderUserId && photo.file_name) {
+                  // Extract userId from filename: userId_timestamp.jpg
+                  const fileNameParts = photo.file_name.split('_');
+                  if (fileNameParts.length >= 2) {
+                    uploaderUserId = fileNameParts[0];
+                  }
+                }
                 
-                finalImageUri = attributedUri || fileUri;
-                
-                // Verify the attributed image exists
-                if (finalImageUri && finalImageUri !== fileUri) {
-                  try {
-                    const checkPath = finalImageUri.startsWith('file://') 
-                      ? finalImageUri 
-                      : `file://${finalImageUri}`;
+                // Get uploader's full name for attribution
+                let userName = 'User';
+                if (uploaderUserId) {
+                  // Try to get user profile from RPC function
+                  const { data: userProfile, error: rpcError } = await supabase.rpc('get_user_profile', { user_id: uploaderUserId });
+                  
+                  if (!rpcError && userProfile) {
+                    const profile = typeof userProfile === 'string' ? JSON.parse(userProfile) : userProfile;
+                    const firstName = profile.first_name || '';
+                    const lastName = profile.last_name || '';
                     
-                    const fileInfo = await FileSystem.getInfoAsync(checkPath);
-                    if (!fileInfo.exists) {
-                      console.warn('Attributed image does not exist (bulk), using original');
+                    if (firstName && lastName) {
+                      userName = `${firstName} ${lastName}`;
+                    } else if (firstName) {
+                      userName = firstName;
+                    } else if (lastName) {
+                      userName = lastName;
+                    } else if (profile.email) {
+                      userName = profile.email.split('@')[0];
+                    }
+                  } else {
+                    // Fallback: use filename pattern
+                    userName = uploaderUserId.substring(0, 8) + '...';
+                  }
+                }
+                
+                // Add attribution overlay to the image (wrapped in try-catch to prevent crashes)
+                // Use Promise.resolve to ensure it never throws
+                try {
+                  const attributedUri = await Promise.resolve(addAttributionToImage(fileUri, userName)).catch((err) => {
+                    console.error('Attribution promise rejected (bulk):', err);
+                    return fileUri;
+                  });
+                  
+                  finalImageUri = attributedUri || fileUri;
+                  
+                  // Verify the attributed image exists
+                  if (finalImageUri && finalImageUri !== fileUri) {
+                    try {
+                      const checkPath = finalImageUri.startsWith('file://') 
+                        ? finalImageUri 
+                        : `file://${finalImageUri}`;
+                      
+                      const checkFileInfo = await FileSystem.getInfoAsync(checkPath);
+                      if (!checkFileInfo.exists) {
+                        console.warn('Attributed image does not exist (bulk), using original');
+                        finalImageUri = fileUri;
+                      }
+                    } catch (checkError) {
+                      console.warn('Error checking attributed image (bulk), using original:', checkError);
                       finalImageUri = fileUri;
                     }
-                  } catch (checkError) {
-                    console.warn('Error checking attributed image (bulk), using original:', checkError);
+                  } else if (!finalImageUri) {
+                    // If attribution returns null/undefined, use original
                     finalImageUri = fileUri;
                   }
-                } else if (!finalImageUri) {
-                  // If attribution returns null/undefined, use original
-                  finalImageUri = fileUri;
-                }
               } catch (attributionError: any) {
                 console.error('Error adding attribution (bulk), using original image:', attributionError?.message || attributionError);
                 finalImageUri = fileUri;
@@ -518,6 +530,9 @@ export default function Albums() {
               console.error('Error in attribution block (bulk), using original image:', attributionError?.message || attributionError);
               finalImageUri = fileUri;
             }
+          } else {
+            console.warn('Downloaded image file is invalid, skipping attribution');
+          }
             
             // Ensure URI has file:// prefix
             const assetUri = finalImageUri.startsWith('file://') 

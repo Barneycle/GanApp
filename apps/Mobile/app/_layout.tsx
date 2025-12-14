@@ -8,6 +8,7 @@ import { AuthProvider } from '../lib/authContext';
 import { ToastProvider } from '../components/Toast';
 import { SweetAlertProvider, SweetAlertRef } from '../components/SweetAlertProvider';
 import { setSweetAlertRef } from '../lib/sweetAlert';
+import { AttributionRenderer } from '../components/AttributionRenderer';
 import './global.css';
 
 // Configure notification behavior
@@ -192,6 +193,8 @@ export default function RootLayout() {
                 />
               </Stack>
               <StatusBar style="light" />
+              {/* Attribution renderer for view-shot compositing */}
+              <AttributionRenderer />
             </AuthProvider>
           </SweetAlertProvider>
         </ToastProvider>

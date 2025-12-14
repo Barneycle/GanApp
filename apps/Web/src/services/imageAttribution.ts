@@ -76,25 +76,51 @@ export async function addAttributionToImage(
     // Attribution text
     const attributionText = `Posted in GanApp by ${userName}`;
     
-    // Text styling - keep original smaller size
-    const fontSize = Math.max(24, Math.floor(image.width / 40)); // Responsive font size
-    const paddingX = Math.max(20, Math.floor(image.width / 50));
-    const paddingY = Math.max(15, Math.floor(image.height / 80));
+    // Calculate font size using same logic as mobile
+    // Step 1: Calculate dynamic font size based on image width
+    const dynamicFontSize = Math.max(24, Math.floor(image.width / 40));
     
-    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    // Step 2: Calculate padding
+    const leftPadding = Math.max(20, Math.floor(image.width / 50));
+    const rightPadding = Math.max(20, Math.floor(image.width / 50));
+    
+    // Step 3: Check if text fits with logo space
+    // Try to load logo first to determine if we need space for it
+    let logoSpace = 0;
+    let logo: HTMLImageElement | null = null;
+    try {
+      const logoPath = '/ganapp_attri.png';
+      logo = await loadImage(logoPath);
+      logoSpace = dynamicFontSize * 6.0; // Logo size is fontSize * 6.0
+    } catch (logoError) {
+      // Logo not available, continue without it
+      console.log('Logo not available, continuing without logo');
+    }
+    
+    // Step 4: Calculate available width for text
+    const availableWidth = image.width - leftPadding - rightPadding - logoSpace;
+    const textLength = attributionText.length;
+    const maxFontSizeForText = Math.floor(availableWidth / (textLength * 0.6));
+    const minFontSize = 20;
+    const finalFontSize = Math.max(minFontSize, Math.min(dynamicFontSize, maxFontSizeForText));
+    
+    // Step 5: Calculate padding and bar height
+    const paddingX = leftPadding;
+    const paddingY = Math.max(15, Math.floor(image.height / 80));
+    const textHeight = finalFontSize;
+    const barHeight = textHeight + paddingY * 2;
+    
+    // Set font style - normal weight (not bold) to match mobile
+    ctx.font = `normal ${finalFontSize}px Arial, sans-serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'bottom';
-    
-    // Measure text
-    const textMetrics = ctx.measureText(attributionText);
-    const textHeight = fontSize;
     
     // Reddit-style: Full-width bar at the very bottom
     // Background spans entire width of image
     const bgX = 0;
-    const bgY = canvas.height - (textHeight + paddingY * 2);
+    const bgY = canvas.height - barHeight;
     const bgWidth = canvas.width;
-    const bgHeight = textHeight + paddingY * 2;
+    const bgHeight = barHeight;
     
     // Draw full-width background bar (black, no transparency for Reddit style)
     ctx.fillStyle = '#000000';
@@ -104,15 +130,10 @@ export async function addAttributionToImage(
     ctx.fillStyle = '#FFFFFF';
     ctx.fillText(attributionText, paddingX, bgY + textHeight + paddingY);
     
-    // Try to load and draw logo (if available) on the right side
-    // Logo is optional - if it fails to load, we continue without it
-    try {
-      // Logo is in public folder, accessible via root path
-      const logoPath = '/ganapp_attri.png';
-      const logo = await loadImage(logoPath);
-      
-      // Scale logo to be much bigger than font
-      const logoSize = fontSize * 6.0;
+    // Draw logo (if available) on the right side
+    if (logo) {
+      // Calculate logo size based on final font size
+      const logoSize = finalFontSize * 6.0;
       // Preserve aspect ratio
       const logoAspectRatio = logo.width / logo.height;
       const logoWidth = logoSize;
@@ -124,9 +145,6 @@ export async function addAttributionToImage(
       
       // Draw logo (no background needed since it's in the black bar)
       ctx.drawImage(logo, logoX, logoY, logoWidth, logoHeight);
-    } catch (logoError) {
-      // Logo is optional, continue without it
-      console.log('Logo not available, continuing without logo');
     }
     
     // Convert canvas to blob

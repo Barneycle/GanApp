@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import {
 import { showError, showSuccess, showWarning, showInfo } from '../lib/sweetAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import {
   Camera,
   getCameraDevice,
@@ -48,7 +48,7 @@ export default function CameraScreen() {
   const [photoCount, setPhotoCount] = useState(0);
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, percentage: 0 });
-  
+
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
@@ -57,7 +57,7 @@ export default function CameraScreen() {
   const devices = Camera.getAvailableCameraDevices();
   const device = getCameraDevice(devices, cameraType);
   const activeDevice = device || devices.find(d => d.position === 'back') || devices[0];
-  
+
   // Get camera format with 4:3 aspect ratio
   // Manually find a format with 4:3 aspect ratio
   const cameraFormat = activeDevice?.formats?.find(format => {
@@ -69,6 +69,21 @@ export default function CameraScreen() {
     return false;
   }) || activeDevice?.formats?.[0]; // Fallback to first available format
 
+  // Add this function to refresh photo count
+  const refreshPhotoCount = useCallback(async () => {
+    if (eventId && user?.id) {
+      const limitCheck = await checkPhotoLimit(eventId, user.id);
+      setPhotoCount(limitCheck.count);
+    }
+  }, [eventId, user?.id]);
+
+  // Refresh photo count when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      refreshPhotoCount();
+    }, [refreshPhotoCount])
+  );
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -79,10 +94,7 @@ export default function CameraScreen() {
           }
         }
         // Check existing photo count when component loads
-        if (eventId && user?.id) {
-          const limitCheck = await checkPhotoLimit(eventId, user.id);
-          setPhotoCount(limitCheck.count);
-        }
+        await refreshPhotoCount();
       } catch (err) {
         setError('Failed to initialize camera.');
       } finally {
@@ -96,12 +108,12 @@ export default function CameraScreen() {
       setError('No camera available on this device.');
       setIsInitializing(false);
     }
-  }, [hasPermission, requestPermission, activeDevice, eventId, user?.id]);
+  }, [hasPermission, requestPermission, activeDevice, eventId, user?.id, refreshPhotoCount]);
 
   const checkPhotoLimit = async (eventId: string, userId: string): Promise<{ allowed: boolean; count: number }> => {
     try {
       const PHOTO_LIMIT = 10;
-      
+
       // Check storage bucket for user's photos
       // List all files in the event folder
       const { data: files, error: storageError } = await supabase.storage
@@ -118,13 +130,13 @@ export default function CameraScreen() {
       }
 
       // Count files that match the user ID pattern (userId_timestamp.jpg)
-      const userPhotoCount = files?.filter(file => 
+      const userPhotoCount = files?.filter(file =>
         file.name.startsWith(`${userId}_`) && file.name.endsWith('.jpg')
       ).length || 0;
 
-      return { 
-        allowed: userPhotoCount < PHOTO_LIMIT, 
-        count: userPhotoCount 
+      return {
+        allowed: userPhotoCount < PHOTO_LIMIT,
+        count: userPhotoCount
       };
     } catch (err) {
       console.error('Error checking photo limit:', err);
@@ -211,7 +223,7 @@ export default function CameraScreen() {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         // Process selected images
         const newPhotos: CapturedPhoto[] = [];
-        
+
         for (const asset of result.assets) {
           // Check if we've reached the limit
           if (photoCount + capturedPhotos.length + newPhotos.length >= 10) {
@@ -275,7 +287,7 @@ export default function CameraScreen() {
       // Track progress for each photo (0-100 for each)
       // Use an object to maintain reference across closures
       const progressState = { photoProgress: new Array(total).fill(0) };
-      
+
       // Helper function to update progress
       const updateProgress = () => {
         const photoProgress = progressState.photoProgress;
@@ -283,19 +295,19 @@ export default function CameraScreen() {
         const totalProgress = photoProgress.reduce((sum, p) => sum + p, 0);
         const averageProgress = totalProgress / total;
         const percentage = Math.round(averageProgress);
-        
+
         // Count completed photos (photos at 100%)
         const completedPhotos = photoProgress.filter(p => p >= 100).length;
-        
-        setUploadProgress({ 
-          current: completedPhotos, 
-          total, 
-          percentage: Math.min(percentage, 100) 
+
+        setUploadProgress({
+          current: completedPhotos,
+          total,
+          percentage: Math.min(percentage, 100)
         });
       };
-      
+
       // Upload all photos in parallel with progress tracking
-      const uploadPromises = capturedPhotos.map((photo, index) => 
+      const uploadPromises = capturedPhotos.map((photo, index) =>
         uploadPhoto(photo.path, eventId, user.id, (progress) => {
           // Update this photo's progress (0-100), ensuring it only increases
           progressState.photoProgress[index] = Math.max(
@@ -319,7 +331,7 @@ export default function CameraScreen() {
       setUploadProgress({ current: 0, total: 0, percentage: 0 });
 
       showSuccess(
-        'Success', 
+        'Success',
         `Successfully uploaded ${uploadedCount} photo(s)!`
       );
     } catch (err: any) {
@@ -333,15 +345,15 @@ export default function CameraScreen() {
   };
 
   const uploadPhoto = async (
-    photoPath: string, 
-    eventId: string, 
+    photoPath: string,
+    eventId: string,
     userId: string,
     onProgress?: (progress: number) => void
   ) => {
     try {
       // Convert file path to URI format for React Native
       const fileUri = photoPath.startsWith('file://') ? photoPath : `file://${photoPath}`;
-      
+
       // Compress image before upload (reduce file size for faster uploads)
       const manipulatedImage = await ImageManipulator.manipulateAsync(
         fileUri,
@@ -503,7 +515,7 @@ export default function CameraScreen() {
         {/* Overlay */}
         <View style={StyleSheet.absoluteFill} className="justify-between">
           {/* Top Bar */}
-          <View 
+          <View
             className="flex-row items-center justify-between px-4 pt-4"
             style={{ paddingTop: insets.top + 16 }}
           >
@@ -513,12 +525,12 @@ export default function CameraScreen() {
             >
               <Ionicons name="close" size={24} color="#ffffff" />
             </TouchableOpacity>
-            
+
             <View className="w-10" />
           </View>
 
           {/* Bottom Controls */}
-          <View 
+          <View
             className="pb-8"
             style={{ paddingBottom: Math.max(insets.bottom, 20) + 20 }}
           >
@@ -593,7 +605,7 @@ export default function CameraScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-            
+
             {error && (
               <Text className="text-red-400 mt-4 text-center px-4 text-base">{error}</Text>
             )}
@@ -610,7 +622,7 @@ export default function CameraScreen() {
       >
         <SafeAreaView className="flex-1 bg-black">
           {/* Modal Header */}
-          <View 
+          <View
             className="flex-row items-center justify-between px-4 py-4"
             style={{ paddingTop: insets.top + 16 }}
           >
@@ -620,16 +632,16 @@ export default function CameraScreen() {
             >
               <Ionicons name="close" size={24} color="#ffffff" />
             </TouchableOpacity>
-            
+
             <Text className="text-white text-lg font-semibold">
               {capturedPhotos.length} Photo(s)
             </Text>
-            
+
             <View className="w-10" />
           </View>
 
           {/* Photo Grid */}
-          <ScrollView 
+          <ScrollView
             className="flex-1 px-4"
             contentContainerStyle={{ paddingTop: 20, paddingBottom: 20 }}
           >
@@ -639,8 +651,8 @@ export default function CameraScreen() {
                 <TouchableOpacity
                   onPress={pickImagesFromLibrary}
                   className="relative border-2 border-dashed border-white/50 items-center justify-center"
-                  style={{ 
-                    width: '30%', 
+                  style={{
+                    width: '30%',
                     aspectRatio: 1,
                     borderRadius: 12,
                     marginTop: 8,
@@ -652,7 +664,7 @@ export default function CameraScreen() {
                   </Text>
                 </TouchableOpacity>
               )}
-              
+
               {capturedPhotos.map((photo, index) => (
                 <View key={index} className="relative" style={{ width: '30%', marginTop: 8 }}>
                   <Image
@@ -680,7 +692,7 @@ export default function CameraScreen() {
           </ScrollView>
 
           {/* Modal Footer */}
-          <View 
+          <View
             className="px-4 py-4 border-t border-white/20"
             style={{ paddingBottom: Math.max(insets.bottom, 20) + 20 }}
           >
@@ -702,14 +714,14 @@ export default function CameraScreen() {
                   </Text>
                 </View>
                 <View className="h-2 bg-white/20 rounded-full overflow-hidden">
-                  <View 
+                  <View
                     className="h-full bg-green-500 rounded-full"
                     style={{ width: `${uploadProgress.percentage}%` }}
                   />
                 </View>
               </View>
             )}
-            
+
             {capturedPhotos.length > 0 && (
               <TouchableOpacity
                 onPress={async () => {

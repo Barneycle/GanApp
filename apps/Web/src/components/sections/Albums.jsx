@@ -223,6 +223,9 @@ export const Albums = () => {
         title: 'Photo Already Downloaded',
         message: 'This photo has already been downloaded. Do you want to download it again?',
         onConfirm: async () => {
+          // Close dialog first
+          setConfirmationDialog(prev => ({ ...prev, isOpen: false }));
+          // Then perform download
           await performDownload(photo);
         },
         type: 'warning',
@@ -264,6 +267,9 @@ export const Albums = () => {
         title: 'Some Photos Already Downloaded',
         message: `${alreadyDownloaded.length} photo(s) have already been downloaded. Do you want to download all photos again (including already downloaded ones)?`,
         onConfirm: async () => {
+          // Close dialog first
+          setConfirmationDialog(prev => ({ ...prev, isOpen: false }));
+          // Then perform download
           await performDownloadAll(event);
         },
         type: 'warning',
