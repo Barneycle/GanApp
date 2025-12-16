@@ -68,6 +68,7 @@ export const CreateSurvey = () => {
   const [pendingEventFiles, setPendingEventFiles] = useState(null);
   const [pendingSpeakers, setPendingSpeakers] = useState([]);
   const [pendingSponsors, setPendingSponsors] = useState([]);
+  const [hasCertificateConfig, setHasCertificateConfig] = useState(false);
 
   // Get saved form data from session storage
   const getSavedFormData = () => {
@@ -167,7 +168,61 @@ export const CreateSurvey = () => {
       toast.error('Error loading event data. Please try again.');
       navigate('/create-event');
     }
+
+    // Check if certificate config exists
+    const certConfig = sessionStorage.getItem('pending-certificate-config');
+    if (certConfig) {
+      try {
+        const parsed = JSON.parse(certConfig);
+        // Check if config has meaningful content (not just defaults)
+        if (parsed && (parsed.title_text || parsed.name_config || parsed.header_config)) {
+          setHasCertificateConfig(true);
+        }
+      } catch (e) {
+        // Invalid config, treat as not saved
+        setHasCertificateConfig(false);
+      }
+    }
   }, [navigate]);
+
+  // Listen for certificate config changes (when user saves draft)
+  useEffect(() => {
+    const checkCertificateConfig = () => {
+      const certConfig = sessionStorage.getItem('pending-certificate-config');
+      if (certConfig) {
+        try {
+          const parsed = JSON.parse(certConfig);
+          if (parsed && (parsed.title_text || parsed.name_config || parsed.header_config)) {
+            setHasCertificateConfig(true);
+            return;
+          }
+        } catch (e) {
+          // Invalid config
+        }
+      }
+      setHasCertificateConfig(false);
+    };
+
+    // Check immediately
+    checkCertificateConfig();
+
+    // Listen for storage changes (when certificate is saved from another tab/window)
+    const handleStorageChange = (e) => {
+      if (e.key === 'pending-certificate-config') {
+        checkCertificateConfig();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    // Also poll for changes (since storage event doesn't fire in same tab)
+    const interval = setInterval(checkCertificateConfig, 1000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
 
   // Restore saved form data on component mount
   useEffect(() => {
@@ -800,13 +855,18 @@ export const CreateSurvey = () => {
 
       const surveyId = surveyResult.survey.id;
 
-      // Step 3: Save certificate configuration if it exists in draft
+      // Step 3: Save certificate configuration if it exists in draft AND user wants certificates
+      // Only save if certificate config exists (meaning user opted in for certificates)
       try {
         const draftCertConfig = sessionStorage.getItem('pending-certificate-config');
         if (draftCertConfig) {
           const certConfig = JSON.parse(draftCertConfig);
-          await CertificateService.saveCertificateConfig(eventId, certConfig, user.id);
+          // Validate that config has meaningful content before saving
+          if (certConfig && (certConfig.title_text || certConfig.name_config || certConfig.header_config)) {
+            await CertificateService.saveCertificateConfig(eventId, certConfig, user.id);
+          }
         }
+        // If no certificate config exists, that means user opted out - don't create any certificate records
       } catch (certError) {
         console.error('Failed to save certificate config:', certError);
         // Don't fail the whole process if certificate config save fails
@@ -846,11 +906,15 @@ export const CreateSurvey = () => {
           <div className="flex items-center justify-center mb-4">
             <button
               onClick={() => {
-                // Navigate back to event creation WITHOUT clearing data
-                navigate('/create-event');
+                // Go back to Certificate Designer if certificate config exists, otherwise go to Create Event
+                if (hasCertificateConfig) {
+                  navigate('/design-certificate');
+                } else {
+                  navigate('/create-event');
+                }
               }}
               className="p-3 rounded-full bg-white shadow-lg hover:shadow-xl transition-all duration-200 mr-4 group"
-              aria-label="Back to create event"
+              aria-label={hasCertificateConfig ? "Back to certificate designer" : "Back to create event"}
             >
               <svg
                 className="w-6 h-6 text-slate-600 group-hover:text-blue-600 transition-colors"
@@ -883,16 +947,22 @@ export const CreateSurvey = () => {
               </div>
 
               {/* Connector Line */}
-              <div className="hidden sm:block w-16 h-0.5 bg-green-500"></div>
+              <div className={`hidden sm:block w-16 h-0.5 ${hasCertificateConfig ? 'bg-green-500' : 'bg-green-500'}`}></div>
 
-              {/* Step 2: Design Certificate - Skipped (optional, can be hidden) */}
-              <div className="flex flex-col items-center opacity-50">
-                <div className="w-12 h-12 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center font-bold text-lg">
-                  2
+              {/* Step 2: Design Certificate - Completed or Skipped */}
+              <div className={`flex flex-col items-center ${hasCertificateConfig ? '' : 'opacity-50'}`}>
+                <div className={`w-12 h-12 rounded-full ${hasCertificateConfig ? 'bg-green-500 text-white shadow-lg' : 'bg-slate-200 text-slate-400'} flex items-center justify-center font-bold text-lg`}>
+                  {hasCertificateConfig ? (
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    '2'
+                  )}
                 </div>
                 <div className="mt-2 text-center">
-                  <p className="text-sm font-semibold text-slate-400">Design Certificate</p>
-                  <p className="text-xs text-slate-300 mt-1">Skipped</p>
+                  <p className={`text-sm font-semibold ${hasCertificateConfig ? 'text-green-600' : 'text-slate-400'}`}>Design Certificate</p>
+                  <p className={`text-xs mt-1 ${hasCertificateConfig ? 'text-slate-500' : 'text-slate-300'}`}>{hasCertificateConfig ? 'Completed' : 'Skipped'}</p>
                 </div>
               </div>
 

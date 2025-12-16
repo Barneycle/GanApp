@@ -598,23 +598,23 @@ export const StandaloneCertificateGenerator = () => {
       university_text: 'Partido State University',
       location_text: 'Goa, Camarines Sur',
       republic_config: {
-        font_size: 20,
+        font_size: 24,
         color: '#000000',
-        position: { x: 50, y: 8 },
+        position: { x: 50, y: 8.5 },
         font_family: 'Libre Baskerville, serif',
         font_weight: 'normal'
       },
       university_config: {
-        font_size: 28,
+        font_size: 34,
         color: '#000000',
-        position: { x: 50, y: 11 },
+        position: { x: 50, y: 10.5 },
         font_family: 'Libre Baskerville, serif',
         font_weight: 'bold'
       },
       location_config: {
-        font_size: 20,
+        font_size: 24,
         color: '#000000',
-        position: { x: 50, y: 14 },
+        position: { x: 50, y: 12.5 },
         font_family: 'Libre Baskerville, serif',
         font_weight: 'normal'
       }

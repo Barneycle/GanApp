@@ -323,7 +323,7 @@ export async function generatePNGCertificate(
   if (header.republic_text && header.republic_config) {
     const repConfig = header.republic_config;
     ctx.fillStyle = repConfig.color || '#000000';
-    ctx.font = `${repConfig.font_weight || 'normal'} ${repConfig.font_size || 20}px ${repConfig.font_family || 'Libre Baskerville, serif'}`;
+    ctx.font = `${repConfig.font_weight || 'normal'} ${repConfig.font_size || 24}px ${repConfig.font_family || 'Libre Baskerville, serif'}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(
@@ -337,7 +337,7 @@ export async function generatePNGCertificate(
   if (header.university_text && header.university_config) {
     const uniConfig = header.university_config;
     ctx.fillStyle = uniConfig.color || '#000000';
-    ctx.font = `${uniConfig.font_weight || 'bold'} ${uniConfig.font_size || 28}px ${uniConfig.font_family || 'Libre Baskerville, serif'}`;
+    ctx.font = `${uniConfig.font_weight || 'bold'} ${uniConfig.font_size || 34}px ${uniConfig.font_family || 'Libre Baskerville, serif'}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(
@@ -351,7 +351,7 @@ export async function generatePNGCertificate(
   if (header.location_text && header.location_config) {
     const locConfig = header.location_config;
     ctx.fillStyle = locConfig.color || '#000000';
-    ctx.font = `${locConfig.font_weight || 'normal'} ${locConfig.font_size || 20}px ${locConfig.font_family || 'Libre Baskerville, serif'}`;
+    ctx.font = `${locConfig.font_weight || 'normal'} ${locConfig.font_size || 24}px ${locConfig.font_family || 'Libre Baskerville, serif'}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(
@@ -396,7 +396,7 @@ export async function generatePNGCertificate(
   // "is given to" Text
   if (isGivenTo.text) {
     ctx.fillStyle = isGivenTo.color || '#000000';
-    ctx.font = `${isGivenTo.font_weight || 'normal'} ${isGivenTo.font_size || 16}px ${isGivenTo.font_family || 'Libre Baskerville, serif'}`;
+    ctx.font = `${isGivenTo.font_weight || 'normal'} ${isGivenTo.font_size || 20}px ${isGivenTo.font_family || 'Libre Baskerville, serif'}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(
@@ -449,12 +449,12 @@ export async function generatePNGCertificate(
       .replace('{VENUE}', data.venue && data.venue.trim() ? data.venue : '[Venue]');
 
     ctx.fillStyle = participation.color || '#000000';
-    ctx.font = `${participation.font_weight || 'normal'} ${participation.font_size || 18}px ${participation.font_family || 'Libre Baskerville, serif'}`;
+    ctx.font = `${participation.font_weight || 'normal'} ${participation.font_size || 22}px ${participation.font_family || 'Libre Baskerville, serif'}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
     const lines = participationText.split('\n');
-    const lineHeight = (participation.font_size || 18) * (participation.line_height || 1.5);
+    const lineHeight = (participation.font_size || 22) * (participation.line_height || 1.5);
     const startY = (height * participation.position.y) / 100 - ((lines.length - 1) * lineHeight) / 2;
 
     lines.forEach((line: string, index: number) => {

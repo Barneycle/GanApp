@@ -88,23 +88,23 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
       university_text: 'Partido State University',
       location_text: 'Goa, Camarines Sur',
       republic_config: {
-        font_size: 20,
+        font_size: 24,
         color: '#000000',
-        position: { x: 50, y: 8 },
+        position: { x: 50, y: 8.5 },
         font_family: 'Libre Baskerville, serif',
         font_weight: 'normal'
       },
       university_config: {
-        font_size: 28,
+        font_size: 34,
         color: '#000000',
-        position: { x: 50, y: 11 },
+        position: { x: 50, y: 10.5 },
         font_family: 'Libre Baskerville, serif',
         font_weight: 'bold'
       },
       location_config: {
-        font_size: 20,
+        font_size: 24,
         color: '#000000',
-        position: { x: 50, y: 14 },
+        position: { x: 50, y: 12.5 },
         font_family: 'Libre Baskerville, serif',
         font_weight: 'normal'
       }
@@ -120,7 +120,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
     // Participation text configuration
     participation_text_config: {
       text_template: 'For his/her active participation during the {EVENT_NAME} held on {EVENT_DATE} at {VENUE}',
-      font_size: 18,
+      font_size: 22,
       color: '#000000',
       position: { x: 50, y: 60 },
       font_family: 'Libre Baskerville, serif',
@@ -130,7 +130,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
     // "is given to" text configuration
     is_given_to_config: {
       text: 'This certificate is proudly presented to',
-      font_size: 16,
+      font_size: 20,
       color: '#000000',
       position: { x: 50, y: 38 },
       font_family: 'Libre Baskerville, serif',
@@ -221,7 +221,22 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
           const mergedConfig = {
             ...defaultConfig,
             ...savedConfig,
-            header_config: { ...defaultConfig.header_config, ...(savedConfig.header_config || {}) },
+            header_config: {
+              ...defaultConfig.header_config,
+              ...(savedConfig.header_config || {}),
+              republic_config: {
+                ...defaultConfig.header_config.republic_config,
+                ...(savedConfig.header_config?.republic_config || {})
+              },
+              university_config: {
+                ...defaultConfig.header_config.university_config,
+                ...(savedConfig.header_config?.university_config || {})
+              },
+              location_config: {
+                ...defaultConfig.header_config.location_config,
+                ...(savedConfig.header_config?.location_config || {})
+              }
+            },
             logo_config: {
               ...defaultConfig.logo_config,
               ...(savedConfig.logo_config || {}),
@@ -284,7 +299,22 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
         const mergedConfig = {
           ...defaultConfig,
           ...result.config,
-          header_config: { ...defaultConfig.header_config, ...(result.config.header_config || {}) },
+          header_config: {
+            ...defaultConfig.header_config,
+            ...(result.config.header_config || {}),
+            republic_config: {
+              ...defaultConfig.header_config.republic_config,
+              ...(result.config.header_config?.republic_config || {})
+            },
+            university_config: {
+              ...defaultConfig.header_config.university_config,
+              ...(result.config.header_config?.university_config || {})
+            },
+            location_config: {
+              ...defaultConfig.header_config.location_config,
+              ...(result.config.header_config?.location_config || {})
+            }
+          },
           logo_config: {
             ...defaultConfig.logo_config,
             ...(result.config.logo_config || {}),
@@ -788,7 +818,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
               left: `${header.republic_config.position.x}%`,
               top: `${header.republic_config.position.y}%`,
               transform: 'translate(-50%, -50%)',
-              fontSize: `${(header.republic_config.font_size || 20) * scale}px`,
+              fontSize: `${(header.republic_config.font_size || 24) * scale}px`,
               color: header.republic_config.color || '#000000',
               fontFamily: header.republic_config.font_family || 'Libre Baskerville, serif',
               fontWeight: header.republic_config.font_weight || 'normal',
@@ -808,7 +838,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
               left: `${header.university_config.position.x}%`,
               top: `${header.university_config.position.y}%`,
               transform: 'translate(-50%, -50%)',
-              fontSize: `${(header.university_config.font_size || 28) * scale}px`,
+              fontSize: `${(header.university_config.font_size || 34) * scale}px`,
               color: header.university_config.color || '#000000',
               fontFamily: header.university_config.font_family || 'Libre Baskerville, serif',
               fontWeight: header.university_config.font_weight || 'bold',
@@ -828,7 +858,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
               left: `${header.location_config.position.x}%`,
               top: `${header.location_config.position.y}%`,
               transform: 'translate(-50%, -50%)',
-              fontSize: `${(header.location_config.font_size || 20) * scale}px`,
+              fontSize: `${(header.location_config.font_size || 24) * scale}px`,
               color: header.location_config.color || '#000000',
               fontFamily: header.location_config.font_family || 'Libre Baskerville, serif',
               fontWeight: header.location_config.font_weight || 'normal',
@@ -888,7 +918,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
               left: `${isGivenTo.position.x}%`,
               top: `${isGivenTo.position.y}%`,
               transform: 'translate(-50%, -50%)',
-              fontSize: `${(isGivenTo.font_size || 16) * scale}px`,
+              fontSize: `${(isGivenTo.font_size || 20) * scale}px`,
               color: isGivenTo.color || '#000000',
               fontFamily: isGivenTo.font_family || 'Libre Baskerville, serif',
               fontWeight: isGivenTo.font_weight || 'normal',
@@ -931,7 +961,7 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
               left: `${participation.position.x}%`,
               top: `${participation.position.y}%`,
               transform: 'translate(-50%, -50%)',
-              fontSize: `${(participation.font_size || 18) * scale}px`,
+              fontSize: `${(participation.font_size || 22) * scale}px`,
               color: participation.color || '#000000',
               fontFamily: participation.font_family || 'Libre Baskerville, serif',
               fontWeight: participation.font_weight || 'normal',

@@ -952,6 +952,14 @@ export const Events = () => {
     return `${hour12}:${minutes} ${ampm}`;
   };
 
+  // Helper function to check if an event has ended (is past)
+  const isEventPast = (event) => {
+    if (!event.end_date) return false;
+    const now = new Date();
+    const endDateTime = new Date(`${event.end_date}T${event.end_time || '23:59:59'}`);
+    return endDateTime < now;
+  };
+
   const formatCheckInTime = (event) => {
     if (!event.check_in_before_minutes) return formatTime(event.start_time);
 
@@ -2157,8 +2165,8 @@ export const Events = () => {
                               >
                                 {event.is_featured ? 'Remove Featured' : 'Set as Featured'}
                               </button>
-                              {/* Request Cancellation button - only for organizers, not for cancelled events */}
-                              {user?.role === 'organizer' && event.status !== 'cancelled' && (
+                              {/* Request Cancellation button - only for organizers, not for cancelled events, and not for past events */}
+                              {user?.role === 'organizer' && event.status !== 'cancelled' && !isEventPast(event) && (
                                 <button
                                   onClick={() => handleRequestCancellation(event.id)}
                                   disabled={loading}

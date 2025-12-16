@@ -272,23 +272,23 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
       university_text: 'Partido State University',
       location_text: 'Goa, Camarines Sur',
       republic_config: {
-        font_size: 20,
+        font_size: 24,
         color: '#000000',
-        position: { x: 50, y: 8 },
+        position: { x: 50, y: 8.5 },
         font_family: 'Libre Baskerville, serif',
         font_weight: 'normal'
       },
       university_config: {
-        font_size: 28,
+        font_size: 34,
         color: '#000000',
-        position: { x: 50, y: 11 },
+        position: { x: 50, y: 10.5 },
         font_family: 'Libre Baskerville, serif',
         font_weight: 'bold'
       },
       location_config: {
-        font_size: 20,
+        font_size: 24,
         color: '#000000',
-        position: { x: 50, y: 14 },
+        position: { x: 50, y: 12.5 },
         font_family: 'Libre Baskerville, serif',
         font_weight: 'normal'
       }
@@ -302,7 +302,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     },
     participation_text_config: {
       text_template: 'For his/her active participation during the {EVENT_NAME} held on {EVENT_DATE} at {VENUE}',
-      font_size: 18,
+      font_size: 22,
       color: '#000000',
       position: { x: 50, y: 60 },
       font_family: 'Libre Baskerville, serif',
@@ -311,7 +311,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     },
     is_given_to_config: {
       text: 'This certificate is proudly presented to',
-      font_size: 16,
+      font_size: 20,
       color: '#000000',
       position: { x: 50, y: 38 },
       font_family: 'Libre Baskerville, serif',
@@ -356,7 +356,22 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
         const mergedConfig = {
           ...defaultConfig,
           ...configResult.config,
-          header_config: { ...defaultConfig.header_config, ...(configResult.config.header_config || {}) },
+          header_config: {
+            ...defaultConfig.header_config,
+            ...(configResult.config.header_config || {}),
+            republic_config: {
+              ...defaultConfig.header_config.republic_config,
+              ...(configResult.config.header_config?.republic_config || {})
+            },
+            university_config: {
+              ...defaultConfig.header_config.university_config,
+              ...(configResult.config.header_config?.university_config || {})
+            },
+            location_config: {
+              ...defaultConfig.header_config.location_config,
+              ...(configResult.config.header_config?.location_config || {})
+            }
+          },
           logo_config: {
             ...defaultConfig.logo_config,
             ...(configResult.config.logo_config || {}),
@@ -608,7 +623,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     if (header.republic_text && header.republic_config) {
       const repConfig = header.republic_config;
       ctx.fillStyle = repConfig.color || '#000000';
-      ctx.font = `${repConfig.font_weight || 'normal'} ${repConfig.font_size || 20}px ${repConfig.font_family || 'Libre Baskerville, serif'}`;
+      ctx.font = `${repConfig.font_weight || 'normal'} ${repConfig.font_size || 24}px ${repConfig.font_family || 'Libre Baskerville, serif'}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(
@@ -622,7 +637,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     if (header.university_text && header.university_config) {
       const uniConfig = header.university_config;
       ctx.fillStyle = uniConfig.color || '#000000';
-      ctx.font = `${uniConfig.font_weight || 'bold'} ${uniConfig.font_size || 28}px ${uniConfig.font_family || 'Libre Baskerville, serif'}`;
+      ctx.font = `${uniConfig.font_weight || 'bold'} ${uniConfig.font_size || 34}px ${uniConfig.font_family || 'Libre Baskerville, serif'}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(
@@ -636,7 +651,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     if (header.location_text && header.location_config) {
       const locConfig = header.location_config;
       ctx.fillStyle = locConfig.color || '#000000';
-      ctx.font = `${locConfig.font_weight || 'normal'} ${locConfig.font_size || 20}px ${locConfig.font_family || 'Libre Baskerville, serif'}`;
+      ctx.font = `${locConfig.font_weight || 'normal'} ${locConfig.font_size || 24}px ${locConfig.font_family || 'Libre Baskerville, serif'}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(
@@ -675,7 +690,7 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     // "is given to" Text
     if (isGivenTo.text) {
       ctx.fillStyle = isGivenTo.color || '#000000';
-      ctx.font = `${isGivenTo.font_weight || 'normal'} ${isGivenTo.font_size || 16}px ${isGivenTo.font_family || 'Libre Baskerville, serif'}`;
+      ctx.font = `${isGivenTo.font_weight || 'normal'} ${isGivenTo.font_size || 20}px ${isGivenTo.font_family || 'Libre Baskerville, serif'}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(
@@ -738,12 +753,12 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
         .replace('{VENUE}', event.venue && event.venue.trim() ? event.venue : '[Venue]');
 
       ctx.fillStyle = participation.color || '#000000';
-      ctx.font = `${participation.font_weight || 'normal'} ${participation.font_size || 18}px ${participation.font_family || 'Libre Baskerville, serif'}`;
+      ctx.font = `${participation.font_weight || 'normal'} ${participation.font_size || 22}px ${participation.font_family || 'Libre Baskerville, serif'}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
       const lines = participationText.split('\n');
-      const lineHeight = (participation.font_size || 18) * (participation.line_height || 1.5);
+      const lineHeight = (participation.font_size || 22) * (participation.line_height || 1.5);
       const startY = (height * participation.position.y) / 100 - ((lines.length - 1) * lineHeight) / 2;
 
       lines.forEach((line, index) => {

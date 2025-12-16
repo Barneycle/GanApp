@@ -2828,6 +2828,13 @@ export const CreateEvent = () => {
       // Navigate to certificate design step
       navigate('/design-certificate');
     } else {
+      // User opted out - clear any existing certificate config from sessionStorage
+      // to ensure no certificate config is saved to database later
+      try {
+        sessionStorage.removeItem('pending-certificate-config');
+      } catch (e) {
+        console.warn('Failed to clear certificate config:', e);
+      }
       // Navigate to survey/evaluation creation step
       navigate('/create-survey');
     }
