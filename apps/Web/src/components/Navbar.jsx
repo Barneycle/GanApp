@@ -267,12 +267,6 @@ export const Navbar = () => {
                 >
                   Support Tickets
                 </Link>
-                <Link
-                  to="/activity-log"
-                  className="text-lg font-medium text-gray-300 hover:text-white transition-colors"
-                >
-                  Activity Log
-                </Link>
               </>
             )}
 
@@ -734,13 +728,6 @@ export const Navbar = () => {
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Support Tickets
-                </Link>
-                <Link
-                  to="/activity-log"
-                  className="text-lg font-medium text-gray-300 hover:text-white transition-colors block px-3 py-2 rounded-md"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Activity Log
                 </Link>
               </>
             )}

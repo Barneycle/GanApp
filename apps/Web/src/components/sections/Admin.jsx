@@ -5,8 +5,10 @@ import { AdminService } from '../../services/adminService';
 import { SystemSettingsService } from '../../services/systemSettingsService';
 import { DatabaseMaintenanceService } from '../../services/databaseMaintenanceService';
 import { OrganizationService } from '../../services/organizationService';
-import { Eye, EyeOff, Send, Trash2, AlertCircle, CheckCircle, XCircle, Info, Database, Activity, Shield, Search, ChevronDown } from 'lucide-react';
+import { Eye, EyeOff, Send, Trash2, AlertCircle, CheckCircle, XCircle, Info, Database, Activity, Shield, Search, ChevronDown, Clock, User, FileText, Filter, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '../../components/Toast';
+import { ActivityLogService } from '../../services/activityLogService';
+import { usePageVisibility } from '../../hooks/usePageVisibility';
 
 export const Admin = () => {
   const navigate = useNavigate();
@@ -84,103 +86,123 @@ export const Admin = () => {
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 mb-6">
-          <div className="flex flex-nowrap border-b border-slate-200 overflow-x-auto">
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'dashboard'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-slate-600 hover:text-slate-800'
-                }`}
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => setActiveTab('users')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'users'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-slate-600 hover:text-slate-800'
-                }`}
-            >
-              User Management
-            </button>
-            <button
-              onClick={() => setActiveTab('archived')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'archived'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-slate-600 hover:text-slate-800'
-                }`}
-            >
-              Archived Accounts
-            </button>
-            <button
-              onClick={() => setActiveTab('events')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'events'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-slate-600 hover:text-slate-800'
-                }`}
-            >
-              Event Management
-            </button>
-            <button
-              onClick={() => setActiveTab('cancellations')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'cancellations'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-slate-600 hover:text-slate-800'
-                }`}
-            >
-              Cancellation Requests
-            </button>
-            <button
-              onClick={() => setActiveTab('analytics')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'analytics'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-slate-600 hover:text-slate-800'
-                }`}
-            >
-              Analytics & Reports
-            </button>
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'settings'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-slate-600 hover:text-slate-800'
-                }`}
-            >
-              System Settings
-            </button>
-            <button
-              onClick={() => setActiveTab('notifications')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'notifications'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-slate-600 hover:text-slate-800'
-                }`}
-            >
-              Notification Management
-            </button>
-            <button
-              onClick={() => setActiveTab('database')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'database'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-slate-600 hover:text-slate-800'
-                }`}
-            >
-              Database Maintenance
-            </button>
-          </div>
+        {/* Unified Table-like Container with Sidebar */}
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+          <div className="flex">
+            {/* Sidebar Navigation */}
+            <aside className="w-64 bg-slate-50 border-r border-slate-200 flex-shrink-0">
+              <div className="p-6 border-b border-slate-200 bg-white">
+                <h1 className="text-xl font-bold text-slate-800">Admin Panel</h1>
+              </div>
+              <nav className="p-4 space-y-1">
+                <button
+                  onClick={() => setActiveTab('dashboard')}
+                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'dashboard'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                    }`}
+                >
+                  <Activity className="w-5 h-5 mr-3" />
+                  Dashboard
+                </button>
+                <button
+                  onClick={() => setActiveTab('users')}
+                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'users'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                    }`}
+                >
+                  <Shield className="w-5 h-5 mr-3" />
+                  User Management
+                </button>
+                <button
+                  onClick={() => setActiveTab('events')}
+                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'events'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                    }`}
+                >
+                  <Activity className="w-5 h-5 mr-3" />
+                  Event Management
+                </button>
+                <button
+                  onClick={() => setActiveTab('cancellations')}
+                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'cancellations'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                    }`}
+                >
+                  <AlertCircle className="w-5 h-5 mr-3" />
+                  Cancellation Requests
+                </button>
+                <button
+                  onClick={() => setActiveTab('analytics')}
+                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'analytics'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                    }`}
+                >
+                  <Activity className="w-5 h-5 mr-3" />
+                  Analytics & Reports
+                </button>
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'settings'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                    }`}
+                >
+                  <Shield className="w-5 h-5 mr-3" />
+                  System Settings
+                </button>
+                <button
+                  onClick={() => setActiveTab('notifications')}
+                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'notifications'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                    }`}
+                >
+                  <AlertCircle className="w-5 h-5 mr-3" />
+                  Notification Management
+                </button>
+                <button
+                  onClick={() => setActiveTab('database')}
+                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'database'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                    }`}
+                >
+                  <Database className="w-5 h-5 mr-3" />
+                  Database Maintenance
+                </button>
+                <button
+                  onClick={() => setActiveTab('activity-logs')}
+                  className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'activity-logs'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-700 hover:bg-white hover:text-slate-900'
+                    }`}
+                >
+                  <Clock className="w-5 h-5 mr-3" />
+                  Activity Logs
+                </button>
+              </nav>
+            </aside>
 
-          {/* Tab Content */}
-          <div className="p-6">
-            {activeTab === 'dashboard' && <DashboardTab />}
-            {activeTab === 'users' && <UsersTab />}
-            {activeTab === 'archived' && <ArchivedUsersTab />}
-            {activeTab === 'events' && <EventsTab />}
-            {activeTab === 'cancellations' && <CancellationsTab />}
-            {activeTab === 'analytics' && <AnalyticsTab />}
-            {activeTab === 'settings' && <SettingsTab />}
-            {activeTab === 'notifications' && <NotificationsTab />}
-            {activeTab === 'database' && <DatabaseMaintenanceTab />}
+            {/* Main Content Area - Connected to Sidebar */}
+            <main className="flex-1">
+              <div className="p-6">
+                {activeTab === 'dashboard' && <DashboardTab />}
+                {activeTab === 'users' && <UsersTab />}
+                {activeTab === 'archived' && <ArchivedUsersTab />}
+                {activeTab === 'events' && <EventsTab />}
+                {activeTab === 'cancellations' && <CancellationsTab />}
+                {activeTab === 'analytics' && <AnalyticsTab />}
+                {activeTab === 'settings' && <SettingsTab />}
+                {activeTab === 'notifications' && <NotificationsTab />}
+                {activeTab === 'database' && <DatabaseMaintenanceTab />}
+                {activeTab === 'activity-logs' && <ActivityLogsTab />}
+              </div>
+            </main>
           </div>
         </div>
       </div>
@@ -312,7 +334,10 @@ const DashboardTab = () => {
 const UsersTab = () => {
   const toast = useToast();
   const [users, setUsers] = useState([]);
+  const [archivedUsers, setArchivedUsers] = useState([]);
+  const [activeView, setActiveView] = useState('active'); // 'active' or 'archived'
   const [loading, setLoading] = useState(false);
+  const [archivedLoading, setArchivedLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
   const [actionType, setActionType] = useState(null);
@@ -324,6 +349,7 @@ const UsersTab = () => {
 
   useEffect(() => {
     loadUsers();
+    loadArchivedUsers();
   }, []);
 
   const loadUsers = async () => {
@@ -340,6 +366,18 @@ const UsersTab = () => {
       }
     }
     setLoading(false);
+  };
+
+  const loadArchivedUsers = async () => {
+    setArchivedLoading(true);
+    const result = await AdminService.getArchivedUsers();
+    if (result.error) {
+      console.error('Error loading archived users:', result.error);
+      setArchivedUsers([]);
+    } else {
+      setArchivedUsers(result.users || []);
+    }
+    setArchivedLoading(false);
   };
 
   const handleBanUser = async (userId, durationValue, durationUnit) => {
@@ -434,6 +472,7 @@ const UsersTab = () => {
       setError(result.error);
     } else {
       await loadUsers();
+      await loadArchivedUsers();
       setSelectedUser(null);
       setActionType(null);
     }
@@ -453,7 +492,10 @@ const UsersTab = () => {
     return !isArchived; // Only show users that are NOT archived
   });
 
-  const filteredUsers = activeUsers.filter((user) => {
+  const currentUsers = activeView === 'archived' ? archivedUsers : activeUsers;
+  const isLoading = activeView === 'archived' ? archivedLoading : loading;
+
+  const filteredUsers = currentUsers.filter((user) => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     return (
@@ -461,7 +503,8 @@ const UsersTab = () => {
       normalizeString(user.last_name).includes(term) ||
       normalizeString(`${user.first_name} ${user.last_name}`).includes(term) ||
       normalizeString(user.email).includes(term) ||
-      normalizeString(user.role).includes(term)
+      normalizeString(user.role).includes(term) ||
+      (activeView === 'archived' && normalizeString(user.archive_reason).includes(term))
     );
   });
 
@@ -484,9 +527,15 @@ const UsersTab = () => {
       bValue = getStatus(b);
     }
 
-    if (sortKey === 'created_at') {
-      aValue = new Date(a.created_at).getTime();
-      bValue = new Date(b.created_at).getTime();
+    if (sortKey === 'created_at' || sortKey === 'archived_at' || sortKey === 'original_created_at') {
+      const aDate = activeView === 'archived' && sortKey === 'archived_at' ? a.archived_at :
+        activeView === 'archived' && sortKey === 'original_created_at' ? a.original_created_at :
+          a.created_at;
+      const bDate = activeView === 'archived' && sortKey === 'archived_at' ? b.archived_at :
+        activeView === 'archived' && sortKey === 'original_created_at' ? b.original_created_at :
+          b.created_at;
+      aValue = new Date(aDate).getTime();
+      bValue = new Date(bDate).getTime();
     }
 
     if (typeof aValue === 'string') aValue = aValue.toLowerCase();
@@ -502,15 +551,15 @@ const UsersTab = () => {
       setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortKey(key);
-      setSortDirection(key === 'created_at' ? 'desc' : 'asc');
+      setSortDirection(key === 'created_at' || key === 'archived_at' ? 'desc' : 'asc');
     }
   };
 
-  if (loading) {
+  if (isLoading && currentUsers.length === 0) {
     return (
       <div className="text-center py-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="text-slate-600 mt-4">Loading users...</p>
+        <p className="text-slate-600 mt-4">Loading {activeView === 'archived' ? 'archived ' : ''}users...</p>
       </div>
     );
   }
@@ -550,19 +599,42 @@ const UsersTab = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-semibold text-slate-800">User Management</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-3">
+          {/* View Toggle */}
+          <div className="flex bg-slate-100 rounded-lg p-1">
+            <button
+              onClick={() => setActiveView('active')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeView === 'active'
+                ? 'bg-white text-blue-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-800'
+                }`}
+            >
+              Active Users
+            </button>
+            <button
+              onClick={() => setActiveView('archived')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeView === 'archived'
+                ? 'bg-white text-blue-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-800'
+                }`}
+            >
+              Archived Users
+            </button>
+          </div>
+          {activeView === 'active' && (
+            <button
+              onClick={() => {
+                setSelectedUser(null);
+                setActionType('create');
+              }}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+            >
+              Create User
+            </button>
+          )}
           <button
-            onClick={() => {
-              setSelectedUser(null);
-              setActionType('create');
-            }}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
-          >
-            Create User
-          </button>
-          <button
-            onClick={loadUsers}
-            disabled={loading}
+            onClick={activeView === 'archived' ? loadArchivedUsers : loadUsers}
+            disabled={isLoading}
             className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50"
           >
             Refresh
@@ -601,11 +673,16 @@ const UsersTab = () => {
               onChange={(e) => setSortKey(e.target.value)}
               className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
-              <option value="created_at">Created Date</option>
+              <option value={activeView === 'archived' ? 'archived_at' : 'created_at'}>
+                {activeView === 'archived' ? 'Archived Date' : 'Created Date'}
+              </option>
+              {activeView === 'archived' && (
+                <option value="original_created_at">Created Date</option>
+              )}
               <option value="name">Name</option>
               <option value="email">Email</option>
               <option value="role">Role</option>
-              <option value="status">Status</option>
+              {activeView === 'active' && <option value="status">Status</option>}
             </select>
             <button
               onClick={() => toggleSort(sortKey)}
@@ -645,10 +722,18 @@ const UsersTab = () => {
                   {sortKey === 'status' && <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>}
                 </button>
               </th>
+              {activeView === 'archived' && (
+                <th className="px-4 py-3">
+                  <button onClick={() => toggleSort('archive_reason')} className="flex items-center gap-1">
+                    Archive Reason
+                    {sortKey === 'archive_reason' && <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>}
+                  </button>
+                </th>
+              )}
               <th className="px-4 py-3">
-                <button onClick={() => toggleSort('created_at')} className="flex items-center gap-1">
-                  Created
-                  {sortKey === 'created_at' && <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>}
+                <button onClick={() => toggleSort(activeView === 'archived' ? 'archived_at' : 'created_at')} className="flex items-center gap-1">
+                  {activeView === 'archived' ? 'Archived' : 'Created'}
+                  {(sortKey === (activeView === 'archived' ? 'archived_at' : 'created_at')) && <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>}
                 </button>
               </th>
               <th className="px-4 py-3">Actions</th>
@@ -656,10 +741,8 @@ const UsersTab = () => {
           </thead>
           <tbody>
             {sortedUsers.map((user) => {
-              const isBanned = Boolean(user.banned_until && new Date(user.banned_until) > new Date());
-              const isArchived = user.archived === true || user.user_metadata?.archived === true;
-              const showUnban = isBanned && !isArchived; // Only show unban for banned users, not archived users
-              const showUnarchive = isArchived; // Show unarchive for archived users
+              const isBanned = activeView === 'active' && Boolean(user.banned_until && new Date(user.banned_until) > new Date());
+              const showUnban = isBanned;
 
               return (
                 <tr key={user.id} className="border-b border-slate-200 hover:bg-slate-50">
@@ -675,84 +758,100 @@ const UsersTab = () => {
                       {user.role}
                     </span>
                   </td>
+                  {activeView === 'active' && (
+                    <td className="px-4 py-3">
+                      {user.banned_until && new Date(user.banned_until) > new Date() ? (
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          Banned
+                        </span>
+                      ) : user.is_active === false ? (
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          Inactive
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          Active
+                        </span>
+                      )}
+                    </td>
+                  )}
+                  {activeView === 'archived' && (
+                    <td className="px-4 py-3">
+                      <div className="text-sm text-slate-600 max-w-xs" title={user.archive_reason || 'No reason provided'}>
+                        {user.archive_reason ? (
+                          user.archive_reason.length > 50 ? (
+                            <span>{user.archive_reason.substring(0, 50)}...</span>
+                          ) : (
+                            <span>{user.archive_reason}</span>
+                          )
+                        ) : (
+                          <span className="text-slate-400 italic">No reason provided</span>
+                        )}
+                      </div>
+                    </td>
+                  )}
                   <td className="px-4 py-3">
-                    {isArchived ? (
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                        Archived
-                      </span>
-                    ) : user.banned_until && new Date(user.banned_until) > new Date() ? (
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                        Banned
-                      </span>
-                    ) : user.is_active === false ? (
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        Inactive
-                      </span>
-                    ) : (
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        Active
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {new Date(user.created_at).toLocaleDateString()}
+                    {activeView === 'archived'
+                      ? new Date(user.archived_at || user.original_created_at).toLocaleDateString()
+                      : new Date(user.created_at).toLocaleDateString()
+                    }
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex space-x-2">
-                      <button
-                        onClick={() => {
-                          setSelectedUser(user);
-                          setActionType('edit');
-                        }}
-                        className="px-3 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 text-xs"
-                        disabled={actionLoading}
-                      >
-                        Edit
-                      </button>
-                      {showUnarchive ? (
+                      {activeView === 'active' ? (
+                        <>
+                          <button
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setActionType('edit');
+                            }}
+                            className="px-3 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 text-xs"
+                            disabled={actionLoading}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (showUnban) {
+                                handleUnbanUser(user.id);
+                              } else {
+                                setSelectedUser(user);
+                                setActionType('ban');
+                              }
+                            }}
+                            className={`px-3 py-1 rounded text-xs ${showUnban ? 'bg-blue-900 hover:bg-blue-800' : 'bg-red-600 hover:bg-red-700'} text-white`}
+                            disabled={actionLoading}
+                          >
+                            {showUnban ? 'Unban' : 'Ban'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setActionType('role');
+                            }}
+                            className="px-3 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 text-xs"
+                            disabled={actionLoading}
+                          >
+                            Change Role
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setActionType('archive');
+                            }}
+                            className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 text-xs"
+                            disabled={actionLoading}
+                          >
+                            Archive
+                          </button>
+                        </>
+                      ) : (
                         <button
                           onClick={() => handleUnarchiveUser(user.id)}
                           className="px-3 py-1 bg-blue-900 hover:bg-blue-800 rounded text-xs text-white"
                           disabled={actionLoading}
                         >
                           Unarchive
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            if (showUnban) {
-                              handleUnbanUser(user.id);
-                            } else {
-                              setSelectedUser(user);
-                              setActionType('ban');
-                            }
-                          }}
-                          className={`px-3 py-1 rounded text-xs ${showUnban ? 'bg-blue-900 hover:bg-blue-800' : 'bg-red-600 hover:bg-red-700'} text-white`}
-                          disabled={actionLoading}
-                        >
-                          {showUnban ? 'Unban' : 'Ban'}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => {
-                          setSelectedUser(user);
-                          setActionType('role');
-                        }}
-                        className="px-3 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 text-xs"
-                        disabled={actionLoading || showUnarchive}
-                      >
-                        Change Role
-                      </button>
-                      {!showUnarchive && (
-                        <button
-                          onClick={() => {
-                            setSelectedUser(user);
-                            setActionType('archive');
-                          }}
-                          className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 text-xs"
-                          disabled={actionLoading}
-                        >
-                          Archive
                         </button>
                       )}
                     </div>
@@ -823,219 +922,6 @@ const UsersTab = () => {
           loading={actionLoading}
         />
       )}
-    </div>
-  );
-};
-
-// Archived Users Tab Component
-const ArchivedUsersTab = () => {
-  const toast = useToast();
-  const [archivedUsers, setArchivedUsers] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortKey, setSortKey] = useState('archived_at');
-  const [sortDirection, setSortDirection] = useState('desc');
-  const [actionLoading, setActionLoading] = useState(false);
-  const [unarchivingUserId, setUnarchivingUserId] = useState(null);
-
-  useEffect(() => {
-    loadArchivedUsers();
-  }, []);
-
-  const loadArchivedUsers = async () => {
-    setLoading(true);
-    setError('');
-    const result = await AdminService.getArchivedUsers();
-    if (result.error) {
-      setError(result.error);
-    } else {
-      setArchivedUsers(result.users || []);
-    }
-    setLoading(false);
-  };
-
-  const normalizeString = (value) => (value || '').toString().toLowerCase().trim();
-
-  const filteredUsers = archivedUsers.filter((user) => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return (
-      normalizeString(user.first_name).includes(term) ||
-      normalizeString(user.last_name).includes(term) ||
-      normalizeString(`${user.first_name} ${user.last_name}`).includes(term) ||
-      normalizeString(user.email).includes(term) ||
-      normalizeString(user.role).includes(term) ||
-      normalizeString(user.archive_reason).includes(term)
-    );
-  });
-
-  const sortedUsers = [...filteredUsers].sort((a, b) => {
-    let aValue = a[sortKey];
-    let bValue = b[sortKey];
-
-    if (sortKey === 'name') {
-      aValue = `${a.first_name || ''} ${a.last_name || ''}`.trim().toLowerCase();
-      bValue = `${b.first_name || ''} ${b.last_name || ''}`.trim().toLowerCase();
-    }
-
-    if (sortKey === 'archived_at' || sortKey === 'original_created_at') {
-      aValue = new Date(aValue).getTime();
-      bValue = new Date(bValue).getTime();
-    }
-
-    if (typeof aValue === 'string') aValue = aValue.toLowerCase();
-    if (typeof bValue === 'string') bValue = bValue.toLowerCase();
-
-    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  const toggleSort = (key) => {
-    if (sortKey === key) {
-      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(key);
-      setSortDirection(key === 'archived_at' ? 'desc' : 'asc');
-    }
-  };
-
-  const handleUnarchiveUser = async (userId) => {
-    setActionLoading(true);
-    setUnarchivingUserId(userId);
-    setError('');
-
-    const result = await AdminService.unarchiveUser(userId);
-    if (result.error) {
-      setError(result.error);
-      toast.error(result.error);
-    } else {
-      toast.success('User unarchived successfully');
-      await loadArchivedUsers();
-    }
-
-    setActionLoading(false);
-    setUnarchivingUserId(null);
-  };
-
-  if (loading) {
-    return (
-      <div className="text-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="text-slate-600 mt-4">Loading archived users...</p>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-semibold text-slate-800">Archived Accounts</h2>
-        <button
-          onClick={loadArchivedUsers}
-          className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800"
-        >
-          Refresh
-        </button>
-      </div>
-
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
-          {error}
-        </div>
-      )}
-
-      {/* Search */}
-      <div className="mb-6">
-        <input
-          type="text"
-          placeholder="Search archived users..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-
-      {/* Users Table */}
-      <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-        {sortedUsers.length === 0 ? (
-          <div className="p-12 text-center">
-            <p className="text-slate-600">No archived users found.</p>
-          </div>
-        ) : (
-          <table className="w-full">
-            <thead className="bg-gradient-to-r from-blue-50 to-slate-50">
-              <tr>
-                <th
-                  onClick={() => toggleSort('name')}
-                  className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase cursor-pointer hover:bg-slate-100"
-                >
-                  Name {sortKey === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Email</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Role</th>
-                <th
-                  onClick={() => toggleSort('archived_at')}
-                  className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase cursor-pointer hover:bg-slate-100"
-                >
-                  Archived Date {sortKey === 'archived_at' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Archive Reason</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Archive Type</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Activities</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedUsers.map((user) => (
-                <tr key={user.id} className="border-b border-slate-200 hover:bg-slate-50">
-                  <td className="px-4 py-3">
-                    {user.first_name} {user.last_name}
-                  </td>
-                  <td className="px-4 py-3">{user.email}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${user.role === 'admin' ? 'bg-red-100 text-red-800' :
-                      user.role === 'organizer' ? 'bg-orange-100 text-orange-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                      {user.role}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {new Date(user.archived_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate" title={user.archive_reason}>
-                    {user.archive_reason}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                      {user.archive_type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-600">
-                    <div className="space-y-1">
-                      <div>Events: {user.total_events_created || 0}</div>
-                      <div>Registrations: {user.total_events_attended || 0}</div>
-                      <div>Surveys: {user.total_surveys_created || 0}</div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => handleUnarchiveUser(user.original_user_id)}
-                      disabled={actionLoading}
-                      className="px-3 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Restore this user account"
-                    >
-                      {unarchivingUserId === user.original_user_id && actionLoading ? 'Unarchiving...' : 'Unarchive'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
     </div>
   );
 };
@@ -3726,6 +3612,421 @@ const DatabaseMaintenanceTab = () => {
           </div>
         </div>
       </div>
+    </div>
+  );
+};
+
+// Activity Logs Tab Component
+const ActivityLogsTab = () => {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [filters, setFilters] = useState({
+    action: '',
+    resourceType: '',
+    searchQuery: '',
+    startDate: '',
+    endDate: ''
+  });
+  const [showFilters, setShowFilters] = useState(false);
+  const isVisible = usePageVisibility();
+  const loadingRef = useRef(false);
+  const hasLoadedRef = useRef(false);
+  const pageSize = 50;
+
+  useEffect(() => {
+    if (!hasLoadedRef.current && !loadingRef.current) {
+      hasLoadedRef.current = true;
+      loadLogs();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Separate effect for filters and page changes
+  useEffect(() => {
+    if (hasLoadedRef.current && !loadingRef.current) {
+      loadLogs();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, filters.action, filters.resourceType, filters.searchQuery, filters.startDate, filters.endDate]);
+
+  const loadLogs = async () => {
+    if (!isVisible) return;
+    if (loadingRef.current) return;
+
+    try {
+      loadingRef.current = true;
+      setLoading(true);
+      setError(null);
+
+      const result = await ActivityLogService.getActivityLogs(
+        {
+          action: filters.action || undefined,
+          resourceType: filters.resourceType || undefined,
+          searchQuery: filters.searchQuery || undefined,
+          startDate: filters.startDate || undefined,
+          endDate: filters.endDate || undefined
+        },
+        pageSize,
+        (page - 1) * pageSize
+      );
+
+      if (result.error) {
+        if (result.error.includes('table not found') || result.error.includes('schema cache') || result.error.includes('does not exist')) {
+          setError('Activity logs feature is not available. The database table needs to be created. Please contact your administrator.');
+        } else if (result.error.includes('permission denied') || result.error.includes('row-level security')) {
+          setError('Permission denied. Please ensure RLS policies are correctly configured. You may need to run the SQL migration to create the necessary policies.');
+        } else {
+          setError(result.error);
+        }
+      } else {
+        if (isVisible) {
+          setLogs(result.logs || []);
+          setTotal(result.total || 0);
+        }
+      }
+    } catch (err) {
+      if (isVisible) {
+        setError(err?.message || 'Failed to load activity logs');
+      }
+    } finally {
+      loadingRef.current = false;
+      if (isVisible) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+    setPage(1);
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      action: '',
+      resourceType: '',
+      searchQuery: '',
+      startDate: '',
+      endDate: ''
+    });
+    setPage(1);
+  };
+
+  const getActionIcon = (action) => {
+    switch (action) {
+      case 'create':
+        return '➕';
+      case 'update':
+        return '✏️';
+      case 'delete':
+        return '🗑️';
+      case 'view':
+        return '👁️';
+      case 'login':
+        return '🔐';
+      case 'logout':
+        return '🚪';
+      default:
+        return '📝';
+    }
+  };
+
+  const getResourceTypeColor = (type) => {
+    switch (type) {
+      case 'event':
+        return 'bg-blue-100 text-blue-800';
+      case 'survey':
+        return 'bg-green-100 text-green-800';
+      case 'user':
+        return 'bg-purple-100 text-purple-800';
+      case 'registration':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="text-slate-600 mt-4">Loading activity logs...</p>
+      </div>
+    );
+  }
+
+  const totalPages = Math.ceil(total / pageSize);
+
+  return (
+    <div>
+      <h2 className="text-2xl font-semibold text-slate-800 mb-6">Activity Logs</h2>
+
+      {/* Filters */}
+      <div className="bg-white rounded-xl shadow border border-slate-200 p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-slate-800 flex items-center">
+            <Filter className="w-5 h-5 mr-2" />
+            Filters
+          </h3>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800"
+            >
+              {showFilters ? 'Hide' : 'Show'} Filters
+            </button>
+            <button
+              onClick={clearFilters}
+              className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800"
+            >
+              Clear
+            </button>
+            <button
+              onClick={loadLogs}
+              className="p-2 text-slate-600 hover:text-slate-800 transition-transform hover:rotate-180"
+              title="Refresh"
+            >
+              <RefreshCw className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {showFilters && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Search</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search logs..."
+                  value={filters.searchQuery}
+                  onChange={(e) => handleFilterChange('searchQuery', e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Action</label>
+              <select
+                value={filters.action}
+                onChange={(e) => handleFilterChange('action', e.target.value)}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All Actions</option>
+                <option value="create">Create</option>
+                <option value="update">Update</option>
+                <option value="delete">Delete</option>
+                <option value="view">View</option>
+                <option value="login">Login</option>
+                <option value="logout">Logout</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Resource Type</label>
+              <select
+                value={filters.resourceType}
+                onChange={(e) => handleFilterChange('resourceType', e.target.value)}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All Types</option>
+                <option value="event">Event</option>
+                <option value="survey">Survey</option>
+                <option value="user">User</option>
+                <option value="registration">Registration</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
+              <input
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">End Date</label>
+              <input
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Stats */}
+      {!error && (
+        <div className="mb-6">
+          <p className="text-sm text-slate-600">
+            Showing {logs.length} of {total} logs
+          </p>
+        </div>
+      )}
+
+      {/* Error Message */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <AlertCircle className="h-5 w-5 text-red-600" />
+            </div>
+            <div className="ml-3 flex-1">
+              <h3 className="text-sm font-medium text-red-800 mb-2">
+                Error Loading Activity Logs
+              </h3>
+              <p className="text-sm text-red-700">
+                {error}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Logs Table */}
+      {!error && (
+        <div className="bg-white rounded-xl shadow border border-slate-200 overflow-hidden">
+          {logs.length === 0 ? (
+            <div className="p-12 text-center">
+              <Clock className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-slate-800 mb-2">No Activity Logs</h3>
+              <p className="text-slate-600">
+                {total === 0 
+                  ? "No activity logs have been recorded yet." 
+                  : "No activity logs match your filters."}
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gradient-to-r from-blue-50 to-slate-50">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
+                      Time
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
+                      User
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
+                      Action
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
+                      Resource
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">
+                      Details
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-200">
+                  {logs.map((log) => (
+                    <tr key={log.id} className="hover:bg-slate-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                        {formatDate(log.created_at)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-2">
+                            <User className="w-4 h-4 text-blue-600" />
+                          </div>
+                          <div>
+                            {log.user?.first_name || log.user?.last_name ? (
+                              <>
+                                <p className="text-sm font-medium text-slate-900">
+                                  {log.user?.first_name} {log.user?.last_name}
+                                </p>
+                                <p className="text-xs text-slate-500">{log.user?.email || 'No email'}</p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-sm font-medium text-slate-900">
+                                  User {log.user_id.substring(0, 8)}...
+                                </p>
+                                <p className="text-xs text-slate-500">{log.user?.email || 'Unknown'}</p>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-slate-100 text-slate-800">
+                          <span className="mr-2">{getActionIcon(log.action)}</span>
+                          {log.action}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getResourceTypeColor(log.resource_type)}`}>
+                          {log.resource_type}
+                        </span>
+                        {log.resource_name && (
+                          <p className="text-xs text-slate-600 mt-1">{log.resource_name}</p>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-slate-600">
+                          {log.details && (
+                            <details className="cursor-pointer">
+                              <summary className="text-blue-600 hover:text-blue-700">View Details</summary>
+                              <pre className="mt-2 p-2 bg-slate-50 rounded text-xs overflow-auto max-h-32">
+                                {JSON.stringify(log.details, null, 2)}
+                              </pre>
+                            </details>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!error && totalPages > 1 && (
+        <div className="mt-6 flex items-center justify-center space-x-4">
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+          >
+            <ChevronLeft className="w-5 h-5" />
+            <span>Previous</span>
+          </button>
+          <span className="text-sm text-slate-600">
+            Page {page} of {totalPages}
+          </span>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+          >
+            <span>Next</span>
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

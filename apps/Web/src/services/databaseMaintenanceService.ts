@@ -38,57 +38,82 @@ export class DatabaseMaintenanceService {
    */
   static async getDatabaseStats(): Promise<{ stats?: DatabaseStats; error?: string }> {
     try {
-      // Get table information
+      // Get table information using RPC function
       const { data: tablesData, error: tablesError } = await supabase.rpc('get_table_stats');
 
       if (tablesError) {
-        // Fallback: try to get basic table list
-        const { data: schemaData } = await supabase
-          .from('information_schema.tables')
-          .select('table_name')
-          .eq('table_schema', 'public');
+        // Fallback: manually query known tables to get row counts
+        const knownTables = [
+          'users',
+          'events',
+          'event_registrations',
+          'surveys',
+          'survey_responses',
+          'notifications',
+          'certificates',
+          'certificate_templates',
+          'attendance_logs',
+          'activity_logs',
+          'event_messages',
+          'system_settings'
+        ];
 
-        if (!schemaData || schemaData.length === 0) {
-          return { 
-            stats: {
-              total_tables: 0,
-              total_rows: 0,
-              table_sizes: []
+        const tableStats: Array<{ table_name: string; row_count: number; size_mb: number }> = [];
+        let totalRows = 0;
+
+        // Query each table for row count
+        for (const tableName of knownTables) {
+          try {
+            const { count, error: countError } = await supabase
+              .from(tableName)
+              .select('*', { count: 'exact', head: true });
+
+            if (!countError && count !== null) {
+              tableStats.push({
+                table_name: tableName,
+                row_count: count,
+                size_mb: 0 // Size calculation requires special permissions
+              });
+              totalRows += count;
             }
-          };
+          } catch (e) {
+            // Skip tables that don't exist or can't be accessed
+            continue;
+          }
         }
 
-        // If RPC doesn't exist, return basic stats
+        // Sort by row count descending
+        tableStats.sort((a, b) => b.row_count - a.row_count);
+
         return {
           stats: {
-            total_tables: schemaData.length,
-            total_rows: 0,
-            table_sizes: schemaData.map((t: any) => ({
-              table_name: t.table_name,
-              row_count: 0,
-              size_mb: 0
-            }))
+            total_tables: tableStats.length,
+            total_rows: totalRows,
+            table_sizes: tableStats
           },
-          error: 'Detailed statistics require database functions. Some metrics may be unavailable.'
+          error: tablesError.message || 'Using fallback method: table sizes unavailable. Run the SQL migration to create get_table_stats() function for full statistics.'
         };
       }
 
       const tables = tablesData || [];
       const totalRows = tables.reduce((sum: number, table: any) => sum + (table.row_count || 0), 0);
 
+      // Sort by row count descending
+      const sortedTables = [...tables].sort((a: any, b: any) => (b.row_count || 0) - (a.row_count || 0));
+
       return {
         stats: {
           total_tables: tables.length,
           total_rows: totalRows,
-          table_sizes: tables.map((t: any) => ({
+          table_sizes: sortedTables.map((t: any) => ({
             table_name: t.table_name,
             row_count: t.row_count || 0,
             size_mb: t.size_mb || 0
           }))
         }
       };
-    } catch (error) {
-      return { error: 'An unexpected error occurred' };
+    } catch (error: any) {
+      return { error: error?.message || 'An unexpected error occurred while fetching database statistics' };
     }
   }
 
