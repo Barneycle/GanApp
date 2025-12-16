@@ -7,24 +7,25 @@ export const CertificatePage = () => {
   const [searchParams] = useSearchParams();
   const eventId = searchParams.get('eventId');
   const isMobile = searchParams.get('mobile') === 'true';
-  const token = searchParams.get('token');
+  const accessToken = searchParams.get('accessToken');
+  const refreshToken = searchParams.get('refreshToken');
 
   // Handle token-based authentication from mobile app
   useEffect(() => {
-    if (token && isMobile) {
-      // Set the session using the token from mobile app
+    if (accessToken && refreshToken && isMobile) {
+      // Set the session using the tokens from mobile app
       const setSessionFromToken = async () => {
         try {
           // Get current session to check if already authenticated
           const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-          
+
           // If no session or different token, set new session
-          if (!session || session.access_token !== token) {
+          if (!session || session.access_token !== accessToken) {
             // Decode JWT to get user info (basic validation)
             try {
-              const payload = JSON.parse(atob(token.split('.')[1]));
+              const payload = JSON.parse(atob(accessToken.split('.')[1]));
               const expiresAt = payload.exp * 1000; // Convert to milliseconds
-              
+
               // Check if token is expired
               if (Date.now() >= expiresAt) {
                 console.warn('Token is expired');
@@ -37,15 +38,13 @@ export const CertificatePage = () => {
                 }
                 return;
               }
-              
-              // Use setSession with the access token
-              // Note: Supabase requires both access_token and refresh_token
-              // We'll use the access token for both, but Supabase should handle this
+
+              // Use setSession with both access_token and refresh_token
               const { data, error } = await supabase.auth.setSession({
-                access_token: token,
-                refresh_token: token, // Using same token as refresh (Supabase will handle refresh)
+                access_token: accessToken,
+                refresh_token: refreshToken,
               });
-              
+
               if (error) {
                 console.error('Could not set session with token:', error.message);
                 // Send error message to mobile app
@@ -87,14 +86,14 @@ export const CertificatePage = () => {
 
       setSessionFromToken();
     }
-  }, [token, isMobile]);
+  }, [accessToken, refreshToken, isMobile]);
 
   // Hide navbar and add safe area support for mobile WebView
   useEffect(() => {
     if (isMobile) {
       // Hide navbar by adding a class to body
       document.body.classList.add('mobile-certificate-view');
-      
+
       // Add safe area CSS if not already present
       const styleId = 'mobile-certificate-safe-area';
       if (!document.getElementById(styleId)) {
@@ -114,7 +113,7 @@ export const CertificatePage = () => {
         `;
         document.head.appendChild(style);
       }
-      
+
       // Ensure viewport meta tag has viewport-fit=cover
       let viewport = document.querySelector('meta[name="viewport"]');
       if (viewport) {
@@ -128,7 +127,7 @@ export const CertificatePage = () => {
         viewport.content = 'width=device-width, initial-scale=1.0, viewport-fit=cover';
         document.head.appendChild(viewport);
       }
-      
+
       return () => {
         document.body.classList.remove('mobile-certificate-view');
         const style = document.getElementById(styleId);

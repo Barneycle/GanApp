@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS events (
   category VARCHAR(100),
   tags TEXT[],
   is_featured BOOLEAN DEFAULT false,
-  registration_deadline TIMESTAMP WITH TIME ZONE,
+  registration_open BOOLEAN DEFAULT true NOT NULL,
   created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -325,7 +325,7 @@ CREATE TABLE IF NOT EXISTS archived_events (
   category VARCHAR(100),
   tags TEXT[],
   is_featured BOOLEAN DEFAULT false,
-  registration_deadline TIMESTAMP WITH TIME ZONE,
+  registration_open BOOLEAN DEFAULT true NOT NULL,
   created_by UUID NOT NULL,
   original_created_at TIMESTAMP WITH TIME ZONE NOT NULL,
   original_updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -418,8 +418,10 @@ CREATE TABLE IF NOT EXISTS certificates (
   generated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   generated_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   
-  -- Ensure unique certificate per user per event
-  UNIQUE(event_id, user_id)
+  -- Ensure unique certificate per participant per event
+  -- Allows multiple certificates for same (event_id, user_id) when participant_name differs
+  -- (e.g., manual entries by organizers for different participants)
+  UNIQUE(event_id, user_id, participant_name)
 );
 
 -- Enable Row Level Security
@@ -1936,8 +1938,8 @@ BEGIN
         start_date, end_date, start_time, end_time,
         venue, venue_address, max_participants, final_participant_count,
         banner_url, programme_url, materials_url, event_kits_url,
-        sponsors, guest_speakers, status, category, tags, is_featured,
-        registration_deadline, created_by, original_created_at, original_updated_at,
+        sponsors, guest_speakers, status, category, tags, is_featured, registration_open,
+        created_by, original_created_at, original_updated_at,
         archive_reason, archived_by
     ) VALUES (
         event_record.id,
@@ -1945,8 +1947,8 @@ BEGIN
         event_record.start_date, event_record.end_date, event_record.start_time, event_record.end_time,
         event_record.venue, event_record.venue_address, event_record.max_participants, event_record.current_participants,
         event_record.banner_url, event_record.programme_url, event_record.materials_url, event_record.event_kits_url,
-        event_record.sponsors, event_record.guest_speakers, event_record.status, event_record.category, event_record.tags, event_record.is_featured,
-        event_record.registration_deadline, event_record.created_by, event_record.created_at, event_record.updated_at,
+        event_record.sponsors, event_record.guest_speakers, event_record.status, event_record.category, event_record.tags, event_record.is_featured, event_record.registration_open,
+        event_record.created_by, event_record.created_at, event_record.updated_at,
         archive_reason_text, event_record.created_by
     ) RETURNING id INTO archive_id;
     

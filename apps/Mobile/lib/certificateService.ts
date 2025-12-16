@@ -314,6 +314,36 @@ export class CertificateService {
   }
 
   /**
+   * Check if a certificate already exists for a participant name and event
+   */
+  static async getCertificateByParticipantName(
+    participantName: string,
+    eventId: string
+  ): Promise<{ certificate?: Certificate; error?: string }> {
+    try {
+      const trimmedName = participantName.trim();
+
+      const { data, error } = await supabase
+        .from('certificates')
+        .select('id, certificate_number, participant_name, event_id, user_id')
+        .eq('event_id', eventId)
+        .eq('participant_name', trimmedName)
+        .maybeSingle();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return { certificate: undefined };
+        }
+        return { error: error.message };
+      }
+
+      return { certificate: data as Certificate | undefined };
+    } catch (err: any) {
+      return { error: err.message || 'Failed to check certificate by participant name' };
+    }
+  }
+
+  /**
    * Save generated certificate to database
    */
   static async saveCertificate(
@@ -326,47 +356,99 @@ export class CertificateService {
       completion_date: string;
       certificate_pdf_url?: string;
       certificate_png_url?: string;
+      certificate_template_id?: string;
     }
   ): Promise<{ certificate?: Certificate; error?: string }> {
     try {
-      // Check if certificate already exists
-      const existing = await this.getUserCertificate(certificateData.user_id, certificateData.event_id);
+      // First check by certificate_number (unique constraint)
+      const { data: existingByNumber, error: numberError } = await supabase
+        .from('certificates')
+        .select('*')
+        .eq('certificate_number', certificateData.certificate_number)
+        .maybeSingle();
 
-      if (existing.certificate) {
-        // Update existing certificate
-        const { data, error } = await supabase
-          .from('certificates')
-          .update({
-            certificate_pdf_url: certificateData.certificate_pdf_url,
-            certificate_png_url: certificateData.certificate_png_url
-          })
-          .eq('id', existing.certificate.id)
-          .select()
-          .single();
-
-        if (error) {
-          return { error: error.message };
-        }
-
-        return { certificate: data as Certificate };
-      } else {
-        // Create new certificate
-        const { data, error } = await supabase
-          .from('certificates')
-          .insert({
-            ...certificateData,
-            generated_by: certificateData.user_id
-          })
-          .select()
-          .single();
-
-        if (error) {
-          return { error: error.message };
-        }
-
-        return { certificate: data as Certificate };
+      if (numberError && numberError.code !== 'PGRST116') {
+        console.error('[Mobile CertificateService] Error checking certificate by number:', numberError);
       }
+
+      if (existingByNumber) {
+        // Certificate with this number already exists - return it without updating
+        console.log('[Mobile CertificateService] Certificate with this number already exists:', existingByNumber.id);
+        return { certificate: existingByNumber as Certificate };
+      }
+
+      // Check if certificate already exists by (event_id, participant_name)
+      // This is the primary duplicate check that works for both registered users and manual entries
+      const existingByName = await this.getCertificateByParticipantName(
+        certificateData.participant_name,
+        certificateData.event_id
+      );
+
+      if (existingByName.error) {
+        console.error('[Mobile CertificateService] Error checking certificate by participant_name:', existingByName.error);
+      }
+
+      if (existingByName.certificate) {
+        // Certificate already exists for this participant and event - return it
+        console.log('[Mobile CertificateService] Certificate already exists for participant:', existingByName.certificate.id);
+        return { certificate: existingByName.certificate };
+      }
+
+      // No duplicate found - create new certificate
+      const insertData: any = {
+        event_id: certificateData.event_id,
+        user_id: certificateData.user_id,
+        certificate_number: certificateData.certificate_number,
+        participant_name: certificateData.participant_name.trim(),
+        event_title: certificateData.event_title,
+        completion_date: certificateData.completion_date,
+        certificate_pdf_url: certificateData.certificate_pdf_url,
+        certificate_png_url: certificateData.certificate_png_url,
+        generated_by: certificateData.user_id
+      };
+
+      // Only include template_id if provided (it's nullable)
+      if (certificateData.certificate_template_id) {
+        insertData.certificate_template_id = certificateData.certificate_template_id;
+      }
+
+      console.log('[Mobile CertificateService] Inserting new certificate:', {
+        certificate_number: insertData.certificate_number,
+        participant_name: insertData.participant_name,
+        event_id: insertData.event_id
+      });
+
+      const { data, error } = await supabase
+        .from('certificates')
+        .insert(insertData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Mobile CertificateService] Error inserting certificate:', error);
+        console.error('[Mobile CertificateService] Error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        return { error: error.message };
+      }
+
+      if (!data) {
+        console.error('[Mobile CertificateService] Insert succeeded but no data returned');
+        return { error: 'Certificate insert completed but no certificate was returned' };
+      }
+
+      console.log('[Mobile CertificateService] Certificate inserted successfully:', {
+        id: data.id,
+        certificate_number: data.certificate_number,
+        participant_name: data.participant_name
+      });
+
+      return { certificate: data as Certificate };
     } catch (err: any) {
+      console.error('[Mobile CertificateService] Exception in saveCertificate:', err);
       return { error: err.message || 'Failed to save certificate' };
     }
   }

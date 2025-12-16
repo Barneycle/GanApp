@@ -160,12 +160,9 @@ export default function EventDetails() {
       return { allowed: false, reason: 'Registration closed: Event is ongoing' };
     }
 
-    // Check registration deadline
-    if (event.registration_deadline) {
-      const deadline = new Date(event.registration_deadline);
-      if (deadline < now) {
-        return { allowed: false, reason: 'Registration closed: Deadline has passed' };
-      }
+    // Check if registration is open for this event
+    if (event.registration_open === false) {
+      return { allowed: false, reason: 'Registration closed: Event organizer has closed registration' };
     }
 
     // Check if event is full
@@ -382,8 +379,8 @@ export default function EventDetails() {
                   return (
                     <TouchableOpacity
                       className={`rounded-2xl py-4 px-6 shadow-lg ${isDisabled
-                          ? 'bg-gray-400 opacity-60'
-                          : 'bg-blue-700'
+                        ? 'bg-gray-400 opacity-60'
+                        : 'bg-blue-700'
                         } ${isRegistering ? 'opacity-50' : ''}`}
                       onPress={handleRegister}
                       disabled={isDisabled}

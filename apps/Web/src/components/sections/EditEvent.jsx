@@ -83,9 +83,6 @@ const createEventSchema = z.object({
 
   maxParticipants: z.string().optional(),
 
-  registrationDeadlineDate: z.string().optional(),
-  registrationDeadlineTime: z.string().optional(),
-
   sponsors: z.string().optional(),
 
   guestSpeakers: z.string().optional(),
@@ -93,7 +90,7 @@ const createEventSchema = z.object({
   // Check-in window settings
   checkInBeforeMinutes: z.coerce.number().min(0).max(480).optional(), // Max 8 hours before
   checkInDuringMinutes: z.coerce.number().min(0).max(240).optional(), // Max 4 hours during
-  
+
 
   bannerFile: z.any().optional(),
 
@@ -123,54 +120,16 @@ const createEventSchema = z.object({
 
   path: ["endDate"]
 
-}).refine((data) => {
-
-  if (data.registrationDeadlineDate && data.startDate) {
-
-    const deadlineDate = new Date(data.registrationDeadlineDate);
-    const eventDate = new Date(data.startDate);
-
-    // If time is provided, combine date and time for deadline
-    if (data.registrationDeadlineTime) {
-      const [hours, minutes] = data.registrationDeadlineTime.split(':');
-      deadlineDate.setHours(parseInt(hours), parseInt(minutes));
-    } else {
-      // If no time provided, set to end of day
-      deadlineDate.setHours(23, 59, 59);
-    }
-
-    // If event start time is provided, combine with event date
-    if (data.startTime) {
-      const [eventHours, eventMinutes] = data.startTime.split(':');
-      eventDate.setHours(parseInt(eventHours), parseInt(eventMinutes));
-    }
-
-    // Allow deadline up to 1 hour before event start
-    const oneHourBeforeEvent = new Date(eventDate);
-    oneHourBeforeEvent.setHours(eventDate.getHours() - 1);
-
-    return deadlineDate <= oneHourBeforeEvent;
-
-  }
-
-  return true;
-
-}, {
-
-  message: "Registration deadline must be at least 1 hour before the event starts",
-
-  path: ["registrationDeadlineDate"]
-
 });
 
 // Philippine phone number formatting utilities
 const formatPhilippinePhone = (value) => {
   // Remove all non-numeric characters
   const cleaned = value.replace(/\D/g, '');
-  
+
   // Limit to 11 digits (Philippine mobile numbers)
   const limited = cleaned.slice(0, 11);
-  
+
   // Format based on length: 0912 345 6789
   if (limited.length <= 4) {
     return limited;
@@ -202,7 +161,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
     const fileArray = Array.from(files);
 
-    
+
 
     if (onUpload && uploadType) {
 
@@ -210,7 +169,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
       setUploadProgress(0);
 
-      
+
 
       try {
 
@@ -240,7 +199,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(10);
 
-            
+
 
             const file = fileArray[0];
 
@@ -250,11 +209,11 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-            
+
 
             setUploadProgress(25);
 
-            
+
 
             const fileExt = file.name.split('.').pop();
 
@@ -262,7 +221,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             const filePath = `banners/${fileName}`;
 
-            
+
 
             const { data, error } = await supabase.storage
 
@@ -276,7 +235,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
               });
 
-            
+
 
             if (error) {
 
@@ -284,7 +243,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-            
+
 
             const { data: { publicUrl } } = supabase.storage
 
@@ -292,11 +251,11 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
               .getPublicUrl(filePath);
 
-            
+
 
             setUploadProgress(100);
 
-            
+
 
             const fileResult = {
 
@@ -320,7 +279,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             };
 
-            
+
 
             onUpload([fileResult]);
 
@@ -328,13 +287,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(0);
 
-            
+
 
           } catch (error) {
 
             // Banner upload failed
 
-            
+
 
             // Fallback to local storage
 
@@ -362,7 +321,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             };
 
-            
+
 
             onUpload([fileResult]);
 
@@ -380,13 +339,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(25);
 
-            
+
 
             const bucketName = 'event-kits';
 
             const results = [];
 
-            
+
 
             for (let index = 0; index < fileArray.length; index++) {
 
@@ -402,7 +361,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 const filePath = `kits/${fileName}`;
 
-                
+
 
                 const { data, error } = await supabase.storage
 
@@ -416,7 +375,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   });
 
-                
+
 
                 if (error) {
 
@@ -424,7 +383,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
                 const { data: { publicUrl } } = supabase.storage
 
@@ -432,11 +391,11 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   .getPublicUrl(filePath);
 
-                
+
 
                 setUploadProgress(50 + ((index + 1) / fileArray.length) * 25);
 
-                
+
 
                 results.push({
 
@@ -460,7 +419,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 });
 
-                
+
 
                 if (index < fileArray.length - 1) {
 
@@ -468,13 +427,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
               } catch (fileError) {
 
                 // Error uploading file
 
-                
+
 
                 setUploadProgress(50 + ((index + 1) / fileArray.length) * 25);
 
@@ -506,7 +465,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-            
+
 
             setUploadProgress(100);
 
@@ -516,13 +475,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(0);
 
-            
+
 
           } catch (error) {
 
             // Materials upload failed
 
-            
+
 
             const fileResults = fileArray.map((file, index) => {
 
@@ -562,7 +521,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(10);
 
-            
+
 
             // Validate image files
 
@@ -576,13 +535,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-            
+
 
             const bucketName = 'sponsor-logos';
 
             const results = [];
 
-            
+
 
             for (let index = 0; index < fileArray.length; index++) {
 
@@ -598,7 +557,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 const filePath = `logos/${fileName}`;
 
-                
+
 
                 const { data, error } = await supabase.storage
 
@@ -612,7 +571,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   });
 
-                
+
 
                 if (error) {
 
@@ -620,7 +579,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
                 const { data: { publicUrl } } = supabase.storage
 
@@ -628,7 +587,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   .getPublicUrl(filePath);
 
-                
+
 
                 results.push({
 
@@ -652,7 +611,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 });
 
-                
+
 
                 if (index < fileArray.length - 1) {
 
@@ -660,13 +619,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
               } catch (fileError) {
 
                 // Error uploading file
 
-                
+
 
                 results.push({
 
@@ -696,7 +655,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-            
+
 
             setUploadProgress(100);
 
@@ -706,13 +665,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(0);
 
-            
+
 
           } catch (error) {
 
             // Sponsor logos upload failed
 
-            
+
 
             const fileResults = fileArray.map((file, index) => ({
 
@@ -736,7 +695,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }));
 
-            
+
 
             onUpload(fileResults);
 
@@ -754,13 +713,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(25);
 
-            
+
 
             const bucketName = 'speaker-photos';
 
             const results = [];
 
-            
+
 
             for (let index = 0; index < fileArray.length; index++) {
 
@@ -776,7 +735,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 const filePath = `photos/${fileName}`;
 
-                
+
 
                 const { data, error } = await supabase.storage
 
@@ -790,7 +749,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   });
 
-                
+
 
                 if (error) {
 
@@ -798,7 +757,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
                 const { data: { publicUrl } } = supabase.storage
 
@@ -806,7 +765,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   .getPublicUrl(filePath);
 
-                
+
 
                 results.push({
 
@@ -830,7 +789,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 });
 
-                
+
 
                 if (index < fileArray.length - 1) {
 
@@ -838,13 +797,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
               } catch (fileError) {
 
                 // Error uploading file
 
-                
+
 
                 results.push({
 
@@ -874,7 +833,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-            
+
 
             setUploadProgress(100);
 
@@ -884,13 +843,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(0);
 
-            
+
 
           } catch (error) {
 
             // Speaker photos upload failed
 
-            
+
 
             const fileResults = fileArray.map((file, index) => ({
 
@@ -914,7 +873,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }));
 
-            
+
 
             onUpload(fileResults);
 
@@ -932,13 +891,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(25);
 
-            
+
 
             const bucketName = 'event-kits';
 
             const results = [];
 
-            
+
 
             for (let index = 0; index < fileArray.length; index++) {
 
@@ -954,7 +913,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 const filePath = `kits/${fileName}`;
 
-                
+
 
                 const { data, error } = await supabase.storage
 
@@ -968,7 +927,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   });
 
-                
+
 
                 if (error) {
 
@@ -976,7 +935,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
                 const { data: { publicUrl } } = supabase.storage
 
@@ -984,7 +943,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   .getPublicUrl(filePath);
 
-                
+
 
                 results.push({
 
@@ -1008,7 +967,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 });
 
-                
+
 
                 if (index < fileArray.length - 1) {
 
@@ -1016,13 +975,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
               } catch (fileError) {
 
                 // Error uploading file
 
-                
+
 
                 results.push({
 
@@ -1052,7 +1011,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-            
+
 
             setUploadProgress(100);
 
@@ -1062,13 +1021,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(0);
 
-            
+
 
           } catch (error) {
 
             // Event kits upload failed
 
-            
+
 
             const fileResults = fileArray.map((file, index) => ({
 
@@ -1092,7 +1051,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }));
 
-            
+
 
             onUpload(fileResults);
 
@@ -1110,13 +1069,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(25);
 
-            
+
 
             const bucketName = 'event-programmes';
 
             const results = [];
 
-            
+
 
             for (let index = 0; index < fileArray.length; index++) {
 
@@ -1132,7 +1091,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 const filePath = `programmes/${fileName}`;
 
-                
+
 
                 const { data, error } = await supabase.storage
 
@@ -1146,7 +1105,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   });
 
-                
+
 
                 if (error) {
 
@@ -1154,7 +1113,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
                 const { data: { publicUrl } } = supabase.storage
 
@@ -1162,7 +1121,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   .getPublicUrl(filePath);
 
-                
+
 
                 results.push({
 
@@ -1186,7 +1145,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 });
 
-                
+
 
                 if (index < fileArray.length - 1) {
 
@@ -1194,13 +1153,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
               } catch (fileError) {
 
                 // Error uploading file
 
-                
+
 
                 results.push({
 
@@ -1230,7 +1189,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-            
+
 
             setUploadProgress(100);
 
@@ -1240,13 +1199,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(0);
 
-            
+
 
           } catch (error) {
 
             // Event programmes upload failed
 
-            
+
 
             const fileResults = fileArray.map((file, index) => ({
 
@@ -1270,7 +1229,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }));
 
-            
+
 
             onUpload(fileResults);
 
@@ -1288,7 +1247,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             setUploadProgress(25);
 
-            
+
 
             // Validate image files
             for (const file of fileArray) {
@@ -1299,7 +1258,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             const bucketName = 'certificate-templates';
 
-            
+
 
             const results = [];
 
@@ -1319,7 +1278,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 const filePath = `templates/${fileName}`;
 
-                
+
 
                 const uploadPromise = supabase.storage
 
@@ -1333,19 +1292,19 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   });
 
-                
 
-                const timeoutPromise = new Promise((_, reject) => 
+
+                const timeoutPromise = new Promise((_, reject) =>
 
                   setTimeout(() => reject(new Error('Upload timed out after 30 seconds')), 30000)
 
                 );
 
-                
+
 
                 const { data, error } = await Promise.race([uploadPromise, timeoutPromise]);
 
-                
+
 
                 if (error) {
 
@@ -1355,7 +1314,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
                 const { data: { publicUrl } } = supabase.storage
 
@@ -1363,13 +1322,13 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                   .getPublicUrl(filePath);
 
-                
+
 
 
 
                 setUploadProgress(50 + ((index + 1) / fileArray.length) * 25);
 
-                
+
 
                 results.push({
 
@@ -1393,7 +1352,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 });
 
-                
+
 
 
 
@@ -1403,7 +1362,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 }
 
-                
+
 
               } catch (fileError) {
 
@@ -1441,45 +1400,45 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             }
 
-              setUploadProgress(100);
-
-              
-
-              onUpload(results);
-
-              
-
-            } catch (error) {
-
-              // Certificate template upload failed
+            setUploadProgress(100);
 
 
 
-              const fileResults = fileArray.map((file, index) => {
+            onUpload(results);
 
-                setUploadProgress(((index + 1) / fileArray.length) * 100);
 
-                return {
 
-                  file: file,
+          } catch (error) {
 
-                  filename: file.name,
+            // Certificate template upload failed
 
-                  size: file.size,
 
-                  type: file.type,
 
-                  id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            const fileResults = fileArray.map((file, index) => {
 
-                  uploaded: false
+              setUploadProgress(((index + 1) / fileArray.length) * 100);
 
-                };
+              return {
 
-              });
+                file: file,
 
-              onUpload(fileResults);
+                filename: file.name,
 
-            }
+                size: file.size,
+
+                type: file.type,
+
+                id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+
+                uploaded: false
+
+              };
+
+            });
+
+            onUpload(fileResults);
+
+          }
 
         } else {
 
@@ -1505,7 +1464,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
           });
 
-          
+
 
           onUpload(fileResults);
 
@@ -1577,99 +1536,97 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
   return (
 
-          <div className="mb-6 sm:mb-8">
+    <div className="mb-6 sm:mb-8">
 
-        <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3">
+      <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3">
 
-          {label}
+        {label}
 
-        </label>
+      </label>
 
-        
 
-        {/* Upload Progress Bar */}
 
-        {uploading && (
+      {/* Upload Progress Bar */}
 
-          <div className="mb-3">
+      {uploading && (
 
-            <div className="flex items-center justify-between text-sm text-slate-600 mb-1">
+        <div className="mb-3">
 
-              <span>Uploading files...</span>
+          <div className="flex items-center justify-between text-sm text-slate-600 mb-1">
 
-              <span>{Math.round(uploadProgress)}%</span>
+            <span>Uploading files...</span>
 
-            </div>
-
-            <div className="w-full bg-slate-200 rounded-full h-2">
-
-              <div 
-
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-
-                style={{ width: `${uploadProgress}%` }}
-
-              ></div>
-
-            </div>
+            <span>{Math.round(uploadProgress)}%</span>
 
           </div>
 
-        )}
+          <div className="w-full bg-slate-200 rounded-full h-2">
 
-        
+            <div
 
-        <Controller
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
 
-          name={name}
+              style={{ width: `${uploadProgress}%` }}
 
-          control={control}
+            ></div>
 
-          render={({ field: { onChange, value } }) => (
+          </div>
 
-                      <div
+        </div>
 
-              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl cursor-pointer p-6 sm:p-8 transition-all duration-300 min-h-[160px] sm:min-h-[180px] md:min-h-[200px] ${
+      )}
 
-                dragActive 
 
-                  ? 'border-blue-500 bg-blue-50 shadow-lg scale-105' 
 
-                  : error
+      <Controller
+
+        name={name}
+
+        control={control}
+
+        render={({ field: { onChange, value } }) => (
+
+          <div
+
+            className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl cursor-pointer p-6 sm:p-8 transition-all duration-300 min-h-[160px] sm:min-h-[180px] md:min-h-[200px] ${dragActive
+
+              ? 'border-blue-500 bg-blue-50 shadow-lg scale-105'
+
+              : error
 
                 ? 'border-red-300 bg-red-50'
 
                 : uploadedFiles.length > 0
 
-                ? multiple 
+                  ? multiple
 
-                  ? 'border-green-400 bg-green-50 hover:border-green-500 hover:bg-green-100' // Multiple files - can add more
+                    ? 'border-green-400 bg-green-50 hover:border-green-500 hover:bg-green-100' // Multiple files - can add more
 
-                  : 'border-green-400 bg-green-50' // Single file - can replace
+                    : 'border-green-400 bg-green-50' // Single file - can replace
 
-                : 'border-slate-300 bg-slate-50 hover:border-blue-400 hover:bg-blue-50 hover:shadow-md'
+                  : 'border-slate-300 bg-slate-50 hover:border-blue-400 hover:bg-blue-50 hover:shadow-md'
 
               }`}
 
-              onClick={() => {
+            onClick={() => {
 
-                if (fileInputRef.current) {
+              if (fileInputRef.current) {
 
-                  fileInputRef.current.click();
+                fileInputRef.current.click();
 
-                }
+              }
 
-              }}
+            }}
 
-              onDragEnter={handleDrag}
+            onDragEnter={handleDrag}
 
-              onDragOver={handleDrag}
+            onDragOver={handleDrag}
 
-              onDragLeave={handleDrag}
+            onDragLeave={handleDrag}
 
-              onDrop={handleDrop}
+            onDrop={handleDrop}
 
-            >
+          >
 
             <input
 
@@ -1707,7 +1664,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             />
 
-            
+
 
             {uploading ? (
 
@@ -1805,7 +1762,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
             )}
 
-            
+
 
             {/* Display uploaded files with remove buttons */}
 
@@ -1829,7 +1786,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 )}
 
-                
+
 
                 <div className="text-sm font-medium text-slate-700 mb-2">
 
@@ -1857,9 +1814,9 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                                 <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
 
-                                  <img 
+                                  <img
 
-                                    src={URL.createObjectURL(file.file)} 
+                                    src={URL.createObjectURL(file.file)}
 
                                     alt={file.filename}
 
@@ -1879,7 +1836,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                           }
 
-                          
+
 
                           // Fallback to generic icon
 
@@ -1915,7 +1872,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                         })()}
 
-                        
+
 
                         {/* File Info */}
 
@@ -1933,7 +1890,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                       </div>
 
-                      
+
 
                       {/* Remove Button */}
 
@@ -1973,7 +1930,7 @@ const FileDropzone = ({ label, name, multiple = false, accept, onFileChange, onU
 
                 </div>
 
-                
+
 
                 {/* Add more files hint */}
 
@@ -2095,7 +2052,7 @@ export const EditEvent = () => {
 
     }
 
-    
+
 
     if (!canManageEvents) {
 
@@ -2211,7 +2168,7 @@ export const EditEvent = () => {
 
     if (!autoSaveEnabled) return; // Don't save if auto-save is disabled
 
-    
+
 
     try {
 
@@ -2312,8 +2269,6 @@ export const EditEvent = () => {
 
       guestSpeakers: '',
 
-      registrationDeadlineDate: '',
-      registrationDeadlineTime: '',
 
       checkInBeforeMinutes: 60,
 
@@ -2362,7 +2317,7 @@ export const EditEvent = () => {
 
         const eventData = JSON.parse(pendingEventData);
 
-        
+
 
         // Instant restore to form state
 
@@ -2382,16 +2337,8 @@ export const EditEvent = () => {
 
         setValue('maxParticipants', eventData.max_participants ? eventData.max_participants.toString() : '');
 
-        if (eventData.registration_deadline) {
-          const deadlineDate = new Date(eventData.registration_deadline);
-          setValue('registrationDeadlineDate', deadlineDate.toISOString().split('T')[0]);
-          setValue('registrationDeadlineTime', deadlineDate.toTimeString().slice(0, 5));
-        } else {
-          setValue('registrationDeadlineDate', '');
-          setValue('registrationDeadlineTime', '');
-        }
 
-        
+
 
         // Handle sponsors and speakers
 
@@ -2407,7 +2354,7 @@ export const EditEvent = () => {
 
         }
 
-        
+
 
         // Instant restore uploaded files (but note that File objects are lost in sessionStorage)
 
@@ -2455,7 +2402,7 @@ export const EditEvent = () => {
             // Could not restore sponsors data
           }
         }
-        
+
 
         return; // Skip auto-save restoration
 
@@ -2467,7 +2414,7 @@ export const EditEvent = () => {
 
     }
 
-    
+
 
     // Fallback to auto-saved data (also instant)
 
@@ -2492,7 +2439,7 @@ export const EditEvent = () => {
   useEffect(() => {
 
     if (isEditMode) {
-      return () => {};
+      return () => { };
     }
 
     const subscription = watch((data) => {
@@ -2507,7 +2454,7 @@ export const EditEvent = () => {
 
         }, 300); // Save after 300ms of no changes
 
-        
+
 
         return () => clearTimeout(timeoutId);
 
@@ -2515,7 +2462,7 @@ export const EditEvent = () => {
 
     });
 
-    
+
 
     return () => subscription.unsubscribe();
 
@@ -2584,29 +2531,18 @@ export const EditEvent = () => {
         setValue('checkInBeforeMinutes', event.check_in_before_minutes ?? 60);
         setValue('checkInDuringMinutes', event.check_in_during_minutes ?? 30);
 
-        if (event.registration_deadline) {
-          const deadline = new Date(event.registration_deadline);
-          if (!Number.isNaN(deadline.getTime())) {
-            setValue('registrationDeadlineDate', deadline.toISOString().split('T')[0]);
-            setValue('registrationDeadlineTime', deadline.toTimeString().slice(0, 5));
-          }
-        } else {
-          setValue('registrationDeadlineDate', '');
-          setValue('registrationDeadlineTime', '');
-        }
-
         setValue('sponsors', event.sponsors ? event.sponsors.map((s) => s.name).join(', ') : '');
         setValue('guestSpeakers', event.guest_speakers ? event.guest_speakers.map((s) => s.name).join(', ') : '');
 
         const existingBanner = event.banner_url
           ? {
-              url: event.banner_url,
-              filename: 'Current Banner',
-              path: extractFilePath(event.banner_url),
-              bucket: extractBucketName(event.banner_url),
-              uploaded: true,
-              isOriginal: true,
-            }
+            url: event.banner_url,
+            filename: 'Current Banner',
+            path: extractFilePath(event.banner_url),
+            bucket: extractBucketName(event.banner_url),
+            uploaded: true,
+            isOriginal: true,
+          }
           : null;
 
         const buildFileList = (csv, labelPrefix) => {
@@ -2709,33 +2645,33 @@ export const EditEvent = () => {
       });
     } else if (uploadType === 'materials') {
       // For materials, accumulate files by category
-      setUploadedFiles(prev => ({ 
-        ...prev, 
-        materials: prev.materials ? [...prev.materials, ...results] : results 
+      setUploadedFiles(prev => ({
+        ...prev,
+        materials: prev.materials ? [...prev.materials, ...results] : results
       }));
     } else if (uploadType === 'logo') {
       // For sponsor logos, accumulate multiple files
-      setUploadedFiles(prev => ({ 
-        ...prev, 
-        sponsorLogos: prev.sponsorLogos ? [...prev.sponsorLogos, ...results] : results 
+      setUploadedFiles(prev => ({
+        ...prev,
+        sponsorLogos: prev.sponsorLogos ? [...prev.sponsorLogos, ...results] : results
       }));
     } else if (uploadType === 'photo') {
       // For speaker photos, accumulate multiple files
-      setUploadedFiles(prev => ({ 
-        ...prev, 
-        speakerPhotos: prev.speakerPhotos ? [...prev.speakerPhotos, ...results] : results 
+      setUploadedFiles(prev => ({
+        ...prev,
+        speakerPhotos: prev.speakerPhotos ? [...prev.speakerPhotos, ...results] : results
       }));
     } else if (uploadType === 'event-kits') {
       // For event kits, accumulate multiple files
-      setUploadedFiles(prev => ({ 
-        ...prev, 
-        eventKits: prev.eventKits ? [...prev.eventKits, ...results] : results 
+      setUploadedFiles(prev => ({
+        ...prev,
+        eventKits: prev.eventKits ? [...prev.eventKits, ...results] : results
       }));
     } else if (uploadType === 'event-programmes') {
       // For event programmes, accumulate multiple files
-      setUploadedFiles(prev => ({ 
-        ...prev, 
-        eventProgrammes: prev.eventProgrammes ? [...prev.eventProgrammes, ...results] : results 
+      setUploadedFiles(prev => ({
+        ...prev,
+        eventProgrammes: prev.eventProgrammes ? [...prev.eventProgrammes, ...results] : results
       }));
     }
   };
@@ -2746,125 +2682,125 @@ export const EditEvent = () => {
     // Find the file to get its storage path
     let fileToRemove = null;
 
-      let fileArray = null;
+    let fileArray = null;
 
-      
 
-      if (uploadType === 'banner') {
 
-        fileToRemove = uploadedFiles.banner;
+    if (uploadType === 'banner') {
 
-        if (fileToRemove) {
+      fileToRemove = uploadedFiles.banner;
 
-          setUploadedFiles(prev => ({ ...prev, banner: null }));
+      if (fileToRemove) {
 
-        }
+        setUploadedFiles(prev => ({ ...prev, banner: null }));
 
-      } else if (uploadType === 'materials') {
-
-        fileArray = uploadedFiles.materials;
-
-        fileToRemove = fileArray?.find(f => f.id === fileId);
-
-        if (fileToRemove) {
-
-          setUploadedFiles(prev => ({ 
-
-            ...prev, 
-
-            materials: prev.materials?.filter(f => f.id !== fileId) || []
-
-          }));
-
-        }
-
-      } else if (uploadType === 'logo') {
-
-        fileArray = uploadedFiles.sponsorLogos;
-
-        fileToRemove = fileArray?.find(f => f.id === fileId);
-
-        if (fileToRemove) {
-
-          setUploadedFiles(prev => ({ 
-
-            ...prev, 
-
-            sponsorLogos: prev.sponsorLogos?.filter(f => f.id !== fileId) || []
-
-          }));
-
-        }
-
-      } else if (uploadType === 'photo') {
-
-        fileArray = uploadedFiles.speakerPhotos;
-
-        fileToRemove = fileArray?.find(f => f.id === fileId);
-
-        if (fileToRemove) {
-
-          setUploadedFiles(prev => ({ 
-
-            ...prev, 
-
-            speakerPhotos: prev.speakerPhotos?.filter(f => f.id !== fileId) || []
-
-          }));
-
-        }
-
-      } else if (uploadType === 'event-kits') {
-
-        fileArray = uploadedFiles.eventKits;
-
-        fileToRemove = fileArray?.find(f => f.id === fileId);
-
-        if (fileToRemove) {
-
-          setUploadedFiles(prev => ({ 
-
-            ...prev, 
-
-            eventKits: prev.eventKits?.filter(f => f.id !== fileId) || []
-
-          }));
-
-        }
-
-      } else if (uploadType === 'event-programmes') {
-
-        fileArray = uploadedFiles.eventProgrammes;
-
-        fileToRemove = fileArray?.find(f => f.id === fileId);
-
-        if (fileToRemove) {
-
-          setUploadedFiles(prev => ({ 
-
-            ...prev, 
-
-            eventProgrammes: prev.eventProgrammes?.filter(f => f.id !== fileId) || []
-
-          }));
-
-        }
       }
 
-      // Remove file from Supabase Storage if it was uploaded
-      if (fileToRemove?.path && fileToRemove?.uploaded && fileToRemove?.bucket) {
-        try {
-          // Use the bucket name stored in the file object
-          const bucketName = fileToRemove.bucket;
+    } else if (uploadType === 'materials') {
 
-          const { error } = await supabase.storage
-            .from(bucketName)
-            .remove([fileToRemove.path]);
+      fileArray = uploadedFiles.materials;
 
-        } catch (storageError) {
-          // Continue with local removal even if storage removal fails
-        }
+      fileToRemove = fileArray?.find(f => f.id === fileId);
+
+      if (fileToRemove) {
+
+        setUploadedFiles(prev => ({
+
+          ...prev,
+
+          materials: prev.materials?.filter(f => f.id !== fileId) || []
+
+        }));
+
       }
+
+    } else if (uploadType === 'logo') {
+
+      fileArray = uploadedFiles.sponsorLogos;
+
+      fileToRemove = fileArray?.find(f => f.id === fileId);
+
+      if (fileToRemove) {
+
+        setUploadedFiles(prev => ({
+
+          ...prev,
+
+          sponsorLogos: prev.sponsorLogos?.filter(f => f.id !== fileId) || []
+
+        }));
+
+      }
+
+    } else if (uploadType === 'photo') {
+
+      fileArray = uploadedFiles.speakerPhotos;
+
+      fileToRemove = fileArray?.find(f => f.id === fileId);
+
+      if (fileToRemove) {
+
+        setUploadedFiles(prev => ({
+
+          ...prev,
+
+          speakerPhotos: prev.speakerPhotos?.filter(f => f.id !== fileId) || []
+
+        }));
+
+      }
+
+    } else if (uploadType === 'event-kits') {
+
+      fileArray = uploadedFiles.eventKits;
+
+      fileToRemove = fileArray?.find(f => f.id === fileId);
+
+      if (fileToRemove) {
+
+        setUploadedFiles(prev => ({
+
+          ...prev,
+
+          eventKits: prev.eventKits?.filter(f => f.id !== fileId) || []
+
+        }));
+
+      }
+
+    } else if (uploadType === 'event-programmes') {
+
+      fileArray = uploadedFiles.eventProgrammes;
+
+      fileToRemove = fileArray?.find(f => f.id === fileId);
+
+      if (fileToRemove) {
+
+        setUploadedFiles(prev => ({
+
+          ...prev,
+
+          eventProgrammes: prev.eventProgrammes?.filter(f => f.id !== fileId) || []
+
+        }));
+
+      }
+    }
+
+    // Remove file from Supabase Storage if it was uploaded
+    if (fileToRemove?.path && fileToRemove?.uploaded && fileToRemove?.bucket) {
+      try {
+        // Use the bucket name stored in the file object
+        const bucketName = fileToRemove.bucket;
+
+        const { error } = await supabase.storage
+          .from(bucketName)
+          .remove([fileToRemove.path]);
+
+      } catch (storageError) {
+        // Continue with local removal even if storage removal fails
+      }
+    }
   };
 
 
@@ -2892,7 +2828,7 @@ export const EditEvent = () => {
   };
 
   const updateSpeaker = (index, field, value) => {
-    const updatedSpeakers = speakers.map((speaker, i) => 
+    const updatedSpeakers = speakers.map((speaker, i) =>
       i === index ? { ...speaker, [field]: value } : speaker
     );
     setSpeakers(updatedSpeakers);
@@ -2912,7 +2848,7 @@ export const EditEvent = () => {
     const updatedSpeakers = [...speakers];
     const [movedSpeaker] = updatedSpeakers.splice(fromIndex, 1);
     updatedSpeakers.splice(toIndex, 0, movedSpeaker);
-    
+
     // Update speaker_order for all speakers
     const reorderedSpeakers = updatedSpeakers.map((speaker, i) => ({
       ...speaker,
@@ -2940,7 +2876,7 @@ export const EditEvent = () => {
   };
 
   const updateSponsor = (index, field, value) => {
-    const updatedSponsors = sponsors.map((sponsor, i) => 
+    const updatedSponsors = sponsors.map((sponsor, i) =>
       i === index ? { ...sponsor, [field]: value } : sponsor
     );
     setSponsors(updatedSponsors);
@@ -2960,7 +2896,7 @@ export const EditEvent = () => {
     const updatedSponsors = [...sponsors];
     const [movedSponsor] = updatedSponsors.splice(fromIndex, 1);
     updatedSponsors.splice(toIndex, 0, movedSponsor);
-    
+
     // Update sponsor_order for all sponsors
     const reorderedSponsors = updatedSponsors.map((sponsor, i) => ({
       ...sponsor,
@@ -3007,17 +2943,6 @@ export const EditEvent = () => {
           return Number.isNaN(parsed) ? null : parsed;
         };
 
-        const buildDeadline = () => {
-          if (!data.registrationDeadlineDate) return currentEvent.registration_deadline || null;
-          const deadline = new Date(data.registrationDeadlineDate);
-          if (data.registrationDeadlineTime) {
-            const [hours, minutes] = data.registrationDeadlineTime.split(':');
-            deadline.setHours(parseInt(hours || '0', 10), parseInt(minutes || '0', 10), 0, 0);
-          } else {
-            deadline.setHours(23, 59, 59, 999);
-          }
-          return deadline.toISOString();
-        };
 
         let venueName = data.venue || currentEvent.venue;
         if (showOtherVenue && customVenueName.trim()) {
@@ -3046,7 +2971,6 @@ export const EditEvent = () => {
           max_participants: parseNumber(data.maxParticipants),
           check_in_before_minutes: parseNumber(data.checkInBeforeMinutes),
           check_in_during_minutes: parseNumber(data.checkInDuringMinutes),
-          registration_deadline: buildDeadline(),
           banner_url: uploadedFiles.banner?.url || currentEvent.banner_url || null,
           event_kits_url: uploadedFiles.eventKits?.length ? uploadedFiles.eventKits.map((file) => file.url).filter(Boolean).join(',') : currentEvent.event_kits_url || null,
           event_programmes_url: uploadedFiles.eventProgrammes?.length ? uploadedFiles.eventProgrammes.map((file) => file.url).filter(Boolean).join(',') : currentEvent.event_programmes_url || null,
@@ -3080,7 +3004,7 @@ export const EditEvent = () => {
               matchingLogo = uploadedFiles.sponsorLogos[index];
             }
             if (!matchingLogo) {
-              matchingLogo = uploadedFiles.sponsorLogos.find(logo => 
+              matchingLogo = uploadedFiles.sponsorLogos.find(logo =>
                 logo.name && logo.name.includes(`sponsor-logo-${index}`)
               );
             }
@@ -3092,7 +3016,7 @@ export const EditEvent = () => {
             }
           });
         }
-        
+
         if (uploadedFiles.speakerPhotos && uploadedFiles.speakerPhotos.length > 0) {
           speakers.forEach((speaker, index) => {
             let matchingPhoto = null;
@@ -3100,7 +3024,7 @@ export const EditEvent = () => {
               matchingPhoto = uploadedFiles.speakerPhotos[index];
             }
             if (!matchingPhoto) {
-              matchingPhoto = uploadedFiles.speakerPhotos.find(photo => 
+              matchingPhoto = uploadedFiles.speakerPhotos.find(photo =>
                 photo.name && photo.name.includes(`speaker-photo-${index}`)
               );
             }
@@ -3115,13 +3039,13 @@ export const EditEvent = () => {
 
         const existingSpeakersResult = await SpeakerService.getEventSpeakers(eventId);
         const existingSponsorsResult = await SponsorService.getEventSponsors(eventId);
-        
+
         const existingSpeakerIds = new Set((existingSpeakersResult.speakers || []).map(es => es.speaker_id));
         const existingSponsorIds = new Set((existingSponsorsResult.sponsors || []).map(es => es.sponsor_id));
 
         for (let i = 0; i < speakers.length; i++) {
           const speakerData = speakers[i];
-          
+
           if (!speakerData.first_name || !speakerData.last_name) {
             continue;
           }
@@ -3189,7 +3113,7 @@ export const EditEvent = () => {
         const currentSpeakerIds = new Set(speakers
           .filter(s => s.id && s.id.length > 15)
           .map(s => s.id));
-        
+
         for (const existingSpeakerId of existingSpeakerIds) {
           if (!currentSpeakerIds.has(existingSpeakerId)) {
             await SpeakerService.removeSpeakerFromEvent(eventId, existingSpeakerId);
@@ -3198,7 +3122,7 @@ export const EditEvent = () => {
 
         for (let i = 0; i < sponsors.length; i++) {
           const sponsorData = sponsors[i];
-          
+
           if (!sponsorData.name) {
             continue;
           }
@@ -3256,7 +3180,7 @@ export const EditEvent = () => {
         const currentSponsorIds = new Set(sponsors
           .filter(s => s.id && s.id.length > 15)
           .map(s => s.id));
-        
+
         for (const existingSponsorId of existingSponsorIds) {
           if (!currentSponsorIds.has(existingSponsorId)) {
             await SponsorService.removeSponsorFromEvent(eventId, existingSponsorId);
@@ -3299,14 +3223,6 @@ export const EditEvent = () => {
 
       max_participants: data.maxParticipants ? parseInt(data.maxParticipants) : null,
 
-      registration_deadline: data.registrationDeadlineDate ? (() => {
-        const date = new Date(data.registrationDeadlineDate);
-        if (data.registrationDeadlineTime) {
-          const [hours, minutes] = data.registrationDeadlineTime.split(':');
-          date.setHours(parseInt(hours), parseInt(minutes));
-        }
-        return date.toISOString();
-      })() : null,
 
       // Check-in window settings
       check_in_before_minutes: data.checkInBeforeMinutes || 60,
@@ -3337,7 +3253,7 @@ export const EditEvent = () => {
             name: customVenueName.trim(),
             created_by: user.id
           });
-          
+
           if (venueResult.error) {
             // Continue with event creation even if venue creation fails
           }
@@ -3370,7 +3286,7 @@ export const EditEvent = () => {
 
     }
 
-    
+
 
     // Handle materials files
 
@@ -3380,21 +3296,21 @@ export const EditEvent = () => {
 
     }
 
-    
+
 
     // Handle sponsor logos - match uploaded images with sponsor data
     if (uploadedFiles.sponsorLogos && uploadedFiles.sponsorLogos.length > 0) {
       sponsors.forEach((sponsor, index) => {
         // Try multiple matching strategies
         let matchingLogo = null;
-        
+
         // Strategy 1: Match by index (assuming same order)
         if (uploadedFiles.sponsorLogos[index]) {
           matchingLogo = uploadedFiles.sponsorLogos[index];
         }
         // Strategy 2: Match by filename containing index
         if (!matchingLogo) {
-          matchingLogo = uploadedFiles.sponsorLogos.find(logo => 
+          matchingLogo = uploadedFiles.sponsorLogos.find(logo =>
             logo.name && logo.name.includes(`sponsor-logo-${index}`)
           );
         }
@@ -3402,28 +3318,28 @@ export const EditEvent = () => {
         if (!matchingLogo && sponsors.length === 1 && uploadedFiles.sponsorLogos.length === 1) {
           matchingLogo = uploadedFiles.sponsorLogos[0];
         }
-        
+
         if (matchingLogo && matchingLogo.url) {
           sponsor.logo_url = matchingLogo.url;
         }
       });
     }
-    
+
     // Handle speaker photos - match uploaded images with speaker data
     if (uploadedFiles.speakerPhotos && uploadedFiles.speakerPhotos.length > 0) {
       speakers.forEach((speaker, index) => {
         const speakerName = `${speaker.first_name} ${speaker.last_name}`;
-        
+
         // Try multiple matching strategies
         let matchingPhoto = null;
-        
+
         // Strategy 1: Match by index (assuming same order)
         if (uploadedFiles.speakerPhotos[index]) {
           matchingPhoto = uploadedFiles.speakerPhotos[index];
         }
         // Strategy 2: Match by filename containing index
         if (!matchingPhoto) {
-          matchingPhoto = uploadedFiles.speakerPhotos.find(photo => 
+          matchingPhoto = uploadedFiles.speakerPhotos.find(photo =>
             photo.name && photo.name.includes(`speaker-photo-${index}`)
           );
         }
@@ -3431,13 +3347,13 @@ export const EditEvent = () => {
         if (!matchingPhoto && speakers.length === 1 && uploadedFiles.speakerPhotos.length === 1) {
           matchingPhoto = uploadedFiles.speakerPhotos[0];
         }
-        
+
         if (matchingPhoto && matchingPhoto.url) {
           speaker.photo_url = matchingPhoto.url;
         }
       });
     }
-    
+
 
     // Handle event programmes
 
@@ -3447,10 +3363,10 @@ export const EditEvent = () => {
 
     }
 
-    
 
 
-    
+
+
 
     // Handle event kits
 
@@ -3473,16 +3389,16 @@ export const EditEvent = () => {
       ...speaker,
       photo_url: speaker.photo_url || ''
     }));
-    
+
     const sponsorsWithImages = sponsors.map(sponsor => ({
       ...sponsor,
       logo_url: sponsor.logo_url || ''
     }));
-    
-    
+
+
     sessionStorage.setItem('pending-event-speakers', JSON.stringify(speakersWithImages));
     sessionStorage.setItem('pending-event-sponsors', JSON.stringify(sponsorsWithImages));
-    
+
     // Create mode: Navigate to survey creation immediately
     navigate('/create-survey');
 
@@ -3512,8 +3428,6 @@ export const EditEvent = () => {
 
     setValue('maxParticipants', '');
 
-    setValue('registrationDeadlineDate', '');
-    setValue('registrationDeadlineTime', '');
 
     setValue('sponsors', '');
 
@@ -3585,13 +3499,13 @@ export const EditEvent = () => {
 
             >
 
-              <svg 
+              <svg
 
-                className="w-6 h-6 text-slate-600 group-hover:text-blue-600 transition-colors" 
+                className="w-6 h-6 text-slate-600 group-hover:text-blue-600 transition-colors"
 
-                fill="none" 
+                fill="none"
 
-                stroke="currentColor" 
+                stroke="currentColor"
 
                 viewBox="0 0 24 24"
 
@@ -3617,9 +3531,9 @@ export const EditEvent = () => {
 
           </p>
 
-          
 
-          
+
+
 
           {/* Draft Management Info */}
 
@@ -3634,21 +3548,17 @@ export const EditEvent = () => {
 
                   onClick={toggleAutoSave}
 
-                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${autoSaveEnabled ? 'bg-green-500' : 'bg-gray-400'
 
-                    autoSaveEnabled ? 'bg-green-500' : 'bg-gray-400'
-
-                  }`}
+                    }`}
 
                 >
 
                   <div
 
-                    className={`inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white transition-transform ${
+                    className={`inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white transition-transform ${autoSaveEnabled ? 'translate-x-6' : 'translate-x-1'
 
-                      autoSaveEnabled ? 'translate-x-6' : 'translate-x-1'
-
-                    }`}
+                      }`}
 
                   >
 
@@ -3674,21 +3584,21 @@ export const EditEvent = () => {
 
               </div>
 
-              
 
-              
 
-                          {/* Clear Draft Button */}
 
-               <button
 
-                 onClick={handleClearDraft}
+              {/* Clear Draft Button */}
 
-                 className="inline-flex items-center space-x-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-lg border border-red-200 hover:border-red-300 transition-all duration-200 font-medium text-base shadow-sm hover:shadow-md"
+              <button
 
-                 title="Clear saved draft"
+                onClick={handleClearDraft}
 
-               >
+                className="inline-flex items-center space-x-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-lg border border-red-200 hover:border-red-300 transition-all duration-200 font-medium text-base shadow-sm hover:shadow-md"
+
+                title="Clear saved draft"
+
+              >
 
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 
@@ -3717,7 +3627,7 @@ export const EditEvent = () => {
 
 
 
-        
+
 
 
 
@@ -3763,7 +3673,7 @@ export const EditEvent = () => {
 
                 accept=".png,.jpg,.jpeg"
 
-                onFileChange={() => {}}
+                onFileChange={() => { }}
 
                 onUpload={(results) => handleFileUpload('banner', results)}
 
@@ -3805,13 +3715,13 @@ export const EditEvent = () => {
 
                 </div>
 
-                                 <div>
+                <div>
 
-                   <h3 className="text-xl font-semibold text-slate-800">Event Title</h3>
+                  <h3 className="text-xl font-semibold text-slate-800">Event Title</h3>
 
-                   <p className="text-base text-slate-600">Set the main title for your event</p>
+                  <p className="text-base text-slate-600">Set the main title for your event</p>
 
-                 </div>
+                </div>
 
               </div>
 
@@ -3821,11 +3731,11 @@ export const EditEvent = () => {
 
               <div className="space-y-2">
 
-                                 <label className="block text-base font-semibold text-slate-700 uppercase tracking-wide">
+                <label className="block text-base font-semibold text-slate-700 uppercase tracking-wide">
 
-                   Event Title
+                  Event Title
 
-                 </label>
+                </label>
 
                 <Controller
 
@@ -3841,11 +3751,9 @@ export const EditEvent = () => {
 
                       type="text"
 
-                                             className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-lg transition-all duration-200 placeholder-slate-400 ${
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-lg transition-all duration-200 placeholder-slate-400 ${errors.title ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
 
-                         errors.title ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-
-                       }`}
+                        }`}
 
                       placeholder="Enter your event title"
 
@@ -3855,11 +3763,11 @@ export const EditEvent = () => {
 
                 />
 
-                                 {errors.title && (
+                {errors.title && (
 
-                   <p className="text-base text-red-600">{errors.title.message}</p>
+                  <p className="text-base text-red-600">{errors.title.message}</p>
 
-                 )}
+                )}
 
               </div>
 
@@ -4021,11 +3929,9 @@ export const EditEvent = () => {
 
                         type="date"
 
-                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
+                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.startDate ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
 
-                          errors.startDate ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-
-                        }`}
+                          }`}
 
                       />
 
@@ -4063,11 +3969,9 @@ export const EditEvent = () => {
 
                         type="date"
 
-                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
+                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.endDate ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
 
-                          errors.endDate ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-
-                        }`}
+                          }`}
 
                       />
 
@@ -4085,271 +3989,163 @@ export const EditEvent = () => {
 
               </div>
 
-              
 
-                             {/* Time inputs */}
 
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {/* Time inputs */}
 
-                 <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
 
-                   <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                <div className="space-y-2">
 
-                     Start Time
+                  <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
 
-                   </label>
+                    Start Time
 
-                   <Controller
+                  </label>
 
-                     name="startTime"
+                  <Controller
 
-                     control={control}
+                    name="startTime"
 
-                     render={({ field }) => (
+                    control={control}
 
-                       <input
+                    render={({ field }) => (
 
-                         {...field}
+                      <input
 
-                         type="time"
+                        {...field}
 
-                         className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
+                        type="time"
 
-                           errors.startTime ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.startTime ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
 
-                         }`}
+                          }`}
 
-                       />
+                      />
 
-                     )}
+                    )}
 
-                   />
+                  />
 
-                   {errors.startTime && (
+                  {errors.startTime && (
 
-                     <p className="text-sm text-red-600">{errors.startTime.message}</p>
+                    <p className="text-sm text-red-600">{errors.startTime.message}</p>
 
-                   )}
+                  )}
 
-                 </div>
+                </div>
 
-                 <div className="space-y-2">
+                <div className="space-y-2">
 
-                   <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                  <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
 
-                     End Time
+                    End Time
 
-                   </label>
+                  </label>
 
-                   <Controller
+                  <Controller
 
-                     name="endTime"
+                    name="endTime"
 
-                     control={control}
+                    control={control}
 
-                     render={({ field }) => (
+                    render={({ field }) => (
 
-                       <input
+                      <input
 
-                         {...field}
+                        {...field}
 
-                         type="time"
+                        type="time"
 
-                         className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
+                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.endTime ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
 
-                           errors.endTime ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                          }`}
 
-                         }`}
+                      />
 
-                       />
+                    )}
 
-                     )}
+                  />
 
-                   />
+                  {errors.endTime && (
 
-                   {errors.endTime && (
+                    <p className="text-sm text-red-600">{errors.endTime.message}</p>
 
-                     <p className="text-sm text-red-600">{errors.endTime.message}</p>
+                  )}
 
-                   )}
+                </div>
 
-                 </div>
+              </div>
 
-               </div>
 
 
+              {/* Check-in Window Settings */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-slate-800 mb-4">Check-in Window Settings</h3>
 
-               {/* Registration Deadline */}
-
-               <div className="space-y-4">
-
-                 <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
-
-                   Registration Deadline
-
-                 </label>
-
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-                   {/* Date Input */}
-                   <div className="space-y-2">
-
-                     <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide">
-
-                       Date
-
-                     </label>
-
-                     <Controller
-
-                       name="registrationDeadlineDate"
-
-                       control={control}
-
-                       render={({ field }) => (
-
-                         <input
-
-                           {...field}
-
-                           type="date"
-
-                           className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
-
-                             errors.registrationDeadlineDate ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-
-                           }`}
-
-                         />
-
-                       )}
-
-                     />
-
-                   </div>
-
-                   {/* Time Input */}
-                   <div className="space-y-2">
-
-                     <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide">
-
-                       Time
-
-                     </label>
-
-                     <Controller
-
-                       name="registrationDeadlineTime"
-
-                       control={control}
-
-                       render={({ field }) => (
-
-                         <input
-
-                           {...field}
-
-                           type="time"
-
-                           className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
-
-                             errors.registrationDeadlineTime ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-
-                           }`}
-
-                         />
-
-                       )}
-
-                     />
-
-                   </div>
-
-                 </div>
-
-                 {errors.registrationDeadlineDate && (
-
-                   <p className="text-sm text-red-600">{errors.registrationDeadlineDate.message}</p>
-
-                 )}
-
-                 {errors.registrationDeadlineTime && (
-
-                   <p className="text-sm text-red-600">{errors.registrationDeadlineTime.message}</p>
-
-                 )}
-
-               </div>
-
-               {/* Check-in Window Settings */}
-               <div className="space-y-4">
-                 <h3 className="text-lg font-semibold text-slate-800 mb-4">Check-in Window Settings</h3>
-                 
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                   <div className="space-y-2">
-                     <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
-                       Check-in Before Event (minutes)
-                     </label>
-                     <Controller
-                       name="checkInBeforeMinutes"
-                       control={control}
-                       render={({ field }) => (
-                         <input
-                           {...field}
-                           type="number"
-                           min="0"
-                           max="480"
-                           placeholder="60"
-                           className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
-                             errors.checkInBeforeMinutes ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-                           }`}
-                         />
-                       )}
-                     />
-                     {errors.checkInBeforeMinutes && (
-                       <p className="text-sm text-red-600">{errors.checkInBeforeMinutes.message}</p>
-                     )}
-                     <p className="text-xs text-slate-500">How many minutes before the event starts can users check in?</p>
-                   </div>
-
-                   <div className="space-y-2">
-                     <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
-                       Check-in During Event (minutes)
-                     </label>
-                     <Controller
-                       name="checkInDuringMinutes"
-                       control={control}
-                       render={({ field }) => (
-                         <input
-                           {...field}
-                           type="number"
-                           min="0"
-                           max="240"
-                           placeholder="30"
-                           className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
-                             errors.checkInDuringMinutes ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-                           }`}
-                         />
-                       )}
-                     />
-                     {errors.checkInDuringMinutes && (
-                       <p className="text-sm text-red-600">{errors.checkInDuringMinutes.message}</p>
-                     )}
-                     <p className="text-xs text-slate-500">How many minutes after the event starts can users still check in?</p>
-                   </div>
-                 </div>
-
-                 {/* Check-in Window Preview */}
-                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                   <h4 className="font-semibold text-blue-800 mb-2">Check-in Window Preview</h4>
-                   <div className="text-sm text-blue-700 space-y-1">
-                     <p>Event: {watch('startDate')} at {watch('startTime')}</p>
-                     <p>Check-in opens: {watch('checkInBeforeMinutes') || 60} minutes before event</p>
-                     <p>Check-in closes: {watch('checkInDuringMinutes') || 30} minutes after event starts</p>
-                   </div>
-                 </div>
-
-               </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                      Check-in Before Event (minutes)
+                    </label>
+                    <Controller
+                      name="checkInBeforeMinutes"
+                      control={control}
+                      render={({ field }) => (
+                        <input
+                          {...field}
+                          type="number"
+                          min="0"
+                          max="480"
+                          placeholder="60"
+                          className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.checkInBeforeMinutes ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                            }`}
+                        />
+                      )}
+                    />
+                    {errors.checkInBeforeMinutes && (
+                      <p className="text-sm text-red-600">{errors.checkInBeforeMinutes.message}</p>
+                    )}
+                    <p className="text-xs text-slate-500">How many minutes before the event starts can users check in?</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                      Check-in During Event (minutes)
+                    </label>
+                    <Controller
+                      name="checkInDuringMinutes"
+                      control={control}
+                      render={({ field }) => (
+                        <input
+                          {...field}
+                          type="number"
+                          min="0"
+                          max="240"
+                          placeholder="30"
+                          className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.checkInDuringMinutes ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                            }`}
+                        />
+                      )}
+                    />
+                    {errors.checkInDuringMinutes && (
+                      <p className="text-sm text-red-600">{errors.checkInDuringMinutes.message}</p>
+                    )}
+                    <p className="text-xs text-slate-500">How many minutes after the event starts can users still check in?</p>
+                  </div>
+                </div>
+
+                {/* Check-in Window Preview */}
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <h4 className="font-semibold text-blue-800 mb-2">Check-in Window Preview</h4>
+                  <div className="text-sm text-blue-700 space-y-1">
+                    <p>Event: {watch('startDate')} at {watch('startTime')}</p>
+                    <p>Check-in opens: {watch('checkInBeforeMinutes') || 60} minutes before event</p>
+                    <p>Check-in closes: {watch('checkInDuringMinutes') || 30} minutes after event starts</p>
+                  </div>
+                </div>
+
+              </div>
 
             </div>
 
@@ -4391,114 +4187,111 @@ export const EditEvent = () => {
 
             <div className="p-6 space-y-6">
 
-                             <div className="space-y-2">
+              <div className="space-y-2">
 
-                 <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+                <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
 
-                   Venue
+                  Venue
 
-                 </label>
+                </label>
 
-                 <Controller
-                   name="venue"
-                   control={control}
-                   render={({ field }) => (
-                     <div className="space-y-3">
-                       <select
-                         {...field}
-                         onChange={(e) => {
-                           const value = e.target.value;
-                           field.onChange(value);
-                           setShowOtherVenue(value === 'other');
-                           if (value !== 'other') {
-                             setCustomVenueName('');
-                           }
-                         }}
-                         className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${
-                           errors.venue ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-                         }`}
-                       >
-                         <option value="">Select a venue...</option>
-                         {venues.map((venue) => (
-                           <option key={venue.id} value={venue.name}>
-                             {venue.name}
-                           </option>
-                         ))}
-                         <option value="other">Other (specify below)</option>
-                       </select>
-                       
-                       {showOtherVenue && (
-                         <input
-                           type="text"
-                           placeholder="Enter custom venue name"
-                           value={customVenueName}
-                           onChange={(e) => {
-                             setCustomVenueName(e.target.value);
-                             field.onChange(e.target.value); // Update the form field with custom venue
-                           }}
-                           className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
-                         />
-                       )}
-                     </div>
-                   )}
-                 />
+                <Controller
+                  name="venue"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="space-y-3">
+                      <select
+                        {...field}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          field.onChange(value);
+                          setShowOtherVenue(value === 'other');
+                          if (value !== 'other') {
+                            setCustomVenueName('');
+                          }
+                        }}
+                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.venue ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                          }`}
+                      >
+                        <option value="">Select a venue...</option>
+                        {venues.map((venue) => (
+                          <option key={venue.id} value={venue.name}>
+                            {venue.name}
+                          </option>
+                        ))}
+                        <option value="other">Other (specify below)</option>
+                      </select>
 
-                 {errors.venue && (
+                      {showOtherVenue && (
+                        <input
+                          type="text"
+                          placeholder="Enter custom venue name"
+                          value={customVenueName}
+                          onChange={(e) => {
+                            setCustomVenueName(e.target.value);
+                            field.onChange(e.target.value); // Update the form field with custom venue
+                          }}
+                          className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
+                        />
+                      )}
+                    </div>
+                  )}
+                />
 
-                   <p className="text-sm text-red-600">{errors.venue.message}</p>
+                {errors.venue && (
 
-                 )}
+                  <p className="text-sm text-red-600">{errors.venue.message}</p>
 
-               </div>
+                )}
 
+              </div>
 
 
 
-               <div className="space-y-2">
 
-                 <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
+              <div className="space-y-2">
 
-                   Max Participants
+                <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
 
-                 </label>
+                  Max Participants
 
-                 <Controller
+                </label>
 
-                   name="maxParticipants"
+                <Controller
 
-                   control={control}
+                  name="maxParticipants"
 
-                   render={({ field }) => (
+                  control={control}
 
-                     <input
+                  render={({ field }) => (
 
-                       {...field}
+                    <input
 
-                       type="number"
+                      {...field}
 
-                       min="1"
+                      type="number"
 
-                       placeholder="Enter maximum number of participants"
+                      min="1"
 
-                       className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400 ${
+                      placeholder="Enter maximum number of participants"
 
-                         errors.maxParticipants ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400 ${errors.maxParticipants ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
 
-                       }`}
+                        }`}
 
-                     />
+                    />
 
-                   )}
+                  )}
 
-                 />
+                />
 
-                 {errors.maxParticipants && (
+                {errors.maxParticipants && (
 
-                   <p className="text-sm text-red-600">{errors.maxParticipants.message}</p>
+                  <p className="text-sm text-red-600">{errors.maxParticipants.message}</p>
 
-                 )}
+                )}
 
-               </div>
+              </div>
 
             </div>
 
@@ -4513,25 +4306,25 @@ export const EditEvent = () => {
             <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-6 py-4 border-b border-slate-100">
 
               <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-3">
 
                   <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
 
-                  </svg>
+                    </svg>
 
-                </div>
+                  </div>
 
-                <div>
+                  <div>
 
-                  <h3 className="text-lg font-semibold text-slate-800">Sponsors & Partners</h3>
+                    <h3 className="text-lg font-semibold text-slate-800">Sponsors & Partners</h3>
 
                     <p className="text-sm text-slate-600">Add detailed sponsor information</p>
-                </div>
+                  </div>
 
-              </div>
+                </div>
 
                 <button
                   type="button"
@@ -4543,7 +4336,7 @@ export const EditEvent = () => {
                   </svg>
                   <span>Add Sponsor</span>
                 </button>
-            </div>
+              </div>
 
             </div>
             <div className="p-6">
@@ -4607,7 +4400,7 @@ export const EditEvent = () => {
                           label="Sponsor Logo"
                           name={`sponsor-logo-${index}`}
                           accept=".png,.jpg,.jpeg"
-                          onFileChange={() => {}}
+                          onFileChange={() => { }}
                           onUpload={(results) => handleFileUpload('logo', results)}
                           uploadType="logo"
                           maxSizeMB={35}
@@ -4621,9 +4414,9 @@ export const EditEvent = () => {
                         {/* Organization Name */}
                         <div className="md:col-span-3">
                           <label className="block text-sm font-medium text-slate-700 mb-1">Organization Name *</label>
-                    <input
+                          <input
 
-                      type="text"
+                            type="text"
 
                             placeholder="Company Name, Organization"
                             value={sponsor.name}
@@ -4719,26 +4512,26 @@ export const EditEvent = () => {
             <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-6 py-4 border-b border-slate-100">
 
               <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-3">
 
-                <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center">
 
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
 
-                  </svg>
+                    </svg>
 
-                </div>
+                  </div>
 
-                <div>
+                  <div>
 
-                  <h3 className="text-lg font-semibold text-slate-800">Guest Speakers</h3>
+                    <h3 className="text-lg font-semibold text-slate-800">Guest Speakers</h3>
 
                     <p className="text-sm text-slate-600">Add detailed speaker information</p>
-                </div>
+                  </div>
 
-              </div>
+                </div>
 
                 <button
                   type="button"
@@ -4750,7 +4543,7 @@ export const EditEvent = () => {
                   </svg>
                   <span>Add Speaker</span>
                 </button>
-            </div>
+              </div>
 
             </div>
             <div className="p-6">
@@ -4819,7 +4612,7 @@ export const EditEvent = () => {
                           label="Speaker Photo"
                           name={`speaker-photo-${index}`}
                           accept=".png,.jpg,.jpeg"
-                          onFileChange={() => {}}
+                          onFileChange={() => { }}
                           onUpload={(results) => handleFileUpload('photo', results)}
                           uploadType="photo"
                           maxSizeMB={35}
@@ -4931,16 +4724,16 @@ export const EditEvent = () => {
                               className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
                             />
                             <span className="text-sm font-medium text-slate-700">Keynote Speaker</span>
-                </label>
+                          </label>
 
                         </div>
 
                         {/* Designation */}
                         <div className="md:col-span-2">
                           <label className="block text-sm font-medium text-slate-700 mb-1">Designation/Title</label>
-                    <input
+                          <input
 
-                      type="text"
+                            type="text"
 
                             placeholder="CEO, Professor, Lead Developer"
                             value={speaker.designation}
@@ -4958,9 +4751,9 @@ export const EditEvent = () => {
                             value={speaker.organization}
                             onChange={(e) => updateSpeaker(index, 'organization', e.target.value)}
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+                          />
 
-              </div>
+                        </div>
 
 
 
@@ -5058,7 +4851,7 @@ export const EditEvent = () => {
 
                 accept=".pdf"
 
-                onFileChange={() => {}}
+                onFileChange={() => { }}
 
                 onUpload={(results) => handleFileUpload('event-kits', results)}
 
@@ -5088,7 +4881,7 @@ export const EditEvent = () => {
 
                 accept=".pdf"
 
-                onFileChange={() => {}}
+                onFileChange={() => { }}
 
                 onUpload={(results) => handleFileUpload('event-programmes', results)}
 
@@ -5112,7 +4905,7 @@ export const EditEvent = () => {
 
               {/* Certificate Configuration */}
               <div className="mt-6">
-                <CertificateDesigner 
+                <CertificateDesigner
                   eventId={eventId}
                   draftMode={false}
                   onSave={(config) => {
@@ -5126,7 +4919,7 @@ export const EditEvent = () => {
 
           </div>
 
-          
+
 
           {/* Action Button */}
 
@@ -5138,15 +4931,13 @@ export const EditEvent = () => {
 
               disabled={!isValid}
 
-              className={`w-full px-6 py-3 rounded-xl text-lg font-semibold shadow-md transition-all duration-200 flex items-center justify-center space-x-2 ${
+              className={`w-full px-6 py-3 rounded-xl text-lg font-semibold shadow-md transition-all duration-200 flex items-center justify-center space-x-2 ${isValid
 
-                isValid
+                ? 'bg-blue-900 text-white hover:bg-blue-800'
 
-                  ? 'bg-blue-900 text-white hover:bg-blue-800'
+                : 'bg-slate-200 text-slate-500 cursor-not-allowed'
 
-                  : 'bg-slate-200 text-slate-500 cursor-not-allowed'
-
-              }`}
+                }`}
 
             >
 

@@ -83,8 +83,6 @@ const createEventSchema = z.object({
 
   maxParticipants: z.string().optional(),
 
-  registrationDeadlineDate: z.string().optional(),
-
   sponsors: z.string().optional(),
 
   guestSpeakers: z.string().optional(),
@@ -123,38 +121,6 @@ const createEventSchema = z.object({
   message: "End date must be after or equal to start date",
 
   path: ["endDate"]
-
-}).refine((data) => {
-
-  if (data.registrationDeadlineDate && data.startDate) {
-
-    const deadlineDate = new Date(data.registrationDeadlineDate);
-    const eventDate = new Date(data.startDate);
-
-    // Always set registration deadline to 11:59 PM
-    deadlineDate.setHours(23, 59, 59);
-
-    // If event start time is provided, combine with event date
-    if (data.startTime) {
-      const [eventHours, eventMinutes] = data.startTime.split(':');
-      eventDate.setHours(parseInt(eventHours), parseInt(eventMinutes));
-    }
-
-    // Allow deadline up to 1 hour before event start
-    const oneHourBeforeEvent = new Date(eventDate);
-    oneHourBeforeEvent.setHours(eventDate.getHours() - 1);
-
-    return deadlineDate <= oneHourBeforeEvent;
-
-  }
-
-  return true;
-
-}, {
-
-  message: "Registration deadline must be at least 1 hour before the event starts",
-
-  path: ["registrationDeadlineDate"]
 
 });
 
@@ -2109,8 +2075,6 @@ export const CreateEvent = () => {
 
       guestSpeakers: '',
 
-      registrationDeadlineDate: '',
-
       checkInBeforeMinutes: 60,
 
       checkInDuringMinutes: 30,
@@ -2175,13 +2139,6 @@ export const CreateEvent = () => {
         setValue('venue', eventData.venue || '');
 
         setValue('maxParticipants', eventData.max_participants ? eventData.max_participants.toString() : '');
-
-        if (eventData.registration_deadline) {
-          const deadlineDate = new Date(eventData.registration_deadline);
-          setValue('registrationDeadlineDate', deadlineDate.toISOString().split('T')[0]);
-        } else {
-          setValue('registrationDeadlineDate', '');
-        }
 
 
 
@@ -2695,13 +2652,6 @@ export const CreateEvent = () => {
       venue: data.venue || 'TBD',
 
       max_participants: data.maxParticipants ? parseInt(data.maxParticipants) : null,
-
-      registration_deadline: data.registrationDeadlineDate ? (() => {
-        const date = new Date(data.registrationDeadlineDate);
-        // Always set to 11:59 PM
-        date.setHours(23, 59, 59);
-        return date.toISOString();
-      })() : null,
 
       // Check-in window settings
       check_in_before_minutes: data.checkInBeforeMinutes || 60,
@@ -3586,61 +3536,6 @@ export const CreateEvent = () => {
                   )}
 
                 </div>
-
-              </div>
-
-
-
-              {/* Registration Deadline */}
-
-              <div className="space-y-4">
-
-                <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
-
-                  Registration Deadline
-
-                </label>
-
-                <div className="space-y-2">
-
-                  <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide">
-
-                    Date (Time will be set to 11:59 PM)
-
-                  </label>
-
-                  <Controller
-
-                    name="registrationDeadlineDate"
-
-                    control={control}
-
-                    render={({ field }) => (
-
-                      <input
-
-                        {...field}
-
-                        type="date"
-
-                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 ${errors.registrationDeadlineDate ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
-
-                          }`}
-
-                      />
-
-                    )}
-
-                  />
-
-                </div>
-
-
-                {errors.registrationDeadlineDate && (
-
-                  <p className="text-sm text-red-600">{errors.registrationDeadlineDate.message}</p>
-
-                )}
 
               </div>
 

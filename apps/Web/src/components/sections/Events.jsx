@@ -178,6 +178,7 @@ export const Events = () => {
   const [selectedParticipantForCheckIn, setSelectedParticipantForCheckIn] = useState(null);
   const [checkInDate, setCheckInDate] = useState(new Date().toISOString().split('T')[0]);
   const [showBulkQRModal, setShowBulkQRModal] = useState(false);
+  const [togglingRegistration, setTogglingRegistration] = useState(false);
   const [showCertificateGenerationsModal, setShowCertificateGenerationsModal] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [showEventChatModal, setShowEventChatModal] = useState(false);
@@ -444,6 +445,11 @@ export const Events = () => {
         return { allowed: false, reason: 'Event is not available for registration' };
       }
 
+      // Check if registration is open for this event
+      if (event.registration_open === false) {
+        return { allowed: false, reason: 'Registration closed: Event organizer has closed registration' };
+      }
+
       const now = new Date();
 
       // Check if event is past (ended)
@@ -456,14 +462,6 @@ export const Events = () => {
       const startDateTime = new Date(`${event.start_date}T${event.start_time || '00:00:00'}`);
       if (startDateTime <= now && endDateTime >= now) {
         return { allowed: false, reason: 'Registration closed: Event is ongoing' };
-      }
-
-      // Check registration deadline
-      if (event.registration_deadline) {
-        const deadline = new Date(event.registration_deadline);
-        if (deadline < now) {
-          return { allowed: false, reason: 'Registration closed: Deadline has passed' };
-        }
       }
 
       // Check if event is full
@@ -576,6 +574,12 @@ export const Events = () => {
       setLoadingRegistrations(true);
       setError('');
 
+      // Load the event to get current registration status
+      const eventResult = await EventService.getEventById(eventId);
+      if (eventResult.event) {
+        setSelectedEvent(eventResult.event);
+      }
+
       const result = await EventService.getEventParticipants(eventId);
 
       if (result.error) {
@@ -591,6 +595,32 @@ export const Events = () => {
       toast.error(errorMsg);
     } finally {
       setLoadingRegistrations(false);
+    }
+  };
+
+  const handleToggleRegistration = async (eventId, currentStatus) => {
+    try {
+      setTogglingRegistration(true);
+      const newStatus = !currentStatus;
+
+      const result = await EventService.toggleEventRegistration(eventId, newStatus);
+
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        // Update the selected event with new status
+        if (result.event) {
+          setSelectedEvent(result.event);
+        }
+        // Reload events to reflect the change
+        loadingRef.current = false;
+        await loadEvents();
+        toast.success(newStatus ? 'Registration opened successfully' : 'Registration closed successfully');
+      }
+    } catch (err) {
+      toast.error('Failed to toggle registration status');
+    } finally {
+      setTogglingRegistration(false);
     }
   };
 
@@ -2489,7 +2519,7 @@ export const Events = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
-                <div>
+                <div className="flex-1">
                   <h3 className="text-2xl font-semibold text-slate-900 mb-2">
                     Event Registrations
                   </h3>
@@ -2497,17 +2527,40 @@ export const Events = () => {
                     {selectedEvent.title}
                   </p>
                 </div>
-                <button
-                  onClick={() => {
-                    setShowRegistrationsModal(false);
-                    setRegistrations([]);
-                  }}
-                  className="text-slate-400 hover:text-slate-600 transition-colors"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                <div className="flex items-center gap-4">
+                  {/* Registration Status Toggle */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-slate-700">
+                      {selectedEvent.registration_open ? 'Open' : 'Closed'}
+                    </span>
+                    <button
+                      onClick={() => handleToggleRegistration(selectedEvent.id, selectedEvent.registration_open)}
+                      disabled={togglingRegistration}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${selectedEvent.registration_open ? 'bg-green-600' : 'bg-gray-300'
+                        } ${togglingRegistration ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                      title={selectedEvent.registration_open ? 'Click to close registration' : 'Click to open registration'}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${selectedEvent.registration_open ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                      />
+                    </button>
+                    {togglingRegistration && (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowRegistrationsModal(false);
+                      setRegistrations([]);
+                    }}
+                    className="text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
               {loadingRegistrations ? (

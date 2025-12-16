@@ -18,7 +18,7 @@ const getWebAppUrl = (): string => {
     // Remove trailing slash if present to avoid double slashes in URL construction
     return process.env.EXPO_PUBLIC_WEB_APP_URL.replace(/\/$/, '');
   }
-  
+
   if (__DEV__) {
     // Android emulator uses 10.0.2.2 to access host machine's localhost
     // iOS simulator can use localhost directly
@@ -28,7 +28,7 @@ const getWebAppUrl = (): string => {
       return 'http://localhost:5173';
     }
   }
-  
+
   // Production URL - Vercel deployment
   return 'https://gan-app-nu.vercel.app';
 };
@@ -42,11 +42,15 @@ export default function Certificate() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const eventId = params.eventId as string;
-  
+  const isMobile = params.mobile === 'true';
+  const accessToken = params.accessToken as string | null;
+  const refreshToken = params.refreshToken as string | null;
+
   const webViewRef = useRef<WebView>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [webViewUrl, setWebViewUrl] = useState<string>('');
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastUrlRef = useRef<string>('');
@@ -56,11 +60,12 @@ export default function Certificate() {
     const getSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          setSessionToken(session.access_token);
-          console.log('✅ Session token obtained');
+        if (session?.access_token && session?.refresh_token) {
+          setAccessToken(session.access_token);
+          setRefreshToken(session.refresh_token);
+          console.log('✅ Session tokens obtained');
         } else {
-          console.warn('⚠️ No session token available');
+          console.warn('⚠️ No session tokens available');
         }
       } catch (error) {
         console.error('❌ Error getting session:', error);
@@ -85,10 +90,16 @@ export default function Certificate() {
     }
     // Ensure proper URL construction (handle base URL with or without trailing slash)
     const baseUrl = WEB_APP_URL.replace(/\/$/, '');
-    const url = `${baseUrl}/certificate?eventId=${encodeURIComponent(eventId)}&mobile=true${sessionToken ? `&token=${encodeURIComponent(sessionToken)}` : ''}`;
+    let url = `${baseUrl}/certificate?eventId=${encodeURIComponent(eventId)}&mobile=true`;
+    if (accessToken) {
+      url += `&accessToken=${encodeURIComponent(accessToken)}`;
+    }
+    if (refreshToken) {
+      url += `&refreshToken=${encodeURIComponent(refreshToken)}`;
+    }
     setWebViewUrl(url);
     console.log('🌐 WebView URL:', url);
-  }, [eventId, sessionToken]);
+  }, [eventId, accessToken, refreshToken]);
 
   const handleClose = () => {
     console.log('🔙 Closing certificate screen');
@@ -104,17 +115,17 @@ export default function Certificate() {
 
     try {
       const { status, canAskAgain } = await MediaLibrary.getPermissionsAsync();
-      
+
       if (status === 'granted') {
         return true;
       }
-      
+
       if (status === 'denied' && !canAskAgain) {
         // Permission permanently denied
         toast.warning('Photo library access is required. Please enable it in your device settings.');
         return false;
       }
-      
+
       // Request permission
       const { status: newStatus } = await MediaLibrary.requestPermissionsAsync(false);
       return newStatus === 'granted';
@@ -127,54 +138,54 @@ export default function Certificate() {
   const handleDownload = async (data: string, filename: string, mimeType: string, url?: string) => {
     try {
       console.log('📥 Starting download:', filename, url ? 'from URL' : 'from base64');
-      
+
       // Request permissions if needed (iOS only)
       const hasPermission = await requestMediaPermissionsIfNeeded();
       if (!hasPermission) {
         throw new Error('Media library permission is required to save certificate');
       }
-      
+
       let fileUri: string;
-      
+
       // If URL is provided, download directly (better for mobile)
       if (url) {
         console.log('📥 Downloading from URL:', url);
         const downloadResult = await FileSystem.downloadAsync(url, `${FileSystem.cacheDirectory}${filename}`);
-        
+
         if (downloadResult.status !== 200) {
           throw new Error(`Failed to download file: HTTP ${downloadResult.status}`);
         }
-        
+
         if (!downloadResult.uri) {
           throw new Error('Failed to download file from URL');
         }
-        
+
         fileUri = downloadResult.uri;
         console.log('✅ File downloaded to:', fileUri);
       } else {
         // Use base64 data (fallback)
         // Remove data URL prefix if present
         const base64 = data.includes(',') ? data.split(',')[1] : data;
-        
+
         // Create file URI
         fileUri = `${FileSystem.cacheDirectory}${filename}`;
-        
+
         // Write file to cache
         await FileSystem.writeAsStringAsync(fileUri, base64, {
           encoding: FileSystem.EncodingType.Base64,
         });
-        
+
         console.log('✅ File written to:', fileUri);
       }
-      
+
       // Ensure URI has file:// prefix
-      const assetUri = fileUri.startsWith('file://') 
-        ? fileUri 
+      const assetUri = fileUri.startsWith('file://')
+        ? fileUri
         : `file://${fileUri}`;
-      
+
       // Get file extension
       const fileType = filename.split('.').pop()?.toLowerCase() || (mimeType.includes('pdf') ? 'pdf' : 'png');
-      
+
       // Save using the same method as albums
       if (Platform.OS === 'android') {
         // Android: Use MediaStore API (no permissions needed on Android 10+)
@@ -227,7 +238,7 @@ export default function Certificate() {
       } else if (data.type === 'download') {
         // Handle download from WebView
         console.log('📥 Download request received:', data.format, data.filename);
-        
+
         // Prefer URL download (more reliable), fallback to base64
         if (data.url && data.filename && data.mimeType) {
           handleDownload('', data.filename, data.mimeType, data.url);
@@ -246,7 +257,7 @@ export default function Certificate() {
   const handleLoadStart = (syntheticEvent: any) => {
     const { nativeEvent } = syntheticEvent;
     const currentUrl = nativeEvent?.url || '';
-    
+
     // Only show loading if URL actually changed (prevent reload loops)
     if (currentUrl && currentUrl !== lastUrlRef.current) {
       console.log('🔄 WebView started loading:', currentUrl);
@@ -254,12 +265,12 @@ export default function Certificate() {
       readyMessageReceivedRef.current = false; // Reset ready flag on new page load
       setLoading(true);
       setError(null);
-      
+
       // Clear any existing timeout
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current);
       }
-      
+
       // Set a timeout to hide loading after 30 seconds (in case the page doesn't send a ready message)
       loadingTimeoutRef.current = setTimeout(() => {
         if (!readyMessageReceivedRef.current) {
@@ -424,26 +435,26 @@ export default function Certificate() {
           onShouldStartLoadWithRequest={(request) => {
             // Prevent WebView from opening download links or blob URLs in browser
             const url = request.url;
-            
+
             // Block all download-related URLs
-            const isDownload = url.includes('.pdf') || 
-                              url.includes('.png') || 
-                              url.includes('download') || 
-                              url.startsWith('blob:') ||
-                              url.includes('generated-certificates') ||
-                              url.includes('supabase.co/storage');
-            
+            const isDownload = url.includes('.pdf') ||
+              url.includes('.png') ||
+              url.includes('download') ||
+              url.startsWith('blob:') ||
+              url.includes('generated-certificates') ||
+              url.includes('supabase.co/storage');
+
             if (isDownload) {
               // Block download links - they should be handled via postMessage
               console.log('🚫 Blocked download link:', url);
               return false;
             }
-            
+
             // Allow navigation to the same origin (our web app)
             try {
               const webAppOrigin = new URL(WEB_APP_URL).origin;
               const requestOrigin = new URL(url).origin;
-              
+
               if (requestOrigin === webAppOrigin || url === webViewUrl || url.startsWith(webViewUrl)) {
                 return true;
               }
@@ -453,7 +464,7 @@ export default function Certificate() {
                 return true;
               }
             }
-            
+
             // Block external links
             console.log('🚫 Blocked external link:', url);
             return false;

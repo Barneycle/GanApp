@@ -31,6 +31,197 @@ export function formatDate(dateString: string): string {
 }
 
 /**
+ * Extract font family name from CSS font string
+ * Example: "Libre Baskerville, serif" -> "Libre Baskerville"
+ */
+function extractFontFamily(fontString: string): string {
+  if (!fontString) return 'Arial';
+  // Remove quotes and get the first font name before comma
+  return fontString.split(',')[0].replace(/['"]/g, '').trim();
+}
+
+/**
+ * Load a Google Font for canvas use
+ */
+async function loadGoogleFontForCanvas(fontFamily: string, fontWeight: string = '400'): Promise<boolean> {
+  if (typeof document === 'undefined' || !document.fonts) {
+    return false;
+  }
+
+  // Check if font is already loaded
+  const fontFamilyClean = extractFontFamily(fontFamily);
+
+  // Skip system fonts (don't need loading)
+  const systemFonts = ['Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'Georgia',
+    'Verdana', 'Tahoma', 'Trebuchet MS', 'Garamond', 'Palatino',
+    'Book Antiqua', 'Baskerville', 'Bodoni', 'Caslon', 'Century Schoolbook',
+    'Didot', 'Hoefler Text', 'Monaco', 'Consolas', 'Menlo', 'Lucida Grande',
+    'Century Gothic', 'Futura', 'Gill Sans', 'Impact', 'Copperplate'];
+
+  if (systemFonts.includes(fontFamilyClean)) {
+    return true; // System fonts don't need loading
+  }
+
+  // Check if already loaded
+  try {
+    // Test if font is available by checking font status
+    const testFont = new FontFace(fontFamilyClean, 'normal');
+    const loadedFonts = Array.from(document.fonts);
+    if (loadedFonts.some(f => f.family === fontFamilyClean)) {
+      return true;
+    }
+  } catch (e) {
+    // Font not loaded, continue to load it
+  }
+
+  // Load from Google Fonts
+  try {
+    // Create Google Fonts URL
+    const fontNameEncoded = fontFamilyClean.replace(/\s+/g, '+');
+    const fontUrl = `https://fonts.googleapis.com/css2?family=${fontNameEncoded}:wght@${fontWeight}&display=swap`;
+
+    // Fetch font CSS
+    const response = await fetch(fontUrl);
+    if (!response.ok) {
+      console.warn(`Failed to fetch Google Font CSS for ${fontFamilyClean}`);
+      return false;
+    }
+
+    const cssText = await response.text();
+
+    // Extract font file URL from CSS
+    const urlMatch = cssText.match(/url\(([^)]+\.woff2?)\)/);
+    if (!urlMatch) {
+      console.warn(`Could not find font file URL for ${fontFamilyClean}`);
+      return false;
+    }
+
+    const fontFileUrl = urlMatch[1].replace(/['"]/g, '');
+
+    // Load font using FontFace API
+    const fontFace = new FontFace(fontFamilyClean, `url(${fontFileUrl})`, {
+      weight: fontWeight,
+      style: 'normal'
+    });
+
+    await fontFace.load();
+    document.fonts.add(fontFace);
+
+    console.log(`Successfully loaded font: ${fontFamilyClean}`);
+    return true;
+  } catch (error) {
+    console.warn(`Failed to load font ${fontFamilyClean}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Load all fonts used in certificate config for canvas rendering
+ */
+async function loadCertificateFonts(config: any): Promise<void> {
+  if (typeof document === 'undefined' || !document.fonts) {
+    return;
+  }
+
+  const fontsToLoad = new Set<string>();
+  const fontWeights = new Map<string, string>();
+
+  // Collect all font families used in the certificate
+  if (config.title_font_family) {
+    fontsToLoad.add(config.title_font_family);
+    fontWeights.set(config.title_font_family, '700'); // Bold for title
+  }
+
+  if (config.title_subtitle_config?.font_family) {
+    fontsToLoad.add(config.title_subtitle_config.font_family);
+    fontWeights.set(config.title_subtitle_config.font_family, config.title_subtitle_config.font_weight || '400');
+  }
+
+  if (config.header_config?.republic_config?.font_family) {
+    fontsToLoad.add(config.header_config.republic_config.font_family);
+    fontWeights.set(config.header_config.republic_config.font_family, config.header_config.republic_config.font_weight || '400');
+  }
+
+  if (config.header_config?.university_config?.font_family) {
+    fontsToLoad.add(config.header_config.university_config.font_family);
+    fontWeights.set(config.header_config.university_config.font_family, config.header_config.university_config.font_weight || '700');
+  }
+
+  if (config.header_config?.location_config?.font_family) {
+    fontsToLoad.add(config.header_config.location_config.font_family);
+    fontWeights.set(config.header_config.location_config.font_family, config.header_config.location_config.font_weight || '400');
+  }
+
+  if (config.name_config?.font_family) {
+    fontsToLoad.add(config.name_config.font_family);
+    fontWeights.set(config.name_config.font_family, config.name_config.font_weight || '400');
+  }
+
+  if (config.event_title_config?.font_family) {
+    fontsToLoad.add(config.event_title_config.font_family);
+    fontWeights.set(config.event_title_config.font_family, config.event_title_config.font_weight || '400');
+  }
+
+  if (config.date_config?.font_family) {
+    fontsToLoad.add(config.date_config.font_family);
+    fontWeights.set(config.date_config.font_family, config.date_config.font_weight || '400');
+  }
+
+  if (config.participation_text_config?.font_family) {
+    fontsToLoad.add(config.participation_text_config.font_family);
+    fontWeights.set(config.participation_text_config.font_family, config.participation_text_config.font_weight || '400');
+  }
+
+  if (config.is_given_to_config?.font_family) {
+    fontsToLoad.add(config.is_given_to_config.font_family);
+    fontWeights.set(config.is_given_to_config.font_family, config.is_given_to_config.font_weight || '400');
+  }
+
+  if (config.signature_blocks) {
+    config.signature_blocks.forEach((sig: any) => {
+      if (sig.font_family) {
+        fontsToLoad.add(sig.font_family);
+        fontWeights.set(sig.font_family, sig.font_weight || '400');
+      }
+    });
+  }
+
+  // Special handling for MonteCarlo
+  if (fontsToLoad.has('MonteCarlo, cursive') || Array.from(fontsToLoad).some(f => f.includes('MonteCarlo'))) {
+    const monteCarloUrls = [
+      '/fonts/MonteCarlo-Regular.ttf',
+      'https://fonts.gstatic.com/s/montecarlo/v1/MonteCarlo-Regular.ttf',
+      'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/montecarlo/MonteCarlo-Regular.ttf'
+    ];
+
+    let loaded = false;
+    for (const url of monteCarloUrls) {
+      try {
+        const fontFace = new FontFace('MonteCarlo', `url(${url})`);
+        await fontFace.load();
+        document.fonts.add(fontFace);
+        loaded = true;
+        break;
+      } catch (e) {
+        continue;
+      }
+    }
+    fontsToLoad.delete('MonteCarlo, cursive');
+  }
+
+  // Load all other fonts
+  const loadPromises = Array.from(fontsToLoad).map(async (fontFamily) => {
+    const weight = fontWeights.get(fontFamily) || '400';
+    await loadGoogleFontForCanvas(fontFamily, weight);
+  });
+
+  await Promise.all(loadPromises);
+
+  // Wait for all fonts to be ready
+  await document.fonts.ready;
+}
+
+/**
  * Generate PNG certificate with full config support
  */
 export async function generatePNGCertificate(
@@ -42,6 +233,9 @@ export async function generatePNGCertificate(
   if (typeof document === 'undefined' || typeof window === 'undefined') {
     throw new Error('PNG generation requires browser environment (document/window not available)');
   }
+
+  // Load all fonts used in the certificate config first
+  await loadCertificateFonts(config);
 
   // Ensure fonts are loaded before creating canvas
   await document.fonts.ready;
@@ -216,60 +410,35 @@ export async function generatePNGCertificate(
   ctx.fillStyle = nameConfig.color || '#000000';
   const nameFontFamily = nameConfig.font_family || 'MonteCarlo, cursive';
 
-  // Load custom font for participant name if it's a web font (not system font)
-  // Only try to load if it's a specific web font like MonteCarlo
-  if (nameFontFamily.includes('MonteCarlo')) {
-    try {
-      const fontUrls = [
-        '/fonts/MonteCarlo-Regular.ttf',
-        'https://fonts.gstatic.com/s/montecarlo/v1/MonteCarlo-Regular.ttf',
-        'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/montecarlo/MonteCarlo-Regular.ttf',
-        'https://raw.githubusercontent.com/google/fonts/main/ofl/montecarlo/MonteCarlo-Regular.ttf'
-      ];
-
-      let fontLoaded = false;
-      for (const fontUrl of fontUrls) {
-        try {
-          const fontFace = new FontFace('MonteCarlo', `url(${fontUrl})`);
-          await fontFace.load();
-          document.fonts.add(fontFace);
-          fontLoaded = true;
-          console.log('MonteCarlo font loaded for canvas from:', fontUrl);
-          break;
-        } catch (e) {
-          console.warn('Failed to load MonteCarlo font from', fontUrl, e);
-          continue;
-        }
-      }
-
-      if (!fontLoaded) {
-        console.warn('Could not load MonteCarlo font from any source, using fallback');
-      }
-    } catch (e) {
-      console.warn('Error loading MonteCarlo font for canvas:', e);
-    }
-  }
-
-  // Wait for all fonts to be ready before rendering
-  await document.fonts.ready;
+  // Fonts are already loaded by loadCertificateFonts() above
 
   // Set font and render
   ctx.font = `${nameConfig.font_weight || 'bold'} ${nameConfig.font_size || 48}px ${nameFontFamily}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
+  const nameX = (width * nameConfig.position.x) / 100;
+  const nameY = (height * nameConfig.position.y) / 100;
+
   ctx.fillText(
     data.participantName,
-    (width * nameConfig.position.x) / 100,
-    (height * nameConfig.position.y) / 100
+    nameX,
+    nameY
   );
 
-  // Line Separator after name
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 2;
+  // Draw underline for the name with spacing
+  const textMetrics = ctx.measureText(data.participantName);
+  const textWidth = textMetrics.width;
+  const underlineOffset = (nameConfig.font_size || 48) * 0.15; // 15% of font size for spacing
+  const underlineY = nameY + underlineOffset;
+  const underlineStartX = nameX - (textWidth / 2);
+  const underlineEndX = nameX + (textWidth / 2);
+
+  ctx.strokeStyle = nameConfig.color || '#000000';
+  ctx.lineWidth = Math.max(2, (nameConfig.font_size || 48) * 0.04); // 4% of font size, minimum 2px
   ctx.beginPath();
-  ctx.moveTo(width * 0.2, (height * (nameConfig.position.y + 3)) / 100);
-  ctx.lineTo(width * 0.8, (height * (nameConfig.position.y + 3)) / 100);
+  ctx.moveTo(underlineStartX, underlineY);
+  ctx.lineTo(underlineEndX, underlineY);
   ctx.stroke();
 
   // Participation Text - Handle multi-line

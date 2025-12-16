@@ -208,8 +208,11 @@ export class CertificateService {
       if (existing.config) {
         // Update existing config
         // Ensure signature_blocks is properly serialized as JSONB
+        // Exclude title_subtitle_config as it's not a database column (only title_subtitle text is stored)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { title_subtitle_config: _, ...configWithoutSubtitleConfig } = config as any;
         const updateData = {
-          ...config,
+          ...configWithoutSubtitleConfig,
           signature_blocks: Array.isArray(config.signature_blocks) ? config.signature_blocks : [],
           logo_config: config.logo_config || {},
           background_image_url: config.background_image_url !== undefined ? config.background_image_url : null,
@@ -223,7 +226,7 @@ export class CertificateService {
           qr_code_size: config.qr_code_size !== undefined ? config.qr_code_size : 60,
           updated_at: new Date().toISOString()
         };
-        
+
         const { data, error } = await supabase
           .from('certificate_configs')
           .update(updateData)
@@ -243,10 +246,12 @@ export class CertificateService {
         // Create new config
         // Ensure signature_blocks is properly serialized as JSONB
         // IMPORTANT: created_by must be set AFTER spreading config to ensure it's not overridden
-        const { created_by: _, ...configWithoutCreatedBy } = config;
+        // Exclude title_subtitle_config as it's not a database column (only title_subtitle text is stored)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { created_by: __, title_subtitle_config: _, ...configWithoutExtras } = config as any;
         const insertData = {
           event_id: eventId,
-          ...configWithoutCreatedBy,
+          ...configWithoutExtras,
           created_by: userId, // Always set created_by to the authenticated user
           signature_blocks: Array.isArray(config.signature_blocks) ? config.signature_blocks : [],
           logo_config: config.logo_config || {},
@@ -260,7 +265,7 @@ export class CertificateService {
           qr_code_position: config.qr_code_position || { x: 60, y: 95 },
           qr_code_size: config.qr_code_size !== undefined ? config.qr_code_size : 60
         };
-        
+
         const { data, error } = await supabase
           .from('certificate_configs')
           .insert(insertData)
@@ -312,6 +317,59 @@ export class CertificateService {
       return { certificate: data as Certificate };
     } catch (err: any) {
       return { error: err.message || 'Failed to fetch certificate' };
+    }
+  }
+
+  /**
+   * Check if a certificate already exists for a participant name and event
+   * This is useful for manual entry participants who share the same user_id (organizer's ID)
+   */
+  static async getCertificateByParticipantName(
+    participantName: string,
+    eventId: string
+  ): Promise<{ certificate?: Certificate; error?: string }> {
+    try {
+      const trimmedName = participantName.trim();
+      console.log('[CertificateService] getCertificateByParticipantName - searching for:', JSON.stringify(trimmedName), 'in event:', eventId);
+
+      // Check by participant_name - this is the primary duplicate check
+      // Simplified query to avoid connection issues
+      const { data, error } = await supabase
+        .from('certificates')
+        .select('id, certificate_number, participant_name, event_id, user_id')
+        .eq('event_id', eventId)
+        .eq('participant_name', trimmedName)
+        .maybeSingle();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No certificate found
+          console.log('[CertificateService] ✅ No certificate found by participant_name (PGRST116)');
+          return { certificate: undefined };
+        }
+        console.error('[CertificateService] ❌ Error checking certificate by participant_name:', error);
+        return { error: error.message };
+      }
+
+      if (data) {
+        console.log('[CertificateService] ⚠️ Found certificate by participant_name:', {
+          id: data.id,
+          certificate_number: data.certificate_number,
+          participant_name: JSON.stringify(data.participant_name),
+          participant_name_length: data.participant_name?.length,
+          searching_for: JSON.stringify(trimmedName),
+          searching_length: trimmedName.length,
+          names_match: data.participant_name === trimmedName,
+          user_id: data.user_id
+        });
+      } else {
+        console.log('[CertificateService] ✅ No certificate found by participant_name (data is null)');
+      }
+
+      return { certificate: data as Certificate | undefined };
+    } catch (err: any) {
+      console.error('[CertificateService] ❌ Exception in getCertificateByParticipantName:', err);
+      return { error: err.message || 'Failed to check certificate by participant name' };
     }
   }
 
@@ -419,7 +477,7 @@ export class CertificateService {
       // Check if certificate already exists by certificate_number (unique constraint)
       // This handles both event-based and standalone certificates correctly
       let existing: { certificate?: Certificate; error?: string } = { certificate: undefined };
-      
+
       // First check by certificate_number (most reliable, works for all cases)
       const { data: existingByNumber, error: numberError } = await supabase
         .from('certificates')
@@ -432,137 +490,140 @@ export class CertificateService {
         console.error('Error checking certificate by number:', numberError);
         // Fall through to create new certificate
       }
-      
+
       if (existingByNumber) {
-        // Certificate with this number already exists - update it
-        const updateData: any = {
-          certificate_pdf_url: certificateData.certificate_pdf_url,
-          certificate_png_url: certificateData.certificate_png_url
-        };
-        
-        // Only update template_id if provided
-        if (certificateData.certificate_template_id) {
-          updateData.certificate_template_id = certificateData.certificate_template_id;
-        }
-        
-        const { data: updatedCert, error } = await supabase
-          .from('certificates')
-          .update(updateData)
-          .eq('id', existingByNumber.id)
-          .select()
-          .single();
-
-        if (error) {
-          return { error: error.message };
-        }
-
-        console.log('[saveCertificate] Updated existing certificate by number:', existingByNumber.id);
-        return { certificate: updatedCert as Certificate };
-      } else {
-        // No certificate with this number exists - check if there's one with same (event_id, user_id)
-        // This handles the UNIQUE(event_id, user_id) constraint
-        let existingByEventUser: any = null;
-        if (certificateData.event_id) {
-          const { data: existing, error: eventUserError } = await supabase
-            .from('certificates')
-            .select('*')
-            .eq('event_id', certificateData.event_id)
-            .eq('user_id', certificateData.user_id)
-            .maybeSingle();
-
-          if (!eventUserError && existing) {
-            existingByEventUser = existing;
-            console.log('[saveCertificate] Found existing certificate by (event_id, user_id), will update:', existing.id);
-          }
-        }
-
-        // Get certificate template ID if not provided
-        let templateId = certificateData.certificate_template_id;
-        
-        // If template ID not provided but event_id exists, get template from event
-        if (!templateId && certificateData.event_id) {
-          console.log('[saveCertificate] Attempting to fetch template for event:', certificateData.event_id);
-          const { data: templates, error: templateError } = await supabase
-            .from('certificate_templates')
-            .select('id')
-            .eq('event_id', certificateData.event_id)
-            .eq('is_active', true)
-            .limit(1)
-            .maybeSingle(); // Use maybeSingle to handle no results gracefully
-
-          if (templateError) {
-            console.error('[saveCertificate] Error fetching template:', templateError);
-            return { error: `Failed to fetch certificate template: ${templateError.message || 'Unknown error'}` };
-          } else if (templates) {
-            templateId = templates.id;
-            console.log('[saveCertificate] Found template ID:', templateId);
-          } else {
-            // No template found - this is OK for events using certificate configs
-            // The certificate_template_id column should be nullable to support this
-            // Don't try to create a template automatically as participants don't have permission
-            console.log('[saveCertificate] No template found for event:', certificateData.event_id, '- proceeding without template_id (using certificate config)');
-            templateId = undefined; // Leave as undefined so it's not included in the insert
-          }
-        }
-
-        // If there's an existing certificate with same (event_id, user_id), update it
-        // This handles the UNIQUE(event_id, user_id) constraint for organizer-generated certificates
-        if (existingByEventUser) {
-          const updateData: any = {
-            certificate_number: certificateData.certificate_number,
-            participant_name: certificateData.participant_name,
-            event_title: certificateData.event_title,
-            completion_date: certificateData.completion_date,
-            certificate_pdf_url: certificateData.certificate_pdf_url,
-            certificate_png_url: certificateData.certificate_png_url
-          };
-          
-          // Only update template_id if provided
-          if (templateId) {
-            updateData.certificate_template_id = templateId;
-          }
-
-          const { data: updatedCert, error: updateError } = await supabase
-            .from('certificates')
-            .update(updateData)
-            .eq('id', existingByEventUser.id)
-            .select()
-            .single();
-
-          if (updateError) {
-            console.error('Error updating certificate:', updateError);
-            return { error: updateError.message };
-          }
-
-          console.log('[saveCertificate] Updated existing certificate by (event_id, user_id):', existingByEventUser.id);
-          return { certificate: updatedCert as Certificate };
-        }
-
-        // Create new certificate
-        // Note: certificate_template_id is nullable in the database (for events using configs)
-        const insertData: any = {
-          ...certificateData,
-          generated_by: certificateData.user_id
-        };
-        
-        // Only include template_id if we have one (it's nullable)
-        if (templateId) {
-          insertData.certificate_template_id = templateId;
-        }
-
-        const { data, error } = await supabase
-          .from('certificates')
-          .insert(insertData)
-          .select()
-          .single();
-
-        if (error) {
-          console.error('Error saving certificate:', error);
-          return { error: error.message };
-        }
-
-        return { certificate: data as Certificate };
+        // Certificate with this number already exists - return it without updating
+        // Certificate numbers should remain unique and should not be overwritten
+        console.log('[saveCertificate] ⚠️ Certificate with this number already exists. Returning existing certificate without modification:', {
+          id: existingByNumber.id,
+          certificate_number: existingByNumber.certificate_number,
+          participant_name: existingByNumber.participant_name,
+          searching_for: certificateData.participant_name
+        });
+        return { certificate: existingByNumber as Certificate };
       }
+
+      console.log('[saveCertificate] ✅ No certificate found with number:', certificateData.certificate_number, '- proceeding with insert');
+
+      // No certificate with this number exists - check if there's one with same (event_id, user_id)
+      // This handles the UNIQUE(event_id, user_id) constraint
+      // IMPORTANT: For manual entries, multiple participants share the organizer's user_id,
+      // so we must also check participant_name to avoid incorrectly returning existing certificates
+      let existingByEventUser: any = null;
+      if (certificateData.event_id) {
+        const { data: existing, error: eventUserError } = await supabase
+          .from('certificates')
+          .select('*')
+          .eq('event_id', certificateData.event_id)
+          .eq('user_id', certificateData.user_id)
+          .maybeSingle();
+
+        if (!eventUserError && existing) {
+          // Only treat as duplicate if participant_name also matches
+          // This allows multiple certificates for different participants sharing the same user_id (manual entries)
+          if (existing.participant_name === certificateData.participant_name.trim()) {
+            existingByEventUser = existing;
+            console.log('[saveCertificate] Found existing certificate by (event_id, user_id, participant_name):', existing.id);
+          } else {
+            console.log('[saveCertificate] Certificate exists for (event_id, user_id) but different participant_name - allowing new certificate creation');
+          }
+        }
+      }
+
+      // Get certificate template ID if not provided
+      let templateId = certificateData.certificate_template_id;
+
+      // If template ID not provided but event_id exists, get template from event
+      if (!templateId && certificateData.event_id) {
+        console.log('[saveCertificate] Attempting to fetch template for event:', certificateData.event_id);
+        const { data: templates, error: templateError } = await supabase
+          .from('certificate_templates')
+          .select('id')
+          .eq('event_id', certificateData.event_id)
+          .eq('is_active', true)
+          .limit(1)
+          .maybeSingle(); // Use maybeSingle to handle no results gracefully
+
+        if (templateError) {
+          console.error('[saveCertificate] Error fetching template:', templateError);
+          return { error: `Failed to fetch certificate template: ${templateError.message || 'Unknown error'}` };
+        } else if (templates) {
+          templateId = templates.id;
+          console.log('[saveCertificate] Found template ID:', templateId);
+        } else {
+          // No template found - this is OK for events using certificate configs
+          // The certificate_template_id column should be nullable to support this
+          // Don't try to create a template automatically as participants don't have permission
+          console.log('[saveCertificate] No template found for event:', certificateData.event_id, '- proceeding without template_id (using certificate config)');
+          templateId = undefined; // Leave as undefined so it's not included in the insert
+        }
+      }
+
+      // If there's an existing certificate with same (event_id, user_id), return it without updating
+      // Certificate numbers should remain unique and should not be overwritten
+      // This handles the UNIQUE(event_id, user_id) constraint
+      if (existingByEventUser) {
+        console.log('[saveCertificate] Certificate already exists for (event_id, user_id). Returning existing certificate without modification:', existingByEventUser.id);
+        // Return the existing certificate without any updates
+        // This ensures certificate numbers remain unique and are never overwritten
+        return { certificate: existingByEventUser as Certificate };
+      }
+
+      // Create new certificate
+      // Note: certificate_template_id is nullable in the database (for events using configs)
+      const insertData: any = {
+        event_id: certificateData.event_id,
+        user_id: certificateData.user_id,
+        certificate_number: certificateData.certificate_number,
+        participant_name: certificateData.participant_name.trim(),
+        event_title: certificateData.event_title,
+        completion_date: certificateData.completion_date,
+        certificate_pdf_url: certificateData.certificate_pdf_url,
+        certificate_png_url: certificateData.certificate_png_url,
+        generated_by: certificateData.user_id
+      };
+
+      // Only include template_id if we have one (it's nullable)
+      if (templateId) {
+        insertData.certificate_template_id = templateId;
+      }
+
+      console.log('[saveCertificate] 📝 Inserting new certificate:', {
+        certificate_number: insertData.certificate_number,
+        participant_name: insertData.participant_name,
+        event_id: insertData.event_id,
+        user_id: insertData.user_id
+      });
+
+      const { data, error } = await supabase
+        .from('certificates')
+        .insert(insertData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[saveCertificate] ❌ Error inserting certificate:', error);
+        console.error('[saveCertificate] Error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        return { error: error.message };
+      }
+
+      if (!data) {
+        console.error('[saveCertificate] ❌ Insert succeeded but no data returned');
+        return { error: 'Certificate insert completed but no certificate was returned' };
+      }
+
+      console.log('[saveCertificate] ✅ Certificate inserted successfully:', {
+        id: data.id,
+        certificate_number: data.certificate_number,
+        participant_name: data.participant_name
+      });
+
+      return { certificate: data as Certificate };
     } catch (err: any) {
       return { error: err.message || 'Failed to save certificate' };
     }
@@ -767,22 +828,27 @@ export class CertificateService {
    */
   static async getNextCertificateNumber(eventId: string, prefix: string = ''): Promise<{ number?: string; error?: string }> {
     try {
-      // Call the database function to get and increment the counter
+      console.log('[CertificateService] Getting next certificate number for event:', eventId, 'with prefix:', prefix);
+      // Call the database function to get and increment the counter atomically
       const { data, error } = await supabase.rpc('get_next_certificate_number', {
         event_uuid: eventId
       });
 
       if (error) {
+        console.error('[CertificateService] Error calling get_next_certificate_number RPC:', error);
         return { error: error.message };
       }
 
       // Format the number with prefix
       const counter = data || 1;
+      console.log('[CertificateService] Counter value returned from RPC:', counter);
       const formattedNumber = String(counter).padStart(3, '0');
       const certId = prefix ? `${prefix}-${formattedNumber}` : formattedNumber;
+      console.log('[CertificateService] Formatted certificate number:', certId);
 
       return { number: certId };
     } catch (err: any) {
+      console.error('[CertificateService] Exception in getNextCertificateNumber:', err);
       return { error: err.message || 'Failed to generate certificate number' };
     }
   }

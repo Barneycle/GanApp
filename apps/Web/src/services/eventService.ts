@@ -23,7 +23,7 @@ export interface Event {
   event_programmes_url?: string;
   certificate_templates_url?: string;
   event_kits_url?: string;
-  registration_deadline?: string;
+  registration_open?: boolean;
 }
 
 export interface EventWithDetails extends Event {
@@ -402,6 +402,29 @@ export class EventService {
     }
   }
 
+  static async toggleEventRegistration(eventId: string, registrationOpen: boolean): Promise<{ event?: Event; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .update({ registration_open: registrationOpen })
+        .eq('id', eventId)
+        .select()
+        .single();
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      // Invalidate cache to ensure fresh data is loaded
+      await CacheService.deletePattern('events:*');
+      await CacheService.delete(CacheService.keys.event(eventId));
+
+      return { event: data as Event };
+    } catch (error: any) {
+      return { error: error?.message || 'Failed to toggle event registration status' };
+    }
+  }
+
   static async unfeatureEvent(id: string): Promise<{ event?: Event; error?: string }> {
     try {
       const { data, error } = await supabase
@@ -478,12 +501,9 @@ export class EventService {
         return { error: 'Registration closed: Event is ongoing' };
       }
 
-      // Check registration deadline
-      if (eventResult.event.registration_deadline) {
-        const deadline = new Date(eventResult.event.registration_deadline);
-        if (deadline < now) {
-          return { error: 'Registration closed: Deadline has passed' };
-        }
+      // Check if registration is open for this event
+      if (eventResult.event.registration_open === false) {
+        return { error: 'Registration closed: Event organizer has closed registration' };
       }
 
       // Check if event has reached max participants

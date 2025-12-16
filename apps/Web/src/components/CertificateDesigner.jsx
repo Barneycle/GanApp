@@ -3,6 +3,34 @@ import { CertificateService } from '../services/certificateService';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 
+// Helper to load Google Fonts dynamically for preview
+const loadGoogleFont = (fontFamily) => {
+  if (typeof document === 'undefined') return;
+
+  // Extract font name (remove fallbacks)
+  const fontName = fontFamily.split(',')[0].trim().replace(/['"]/g, '');
+
+  // Skip system fonts
+  const systemFonts = ['Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'Georgia',
+    'Verdana', 'Tahoma', 'Trebuchet MS', 'Garamond', 'Palatino',
+    'Book Antiqua', 'Baskerville', 'Bodoni', 'Caslon', 'Century Schoolbook',
+    'Didot', 'Hoefler Text', 'Monaco', 'Consolas', 'Menlo', 'Lucida Grande',
+    'Century Gothic', 'Futura', 'Gill Sans', 'Impact', 'Copperplate'];
+
+  if (systemFonts.includes(fontName)) return;
+
+  // Check if already loaded
+  const fontId = `google-font-${fontName.replace(/\s+/g, '-').toLowerCase()}`;
+  if (document.getElementById(fontId)) return;
+
+  // Create link element
+  const link = document.createElement('link');
+  link.id = fontId;
+  link.rel = 'stylesheet';
+  link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/\s+/g, '+')}:wght@400;700&display=swap`;
+  document.head.appendChild(link);
+};
+
 const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageKey = 'pending-certificate-config' }) => {
   const { user } = useAuth();
   const canvasRef = useRef(null);
@@ -354,6 +382,34 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
       setSaving(false);
     }
   };
+
+  // Load fonts when config changes
+  useEffect(() => {
+    if (!config) return;
+
+    // Load all fonts used in the certificate
+    const fonts = new Set();
+
+    if (config.title_font_family) fonts.add(config.title_font_family);
+    if (config.title_subtitle_config?.font_family) fonts.add(config.title_subtitle_config.font_family);
+    if (config.header_config?.republic_config?.font_family) fonts.add(config.header_config.republic_config.font_family);
+    if (config.header_config?.university_config?.font_family) fonts.add(config.header_config.university_config.font_family);
+    if (config.header_config?.location_config?.font_family) fonts.add(config.header_config.location_config.font_family);
+    if (config.name_config?.font_family) fonts.add(config.name_config.font_family);
+    if (config.event_title_config?.font_family) fonts.add(config.event_title_config.font_family);
+    if (config.date_config?.font_family) fonts.add(config.date_config.font_family);
+    if (config.participation_text_config?.font_family) fonts.add(config.participation_text_config.font_family);
+    if (config.is_given_to_config?.font_family) fonts.add(config.is_given_to_config.font_family);
+
+    if (config.signature_blocks) {
+      config.signature_blocks.forEach(sig => {
+        if (sig.font_family) fonts.add(sig.font_family);
+      });
+    }
+
+    // Load each font
+    fonts.forEach(fontFamily => loadGoogleFont(fontFamily));
+  }, [config]);
 
   const updateConfig = (path, value) => {
     const keys = path.split('.');
@@ -849,36 +905,23 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
           <div
             style={{
               position: 'absolute',
-              left: '20%',
-              right: '20%',
+              left: `${config.name_config.position.x}%`,
               top: `${config.name_config.position.y}%`,
-              transform: 'translateY(-50%)',
-              fontSize: `${config.name_config.font_size * scale}px`,
-              color: config.name_config.color,
-              fontFamily: config.name_config.font_family,
-              fontWeight: config.name_config.font_weight,
+              transform: 'translate(-50%, -50%)',
+              fontSize: `${(config.name_config.font_size || 48) * scale}px`,
+              color: config.name_config.color || '#000000',
+              fontFamily: config.name_config.font_family || 'MonteCarlo, cursive',
+              fontWeight: config.name_config.font_weight || 'bold',
               textAlign: 'center',
-              width: '60%',
-              margin: '0 auto',
-              letterSpacing: '0.05em'
+              width: '100%',
+              textDecoration: 'underline',
+              textDecorationThickness: `${Math.max(2 * scale, (config.name_config.font_size || 48) * 0.04 * scale)}px`,
+              textUnderlineOffset: `${(config.name_config.font_size || 48) * 0.15 * scale}px`
             }}
           >
             [Participant Name]
           </div>
         )}
-
-        {/* First Horizontal Line Separator - After Name */}
-        <div
-          style={{
-            position: 'absolute',
-            left: '50%',
-            top: `${(config.name_config?.position?.y || defaultConfig.name_config.position.y) + 3}%`,
-            transform: 'translate(-50%, -50%)',
-            width: '60%',
-            height: `${2 * scale}px`,
-            backgroundColor: '#000000'
-          }}
-        />
 
         {/* Participation Text */}
         {participation?.text_template && (
@@ -1855,13 +1898,17 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
                           Font Family
                         </label>
                         <select
-                          value={config.title_font_family || config.header_config?.republic_config?.font_family || 'Libre Baskerville, serif'}
+                          value={config.title_font_family || config.title_subtitle_config?.font_family || config.header_config?.republic_config?.font_family || 'Libre Baskerville, serif'}
                           onChange={(e) => {
                             const fontFamily = e.target.value;
                             // Update all fonts except name
                             const newConfig = {
                               ...config,
                               title_font_family: fontFamily,
+                              title_subtitle_config: {
+                                ...config.title_subtitle_config,
+                                font_family: fontFamily
+                              },
                               header_config: {
                                 ...config.header_config,
                                 republic_config: {

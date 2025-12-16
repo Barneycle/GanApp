@@ -8,7 +8,7 @@ import { useToast } from '../Toast';
 import CertificateDesigner from '../CertificateDesigner';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { Upload, X, Plus, Trash2, Loader2, FileText, Users, Settings, Eye, Download, CheckCircle2, XCircle } from 'lucide-react';
+import { Upload, X, Plus, Trash2, Loader2, FileText, Users, Settings, Eye, Download, CheckCircle, CheckCircle2, XCircle } from 'lucide-react';
 import { JobStatusViewer } from '../JobStatusViewer';
 
 export const StandaloneCertificateGenerator = () => {
@@ -21,9 +21,11 @@ export const StandaloneCertificateGenerator = () => {
   const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [participants, setParticipants] = useState([]);
+  const [participants, setParticipants] = useState([]); // Array of strings (names) or objects (from event)
   const [participantInput, setParticipantInput] = useState('');
-  const [inputMode, setInputMode] = useState('manual'); // 'manual' or 'file'
+  const [inputMode, setInputMode] = useState('manual'); // 'manual', 'file', or 'event'
+  const [eventParticipants, setEventParticipants] = useState([]); // Registered participants from selected event
+  const [loadingEventParticipants, setLoadingEventParticipants] = useState(false);
   const [config, setConfig] = useState(null);
   const [showCustomizer, setShowCustomizer] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -68,7 +70,7 @@ export const StandaloneCertificateGenerator = () => {
       // Update jobIds to only include pending/processing jobs
       if (pendingJobs.length !== jobIdsToCheck.length) {
         setJobIds(pendingJobs);
-        
+
         // Update sessionStorage
         const storageKey = 'standalone_cert_generator_state';
         const currentState = sessionStorage.getItem(storageKey);
@@ -116,7 +118,7 @@ export const StandaloneCertificateGenerator = () => {
 
     const storageKey = 'standalone_cert_generator_state';
     const savedState = sessionStorage.getItem(storageKey);
-    
+
     if (savedState) {
       try {
         const state = JSON.parse(savedState);
@@ -141,7 +143,7 @@ export const StandaloneCertificateGenerator = () => {
 
     loadEvents();
     loadCompletedCertificates();
-    
+
     // Load dismissed certificate IDs from sessionStorage
     const dismissedKey = 'dismissed_certificates';
     const dismissed = sessionStorage.getItem(dismissedKey);
@@ -190,6 +192,34 @@ export const StandaloneCertificateGenerator = () => {
     }
   }, [selectedEventId]);
 
+  // Load registered participants when event is selected and input mode is 'event'
+  useEffect(() => {
+    const loadEventParticipants = async () => {
+      if (selectedEventId && inputMode === 'event') {
+        try {
+          setLoadingEventParticipants(true);
+          const result = await EventService.getEventParticipants(selectedEventId);
+          if (result.error) {
+            toast.error(result.error);
+            setEventParticipants([]);
+          } else {
+            setEventParticipants(result.participants || []);
+          }
+        } catch (err) {
+          console.error('Failed to load event participants:', err);
+          toast.error('Failed to load event participants');
+          setEventParticipants([]);
+        } finally {
+          setLoadingEventParticipants(false);
+        }
+      } else {
+        setEventParticipants([]);
+      }
+    };
+
+    loadEventParticipants();
+  }, [selectedEventId, inputMode]);
+
   const loadEvents = async () => {
     try {
       setLoading(true);
@@ -233,7 +263,7 @@ export const StandaloneCertificateGenerator = () => {
 
     try {
       if (!silent) setLoadingCompleted(true);
-      
+
       const result = await JobQueueService.getUserJobs(user.id, 'completed');
       if (result.error) {
         console.error('Failed to load completed certificates:', result.error);
@@ -276,17 +306,17 @@ export const StandaloneCertificateGenerator = () => {
     const dismissedKey = 'dismissed_certificates';
     const dismissedData = sessionStorage.getItem(dismissedKey);
     const currentDismissed = dismissedData ? new Set(JSON.parse(dismissedData)) : new Set();
-    
+
     // Add the new certificate ID
     currentDismissed.add(certId);
     setDismissedCertIds(new Set(currentDismissed));
-    
+
     // Save to sessionStorage
     sessionStorage.setItem(dismissedKey, JSON.stringify(Array.from(currentDismissed)));
-    
+
     // Remove from displayed list
     setCompletedCertificates(prev => prev.filter(cert => cert.id !== certId));
-    
+
     toast.info('Certificate removed from list');
   };
 
@@ -295,7 +325,7 @@ export const StandaloneCertificateGenerator = () => {
     const dismissedKey = 'dismissed_certificates';
     const dismissedData = sessionStorage.getItem(dismissedKey);
     const currentDismissed = dismissedData ? new Set(JSON.parse(dismissedData)) : new Set();
-    
+
     // Add all current certificates to dismissed list
     completedCertificates.forEach(cert => {
       if (cert.id) {
@@ -303,19 +333,19 @@ export const StandaloneCertificateGenerator = () => {
       }
     });
     setDismissedCertIds(new Set(currentDismissed));
-    
+
     // Save to sessionStorage
     sessionStorage.setItem(dismissedKey, JSON.stringify(Array.from(currentDismissed)));
-    
+
     // Clear the displayed list
     setCompletedCertificates([]);
-    
+
     toast.info('All certificates cleared from list');
   };
 
   const handleDownload = async (url, format, certificateNumber, certId) => {
     console.log('📥 Download requested:', format, { url, certificateNumber, certId });
-    
+
     if (!url) {
       console.warn('❌ No URL provided for download');
       toast.error(`${format.toUpperCase()} certificate not available`);
@@ -330,9 +360,9 @@ export const StandaloneCertificateGenerator = () => {
       // Add cache-busting parameter to ensure we get the latest version
       const urlWithCacheBust = `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
       console.log('📥 Downloading from URL:', urlWithCacheBust);
-      
+
       let blob;
-      
+
       try {
         // Try fetching with CORS first
         const response = await fetch(urlWithCacheBust, {
@@ -340,7 +370,7 @@ export const StandaloneCertificateGenerator = () => {
           mode: 'cors',
           cache: 'no-cache',
         });
-        
+
         if (response.ok) {
           blob = await response.blob();
         } else {
@@ -375,7 +405,7 @@ export const StandaloneCertificateGenerator = () => {
           throw fetchErr;
         }
       }
-      
+
       // Create download link with blob URL
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -384,17 +414,17 @@ export const StandaloneCertificateGenerator = () => {
       link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      
+
       // Clean up after a delay to ensure download starts
       setTimeout(() => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(downloadUrl);
       }, 100);
-      
+
       toast.success('Certificate downloaded successfully!');
     } catch (err) {
       console.error('❌ Download error:', err);
-      
+
       // Last resort: try direct link (may open in new tab for some browsers)
       try {
         console.log('🔄 Trying fallback download method...');
@@ -439,7 +469,7 @@ export const StandaloneCertificateGenerator = () => {
       // Download all PDF certificates sequentially to avoid browser blocking
       for (let i = 0; i < pdfCerts.length; i++) {
         const cert = pdfCerts[i];
-        
+
         try {
           const response = await fetch(cert.pdfUrl);
           if (response.ok) {
@@ -493,7 +523,7 @@ export const StandaloneCertificateGenerator = () => {
       // Download all PNG certificates sequentially to avoid browser blocking
       for (let i = 0; i < pngCerts.length; i++) {
         const cert = pngCerts[i];
-        
+
         try {
           const response = await fetch(cert.pngUrl);
           if (response.ok) {
@@ -629,12 +659,53 @@ export const StandaloneCertificateGenerator = () => {
       toast.error('Please enter a participant name');
       return;
     }
-    if (participants.includes(name)) {
+    // Check if participant (as string) already exists
+    const exists = participants.some(p =>
+      typeof p === 'string' ? p === name : (p.participantName || p.name) === name
+    );
+    if (exists) {
       toast.error('Participant already in list');
       return;
     }
     setParticipants([...participants, name]);
     setParticipantInput('');
+  };
+
+  const handleToggleEventParticipant = (participant) => {
+    const participantId = participant.user_id || participant.users?.id;
+    const isSelected = participants.some(p => {
+      if (typeof p === 'object' && p.userId) {
+        return p.userId === participantId;
+      }
+      return false;
+    });
+
+    if (isSelected) {
+      // Remove participant
+      setParticipants(participants.filter(p => {
+        if (typeof p === 'object' && p.userId) {
+          return p.userId !== participantId;
+        }
+        return true;
+      }));
+    } else {
+      // Add participant
+      const participantUser = participant.users || participant;
+      // Construct full name including middle initial if available
+      const nameParts = [participantUser.first_name || ''];
+      if (participantUser.middle_initial) {
+        nameParts.push(participantUser.middle_initial);
+      }
+      nameParts.push(participantUser.last_name || '');
+      const participantName = nameParts.filter(part => part.trim()).join(' ').trim() || participantUser.email || 'Participant';
+
+      setParticipants([...participants, {
+        userId: participantId,
+        participantName: participantName,
+        email: participantUser.email || '',
+        participant: participant // Store full participant object for reference
+      }]);
+    }
   };
 
   const handleRemoveParticipant = (index) => {
@@ -671,10 +742,10 @@ export const StandaloneCertificateGenerator = () => {
             const names = results.data
               .map(row => {
                 // Try common column names
-                const name = row.name || row.Name || row.NAME || 
-                           row.participant || row.Participant || row.PARTICIPANT ||
-                           row['Participant Name'] || row['participant name'] ||
-                           Object.values(row)[0]; // First column as fallback
+                const name = row.name || row.Name || row.NAME ||
+                  row.participant || row.Participant || row.PARTICIPANT ||
+                  row['Participant Name'] || row['participant name'] ||
+                  Object.values(row)[0]; // First column as fallback
                 return name?.toString().trim();
               })
               .filter(name => name && name.length > 0);
@@ -706,10 +777,10 @@ export const StandaloneCertificateGenerator = () => {
 
             const names = jsonData
               .map(row => {
-                const name = row.name || row.Name || row.NAME || 
-                           row.participant || row.Participant || row.PARTICIPANT ||
-                           row['Participant Name'] || row['participant name'] ||
-                           Object.values(row)[0];
+                const name = row.name || row.Name || row.NAME ||
+                  row.participant || row.Participant || row.PARTICIPANT ||
+                  row['Participant Name'] || row['participant name'] ||
+                  Object.values(row)[0];
                 return name?.toString().trim();
               })
               .filter(name => name && name.length > 0);
@@ -767,7 +838,25 @@ export const StandaloneCertificateGenerator = () => {
     try {
       // Queue a job for each participant
       for (let i = 0; i < participants.length; i++) {
-        const participantName = participants[i];
+        const participant = participants[i];
+
+        // Handle both string (manual/file input) and object (from event) participants
+        let participantName;
+        let participantUserId = null;
+
+        if (typeof participant === 'string') {
+          participantName = participant;
+          // For manual/file entry, use organizer's user ID
+          participantUserId = user.id;
+        } else if (typeof participant === 'object' && participant.participantName) {
+          participantName = participant.participantName;
+          // For event participants, use the participant's actual user ID
+          participantUserId = participant.userId || participant.participant?.user_id || participant.participant?.users?.id || user.id;
+        } else {
+          console.warn('Invalid participant format:', participant);
+          continue;
+        }
+
         const eventTitle = selectedEvent?.title || 'Event';
         const completionDate = selectedEvent?.start_date || new Date().toISOString().split('T')[0];
 
@@ -778,7 +867,7 @@ export const StandaloneCertificateGenerator = () => {
         const jobResult = await JobQueueService.queueCertificateGeneration(
           {
             eventId: eventIdForJob,
-            userId: user.id, // Organizer's ID
+            userId: participantUserId, // Use participant's user ID for event participants, organizer's ID for manual entry
             participantName: participantName,
             eventTitle: eventTitle,
             completionDate: completionDate,
@@ -797,7 +886,7 @@ export const StandaloneCertificateGenerator = () => {
 
       setJobIds(newJobIds);
       toast.success(`Queued ${participants.length} certificate(s) for generation. Processing in background...`);
-      
+
       // Save jobIds to sessionStorage
       const storageKey = 'standalone_cert_generator_state';
       const currentState = sessionStorage.getItem(storageKey);
@@ -810,12 +899,12 @@ export const StandaloneCertificateGenerator = () => {
           console.error('Failed to save jobIds to sessionStorage:', err);
         }
       }
-      
+
       // Reload completed certificates after a short delay to catch any that just completed
       setTimeout(() => {
         loadCompletedCertificates(true);
       }, 2000);
-      
+
       // Note: For bulk generation, we don't poll individual jobs
       // Users can check the job queue or certificates later
     } catch (err) {
@@ -894,14 +983,14 @@ export const StandaloneCertificateGenerator = () => {
             {showCustomizer && selectedEventId && (
               <div className="fixed inset-0 z-50 overflow-hidden">
                 {/* Backdrop */}
-                <div 
+                <div
                   className="absolute inset-0 bg-black/60 backdrop-blur-sm"
                   onClick={() => setShowCustomizer(false)}
                 />
-                
+
                 {/* Modal Container - Full Screen */}
                 <div className="absolute inset-0 flex items-center justify-center p-4">
-                  <div 
+                  <div
                     className="bg-white rounded-2xl shadow-2xl w-full h-full max-w-[98vw] max-h-[98vh] flex flex-col overflow-hidden"
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -970,24 +1059,54 @@ export const StandaloneCertificateGenerator = () => {
               {/* Input Mode Toggle */}
               <div className="flex gap-2 mb-4">
                 <button
-                  onClick={() => setInputMode('manual')}
-                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                    inputMode === 'manual'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
+                  onClick={() => {
+                    setInputMode('manual');
+                    // Clear event participants selection when switching modes
+                    if (inputMode === 'event') {
+                      setParticipants(participants.filter(p => typeof p === 'string'));
+                    }
+                  }}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${inputMode === 'manual'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
                 >
                   Manual Entry
                 </button>
                 <button
-                  onClick={() => setInputMode('file')}
-                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                    inputMode === 'file'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
+                  onClick={() => {
+                    setInputMode('file');
+                    // Clear event participants selection when switching modes
+                    if (inputMode === 'event') {
+                      setParticipants(participants.filter(p => typeof p === 'string'));
+                    }
+                  }}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${inputMode === 'file'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
                 >
                   Import File
+                </button>
+                <button
+                  onClick={() => {
+                    setInputMode('event');
+                    // Clear manual/file participants when switching to event mode
+                    setParticipants(participants.filter(p => typeof p === 'object'));
+                    if (!selectedEventId) {
+                      toast.warning('Please select an event first');
+                    }
+                  }}
+                  disabled={!selectedEventId}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${inputMode === 'event'
+                    ? 'bg-blue-600 text-white'
+                    : selectedEventId
+                      ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    }`}
+                  title={!selectedEventId ? 'Select an event first' : ''}
+                >
+                  From Event
                 </button>
               </div>
 
@@ -1045,6 +1164,72 @@ export const StandaloneCertificateGenerator = () => {
                 </div>
               )}
 
+              {/* Event Participants Selection */}
+              {inputMode === 'event' && (
+                <div className="space-y-4">
+                  {!selectedEventId ? (
+                    <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center">
+                      <Users className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                      <p className="text-slate-600">Please select an event first to view registered participants</p>
+                    </div>
+                  ) : loadingEventParticipants ? (
+                    <div className="text-center py-8">
+                      <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+                      <p className="text-slate-600">Loading registered participants...</p>
+                    </div>
+                  ) : eventParticipants.length === 0 ? (
+                    <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center">
+                      <Users className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                      <p className="text-slate-600">No registered participants found for this event</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-96 overflow-y-auto border border-slate-200 rounded-lg p-2">
+                      {eventParticipants.map((participant) => {
+                        const participantId = participant.user_id || participant.users?.id;
+                        const participantUser = participant.users || participant;
+                        // Construct full name including middle initial if available
+                        const nameParts = [participantUser.first_name || ''];
+                        if (participantUser.middle_initial) {
+                          nameParts.push(participantUser.middle_initial);
+                        }
+                        nameParts.push(participantUser.last_name || '');
+                        const participantName = nameParts.filter(part => part.trim()).join(' ').trim() || participantUser.email || 'Participant';
+                        const isSelected = participants.some(p =>
+                          typeof p === 'object' && p.userId === participantId
+                        );
+
+                        return (
+                          <button
+                            key={participantId}
+                            onClick={() => handleToggleEventParticipant(participant)}
+                            className={`w-full text-left p-3 rounded-lg border transition-colors ${isSelected
+                              ? 'bg-blue-50 border-blue-300 text-blue-900'
+                              : 'bg-white border-slate-200 hover:bg-slate-50'
+                              }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className={`font-medium ${isSelected ? 'text-blue-900' : 'text-slate-900'}`}>
+                                  {participantName}
+                                </p>
+                                {participantUser.email && (
+                                  <p className={`text-sm ${isSelected ? 'text-blue-700' : 'text-slate-600'}`}>
+                                    {participantUser.email}
+                                  </p>
+                                )}
+                              </div>
+                              {isSelected && (
+                                <CheckCircle2 className="w-5 h-5 text-blue-600" />
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Participant List */}
               {participants.length > 0 && (
                 <div className="mt-6">
@@ -1074,20 +1259,35 @@ export const StandaloneCertificateGenerator = () => {
                     </button>
                   </div>
                   <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-lg">
-                    {participants.map((participant, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 border-b border-slate-100 last:border-b-0"
-                      >
-                        <span className="text-slate-700">{participant}</span>
-                        <button
-                          onClick={() => handleRemoveParticipant(index)}
-                          className="text-red-600 hover:text-red-700 p-1"
+                    {participants.map((participant, index) => {
+                      // Handle both string (manual/file) and object (from event) participants
+                      const displayName = typeof participant === 'string'
+                        ? participant
+                        : participant.participantName || 'Participant';
+                      const displayEmail = typeof participant === 'object' && participant.email
+                        ? participant.email
+                        : null;
+
+                      return (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-3 border-b border-slate-100 last:border-b-0"
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
+                          <div>
+                            <span className="text-slate-700 font-medium">{displayName}</span>
+                            {displayEmail && (
+                              <p className="text-xs text-slate-500">{displayEmail}</p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleRemoveParticipant(index)}
+                            className="text-red-600 hover:text-red-700 p-1"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1144,7 +1344,7 @@ export const StandaloneCertificateGenerator = () => {
                   </button>
                 </div>
               )}
-              
+
               {/* Show message if no jobs but user might want to check status */}
               {jobIds.length === 0 && !generating && participants.length === 0 && (
                 <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">

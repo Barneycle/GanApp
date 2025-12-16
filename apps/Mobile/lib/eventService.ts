@@ -402,12 +402,9 @@ export class EventService {
         return { error: 'Registration closed: Event is ongoing' };
       }
 
-      // Check registration deadline
-      if (eventResult.event.registration_deadline) {
-        const deadline = new Date(eventResult.event.registration_deadline);
-        if (deadline < now) {
-          return { error: 'Registration closed: Deadline has passed' };
-        }
+      // Check if registration is open for this event
+      if (eventResult.event.registration_open === false) {
+        return { error: 'Registration closed: Event organizer has closed registration' };
       }
 
       // Check if event has reached max participants
