@@ -168,7 +168,7 @@ export class NotificationService {
   }
 
   /**
-   * Create a notification (for testing or admin use)
+   * Create a notification (queued for background processing)
    */
   static async createNotification(
     userId: string,
@@ -180,31 +180,67 @@ export class NotificationService {
       action_text?: string;
       priority?: 'low' | 'normal' | 'high' | 'urgent';
       expires_at?: string;
+      immediate?: boolean; // If true, insert immediately instead of queuing
     }
-  ): Promise<{ notification?: Notification; error?: string }> {
+  ): Promise<{ notification?: Notification; queued?: boolean; jobId?: string; error?: string }> {
     try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .insert([{
-          user_id: userId,
+      // If immediate flag is set, insert directly (for backward compatibility)
+      if (options?.immediate) {
+        const { data, error } = await supabase
+          .from('notifications')
+          .insert([{
+            user_id: userId,
+            title,
+            message,
+            type,
+            action_url: options?.action_url,
+            action_text: options?.action_text,
+            priority: options?.priority || 'normal',
+            expires_at: options?.expires_at,
+          }])
+          .select()
+          .single();
+
+        if (error) {
+          return { error: error.message };
+        }
+
+        return { notification: data };
+      }
+
+      // Otherwise, queue the notification
+      const { JobQueueService } = await import('./jobQueueService');
+      const { NotificationJobProcessor } = await import('./notificationJobProcessor');
+
+      // Get current user ID if available
+      const { data: { user } } = await supabase.auth.getUser();
+      const createdBy = user?.id;
+
+      const jobResult = await JobQueueService.queueSingleNotification(
+        {
+          userId,
           title,
           message,
           type,
-          action_url: options?.action_url,
-          action_text: options?.action_text,
-          priority: options?.priority || 'normal',
-          expires_at: options?.expires_at,
-        }])
-        .select()
-        .single();
+          options,
+          createdBy
+        },
+        createdBy,
+        options?.priority === 'urgent' ? 1 : options?.priority === 'high' ? 3 : 5
+      );
 
-      if (error) {
-        return { error: error.message };
+      if (jobResult.error || !jobResult.job) {
+        return { error: jobResult.error || 'Failed to queue notification' };
       }
 
-      return { notification: data };
+      // Trigger immediate processing
+      NotificationJobProcessor.processPendingJobs().catch(err =>
+        console.error('Failed to process notification jobs:', err)
+      );
+
+      return { queued: true, jobId: jobResult.job.id };
     } catch (error: any) {
-      return { error: 'An unexpected error occurred' };
+      return { error: error.message || 'An unexpected error occurred' };
     }
   }
 

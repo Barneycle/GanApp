@@ -389,22 +389,16 @@ export class EventService {
         return { error: 'This event is not available for registration' };
       }
 
+      // Check if registration is open for this event
+      if (eventResult.event.registration_open === false) {
+        return { error: 'Registration closed: Event organizer has closed registration' };
+      }
+
       // Check if event is past (ended)
       const now = new Date();
       const endDateTime = new Date(`${eventResult.event.end_date}T${eventResult.event.end_time || '23:59:59'}`);
       if (endDateTime < now) {
         return { error: 'Registration closed: Event has ended' };
-      }
-
-      // Check if event is ongoing (started but not ended)
-      const startDateTime = new Date(`${eventResult.event.start_date}T${eventResult.event.start_time || '00:00:00'}`);
-      if (startDateTime <= now && endDateTime >= now) {
-        return { error: 'Registration closed: Event is ongoing' };
-      }
-
-      // Check if registration is open for this event
-      if (eventResult.event.registration_open === false) {
-        return { error: 'Registration closed: Event organizer has closed registration' };
       }
 
       // Check if event has reached max participants

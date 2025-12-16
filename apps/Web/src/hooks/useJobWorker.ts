@@ -6,6 +6,7 @@
 
 import { useEffect, useRef } from 'react';
 import { CertificateJobProcessor } from '../services/certificateJobProcessor';
+import { NotificationJobProcessor } from '../services/notificationJobProcessor';
 
 export const useJobWorker = (enabled: boolean = true, intervalMs: number = 5000) => {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -24,9 +25,16 @@ export const useJobWorker = (enabled: boolean = true, intervalMs: number = 5000)
 
       isProcessingRef.current = true;
       try {
-        const result = await CertificateJobProcessor.processPendingJobs();
-        if (result.processed > 0) {
-          console.log(`Processed ${result.processed} jobs: ${result.succeeded} succeeded, ${result.failed} failed`);
+        // Process certificate jobs
+        const certResult = await CertificateJobProcessor.processPendingJobs();
+        if (certResult.processed > 0) {
+          console.log(`Processed ${certResult.processed} certificate jobs: ${certResult.succeeded} succeeded, ${certResult.failed} failed`);
+        }
+
+        // Process notification jobs
+        const notifResult = await NotificationJobProcessor.processPendingJobs();
+        if (notifResult.processed > 0) {
+          console.log(`Processed ${notifResult.processed} notification jobs: ${notifResult.succeeded} succeeded, ${notifResult.failed} failed`);
         }
       } catch (error) {
         console.error('Job processing error:', error);

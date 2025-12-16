@@ -26,6 +26,34 @@ export interface CertificateGenerationJobData {
   config?: any; // Optional: for standalone certificates without event
 }
 
+export interface BulkNotificationJobData {
+  userIds: string[];
+  title: string;
+  message: string;
+  type: 'success' | 'warning' | 'error' | 'info';
+  options?: {
+    action_url?: string;
+    action_text?: string;
+    priority?: 'low' | 'normal' | 'high' | 'urgent';
+    expires_at?: string;
+  };
+  createdBy: string;
+}
+
+export interface SingleNotificationJobData {
+  userId: string;
+  title: string;
+  message: string;
+  type: 'success' | 'warning' | 'error' | 'info';
+  options?: {
+    action_url?: string;
+    action_text?: string;
+    priority?: 'low' | 'normal' | 'high' | 'urgent';
+    expires_at?: string;
+  };
+  createdBy?: string;
+}
+
 export class JobQueueService {
   /**
    * Add a job to the queue
@@ -77,7 +105,7 @@ export class JobQueueService {
 
       const jobData = data[0] as JobData;
       console.log('[JobQueueService] Got job:', { id: jobData.id, type: jobData.job_type });
-      
+
       // Ensure ID is present
       if (!jobData.id) {
         console.error('[JobQueueService] Job missing ID:', jobData);
@@ -100,7 +128,7 @@ export class JobQueueService {
   ): Promise<{ success?: boolean; error?: string }> {
     try {
       console.log('[JobQueueService] Completing job:', jobId);
-      
+
       // Try RPC first
       const { data, error } = await supabase.rpc('complete_job', {
         p_job_id: jobId,
@@ -144,7 +172,7 @@ export class JobQueueService {
   ): Promise<{ success?: boolean; error?: string }> {
     try {
       console.log('[JobQueueService] Failing job:', jobId, errorMessage);
-      
+
       // Try RPC first
       const { data, error } = await supabase.rpc('fail_job', {
         p_job_id: jobId,
@@ -252,6 +280,28 @@ export class JobQueueService {
     priority: number = 5
   ): Promise<{ job?: JobData; error?: string }> {
     return this.addJob('certificate_generation', jobData, userId, priority);
+  }
+
+  /**
+   * Add bulk notification job
+   */
+  static async queueBulkNotification(
+    jobData: BulkNotificationJobData,
+    userId: string,
+    priority: number = 5
+  ): Promise<{ job?: JobData; error?: string }> {
+    return this.addJob('bulk_notification', jobData, userId, priority);
+  }
+
+  /**
+   * Add single notification job
+   */
+  static async queueSingleNotification(
+    jobData: SingleNotificationJobData,
+    userId?: string,
+    priority: number = 5
+  ): Promise<{ job?: JobData; error?: string }> {
+    return this.addJob('single_notification', jobData, userId || jobData.createdBy || 'system', priority);
   }
 }
 

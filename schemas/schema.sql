@@ -619,11 +619,7 @@ CREATE POLICY "Organizers can manage own events" ON events
   FOR ALL USING (created_by = auth.uid());
 
 CREATE POLICY "Admins can manage all events" ON events
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  FOR ALL USING (is_admin(auth.uid()));
 
 -- Event registrations policies
 CREATE POLICY "Users can view own registrations" ON event_registrations

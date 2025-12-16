@@ -167,7 +167,7 @@ export class AdminService {
         const { data: { user: targetUser } } = await supabase.auth.admin.getUserById(userId);
         const userName = targetUser ? `${targetUser.user_metadata?.first_name || ''} ${targetUser.user_metadata?.last_name || ''}`.trim() || targetUser.email || userId : userId;
         const userEmail = targetUser?.email;
-        
+
         // Log activity
         logActivity(
           user.id,
@@ -182,7 +182,7 @@ export class AdminService {
 
         // Send email notification
         if (userEmail) {
-          EmailService.sendBanEmail(userEmail, userName, banUntil, reason).catch(err => 
+          EmailService.sendBanEmail(userEmail, userName, banUntil, reason).catch(err =>
             console.error('Failed to send ban email:', err)
           );
 
@@ -248,7 +248,7 @@ export class AdminService {
         const { data: { user: targetUser } } = await supabase.auth.admin.getUserById(userId);
         const userName = targetUser ? `${targetUser.user_metadata?.first_name || ''} ${targetUser.user_metadata?.last_name || ''}`.trim() || targetUser.email || userId : userId;
         const userEmail = targetUser?.email;
-        
+
         // Log activity
         logActivity(
           user.id,
@@ -263,7 +263,7 @@ export class AdminService {
 
         // Send email notification
         if (userEmail) {
-          EmailService.sendUnbanEmail(userEmail, userName).catch(err => 
+          EmailService.sendUnbanEmail(userEmail, userName).catch(err =>
             console.error('Failed to send unban email:', err)
           );
 
@@ -325,7 +325,7 @@ export class AdminService {
         return { error: error.message };
       }
 
-      // Log activity - need to fetch user email/name for logging
+      // Log activity and send notification - need to fetch user email/name
       try {
         const { data: { user: targetUser } } = await supabase.auth.admin.getUserById(userId);
         const userName = targetUser ? `${targetUser.user_metadata?.first_name || ''} ${targetUser.user_metadata?.last_name || ''}`.trim() || targetUser.email || userId : userId;
@@ -339,6 +339,17 @@ export class AdminService {
             details: { user_id: userId, action: 'change_role', new_role: newRole }
           }
         ).catch(err => console.error('Failed to log role change:', err));
+
+        // Send notification to user about role change
+        NotificationService.createNotification(
+          userId,
+          'Role Updated',
+          `Your account role has been changed to ${newRole}.${newRole === 'admin' ? ' You now have administrative privileges.' : newRole === 'organizer' ? ' You can now create and manage events.' : ''}`,
+          'info',
+          {
+            priority: 'normal'
+          }
+        ).catch(err => console.error('Failed to create role change notification:', err));
       } catch (logErr) {
         // Don't fail the role change operation if logging fails
         console.error('Failed to fetch user for logging:', logErr);
@@ -385,7 +396,7 @@ export class AdminService {
         return { error: data?.error || 'Failed to unarchive user' };
       }
 
-      // Log activity
+      // Log activity and send notification
       try {
         const userName = data.email || userId;
         logActivity(
@@ -398,6 +409,17 @@ export class AdminService {
             details: { user_id: userId, action: 'unarchive', email: data.email }
           }
         ).catch(err => console.error('Failed to log user unarchive:', err));
+
+        // Send notification to user about account restoration
+        NotificationService.createNotification(
+          userId,
+          'Account Restored',
+          'Your archived account has been restored. You can now access your account and use all GanApp services.',
+          'success',
+          {
+            priority: 'high'
+          }
+        ).catch(err => console.error('Failed to create unarchive notification:', err));
       } catch (logErr) {
         console.error('Failed to log user unarchive:', logErr);
       }
@@ -442,7 +464,7 @@ export class AdminService {
         return { error: data?.error || 'Failed to archive user' };
       }
 
-      // Log activity - need to fetch user email/name for logging
+      // Log activity and send notification - need to fetch user email/name
       try {
         const { data: { user: targetUser } } = await supabase.auth.admin.getUserById(userId);
         const userName = targetUser ? `${targetUser.user_metadata?.first_name || ''} ${targetUser.user_metadata?.last_name || ''}`.trim() || targetUser.email || userId : userId;
@@ -456,6 +478,17 @@ export class AdminService {
             details: { user_id: userId, action: 'archive', reason }
           }
         ).catch(err => console.error('Failed to log user archive:', err));
+
+        // Send notification to user about account archive
+        NotificationService.createNotification(
+          userId,
+          'Account Archived',
+          `Your account has been archived by an administrator.${reason ? ` Reason: ${reason}` : ''}`,
+          'warning',
+          {
+            priority: 'high'
+          }
+        ).catch(err => console.error('Failed to create archive notification:', err));
       } catch (logErr) {
         // Don't fail the archive operation if logging fails
         console.error('Failed to fetch user for logging:', logErr);
@@ -474,17 +507,28 @@ export class AdminService {
    */
   static async getAllEvents(): Promise<{ events?: AdminEvent[]; error?: string }> {
     try {
+      // Admin should see ALL events including cancelled ones
       const { data, error } = await supabase
         .from('events')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) {
+        console.error('[AdminService.getAllEvents] Error fetching events:', error);
         return { error: error.message };
       }
 
-      return { events: data || [] };
+      // Ensure current_participants is set for all events (fallback to 0 if null)
+      const events = (data || []).map(event => ({
+        ...event,
+        current_participants: event.current_participants ?? 0
+      }));
+
+      console.log(`[AdminService.getAllEvents] Fetched ${events.length} events (including ${events.filter(e => e.status === 'cancelled').length} cancelled)`);
+
+      return { events };
     } catch (error) {
+      console.error('[AdminService.getAllEvents] Exception:', error);
       return { error: 'An unexpected error occurred' };
     }
   }
@@ -532,7 +576,7 @@ export class AdminService {
     try {
       const { error } = await supabase
         .from('events')
-        .update({ 
+        .update({
           status: 'cancelled',
           updated_at: new Date().toISOString()
         })
@@ -585,15 +629,15 @@ export class AdminService {
       const params: any = {
         archive_id_uuid: archiveId
       };
-      
+
       // Only include unarchive_reason_text if it's provided and not empty
       if (reason && reason.trim()) {
         params.unarchive_reason_text = reason.trim();
       }
-      
+
       // unarchived_by_uuid is optional and defaults to auth.uid() in the function
       // We can omit it or pass null
-      
+
       const { data, error } = await supabase.rpc('unarchive_event', params);
 
       if (error) {
@@ -635,7 +679,7 @@ export class AdminService {
 
       // Get event IDs to fetch event titles
       const eventIds = [...new Set(requestsData.map(req => req.event_id))];
-      
+
       // Fetch event titles
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
@@ -690,6 +734,16 @@ export class AdminService {
         return { error: 'Only administrators can review cancellation requests' };
       }
 
+      // Get request details first to get event and organizer info
+      const { data: requestData } = await supabase
+        .from('event_cancellation_requests')
+        .select(`
+          *,
+          events!inner(id, title, created_by)
+        `)
+        .eq('id', requestId)
+        .single();
+
       const { error } = await supabase.rpc('review_cancellation_request', {
         request_uuid: requestId,
         new_status_text: status,
@@ -699,6 +753,25 @@ export class AdminService {
 
       if (error) {
         return { error: error.message };
+      }
+
+      // Send notification to organizer about the review result
+      if (requestData && requestData.events) {
+        const event = requestData.events as any;
+        const { NotificationService } = await import('./notificationService');
+        NotificationService.createNotification(
+          event.created_by,
+          status === 'approved' ? 'Cancellation Request Approved' : 'Cancellation Request Declined',
+          status === 'approved'
+            ? `Your cancellation request for "${event.title}" has been approved. The event has been cancelled.`
+            : `Your cancellation request for "${event.title}" has been declined.${reviewNotes ? ` Notes: ${reviewNotes}` : ''}`,
+          status === 'approved' ? 'warning' : 'info',
+          {
+            action_url: `/events?eventId=${event.id}`,
+            action_text: 'View Event',
+            priority: 'high'
+          }
+        ).catch(err => console.error('Failed to send cancellation review notification:', err));
       }
 
       return { success: true };
@@ -821,9 +894,9 @@ export class AdminService {
       const surveyIds = surveys?.map(e => e.id) || [];
       const { data: responses } = surveyIds.length > 0
         ? await supabase
-            .from('survey_responses')
-            .select('*')
-            .in('survey_id', surveyIds)
+          .from('survey_responses')
+          .select('*')
+          .in('survey_id', surveyIds)
         : { data: [] };
 
       // Get certificates
@@ -837,7 +910,7 @@ export class AdminService {
           event,
           total_registrations: registrations?.length || 0,
           total_attendance: attendance?.length || 0,
-          attendance_rate: registrations?.length > 0 
+          attendance_rate: registrations?.length > 0
             ? ((attendance?.length || 0) / registrations.length * 100).toFixed(2) + '%'
             : '0%',
           total_surveys: surveys?.length || 0,
@@ -909,7 +982,7 @@ export class AdminService {
       // Step 2: Save current admin session before creating user
       // This prevents the new user from being auto-signed in
       const { data: { session: adminSession } } = await supabase.auth.getSession();
-      
+
       if (!adminSession) {
         return { error: 'Admin session not found. Please log in again.' };
       }
@@ -942,10 +1015,10 @@ export class AdminService {
 
       if (authError) {
         // Provide user-friendly error messages
-        if (authError.message?.toLowerCase().includes('already registered') || 
-            authError.message?.toLowerCase().includes('already exists') ||
-            authError.message?.toLowerCase().includes('user already registered') ||
-            authError.message?.toLowerCase().includes('email already exists')) {
+        if (authError.message?.toLowerCase().includes('already registered') ||
+          authError.message?.toLowerCase().includes('already exists') ||
+          authError.message?.toLowerCase().includes('user already registered') ||
+          authError.message?.toLowerCase().includes('email already exists')) {
           return { error: 'An account with this email already exists' };
         }
         return { error: authError.message || 'Failed to create user' };
@@ -969,8 +1042,8 @@ export class AdminService {
 
       return { success: true, userId: authData.user.id };
     } catch (error) {
-      return { 
-        error: error instanceof Error ? error.message : 'An unexpected error occurred' 
+      return {
+        error: error instanceof Error ? error.message : 'An unexpected error occurred'
       };
     }
   }
@@ -1048,8 +1121,8 @@ export class AdminService {
 
       return { success: true };
     } catch (error) {
-      return { 
-        error: error instanceof Error ? error.message : 'An unexpected error occurred' 
+      return {
+        error: error instanceof Error ? error.message : 'An unexpected error occurred'
       };
     }
   }
@@ -1072,7 +1145,7 @@ export class AdminService {
       // Fetch user information separately for each notification
       const notifications = data || [];
       const userIds = [...new Set(notifications.map(n => n.user_id))];
-      
+
       // Get user profiles using RPC function or direct auth.users query
       const userMap = new Map();
       for (const userId of userIds) {
@@ -1104,7 +1177,7 @@ export class AdminService {
   }
 
   /**
-   * Send bulk notifications to multiple users
+   * Send bulk notifications to multiple users (queued)
    */
   static async sendBulkNotifications(
     userIds: string[],
@@ -1117,54 +1190,47 @@ export class AdminService {
       priority?: 'low' | 'normal' | 'high' | 'urgent';
       expires_at?: string;
     }
-  ): Promise<{ success?: boolean; sent?: number; error?: string }> {
+  ): Promise<{ success?: boolean; queued?: boolean; jobId?: string; error?: string }> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         return { error: 'Not authenticated' };
       }
 
-      const notifications = userIds.map(userId => ({
-        user_id: userId,
-        title,
-        message,
-        type,
-        action_url: options?.action_url,
-        action_text: options?.action_text,
-        priority: options?.priority || 'normal',
-        expires_at: options?.expires_at,
-        read: false
-      }));
+      // Queue the notification job
+      const { JobQueueService } = await import('./jobQueueService');
+      const { NotificationJobProcessor } = await import('./notificationJobProcessor');
 
-      const { data, error } = await supabase
-        .from('notifications')
-        .insert(notifications)
-        .select();
+      const jobResult = await JobQueueService.queueBulkNotification(
+        {
+          userIds,
+          title,
+          message,
+          type,
+          options,
+          createdBy: user.id
+        },
+        user.id,
+        options?.priority === 'urgent' ? 1 : options?.priority === 'high' ? 3 : 5
+      );
 
-      if (error) {
-        return { error: error.message };
+      if (jobResult.error || !jobResult.job) {
+        return { error: jobResult.error || 'Failed to queue bulk notifications' };
       }
 
-      // Log activity
-      logActivity(
-        user.id,
-        'create',
-        'notification',
-        {
-          resourceId: 'bulk',
-          resourceName: `Bulk notification: ${title}`,
-          details: { user_ids: userIds, count: userIds.length, type, title }
-        }
-      ).catch(err => console.error('Failed to log bulk notification:', err));
+      // Trigger immediate processing
+      NotificationJobProcessor.processPendingJobs().catch(err =>
+        console.error('Failed to process notification jobs:', err)
+      );
 
-      return { success: true, sent: data?.length || 0 };
-    } catch (error) {
-      return { error: 'An unexpected error occurred' };
+      return { success: true, queued: true, jobId: jobResult.job.id };
+    } catch (error: any) {
+      return { error: error.message || 'An unexpected error occurred' };
     }
   }
 
   /**
-   * Send notification to all users (admin only)
+   * Send notification to all users (admin only, queued)
    */
   static async sendNotificationToAll(
     title: string,
@@ -1177,7 +1243,7 @@ export class AdminService {
       expires_at?: string;
       roleFilter?: 'admin' | 'organizer' | 'participant';
     }
-  ): Promise<{ success?: boolean; sent?: number; error?: string }> {
+  ): Promise<{ success?: boolean; queued?: boolean; jobId?: string; error?: string }> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -1202,8 +1268,8 @@ export class AdminService {
       const userIds = usersData.users.map((u: any) => u.id);
 
       return await this.sendBulkNotifications(userIds, title, message, type, options);
-    } catch (error) {
-      return { error: 'An unexpected error occurred' };
+    } catch (error: any) {
+      return { error: error.message || 'An unexpected error occurred' };
     }
   }
 

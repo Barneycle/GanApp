@@ -84,9 +84,7 @@ VALUES
   ('registration_enabled', 'true'::jsonb, 'Allow new users to register'),
   ('event_creation_enabled', 'true'::jsonb, 'Allow organizers to create events'),
   ('survey_creation_enabled', 'true'::jsonb, 'Allow organizers to create surveys'),
-  ('email_notifications_enabled', 'true'::jsonb, 'Enable system-wide email notifications'),
-  ('max_events_per_user', '10'::jsonb, 'Maximum number of events a user can create'),
-  ('max_participants_per_event', '1000'::jsonb, 'Maximum number of participants per event')
+  ('email_notifications_enabled', 'true'::jsonb, 'Enable system-wide email notifications')
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- =====================================================

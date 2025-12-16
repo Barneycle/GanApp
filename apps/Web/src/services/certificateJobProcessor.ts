@@ -7,6 +7,7 @@
 import { CertificateService } from './certificateService';
 import { EventService } from './eventService';
 import { JobQueueService, CertificateGenerationJobData } from './jobQueueService';
+import { NotificationJobProcessor } from './notificationJobProcessor';
 import { generatePNGCertificate, convertPNGToPDF, CertificateData } from '../utils/certificateGenerator';
 import { supabase } from '../lib/supabaseClient';
 
@@ -372,6 +373,25 @@ export class CertificateJobProcessor {
         pngUrl: pngResult.url
       });
 
+      // Send notification to user that certificate is ready
+      try {
+        const { NotificationService } = await import('./notificationService');
+        await NotificationService.createNotification(
+          userId,
+          'Certificate Ready',
+          `Your certificate for "${eventTitle}" has been generated successfully. You can now view and download it.`,
+          'success',
+          {
+            action_url: `/certificate?eventId=${eventId}&participantName=${encodeURIComponent(participantName)}`,
+            action_text: 'View Certificate',
+            priority: 'normal'
+          }
+        );
+      } catch (notifError) {
+        console.error('[Job Processor] Failed to send certificate ready notification:', notifError);
+        // Don't fail the job if notification fails
+      }
+
       return {
         success: true,
         certificateNumber,
@@ -452,6 +472,54 @@ export class CertificateJobProcessor {
             if (failResult.error) {
               console.error(`[Job Processor] Failed to mark job ${jobId} as failed:`, failResult.error);
               await this.updateJobStatusDirectly(jobId, 'failed', null, result.error || 'Unknown error');
+            }
+            failed++;
+          }
+        } else if (job.job_type === 'bulk_notification') {
+          console.log(`[Job Processor] Processing bulk notification job ${jobId}...`);
+          const result = await NotificationJobProcessor.processBulkNotificationJob(
+            job.job_data as any
+          );
+
+          if (result.success) {
+            console.log(`[Job Processor] Bulk notification job ${jobId} completed successfully`);
+            const completeResult = await JobQueueService.completeJob(jobId, {
+              sent: result.sent
+            });
+
+            if (completeResult.error) {
+              console.error(`[Job Processor] Failed to mark job ${jobId} as complete:`, completeResult.error);
+            }
+            succeeded++;
+          } else {
+            console.error(`[Job Processor] Bulk notification job ${jobId} failed:`, result.error);
+            const failResult = await JobQueueService.failJob(jobId, result.error || 'Unknown error');
+            if (failResult.error) {
+              console.error(`[Job Processor] Failed to mark job ${jobId} as failed:`, failResult.error);
+            }
+            failed++;
+          }
+        } else if (job.job_type === 'single_notification') {
+          console.log(`[Job Processor] Processing single notification job ${jobId}...`);
+          const result = await NotificationJobProcessor.processSingleNotificationJob(
+            job.job_data as any
+          );
+
+          if (result.success) {
+            console.log(`[Job Processor] Single notification job ${jobId} completed successfully`);
+            const completeResult = await JobQueueService.completeJob(jobId, {
+              notificationId: result.notificationId
+            });
+
+            if (completeResult.error) {
+              console.error(`[Job Processor] Failed to mark job ${jobId} as complete:`, completeResult.error);
+            }
+            succeeded++;
+          } else {
+            console.error(`[Job Processor] Single notification job ${jobId} failed:`, result.error);
+            const failResult = await JobQueueService.failJob(jobId, result.error || 'Unknown error');
+            if (failResult.error) {
+              console.error(`[Job Processor] Failed to mark job ${jobId} as failed:`, failResult.error);
             }
             failed++;
           }

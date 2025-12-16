@@ -295,6 +295,13 @@ export class EventService {
 
   static async updateEventStatus(id: string, status: string): Promise<{ event?: Event; error?: string }> {
     try {
+      // Get event details before update
+      const { data: oldEvent } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', id)
+        .single();
+
       const { data, error } = await supabase
         .from('events')
         .update({ status })
@@ -304,6 +311,48 @@ export class EventService {
 
       if (error) {
         return { error: error.message };
+      }
+
+      // Send notifications based on status change
+      if (data && oldEvent) {
+        if (status === 'published' && oldEvent.status !== 'published') {
+          // Notify organizer when event is published
+          const { NotificationService } = await import('./notificationService');
+          NotificationService.createNotification(
+            data.created_by,
+            'Event Published',
+            `Your event "${data.title}" has been published and is now visible to participants.`,
+            'success',
+            {
+              action_url: `/events?eventId=${id}`,
+              action_text: 'View Event',
+              priority: 'normal'
+            }
+          ).catch(err => console.error('Failed to send event published notification:', err));
+        } else if (status === 'cancelled' && oldEvent.status !== 'cancelled') {
+          // Notify all registered participants when event is cancelled
+          const { data: registrations } = await supabase
+            .from('event_registrations')
+            .select('user_id')
+            .eq('event_id', id)
+            .eq('status', 'registered');
+
+          if (registrations && registrations.length > 0) {
+            const { AdminService } = await import('./adminService');
+            const userIds = registrations.map(r => r.user_id);
+            AdminService.sendBulkNotifications(
+              userIds,
+              'Event Cancelled',
+              `The event "${data.title}" has been cancelled. We apologize for any inconvenience.`,
+              'warning',
+              {
+                action_url: `/events?eventId=${id}`,
+                action_text: 'View Details',
+                priority: 'high'
+              }
+            ).catch(err => console.error('Failed to send event cancelled notifications:', err));
+          }
+        }
       }
 
       return { event: data };
@@ -325,6 +374,48 @@ export class EventService {
 
       if (error) {
         return { error: error.message };
+      }
+
+      // Send notifications based on status change
+      if (data && oldEvent) {
+        if (status === 'published' && oldEvent.status !== 'published') {
+          // Notify organizer when event is published
+          const { NotificationService } = await import('./notificationService');
+          NotificationService.createNotification(
+            data.created_by,
+            'Event Published',
+            `Your event "${data.title}" has been published and is now visible to participants.`,
+            'success',
+            {
+              action_url: `/events?eventId=${id}`,
+              action_text: 'View Event',
+              priority: 'normal'
+            }
+          ).catch(err => console.error('Failed to send event published notification:', err));
+        } else if (status === 'cancelled' && oldEvent.status !== 'cancelled') {
+          // Notify all registered participants when event is cancelled
+          const { data: registrations } = await supabase
+            .from('event_registrations')
+            .select('user_id')
+            .eq('event_id', id)
+            .eq('status', 'registered');
+
+          if (registrations && registrations.length > 0) {
+            const { AdminService } = await import('./adminService');
+            const userIds = registrations.map(r => r.user_id);
+            AdminService.sendBulkNotifications(
+              userIds,
+              'Event Cancelled',
+              `The event "${data.title}" has been cancelled. We apologize for any inconvenience.`,
+              'warning',
+              {
+                action_url: `/events?eventId=${id}`,
+                action_text: 'View Details',
+                priority: 'high'
+              }
+            ).catch(err => console.error('Failed to send event cancelled notifications:', err));
+          }
+        }
       }
 
       return { event: data };
@@ -404,6 +495,13 @@ export class EventService {
 
   static async toggleEventRegistration(eventId: string, registrationOpen: boolean): Promise<{ event?: Event; error?: string }> {
     try {
+      // Get event details before update
+      const { data: oldEvent } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .single();
+
       const { data, error } = await supabase
         .from('events')
         .update({ registration_open: registrationOpen })
@@ -413,6 +511,31 @@ export class EventService {
 
       if (error) {
         return { error: error.message };
+      }
+
+      // Send notification to registered participants if registration was closed
+      if (data && oldEvent && !registrationOpen && oldEvent.registration_open) {
+        const { data: registrations } = await supabase
+          .from('event_registrations')
+          .select('user_id')
+          .eq('event_id', eventId)
+          .eq('status', 'registered');
+
+        if (registrations && registrations.length > 0) {
+          const { AdminService } = await import('./adminService');
+          const userIds = registrations.map(r => r.user_id);
+          AdminService.sendBulkNotifications(
+            userIds,
+            'Event Registration Closed',
+            `Registration for "${(data as Event).title}" has been closed by the organizer.`,
+            'info',
+            {
+              action_url: `/events?eventId=${eventId}`,
+              action_text: 'View Event',
+              priority: 'normal'
+            }
+          ).catch(err => console.error('Failed to send registration closed notifications:', err));
+        }
       }
 
       // Invalidate cache to ensure fresh data is loaded
@@ -488,22 +611,16 @@ export class EventService {
         return { error: 'This event is not available for registration' };
       }
 
+      // Check if registration is open for this event
+      if (eventResult.event.registration_open === false) {
+        return { error: 'Registration closed: Event organizer has closed registration' };
+      }
+
       // Check if event is past (ended)
       const now = new Date();
       const endDateTime = new Date(`${eventResult.event.end_date}T${eventResult.event.end_time || '23:59:59'}`);
       if (endDateTime < now) {
         return { error: 'Registration closed: Event has ended' };
-      }
-
-      // Check if event is ongoing (started but not ended)
-      const startDateTime = new Date(`${eventResult.event.start_date}T${eventResult.event.start_time || '00:00:00'}`);
-      if (startDateTime <= now && endDateTime >= now) {
-        return { error: 'Registration closed: Event is ongoing' };
-      }
-
-      // Check if registration is open for this event
-      if (eventResult.event.registration_open === false) {
-        return { error: 'Registration closed: Event organizer has closed registration' };
       }
 
       // Check if event has reached max participants
@@ -557,6 +674,20 @@ export class EventService {
           details: { registration_id: registrationData.id, event_id: eventId, event_title: eventResult.event.title }
         }
       ).catch(err => console.error('Failed to log event registration:', err));
+
+      // Send notification to user
+      const { NotificationService } = await import('./notificationService');
+      NotificationService.createNotification(
+        userId,
+        'Registration Confirmed',
+        `You have successfully registered for "${eventResult.event.title}". We look forward to seeing you at the event!`,
+        'success',
+        {
+          action_url: `/events?eventId=${eventId}`,
+          action_text: 'View Event Details',
+          priority: 'normal'
+        }
+      ).catch(err => console.error('Failed to send registration notification:', err));
 
       // Update event participant count - use database count + 1
       const currentCount = eventResult.event.current_participants || 0;

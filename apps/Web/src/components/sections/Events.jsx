@@ -458,12 +458,6 @@ export const Events = () => {
         return { allowed: false, reason: 'Registration closed: Event has ended' };
       }
 
-      // Check if event is ongoing (started but not ended)
-      const startDateTime = new Date(`${event.start_date}T${event.start_time || '00:00:00'}`);
-      if (startDateTime <= now && endDateTime >= now) {
-        return { allowed: false, reason: 'Registration closed: Event is ongoing' };
-      }
-
       // Check if event is full
       if (event.max_participants && event.current_participants >= event.max_participants) {
         return { allowed: false, reason: 'Registration closed: Event is full' };

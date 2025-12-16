@@ -248,6 +248,7 @@ export class EventMessageService {
           ? `${senderName} sent you a message about "${eventData?.title || 'the event'}".`
           : `${senderName} sent you a message about "${eventData?.title || 'the event'}".`;
 
+        // Use queued notification system
         NotificationService.createNotification(
           recipientId,
           notificationTitle,
@@ -256,7 +257,8 @@ export class EventMessageService {
           {
             action_url: `/events?eventId=${eventId}&openChat=true`,
             action_text: 'View Message',
-            priority: 'normal'
+            priority: 'normal',
+            immediate: false // Use queued system for better performance
           }
         ).catch(err => console.error('Failed to create notification:', err));
       }

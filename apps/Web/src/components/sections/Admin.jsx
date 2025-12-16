@@ -21,11 +21,11 @@ export const Admin = () => {
     const firstName = user.first_name;
     const lastName = user.last_name;
     const affiliatedOrg = user.affiliated_organization;
-    
+
     const hasFirstName = firstName !== undefined && firstName !== null && String(firstName).trim() !== '';
     const hasLastName = lastName !== undefined && lastName !== null && String(lastName).trim() !== '';
     const hasAffiliatedOrg = affiliatedOrg !== undefined && affiliatedOrg !== null && String(affiliatedOrg).trim() !== '';
-    
+
     return hasFirstName && hasLastName && hasAffiliatedOrg;
   };
 
@@ -89,91 +89,82 @@ export const Admin = () => {
           <div className="flex flex-nowrap border-b border-slate-200 overflow-x-auto">
             <button
               onClick={() => setActiveTab('dashboard')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'dashboard'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-slate-600 hover:text-slate-800'
-              }`}
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'dashboard'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-slate-600 hover:text-slate-800'
+                }`}
             >
               Dashboard
             </button>
             <button
               onClick={() => setActiveTab('users')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'users'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-slate-600 hover:text-slate-800'
-              }`}
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'users'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-slate-600 hover:text-slate-800'
+                }`}
             >
               User Management
             </button>
             <button
               onClick={() => setActiveTab('archived')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'archived'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-slate-600 hover:text-slate-800'
-              }`}
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'archived'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-slate-600 hover:text-slate-800'
+                }`}
             >
               Archived Accounts
             </button>
             <button
               onClick={() => setActiveTab('events')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'events'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-slate-600 hover:text-slate-800'
-              }`}
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'events'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-slate-600 hover:text-slate-800'
+                }`}
             >
               Event Management
             </button>
             <button
               onClick={() => setActiveTab('cancellations')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'cancellations'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-slate-600 hover:text-slate-800'
-              }`}
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'cancellations'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-slate-600 hover:text-slate-800'
+                }`}
             >
               Cancellation Requests
             </button>
             <button
               onClick={() => setActiveTab('analytics')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'analytics'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-slate-600 hover:text-slate-800'
-              }`}
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'analytics'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-slate-600 hover:text-slate-800'
+                }`}
             >
               Analytics & Reports
             </button>
             <button
               onClick={() => setActiveTab('settings')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'settings'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-slate-600 hover:text-slate-800'
-              }`}
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'settings'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-slate-600 hover:text-slate-800'
+                }`}
             >
               System Settings
             </button>
             <button
               onClick={() => setActiveTab('notifications')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'notifications'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-slate-600 hover:text-slate-800'
-              }`}
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'notifications'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-slate-600 hover:text-slate-800'
+                }`}
             >
               Notification Management
             </button>
             <button
               onClick={() => setActiveTab('database')}
-              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${
-                activeTab === 'database'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-slate-600 hover:text-slate-800'
-              }`}
+              className={`px-4 py-4 font-medium transition-colors whitespace-nowrap ${activeTab === 'database'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-slate-600 hover:text-slate-800'
+                }`}
             >
               Database Maintenance
             </button>
@@ -672,101 +663,100 @@ const UsersTab = () => {
 
               return (
                 <tr key={user.id} className="border-b border-slate-200 hover:bg-slate-50">
-                <td className="px-4 py-3">
-                  {user.first_name} {user.last_name}
-                </td>
-                <td className="px-4 py-3">{user.email}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    user.role === 'admin' ? 'bg-red-100 text-red-800' :
-                    user.role === 'organizer' ? 'bg-orange-100 text-orange-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {user.role}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  {isArchived ? (
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                      Archived
+                  <td className="px-4 py-3">
+                    {user.first_name} {user.last_name}
+                  </td>
+                  <td className="px-4 py-3">{user.email}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${user.role === 'admin' ? 'bg-red-100 text-red-800' :
+                      user.role === 'organizer' ? 'bg-orange-100 text-orange-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                      {user.role}
                     </span>
-                  ) : user.banned_until && new Date(user.banned_until) > new Date() ? (
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                      Banned
-                    </span>
-                  ) : user.is_active === false ? (
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                      Inactive
-                    </span>
-                  ) : (
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      Active
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  {new Date(user.created_at).toLocaleDateString()}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => {
-                        setSelectedUser(user);
-                        setActionType('edit');
-                      }}
-                      className="px-3 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 text-xs"
-                      disabled={actionLoading}
-                    >
-                      Edit
-                    </button>
-                    {showUnarchive ? (
-                      <button
-                        onClick={() => handleUnarchiveUser(user.id)}
-                        className="px-3 py-1 bg-blue-900 hover:bg-blue-800 rounded text-xs text-white"
-                        disabled={actionLoading}
-                      >
-                        Unarchive
-                      </button>
+                  </td>
+                  <td className="px-4 py-3">
+                    {isArchived ? (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        Archived
+                      </span>
+                    ) : user.banned_until && new Date(user.banned_until) > new Date() ? (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        Banned
+                      </span>
+                    ) : user.is_active === false ? (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        Inactive
+                      </span>
                     ) : (
-                      <button
-                        onClick={() => {
-                          if (showUnban) {
-                            handleUnbanUser(user.id);
-                          } else {
-                            setSelectedUser(user);
-                            setActionType('ban');
-                          }
-                        }}
-                        className={`px-3 py-1 rounded text-xs ${showUnban ? 'bg-blue-900 hover:bg-blue-800' : 'bg-red-600 hover:bg-red-700'} text-white`}
-                        disabled={actionLoading}
-                      >
-                        {showUnban ? 'Unban' : 'Ban'}
-                      </button>
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Active
+                      </span>
                     )}
-                    <button
-                      onClick={() => {
-                        setSelectedUser(user);
-                        setActionType('role');
-                      }}
-                      className="px-3 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 text-xs"
-                      disabled={actionLoading || showUnarchive}
-                    >
-                      Change Role
-                    </button>
-                    {!showUnarchive && (
+                  </td>
+                  <td className="px-4 py-3">
+                    {new Date(user.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex space-x-2">
                       <button
                         onClick={() => {
                           setSelectedUser(user);
-                          setActionType('archive');
+                          setActionType('edit');
                         }}
-                        className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 text-xs"
+                        className="px-3 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 text-xs"
                         disabled={actionLoading}
                       >
-                        Archive
+                        Edit
                       </button>
-                    )}
-                  </div>
-                </td>
+                      {showUnarchive ? (
+                        <button
+                          onClick={() => handleUnarchiveUser(user.id)}
+                          className="px-3 py-1 bg-blue-900 hover:bg-blue-800 rounded text-xs text-white"
+                          disabled={actionLoading}
+                        >
+                          Unarchive
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (showUnban) {
+                              handleUnbanUser(user.id);
+                            } else {
+                              setSelectedUser(user);
+                              setActionType('ban');
+                            }
+                          }}
+                          className={`px-3 py-1 rounded text-xs ${showUnban ? 'bg-blue-900 hover:bg-blue-800' : 'bg-red-600 hover:bg-red-700'} text-white`}
+                          disabled={actionLoading}
+                        >
+                          {showUnban ? 'Unban' : 'Ban'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          setSelectedUser(user);
+                          setActionType('role');
+                        }}
+                        className="px-3 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 text-xs"
+                        disabled={actionLoading || showUnarchive}
+                      >
+                        Change Role
+                      </button>
+                      {!showUnarchive && (
+                        <button
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setActionType('archive');
+                          }}
+                          className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 text-xs"
+                          disabled={actionLoading}
+                        >
+                          Archive
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -915,7 +905,7 @@ const ArchivedUsersTab = () => {
     setActionLoading(true);
     setUnarchivingUserId(userId);
     setError('');
-    
+
     const result = await AdminService.unarchiveUser(userId);
     if (result.error) {
       setError(result.error);
@@ -924,7 +914,7 @@ const ArchivedUsersTab = () => {
       toast.success('User unarchived successfully');
       await loadArchivedUsers();
     }
-    
+
     setActionLoading(false);
     setUnarchivingUserId(null);
   };
@@ -1005,11 +995,10 @@ const ArchivedUsersTab = () => {
                   </td>
                   <td className="px-4 py-3">{user.email}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      user.role === 'admin' ? 'bg-red-100 text-red-800' :
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${user.role === 'admin' ? 'bg-red-100 text-red-800' :
                       user.role === 'organizer' ? 'bg-orange-100 text-orange-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
+                        'bg-gray-100 text-gray-800'
+                      }`}>
                       {user.role}
                     </span>
                   </td>
@@ -1232,10 +1221,10 @@ const EditUserModal = ({ user, onUpdate, onClose, loading }) => {
   // Initialize organization state based on user's current org
   useEffect(() => {
     if (user.affiliated_organization && organizations.length > 0) {
-      const orgExists = organizations.some(group => 
+      const orgExists = organizations.some(group =>
         group.organizations.some(org => org.name === user.affiliated_organization)
       );
-      
+
       if (!orgExists) {
         setShowCustomOrgInput(true);
         setCustomOrgName(user.affiliated_organization);
@@ -1248,8 +1237,8 @@ const EditUserModal = ({ user, onUpdate, onClose, loading }) => {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (orgDropdownRef.current && !orgDropdownRef.current.contains(event.target) && 
-          orgInputRef.current && !orgInputRef.current.contains(event.target)) {
+      if (orgDropdownRef.current && !orgDropdownRef.current.contains(event.target) &&
+        orgInputRef.current && !orgInputRef.current.contains(event.target)) {
         setShowOrgDropdown(false);
       }
     };
@@ -1324,12 +1313,12 @@ const EditUserModal = ({ user, onUpdate, onClose, loading }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Ensure organization name is set correctly
-    let orgName = showCustomOrgInput 
-      ? customOrgName.trim() 
+    let orgName = showCustomOrgInput
+      ? customOrgName.trim()
       : (formData.affiliated_organization.trim() || orgSearchQuery.trim());
-    
+
     // If custom org and it doesn't exist, create it
     if (showCustomOrgInput && orgName) {
       try {
@@ -1345,7 +1334,7 @@ const EditUserModal = ({ user, onUpdate, onClose, loading }) => {
         // Continue anyway with the custom name
       }
     }
-    
+
     onUpdate({
       ...formData,
       affiliated_organization: orgName
@@ -1359,7 +1348,7 @@ const EditUserModal = ({ user, onUpdate, onClose, loading }) => {
         <p className="text-slate-600 mb-4">
           Editing: {user.email} (Email cannot be changed)
         </p>
-        
+
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             {/* Prefix */}
@@ -1469,11 +1458,11 @@ const EditUserModal = ({ user, onUpdate, onClose, loading }) => {
                           disabled={loading}
                           autoComplete="off"
                         />
-                        <ChevronDown 
+                        <ChevronDown
                           className={`absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 transition-transform ${showOrgDropdown ? 'rotate-180' : ''}`}
                         />
                       </div>
-                      
+
                       {/* Dropdown List */}
                       {showOrgDropdown && (
                         <div className="absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-96 overflow-y-auto">
@@ -1508,7 +1497,7 @@ const EditUserModal = ({ user, onUpdate, onClose, loading }) => {
                             </>
                           ) : (
                             <div className="px-3 py-2 text-slate-500 text-center text-sm">
-                              No organizations found. 
+                              No organizations found.
                               <button
                                 type="button"
                                 onClick={() => handleSelectOrganization('__OTHER__')}
@@ -1618,7 +1607,7 @@ const CreateUserModal = ({ onCreate, onClose, loading }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     // Validation
     if (!formData.email || !formData.password || !formData.confirmPassword) {
       setError('All fields are required');
@@ -1649,7 +1638,7 @@ const CreateUserModal = ({ onCreate, onClose, loading }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">Create New User</h3>
-        
+
         <form onSubmit={handleSubmit}>
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
@@ -1791,6 +1780,22 @@ const EventsTab = () => {
     loadArchivedEvents();
   }, []);
 
+  // Listen for events refresh trigger (e.g., when cancellation is approved)
+  useEffect(() => {
+    const handleRefresh = () => {
+      console.log('[EventsTab] Received admin-events-refresh event, reloading events...');
+      // Add a small delay to ensure database update has propagated
+      setTimeout(() => {
+        loadEvents();
+        loadArchivedEvents();
+      }, 500);
+    };
+    window.addEventListener('admin-events-refresh', handleRefresh);
+    return () => {
+      window.removeEventListener('admin-events-refresh', handleRefresh);
+    };
+  }, []);
+
   const loadEvents = async () => {
     setLoading(true);
     setError('');
@@ -1802,8 +1807,9 @@ const EventsTab = () => {
       return;
     }
 
-    setEvents(result.events || []);
-
+    const loadedEvents = result.events || [];
+    console.log('[EventsTab] Loaded events:', loadedEvents.length, 'cancelled:', loadedEvents.filter(e => e.status === 'cancelled').length);
+    setEvents(loadedEvents);
     setLoading(false);
   };
 
@@ -1925,21 +1931,19 @@ const EventsTab = () => {
           <div className="flex bg-slate-100 rounded-lg p-1">
             <button
               onClick={() => setActiveView('active')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeView === 'active'
-                  ? 'bg-white text-blue-900 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-800'
-              }`}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeView === 'active'
+                ? 'bg-white text-blue-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-800'
+                }`}
             >
               Active Events
             </button>
             <button
               onClick={() => setActiveView('archived')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeView === 'archived'
-                  ? 'bg-white text-blue-900 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-800'
-              }`}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeView === 'archived'
+                ? 'bg-white text-blue-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-800'
+                }`}
             >
               Archived Events
             </button>
@@ -2057,12 +2061,11 @@ const EventsTab = () => {
                   {event.current_participants} / {event.max_participants || '∞'}
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    event.status === 'published' ? 'bg-green-100 text-green-800' :
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${event.status === 'published' ? 'bg-green-100 text-green-800' :
                     event.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                    event.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
+                      event.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-800'
+                    }`}>
                     {event.status}
                   </span>
                   {event.is_archived && (
@@ -2354,6 +2357,9 @@ const CancellationsTab = () => {
     } else {
       await loadRequests();
       setSelectedRequest(null);
+      // Trigger refresh of events list so cancelled events appear with updated status
+      console.log('[CancellationsTab] Cancellation reviewed, triggering events refresh...');
+      window.dispatchEvent(new CustomEvent('admin-events-refresh'));
     }
     setActionLoading(false);
   };
@@ -2605,7 +2611,7 @@ const AnalyticsTab = () => {
 
   const exportToCSV = () => {
     if (!stats) return;
-    
+
     setExportLoading(true);
     try {
       const csvRows = [];
@@ -2618,7 +2624,7 @@ const AnalyticsTab = () => {
       csvRows.push(['Cancelled Events', stats.cancelled_events || 0]);
       csvRows.push(['Total Registrations', stats.total_registrations || 0]);
       csvRows.push(['Total Certificates', stats.total_certificates || 0]);
-      
+
       const csvContent = csvRows.map(row => row.join(',')).join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
@@ -2801,8 +2807,6 @@ const SettingsTab = () => {
     event_creation_enabled: true,
     survey_creation_enabled: true,
     email_notifications_enabled: true,
-    max_events_per_user: 10,
-    max_participants_per_event: 1000,
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -3016,39 +3020,6 @@ const SettingsTab = () => {
             </div>
           </div>
         </div>
-
-        {/* Limits */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">System Limits</h3>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="max_events_per_user" className="block text-sm font-medium text-slate-700 mb-2">
-                Max Events Per User
-              </label>
-              <input
-                type="number"
-                id="max_events_per_user"
-                value={settings.max_events_per_user}
-                onChange={(e) => handleSettingChange('max_events_per_user', parseInt(e.target.value) || 0)}
-                min="1"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="max_participants_per_event" className="block text-sm font-medium text-slate-700 mb-2">
-                Max Participants Per Event
-              </label>
-              <input
-                type="number"
-                id="max_participants_per_event"
-                value={settings.max_participants_per_event}
-                onChange={(e) => handleSettingChange('max_participants_per_event', parseInt(e.target.value) || 0)}
-                min="1"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -3139,7 +3110,11 @@ const NotificationsTab = () => {
         setError(result.error);
         toast.error(result.error);
       } else {
-        toast.success(`Successfully sent ${result.sent || 0} notifications`);
+        if (result.queued) {
+          toast.success('Notifications queued successfully! They will be processed in the background.');
+        } else {
+          toast.success(`Successfully sent ${result.sent || 0} notifications`);
+        }
         setShowBulkModal(false);
         setBulkForm({
           title: '',
@@ -3150,7 +3125,10 @@ const NotificationsTab = () => {
           roleFilter: 'participant',
           selectedUsers: []
         });
-        loadNotifications();
+        // Reload after a short delay to allow processing
+        setTimeout(() => {
+          loadNotifications();
+        }, 2000);
       }
     } catch (err) {
       setError('An unexpected error occurred');
@@ -3248,22 +3226,20 @@ const NotificationsTab = () => {
                     <div className="text-xs text-slate-500 truncate max-w-xs">{notification.message}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      notification.type === 'success' ? 'bg-green-100 text-green-800' :
+                    <span className={`px-2 py-1 text-xs rounded-full ${notification.type === 'success' ? 'bg-green-100 text-green-800' :
                       notification.type === 'error' ? 'bg-red-100 text-red-800' :
-                      notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-blue-100 text-blue-800'
-                    }`}>
+                        notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-blue-100 text-blue-800'
+                      }`}>
                       {notification.type}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      notification.priority === 'urgent' ? 'bg-red-100 text-red-800' :
+                    <span className={`px-2 py-1 text-xs rounded-full ${notification.priority === 'urgent' ? 'bg-red-100 text-red-800' :
                       notification.priority === 'high' ? 'bg-orange-100 text-orange-800' :
-                      notification.priority === 'normal' ? 'bg-blue-100 text-blue-800' :
-                      'bg-slate-100 text-slate-800'
-                    }`}>
+                        notification.priority === 'normal' ? 'bg-blue-100 text-blue-800' :
+                          'bg-slate-100 text-slate-800'
+                      }`}>
                       {notification.priority}
                     </span>
                   </td>
@@ -3327,7 +3303,7 @@ const NotificationsTab = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-semibold text-slate-800 mb-4">Send Bulk Notification</h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
@@ -3575,11 +3551,10 @@ const DatabaseMaintenanceTab = () => {
           <div className="space-y-3">
             <div className="flex items-center space-x-2">
               <span className="text-sm font-medium text-slate-700">Status:</span>
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                health.database_status === 'healthy' ? 'bg-green-100 text-green-800' :
+              <span className={`px-3 py-1 rounded-full text-xs font-medium ${health.database_status === 'healthy' ? 'bg-green-100 text-green-800' :
                 health.database_status === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-                'bg-red-100 text-red-800'
-              }`}>
+                  'bg-red-100 text-red-800'
+                }`}>
                 {health.database_status.toUpperCase()}
               </span>
             </div>

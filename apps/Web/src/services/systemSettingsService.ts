@@ -6,8 +6,6 @@ export interface SystemSettings {
   event_creation_enabled: boolean;
   survey_creation_enabled: boolean;
   email_notifications_enabled: boolean;
-  max_events_per_user: number;
-  max_participants_per_event: number;
 }
 
 export class SystemSettingsService {
@@ -31,8 +29,6 @@ export class SystemSettingsService {
               event_creation_enabled: true,
               survey_creation_enabled: true,
               email_notifications_enabled: true,
-              max_events_per_user: 10,
-              max_participants_per_event: 1000,
             }
           };
         }
@@ -46,23 +42,19 @@ export class SystemSettingsService {
         event_creation_enabled: true,
         survey_creation_enabled: true,
         email_notifications_enabled: true,
-        max_events_per_user: 10,
-        max_participants_per_event: 1000,
       };
 
       if (data) {
         data.forEach((item) => {
           const key = item.setting_key as keyof SystemSettings;
           const value = item.setting_value;
-          
-          if (key === 'maintenance_mode' || 
-              key === 'registration_enabled' || 
-              key === 'event_creation_enabled' || 
-              key === 'survey_creation_enabled' || 
-              key === 'email_notifications_enabled') {
+
+          if (key === 'maintenance_mode' ||
+            key === 'registration_enabled' ||
+            key === 'event_creation_enabled' ||
+            key === 'survey_creation_enabled' ||
+            key === 'email_notifications_enabled') {
             settings[key] = value === true || value === 'true' || (typeof value === 'string' && value.toLowerCase() === 'true');
-          } else if (key === 'max_events_per_user' || key === 'max_participants_per_event') {
-            settings[key] = typeof value === 'number' ? value : parseInt(String(value), 10) || 0;
           }
         });
       }
@@ -141,8 +133,6 @@ export class SystemSettingsService {
       event_creation_enabled: true,
       survey_creation_enabled: true,
       email_notifications_enabled: true,
-      max_events_per_user: 10,
-      max_participants_per_event: 1000,
     };
     return defaults[key];
   }
