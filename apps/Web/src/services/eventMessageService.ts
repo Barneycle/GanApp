@@ -404,14 +404,96 @@ export class EventMessageService {
         })
       );
 
+      // Filter out conversations with no messages (deleted conversations)
+      const conversationsWithMessages = conversations.filter(conv => conv.last_message !== null);
+
       // Sort by last message time
-      conversations.sort((a, b) => {
+      conversationsWithMessages.sort((a, b) => {
         const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
         const timeB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
         return timeB - timeA;
       });
 
-      return { conversations };
+      return { conversations: conversationsWithMessages };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Delete all messages in a conversation (organizer or participant)
+   */
+  static async deleteAllMessages(
+    eventId: string,
+    userId: string,
+    participantId?: string
+  ): Promise<{ error?: string }> {
+    try {
+      // Get event to find organizer
+      const { data: event, error: eventError } = await supabase
+        .from('events')
+        .select('created_by')
+        .eq('id', eventId)
+        .single();
+
+      if (eventError || !event) {
+        return { error: 'Event not found' };
+      }
+
+      const organizerId = event.created_by;
+      const isOrganizer = userId === organizerId;
+
+      // Build query based on role
+      // Always filter by event_id first
+      let query = supabase
+        .from('event_messages')
+        .delete()
+        .eq('event_id', eventId)
+        .select(); // Select deleted rows to get count
+
+      if (isOrganizer) {
+        // Organizer can delete all messages for a specific participant conversation
+        if (participantId) {
+          // Delete all messages in the conversation thread (both from organizer and participant)
+          query = query.eq('participant_id', participantId);
+        } else {
+          // If no participantId specified, delete all messages where organizer is involved
+          query = query.eq('organizer_id', organizerId);
+        }
+      } else {
+        // Participant can delete all messages in their conversation thread
+        // (both their own messages and organizer's messages to them)
+        query = query.eq('participant_id', userId);
+      }
+
+      const { data, error: deleteError } = await query;
+
+      if (deleteError) {
+        console.error('Delete messages error:', deleteError);
+        console.error('Delete error details:', {
+          eventId,
+          userId,
+          participantId,
+          isOrganizer,
+          organizerId
+        });
+        return { error: deleteError.message || 'Failed to delete messages. Please check RLS policies.' };
+      }
+
+      // Log deletion result for debugging
+      const deletedCount = data?.length || 0;
+      console.log(`Successfully deleted ${deletedCount} message(s) from conversation`, {
+        eventId,
+        participantId,
+        isOrganizer
+      });
+
+      if (deletedCount === 0) {
+        console.warn('No messages were deleted. This might indicate an RLS policy issue or no matching messages.');
+      }
+
+      // Return success even if no rows were deleted (already empty)
+      return {};
     } catch (error) {
       return { error: 'An unexpected error occurred' };
     }

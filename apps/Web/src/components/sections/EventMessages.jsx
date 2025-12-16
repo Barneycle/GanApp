@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { EventMessageService } from '../../services/eventMessageService';
 import { useToast } from '../Toast';
-import { MessageSquare, Send, Lock, Unlock } from 'lucide-react';
+import { MessageSquare, Send, Lock, Unlock, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import Swal from 'sweetalert2';
 
 export const EventMessages = () => {
   const navigate = useNavigate();
@@ -19,57 +20,64 @@ export const EventMessages = () => {
   const [eventFilter, setEventFilter] = useState('all');
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
   const [chatStatuses, setChatStatuses] = useState({});
+  const [deletingAll, setDeletingAll] = useState(false);
+  const [markedConversations, setMarkedConversations] = useState(new Set());
   const messagesEndRef = useRef(null);
+  const isMountedRef = useRef(true);
+  const isLoadingRef = useRef(false);
+  const loadedUserIdRef = useRef(null);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
+  // Helper functions
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const formatTime = (timestamp) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+    const minutes = Math.floor(diff / 60000);
+
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+  };
+
+  const isMarked = (eventId, participantId) => {
+    return markedConversations.has(`${eventId}_${participantId}`);
+  };
+
+  // Load conversations function
+  const loadConversations = useCallback(async (force = false) => {
+    if (!user?.id) {
+      setLoading(false);
       return;
     }
 
-    if (user?.role !== 'organizer' && user?.role !== 'admin') {
-      navigate('/');
-      return;
-    }
-
-    loadConversations();
-    loadTotalUnreadCount();
-  }, [isAuthenticated, user, navigate]);
-
-  useEffect(() => {
-    if (selectedConversation) {
-      loadMessages();
-      // Set up real-time subscription
-      const channel = supabase
-        .channel(`event_messages:${selectedConversation.event_id}:${selectedConversation.participant_id}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'event_messages',
-          filter: `event_id=eq.${selectedConversation.event_id}`
-        }, () => {
-          loadMessages();
-          loadTotalUnreadCount();
-          markAsRead();
-        })
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [selectedConversation]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const loadConversations = async () => {
-    if (!user?.id) return;
+    // Prevent concurrent loads
+    if (isLoadingRef.current && !force) return;
 
     try {
+      isLoadingRef.current = true;
       setLoading(true);
       const result = await EventMessageService.getOrganizerConversations(user.id);
+
+      if (!isMountedRef.current) {
+        isLoadingRef.current = false;
+        return;
+      }
 
       if (result.error) {
         toast.error(result.error);
@@ -78,33 +86,42 @@ export const EventMessages = () => {
         setConversations(result.conversations || []);
       }
     } catch (error) {
+      if (!isMountedRef.current) {
+        isLoadingRef.current = false;
+        return;
+      }
       toast.error('Failed to load conversations');
       setConversations([]);
     } finally {
-      setLoading(false);
+      isLoadingRef.current = false;
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, [user?.id, toast]);
 
-  const loadTotalUnreadCount = async () => {
-    if (!user?.id) return;
+  const loadTotalUnreadCount = useCallback(async () => {
+    if (!user?.id || !isMountedRef.current) return;
 
     try {
       const result = await EventMessageService.getUnreadCount(user.id);
+      if (!isMountedRef.current) return;
       if (!result.error && result.count !== undefined) {
         setTotalUnreadCount(result.count);
       }
     } catch (error) {
+      if (!isMountedRef.current) return;
       console.error('Failed to load unread count:', error);
     }
-  };
+  }, [user?.id]);
 
-  const loadMessages = async () => {
-    if (!selectedConversation || !user?.id) return;
+  const loadMessages = useCallback(async () => {
+    if (!selectedConversation || !user?.id || !isMountedRef.current) return;
 
     try {
       // Load chat status
       const statusResult = await EventMessageService.getChatSettings(selectedConversation.event_id);
-      if (!statusResult.error && statusResult.isOpen !== undefined) {
+      if (!statusResult.error && statusResult.isOpen !== undefined && isMountedRef.current) {
         setChatStatuses(prev => ({ ...prev, [selectedConversation.event_id]: statusResult.isOpen }));
       }
 
@@ -112,6 +129,8 @@ export const EventMessages = () => {
         selectedConversation.event_id,
         user.id
       );
+
+      if (!isMountedRef.current) return;
 
       if (result.error) {
         toast.error(result.error);
@@ -121,23 +140,30 @@ export const EventMessages = () => {
           msg => msg.participant_id === selectedConversation.participant_id
         );
         setMessages(participantMessages);
-        markAsRead();
+
+        // Mark as read after loading messages
+        if (isMountedRef.current) {
+          EventMessageService.markMessagesAsRead(selectedConversation.event_id, user.id).catch(console.error);
+          loadTotalUnreadCount();
+        }
       }
     } catch (error) {
+      if (!isMountedRef.current) return;
       toast.error('Failed to load messages');
     }
-  };
+  }, [selectedConversation?.event_id, selectedConversation?.participant_id, user?.id, toast, loadTotalUnreadCount]);
 
-  const markAsRead = async () => {
-    if (!selectedConversation || !user?.id) return;
+  const markAsRead = useCallback(async () => {
+    if (!selectedConversation || !user?.id || !isMountedRef.current) return;
 
     await EventMessageService.markMessagesAsRead(
       selectedConversation.event_id,
       user.id
     );
-    loadTotalUnreadCount();
-    loadConversations();
-  };
+    if (isMountedRef.current) {
+      loadTotalUnreadCount();
+    }
+  }, [selectedConversation?.event_id, user?.id, loadTotalUnreadCount]);
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation || !user?.id || sending) return;
@@ -155,8 +181,9 @@ export const EventMessages = () => {
       } else {
         setNewMessage('');
         setMessages(prev => [...prev, result.message]);
-        loadTotalUnreadCount();
-        loadConversations();
+        if (isMountedRef.current) {
+          loadTotalUnreadCount();
+        }
       }
     } catch (error) {
       toast.error('Failed to send message');
@@ -183,38 +210,235 @@ export const EventMessages = () => {
       } else {
         setChatStatuses(prev => ({ ...prev, [eventId]: newStatus }));
         toast.success(`Chat ${newStatus ? 'opened' : 'closed'} successfully`);
-        loadConversations();
       }
     } catch (error) {
       toast.error('Failed to update chat status');
     }
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const handleDeleteAllMessages = async () => {
+    if (!selectedConversation || !user?.id) return;
+
+    const result = await Swal.fire({
+      title: 'Delete Conversation Thread?',
+      text: 'Are you sure you want to delete ALL messages in this conversation thread? This action cannot be undone.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete All',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      setDeletingAll(true);
+      const deleteResult = await EventMessageService.deleteAllMessages(
+        selectedConversation.event_id,
+        user.id,
+        selectedConversation.participant_id
+      );
+
+      if (deleteResult.error) {
+        toast.error(deleteResult.error);
+        await Swal.fire({
+          title: 'Error',
+          text: deleteResult.error,
+          icon: 'error',
+          confirmButtonColor: '#1e40af',
+        });
+      } else {
+        toast.success('All messages deleted successfully');
+        await Swal.fire({
+          title: 'Deleted!',
+          text: 'All messages in this thread have been deleted.',
+          icon: 'success',
+          confirmButtonColor: '#1e40af',
+        });
+        setMessages([]);
+        setSelectedConversation(null);
+        setMarkedConversations(new Set());
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            loadTotalUnreadCount();
+            loadConversations(true);
+          }
+        }, 500);
+      }
+    } catch (error) {
+      toast.error('Failed to delete messages');
+      await Swal.fire({
+        title: 'Error',
+        text: 'Failed to delete messages. Please try again.',
+        icon: 'error',
+        confirmButtonColor: '#1e40af',
+      });
+    } finally {
+      setDeletingAll(false);
+    }
   };
 
-  const formatTime = (timestamp) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now - date;
-    const minutes = Math.floor(diff / 60000);
+  const handleDeleteMarkedConversations = async () => {
+    if (markedConversations.size === 0 || !user?.id) return;
 
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) return `${minutes}m ago`;
-    if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const result = await Swal.fire({
+      title: 'Delete Marked Conversations?',
+      text: `Are you sure you want to delete ALL messages in ${markedConversations.size} marked conversation thread(s)? This action cannot be undone.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: `Yes, Delete ${markedConversations.size} Thread(s)`,
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      setDeletingAll(true);
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const key of markedConversations) {
+        const [eventId, participantId] = key.split('_');
+        const deleteResult = await EventMessageService.deleteAllMessages(
+          eventId,
+          user.id,
+          participantId
+        );
+
+        if (deleteResult.error) {
+          errorCount++;
+        } else {
+          successCount++;
+        }
+      }
+
+      if (errorCount > 0) {
+        toast.error(`${successCount} deleted, ${errorCount} failed`);
+        await Swal.fire({
+          title: 'Partial Success',
+          text: `${successCount} conversation(s) deleted successfully. ${errorCount} failed.`,
+          icon: 'warning',
+          confirmButtonColor: '#1e40af',
+        });
+      } else {
+        toast.success(`${successCount} conversation(s) deleted successfully`);
+        await Swal.fire({
+          title: 'Deleted!',
+          text: `${successCount} conversation thread(s) have been deleted.`,
+          icon: 'success',
+          confirmButtonColor: '#1e40af',
+        });
+      }
+
+      const deletedKeys = Array.from(markedConversations);
+      setMarkedConversations(new Set());
+
+      if (selectedConversation) {
+        const selectedKey = `${selectedConversation.event_id}_${selectedConversation.participant_id}`;
+        if (deletedKeys.includes(selectedKey)) {
+          setSelectedConversation(null);
+          setMessages([]);
+        }
+      }
+
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          loadTotalUnreadCount();
+          loadConversations(true);
+        }
+      }, 500);
+    } catch (error) {
+      toast.error('Failed to delete conversations');
+      await Swal.fire({
+        title: 'Error',
+        text: 'Failed to delete conversations. Please try again.',
+        icon: 'error',
+        confirmButtonColor: '#1e40af',
+      });
+    } finally {
+      setDeletingAll(false);
+    }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+  const toggleMarkConversation = (eventId, participantId) => {
+    const key = `${eventId}_${participantId}`;
+    setMarkedConversations(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
     });
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Initialize data on mount
+  useEffect(() => {
+    if (!isAuthenticated || !user) {
+      if (!isAuthenticated) {
+        navigate('/login');
+      }
+      return;
+    }
+
+    if (user.role !== 'organizer' && user.role !== 'admin') {
+      navigate('/');
+      return;
+    }
+
+    if (user.id && loadedUserIdRef.current !== user.id) {
+      loadedUserIdRef.current = user.id;
+      loadConversations(true);
+      loadTotalUnreadCount();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user?.id, user?.role]);
+
+  // Load messages when conversation is selected
+  useEffect(() => {
+    if (!selectedConversation) return;
+
+    loadMessages();
+
+    const channelName = `event_messages:${selectedConversation.event_id}:${selectedConversation.participant_id}`;
+    const channel = supabase
+      .channel(channelName)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'event_messages',
+        filter: `event_id=eq.${selectedConversation.event_id}`
+      }, () => {
+        if (isMountedRef.current) {
+          loadMessages();
+          loadTotalUnreadCount();
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedConversation?.event_id, selectedConversation?.participant_id, loadMessages, loadTotalUnreadCount]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   // Get unique events for filter
   const uniqueEvents = Array.from(new Set(conversations.map(c => c.event_id)))
@@ -228,6 +452,17 @@ export const EventMessages = () => {
   const filteredConversations = eventFilter === 'all'
     ? conversations
     : conversations.filter(c => c.event_id === eventFilter);
+
+  const handleSelectAll = () => {
+    if (markedConversations.size === filteredConversations.length) {
+      setMarkedConversations(new Set());
+    } else {
+      const allKeys = new Set(
+        filteredConversations.map(conv => `${conv.event_id}_${conv.participant_id}`)
+      );
+      setMarkedConversations(allKeys);
+    }
+  };
 
   if (loading) {
     return (
@@ -278,6 +513,29 @@ export const EventMessages = () => {
               </select>
             </div>
 
+            {/* Action Buttons */}
+            <div className="mb-4 space-y-2">
+              {filteredConversations.length > 0 && (
+                <button
+                  onClick={handleSelectAll}
+                  className="w-full px-3 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors text-sm"
+                >
+                  {markedConversations.size === filteredConversations.length ? 'Deselect All' : 'Select All'}
+                </button>
+              )}
+              {markedConversations.size > 0 && (
+                <button
+                  onClick={handleDeleteMarkedConversations}
+                  disabled={deletingAll}
+                  className="w-full px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={`Delete ${markedConversations.size} marked conversation(s)`}
+                >
+                  <Trash2 size={16} />
+                  {deletingAll ? 'Deleting...' : `Delete (${markedConversations.size})`}
+                </button>
+              )}
+            </div>
+
             {/* Conversations */}
             <div className="space-y-2 max-h-[600px] overflow-y-auto">
               {filteredConversations.length === 0 ? (
@@ -286,43 +544,65 @@ export const EventMessages = () => {
                   <p>No conversations found</p>
                 </div>
               ) : (
-                filteredConversations.map((conv) => (
-                  <div
-                    key={`${conv.event_id}_${conv.participant_id}`}
-                    onClick={() => setSelectedConversation(conv)}
-                    className={`p-4 rounded-lg cursor-pointer transition-colors border ${selectedConversation?.event_id === conv.event_id &&
-                        selectedConversation?.participant_id === conv.participant_id
+                filteredConversations.map((conv) => {
+                  const isSelected = selectedConversation?.event_id === conv.event_id &&
+                    selectedConversation?.participant_id === conv.participant_id;
+                  const isChecked = isMarked(conv.event_id, conv.participant_id);
+                  const convKey = `${conv.event_id}_${conv.participant_id}`;
+
+                  return (
+                    <div
+                      key={convKey}
+                      className={`p-4 rounded-lg transition-colors border flex items-start gap-3 ${isSelected
                         ? 'bg-blue-50 border-blue-300'
                         : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                      }`}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-slate-800 text-sm line-clamp-1">
-                          {conv.event?.title || 'Event'}
-                        </h3>
-                        <p className="text-xs text-slate-600 mt-1">
-                          {conv.participant?.first_name && conv.participant?.last_name
-                            ? `${conv.participant.first_name} ${conv.participant.last_name}`
-                            : conv.participant?.email || 'Participant'}
-                        </p>
+                        }`}
+                    >
+                      {/* Checkbox */}
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleMarkConversation(conv.event_id, conv.participant_id);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-1 w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+                      />
+                      {/* Conversation Content */}
+                      <div
+                        className="flex-1 cursor-pointer"
+                        onClick={() => setSelectedConversation(conv)}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-slate-800 text-sm line-clamp-1">
+                              {conv.event?.title || 'Event'}
+                            </h3>
+                            <p className="text-xs text-slate-600 mt-1">
+                              {conv.participant?.first_name && conv.participant?.last_name
+                                ? `${conv.participant.first_name} ${conv.participant.last_name}`
+                                : conv.participant?.email || 'Participant'}
+                            </p>
+                          </div>
+                          {conv.unread_count > 0 && (
+                            <span className="bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                              {conv.unread_count}
+                            </span>
+                          )}
+                        </div>
+                        {conv.last_message && (
+                          <p className="text-xs text-slate-600 line-clamp-2 mt-2">
+                            {conv.last_message.message}
+                          </p>
+                        )}
+                        <div className="text-xs text-slate-500 mt-2">
+                          {conv.last_message_at ? formatTime(conv.last_message_at) : 'No messages'}
+                        </div>
                       </div>
-                      {conv.unread_count > 0 && (
-                        <span className="bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-                          {conv.unread_count}
-                        </span>
-                      )}
                     </div>
-                    {conv.last_message && (
-                      <p className="text-xs text-slate-600 line-clamp-2 mt-2">
-                        {conv.last_message.message}
-                      </p>
-                    )}
-                    <div className="text-xs text-slate-500 mt-2">
-                      {conv.last_message_at ? formatTime(conv.last_message_at) : 'No messages'}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -347,6 +627,17 @@ export const EventMessages = () => {
                       </div>
                     </div>
                     <div className="flex gap-2">
+                      {selectedConversation && messages.length > 0 && (
+                        <button
+                          onClick={handleDeleteAllMessages}
+                          disabled={deletingAll}
+                          className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Delete all messages in this thread"
+                        >
+                          <Trash2 size={16} />
+                          {deletingAll ? 'Deleting...' : 'Delete Thread'}
+                        </button>
+                      )}
                       {chatStatuses[selectedConversation.event_id] === false ? (
                         <button
                           onClick={() => toggleChatStatus(selectedConversation.event_id)}
@@ -387,8 +678,8 @@ export const EventMessages = () => {
                         >
                           <div
                             className={`max-w-[70%] rounded-lg p-4 ${message.sender_id === user?.id
-                                ? 'bg-blue-900 text-white'
-                                : 'bg-white text-slate-800 border border-slate-200'
+                              ? 'bg-blue-900 text-white'
+                              : 'bg-white text-slate-800 border border-slate-200'
                               }`}
                           >
                             <div className="text-sm font-semibold mb-1">

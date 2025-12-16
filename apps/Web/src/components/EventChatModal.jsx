@@ -3,7 +3,8 @@ import { EventMessageService } from '../services/eventMessageService';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './Toast';
 import { supabase } from '../lib/supabaseClient';
-import { Send, X } from 'lucide-react';
+import { Send, X, Trash2 } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 export const EventChatModal = ({ isOpen, onClose, eventId, eventTitle }) => {
   const { user } = useAuth();
@@ -14,6 +15,7 @@ export const EventChatModal = ({ isOpen, onClose, eventId, eventTitle }) => {
   const [sending, setSending] = useState(false);
   const [chatIsOpen, setChatIsOpen] = useState(true);
   const [loadingChatStatus, setLoadingChatStatus] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
@@ -132,6 +134,59 @@ export const EventChatModal = ({ isOpen, onClose, eventId, eventTitle }) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   };
 
+  const handleDeleteAllMessages = async () => {
+    if (!eventId || !user?.id) return;
+
+    const result = await Swal.fire({
+      title: 'Delete Conversation Thread?',
+      text: 'Are you sure you want to delete ALL messages in this thread? This action cannot be undone.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete All',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      setDeletingAll(true);
+      const deleteResult = await EventMessageService.deleteAllMessages(eventId, user.id);
+
+      if (deleteResult.error) {
+        toast.error(deleteResult.error);
+        await Swal.fire({
+          title: 'Error',
+          text: deleteResult.error,
+          icon: 'error',
+          confirmButtonColor: '#1e40af',
+        });
+      } else {
+        toast.success('All messages deleted successfully');
+        await Swal.fire({
+          title: 'Deleted!',
+          text: 'All messages in this thread have been deleted.',
+          icon: 'success',
+          confirmButtonColor: '#1e40af',
+        });
+        setMessages([]);
+        loadMessages();
+      }
+    } catch (error) {
+      toast.error('Failed to delete messages');
+      await Swal.fire({
+        title: 'Error',
+        text: 'Failed to delete messages. Please try again.',
+        icon: 'error',
+        confirmButtonColor: '#1e40af',
+      });
+    } finally {
+      setDeletingAll(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -139,7 +194,7 @@ export const EventChatModal = ({ isOpen, onClose, eventId, eventTitle }) => {
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full h-[600px] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-200">
-          <div>
+          <div className="flex-1">
             <h3 className="text-lg font-semibold text-slate-900">
               Contact Organizer
             </h3>
@@ -152,12 +207,25 @@ export const EventChatModal = ({ isOpen, onClose, eventId, eventTitle }) => {
               </div>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            <X size={24} />
-          </button>
+          <div className="flex items-center gap-2">
+            {messages.length > 0 && (
+              <button
+                onClick={handleDeleteAllMessages}
+                disabled={deletingAll}
+                className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Delete all messages in this thread"
+              >
+                <Trash2 size={16} />
+                {deletingAll ? 'Deleting...' : 'Delete Thread'}
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X size={24} />
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
