@@ -95,7 +95,8 @@ export class JobQueueService {
       const { data, error } = await supabase.rpc('get_next_job');
 
       if (error) {
-        console.error('[JobQueueService] get_next_job RPC error:', error);
+        const { LoggerService } = await import('./loggerService');
+        LoggerService.serviceError('JobQueueService', 'get_next_job RPC error', error);
         return { error: error.message };
       }
 
@@ -104,17 +105,19 @@ export class JobQueueService {
       }
 
       const jobData = data[0] as JobData;
-      console.log('[JobQueueService] Got job:', { id: jobData.id, type: jobData.job_type });
+      const { LoggerService } = await import('./loggerService');
+      LoggerService.serviceLog('JobQueueService', 'Got job', { id: jobData.id, type: jobData.job_type });
 
       // Ensure ID is present
       if (!jobData.id) {
-        console.error('[JobQueueService] Job missing ID:', jobData);
+        LoggerService.serviceError('JobQueueService', 'Job missing ID', undefined, jobData);
         return { error: 'Job missing ID field' };
       }
 
       return { job: jobData };
     } catch (err: any) {
-      console.error('[JobQueueService] Exception in getNextJob:', err);
+      const { LoggerService } = await import('./loggerService');
+      LoggerService.serviceError('JobQueueService', 'Exception in getNextJob', err);
       return { error: err.message || 'Failed to get next job' };
     }
   }
@@ -127,7 +130,8 @@ export class JobQueueService {
     resultData?: Record<string, any>
   ): Promise<{ success?: boolean; error?: string }> {
     try {
-      console.log('[JobQueueService] Completing job:', jobId);
+      const { LoggerService } = await import('./loggerService');
+      LoggerService.serviceLog('JobQueueService', 'Completing job', { jobId });
 
       // Try RPC first
       const { data, error } = await supabase.rpc('complete_job', {
@@ -136,9 +140,9 @@ export class JobQueueService {
       });
 
       if (error) {
-        console.error('[JobQueueService] complete_job RPC error:', error);
+        LoggerService.serviceError('JobQueueService', 'complete_job RPC error', error);
         // Fallback to direct update
-        console.log('[JobQueueService] Falling back to direct update...');
+        LoggerService.serviceLog('JobQueueService', 'Falling back to direct update');
         const { error: updateError } = await supabase
           .from('job_queue')
           .update({
@@ -151,14 +155,15 @@ export class JobQueueService {
         if (updateError) {
           return { error: `RPC failed: ${error.message}, Direct update failed: ${updateError.message}` };
         }
-        console.log('[JobQueueService] Direct update succeeded');
+        LoggerService.serviceLog('JobQueueService', 'Direct update succeeded');
         return { success: true };
       }
 
-      console.log('[JobQueueService] Job completed via RPC');
+      LoggerService.serviceLog('JobQueueService', 'Job completed via RPC');
       return { success: true };
     } catch (err: any) {
-      console.error('[JobQueueService] Exception in completeJob:', err);
+      const { LoggerService } = await import('./loggerService');
+      LoggerService.serviceError('JobQueueService', 'Exception in completeJob', err);
       return { error: err.message || 'Failed to complete job' };
     }
   }
@@ -171,7 +176,8 @@ export class JobQueueService {
     errorMessage: string
   ): Promise<{ success?: boolean; error?: string }> {
     try {
-      console.log('[JobQueueService] Failing job:', jobId, errorMessage);
+      const { LoggerService } = await import('./loggerService');
+      LoggerService.serviceLog('JobQueueService', 'Failing job', { jobId, errorMessage });
 
       // Try RPC first
       const { data, error } = await supabase.rpc('fail_job', {
@@ -180,9 +186,9 @@ export class JobQueueService {
       });
 
       if (error) {
-        console.error('[JobQueueService] fail_job RPC error:', error);
+        LoggerService.serviceError('JobQueueService', 'fail_job RPC error', error);
         // Fallback to direct update
-        console.log('[JobQueueService] Falling back to direct update...');
+        LoggerService.serviceLog('JobQueueService', 'Falling back to direct update');
         const { error: updateError } = await supabase
           .from('job_queue')
           .update({
@@ -195,14 +201,15 @@ export class JobQueueService {
         if (updateError) {
           return { error: `RPC failed: ${error.message}, Direct update failed: ${updateError.message}` };
         }
-        console.log('[JobQueueService] Direct update succeeded');
+        LoggerService.serviceLog('JobQueueService', 'Direct update succeeded');
         return { success: true };
       }
 
-      console.log('[JobQueueService] Job failed via RPC');
+      LoggerService.serviceLog('JobQueueService', 'Job failed via RPC');
       return { success: true };
     } catch (err: any) {
-      console.error('[JobQueueService] Exception in failJob:', err);
+      const { LoggerService } = await import('./loggerService');
+      LoggerService.serviceError('JobQueueService', 'Exception in failJob', err);
       return { error: err.message || 'Failed to fail job' };
     }
   }
@@ -230,13 +237,15 @@ export class JobQueueService {
         .single();
 
       if (error) {
-        console.error('[JobQueueService] getJobStatus error:', error);
+        const { LoggerService } = await import('./loggerService');
+        LoggerService.serviceError('JobQueueService', 'getJobStatus error', error);
         return { error: error.message };
       }
 
       return { job: data as JobData };
     } catch (err: any) {
-      console.error('[JobQueueService] Exception in getJobStatus:', err);
+      const { LoggerService } = await import('./loggerService');
+      LoggerService.serviceError('JobQueueService', 'Exception in getJobStatus', err);
       return { error: err.message || 'Failed to get job status' };
     }
   }

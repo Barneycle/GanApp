@@ -67,19 +67,19 @@ class RichTextEditorErrorBoundary extends Component {
 
 const createEventSchema = z.object({
 
-  title: z.string().optional(),
+  title: z.string().min(1, 'Event title is required'),
 
   rationale: z.string().optional(),
 
-  startDate: z.string().optional(),
+  startDate: z.string().min(1, 'Start date is required'),
 
-  endDate: z.string().optional(),
+  endDate: z.string().min(1, 'End date is required'),
 
-  startTime: z.string().optional(),
+  startTime: z.string().min(1, 'Start time is required'),
 
-  endTime: z.string().optional(),
+  endTime: z.string().min(1, 'End time is required'),
 
-  venue: z.string().optional(),
+  venue: z.string().min(1, 'Venue is required'),
 
   maxParticipants: z.string().optional(),
 
@@ -1783,6 +1783,7 @@ export const CreateEvent = () => {
 
   const [submitMessage, setSubmitMessage] = useState('');
   const [submitError, setSubmitError] = useState('');
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
 
   const [uploadedFiles, setUploadedFiles] = useState(() => ({
 
@@ -2842,6 +2843,228 @@ export const CreateEvent = () => {
 
   };
 
+  // Save as Draft handler - saves event with relaxed validation
+  const onSaveDraft = async () => {
+    // Get form values directly without validation
+    const formValues = watch();
+    if (!canManageEvents) {
+      toast.error('Access denied. Only administrators and organizers can create events.');
+      return;
+    }
+
+    setIsSavingDraft(true);
+    setSubmitError('');
+
+    try {
+      // Prepare event data with relaxed validation (allow empty required fields)
+      const eventData = {
+        title: formValues.title || 'Untitled Event',
+        rationale: formValues.rationale || '',
+        start_date: formValues.startDate || new Date().toISOString().split('T')[0],
+        end_date: formValues.endDate || new Date().toISOString().split('T')[0],
+        start_time: formValues.startTime || '09:00',
+        end_time: formValues.endTime || '17:00',
+        venue: formValues.venue || 'TBD',
+        max_participants: formValues.maxParticipants ? parseInt(formValues.maxParticipants) : null,
+        // Check-in window settings
+        check_in_before_minutes: formValues.checkInBeforeMinutes || 60,
+        check_in_during_minutes: formValues.checkInDuringMinutes || 30,
+        status: 'draft', // Save as draft
+        created_by: user.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      // Handle venue creation if "Other" was selected
+      if (showOtherVenue && customVenueName.trim()) {
+        try {
+          const existingVenue = await VenueService.getVenueByName(customVenueName.trim());
+          if (!existingVenue.venue) {
+            const venueResult = await VenueService.createVenue({
+              name: customVenueName.trim(),
+              created_by: user.id
+            });
+            if (venueResult.error) {
+              // Continue with event creation even if venue creation fails
+            }
+          }
+          eventData.venue = customVenueName.trim();
+        } catch (venueError) {
+          // Continue with event creation
+        }
+      }
+
+      // Handle file uploads if any
+      if (uploadedFiles.banner) {
+        if (uploadedFiles.banner.url) {
+          eventData.banner_url = uploadedFiles.banner.url;
+        } else {
+          eventData.banner_url = `placeholder-${uploadedFiles.banner.filename}`;
+        }
+      }
+
+      // Handle materials files
+      if (uploadedFiles.materials && uploadedFiles.materials.length > 0) {
+        eventData.materials_url = uploadedFiles.materials.map(f => f.url).join(',');
+      }
+
+      // Handle sponsor logos
+      if (uploadedFiles.sponsorLogos && uploadedFiles.sponsorLogos.length > 0) {
+        sponsors.forEach((sponsor, index) => {
+          let matchingLogo = null;
+          if (uploadedFiles.sponsorLogos[index]) {
+            matchingLogo = uploadedFiles.sponsorLogos[index];
+          }
+          if (!matchingLogo) {
+            matchingLogo = uploadedFiles.sponsorLogos.find(logo =>
+              logo.name && logo.name.includes(`sponsor-logo-${index}`)
+            );
+          }
+          if (!matchingLogo && sponsors.length === 1 && uploadedFiles.sponsorLogos.length === 1) {
+            matchingLogo = uploadedFiles.sponsorLogos[0];
+          }
+          if (matchingLogo && matchingLogo.url) {
+            sponsor.logo_url = matchingLogo.url;
+          }
+        });
+      }
+
+      // Handle speaker photos
+      if (uploadedFiles.speakerPhotos && uploadedFiles.speakerPhotos.length > 0) {
+        speakers.forEach((speaker, index) => {
+          let matchingPhoto = null;
+          if (uploadedFiles.speakerPhotos[index]) {
+            matchingPhoto = uploadedFiles.speakerPhotos[index];
+          }
+          if (!matchingPhoto) {
+            matchingPhoto = uploadedFiles.speakerPhotos.find(photo =>
+              photo.name && photo.name.includes(`speaker-photo-${index}`)
+            );
+          }
+          if (!matchingPhoto && speakers.length === 1 && uploadedFiles.speakerPhotos.length === 1) {
+            matchingPhoto = uploadedFiles.speakerPhotos[0];
+          }
+          if (matchingPhoto && matchingPhoto.url) {
+            speaker.photo_url = matchingPhoto.url;
+          }
+        });
+      }
+
+      // Handle event programmes
+      if (formValues.eventProgrammeLink && formValues.eventProgrammeLink.trim()) {
+        eventData.event_programmes_url = formValues.eventProgrammeLink.trim();
+      } else if (uploadedFiles.eventProgrammes && uploadedFiles.eventProgrammes.length > 0) {
+        eventData.event_programmes_url = uploadedFiles.eventProgrammes.map(f => f.url).join(',');
+      }
+
+      // Handle event kits
+      if (formValues.eventKitsLink && formValues.eventKitsLink.trim()) {
+        eventData.event_kits_url = formValues.eventKitsLink.trim();
+      } else if (uploadedFiles.eventKits && uploadedFiles.eventKits.length > 0) {
+        eventData.event_kits_url = uploadedFiles.eventKits.map(f => f.url).join(',');
+      }
+
+      // Create the event in the database
+      const eventResult = await EventService.createEvent(eventData);
+
+      if (eventResult.error) {
+        toast.error(`Failed to save draft: ${eventResult.error}`);
+        setIsSavingDraft(false);
+        return;
+      }
+
+      const eventId = eventResult.event?.id;
+      if (!eventId) {
+        toast.error('Failed to save draft: Event ID not returned');
+        setIsSavingDraft(false);
+        return;
+      }
+
+      // Save speakers if any
+      if (speakers && speakers.length > 0) {
+        for (const speakerData of speakers) {
+          try {
+            if (!speakerData.first_name || !speakerData.last_name) {
+              continue;
+            }
+
+            const speakerToCreate = {
+              prefix: speakerData.prefix || '',
+              first_name: speakerData.first_name,
+              last_name: speakerData.last_name,
+              middle_initial: speakerData.middle_initial || '',
+              affix: speakerData.affix || '',
+              designation: speakerData.designation || '',
+              organization: speakerData.organization || '',
+              bio: speakerData.bio || '',
+              email: speakerData.email || '',
+              phone: speakerData.phone ? speakerData.phone.replace(/\D/g, '') : '',
+              photo_url: speakerData.photo_url && speakerData.photo_url.trim() ? speakerData.photo_url.trim() : ''
+            };
+
+            const speakerResult = await SpeakerService.createSpeaker(speakerToCreate);
+            if (speakerResult.error) {
+              continue;
+            }
+
+            await SpeakerService.addSpeakerToEvent(eventId, speakerResult.speaker.id, {
+              order: speakerData.speaker_order || 0,
+              isKeynote: speakerData.is_keynote || false
+            });
+          } catch (speakerError) {
+            // Continue with other speakers
+          }
+        }
+      }
+
+      // Save sponsors if any
+      if (sponsors && sponsors.length > 0) {
+        for (const sponsorData of sponsors) {
+          try {
+            if (!sponsorData.name) {
+              continue;
+            }
+
+            const sponsorToCreate = {
+              name: sponsorData.name,
+              contact_person: sponsorData.contact_person || '',
+              email: sponsorData.email || '',
+              phone: sponsorData.phone ? sponsorData.phone.replace(/\D/g, '') : '',
+              address: sponsorData.address || '',
+              logo_url: sponsorData.logo_url && sponsorData.logo_url.trim() ? sponsorData.logo_url.trim() : '',
+              contribution: sponsorData.contribution || ''
+            };
+
+            const sponsorResult = await SponsorService.createSponsor(sponsorToCreate);
+            if (sponsorResult.error) {
+              continue;
+            }
+
+            await SponsorService.addSponsorToEvent(eventId, sponsorResult.sponsor.id, {
+              order: sponsorData.sponsor_order || 0
+            });
+          } catch (sponsorError) {
+            // Continue with other sponsors
+          }
+        }
+      }
+
+      // Clear session storage draft
+      clearSavedFormData();
+
+      toast.success('Event saved as draft successfully!');
+
+      // Navigate to edit event page after a short delay
+      setTimeout(() => {
+        navigate(`/edit-event/${eventId}`);
+      }, 1500);
+
+    } catch (error) {
+      toast.error(`Failed to save draft: ${error.message || 'An unexpected error occurred'}`);
+      setIsSavingDraft(false);
+    }
+  };
+
 
 
   // Add a function to manually clear saved data (useful for testing)
@@ -3198,7 +3421,7 @@ export const CreateEvent = () => {
 
                 <label className="block text-base font-semibold text-slate-700 uppercase tracking-wide">
 
-                  Event Title
+                  Event Title <span className="text-red-500">*</span>
 
                 </label>
 
@@ -3377,7 +3600,7 @@ export const CreateEvent = () => {
 
                   <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
 
-                    Start Date
+                    Start Date <span className="text-red-500">*</span>
 
                   </label>
 
@@ -3418,7 +3641,7 @@ export const CreateEvent = () => {
 
                   <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
 
-                    End Date
+                    End Date <span className="text-red-500">*</span>
 
                   </label>
 
@@ -3467,7 +3690,7 @@ export const CreateEvent = () => {
 
                   <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
 
-                    Start Time
+                    Start Time <span className="text-red-500">*</span>
 
                   </label>
 
@@ -3508,7 +3731,7 @@ export const CreateEvent = () => {
 
                   <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
 
-                    End Time
+                    End Time <span className="text-red-500">*</span>
 
                   </label>
 
@@ -3657,7 +3880,7 @@ export const CreateEvent = () => {
 
                 <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
 
-                  Venue
+                  Venue <span className="text-red-500">*</span>
 
                 </label>
 
@@ -3697,7 +3920,8 @@ export const CreateEvent = () => {
                             setCustomVenueName(e.target.value);
                             field.onChange(e.target.value); // Update the form field with custom venue
                           }}
-                          className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400"
+                          className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 text-base transition-all duration-200 placeholder-slate-400 ${errors.venue ? 'border-red-300 focus:ring-red-500' : 'border-slate-200'
+                            }`}
                         />
                       )}
                     </div>
@@ -4429,13 +4653,39 @@ export const CreateEvent = () => {
           </div>
 
 
-          {/* Action Button */}
+          {/* Action Buttons */}
 
-          <div className="flex justify-center pt-8">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center pt-8">
+            <button
+              type="button"
+              onClick={onSaveDraft}
+              disabled={isSavingDraft}
+              className={`flex-1 px-6 py-3 rounded-xl text-lg font-semibold shadow-md transition-all duration-200 flex items-center justify-center space-x-2 ${isSavingDraft
+                ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                : 'bg-slate-600 text-white hover:bg-slate-700'
+                }`}
+            >
+              {isSavingDraft ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                  <span>Save as Draft</span>
+                </>
+              )}
+            </button>
             <button
               type="submit"
               disabled={Object.keys(errors).length > 0}
-              className={`w-full px-6 py-3 rounded-xl text-lg font-semibold shadow-md transition-all duration-200 flex items-center justify-center space-x-2 ${Object.keys(errors).length === 0
+              className={`flex-1 px-6 py-3 rounded-xl text-lg font-semibold shadow-md transition-all duration-200 flex items-center justify-center space-x-2 ${Object.keys(errors).length === 0
                 ? 'bg-blue-900 text-white hover:bg-blue-800'
                 : 'bg-slate-200 text-slate-500 cursor-not-allowed'
                 }`}

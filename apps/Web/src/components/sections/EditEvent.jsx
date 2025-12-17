@@ -19,6 +19,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import CertificateDesigner from '../CertificateDesigner';
 import { useToast } from '../Toast';
 import { logActivity } from '../../utils/activityLogger';
+import { promptCertificateUsage } from '../../utils/eventCreationDialogs';
 
 // Lazy load RichTextEditor to prevent app-wide crashes
 const RichTextEditor = lazy(() => import('../RichTextEditor'));
@@ -3441,7 +3442,61 @@ export const EditEvent = () => {
     setShowAddSponsor(false);
   };
 
+  // Handler to continue creating from draft
+  const handleContinueCreating = async () => {
+    if (!currentEvent || currentEvent.status !== 'draft') {
+      return;
+    }
 
+    try {
+      // Prepare event data similar to CreateEvent flow
+      const formValues = watch();
+      const eventData = {
+        id: currentEvent.id, // Include event ID so we know it's an existing draft
+        title: formValues.title || currentEvent.title || 'Untitled Event',
+        rationale: formValues.rationale || currentEvent.rationale || '',
+        start_date: formValues.startDate || currentEvent.start_date || new Date().toISOString().split('T')[0],
+        end_date: formValues.endDate || currentEvent.end_date || new Date().toISOString().split('T')[0],
+        start_time: formValues.startTime || currentEvent.start_time || '09:00',
+        end_time: formValues.endTime || currentEvent.end_time || '17:00',
+        venue: formValues.venue || currentEvent.venue || 'TBD',
+        max_participants: formValues.maxParticipants ? parseInt(formValues.maxParticipants) : currentEvent.max_participants || null,
+        check_in_before_minutes: formValues.checkInBeforeMinutes || currentEvent.check_in_before_minutes || 60,
+        check_in_during_minutes: formValues.checkInDuringMinutes || currentEvent.check_in_during_minutes || 30,
+      };
+
+      // Store event data in session storage for the next step
+      sessionStorage.setItem('pending-event-data', JSON.stringify(eventData));
+      sessionStorage.setItem('pending-event-files', JSON.stringify(uploadedFiles));
+
+      // Store speakers and sponsors
+      const speakersWithImages = speakers.map(speaker => ({
+        ...speaker,
+        photo_url: speaker.photo_url || ''
+      }));
+
+      const sponsorsWithImages = sponsors.map(sponsor => ({
+        ...sponsor,
+        logo_url: sponsor.logo_url || ''
+      }));
+
+      sessionStorage.setItem('pending-event-speakers', JSON.stringify(speakersWithImages));
+      sessionStorage.setItem('pending-event-sponsors', JSON.stringify(sponsorsWithImages));
+      sessionStorage.setItem('pending-event-id', currentEvent.id); // Store event ID for updating later
+
+      // Ask user if event will use certificates
+      const wantsCertificate = await promptCertificateUsage();
+
+      if (wantsCertificate) {
+        navigate('/design-certificate');
+      } else {
+        sessionStorage.removeItem('pending-certificate-config');
+        navigate('/create-survey');
+      }
+    } catch (error) {
+      toast.error(`Failed to continue creating: ${error.message || 'An unexpected error occurred'}`);
+    }
+  };
 
   const pageTitle = isEditMode ? 'Edit Event' : 'Create Event';
   const pageSubtitle = isEditMode
@@ -3481,7 +3536,7 @@ export const EditEvent = () => {
 
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
 
-      <div className="w-full max-w-5xl mx-auto">
+      <div className="w-full max-w-7xl mx-auto">
 
         {/* Header Section */}
 
@@ -3517,7 +3572,7 @@ export const EditEvent = () => {
 
             </button>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-slate-800 to-blue-800 bg-clip-text text-transparent">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-800">
 
               {pageTitle}
 
@@ -3525,15 +3580,35 @@ export const EditEvent = () => {
 
           </div>
 
-          <p className="text-slate-600 text-xl sm:text-2xl max-w-3xl mx-auto">
-
-            {pageSubtitle}
-
-          </p>
 
 
 
 
+          {/* Draft Status Banner */}
+          {isEditMode && currentEvent?.status === 'draft' && (
+            <div className="mt-6 mb-4 bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <p className="font-semibold text-yellow-800">This event is saved as a draft</p>
+                    <p className="text-sm text-yellow-700">Complete the event creation process to publish it</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleContinueCreating}
+                  className="px-6 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors font-medium flex items-center space-x-2"
+                >
+                  <span>Continue Creating</span>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Draft Management Info */}
 

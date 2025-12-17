@@ -92,6 +92,43 @@ export const MobileMenu = ({ menuOpen, setMenuOpen }) => {
             >
               Survey Analytics
             </Link>
+            
+            {/* Profile Section */}
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-gray-400 uppercase tracking-wide">
+                Profile
+              </div>
+              <Link
+                to="/profile"
+                onClick={() => setMenuOpen(false)}
+                className={`block pl-4 text-base font-medium ${
+                  isActive('/profile') ? 'text-white' : 'text-gray-300'
+                } hover:text-white transition-colors`}
+                title="View your profile"
+              >
+                Profile
+              </Link>
+              <Link
+                to="/help"
+                onClick={() => setMenuOpen(false)}
+                className={`block pl-4 text-base font-medium ${
+                  isActive('/help') ? 'text-white' : 'text-gray-300'
+                } hover:text-white transition-colors`}
+                title="Get help and support"
+              >
+                Help Center
+              </Link>
+              <Link
+                to="/support"
+                onClick={() => setMenuOpen(false)}
+                className={`block pl-4 text-base font-medium ${
+                  isActive('/support') ? 'text-white' : 'text-gray-300'
+                } hover:text-white transition-colors`}
+                title="Contact support"
+              >
+                Support
+              </Link>
+            </div>
           </>
         ) : isAdminRoute() ? (
           // Admin-specific mobile menu
@@ -257,7 +294,17 @@ export const MobileMenu = ({ menuOpen, setMenuOpen }) => {
                 } hover:text-white transition-colors`}
                 title="Get help and support"
               >
-                Help
+                Help Center
+              </Link>
+              <Link
+                to="/support"
+                onClick={() => setMenuOpen(false)}
+                className={`block pl-4 text-base font-medium ${
+                  isActive('/support') ? 'text-white' : 'text-gray-300'
+                } hover:text-white transition-colors`}
+                title="Contact support"
+              >
+                Support
               </Link>
               <Link
                 to="/logout"
@@ -336,9 +383,29 @@ export const MobileMenu = ({ menuOpen, setMenuOpen }) => {
                 className={`block pl-4 text-base font-medium ${
                   isActive('/profile') ? 'text-white' : 'text-gray-300'
                 } hover:text-white transition-colors`}
-                title="Account settings, help, logout"
+                title="View your profile"
               >
                 Profile
+              </Link>
+              <Link
+                to="/help"
+                onClick={() => setMenuOpen(false)}
+                className={`block pl-4 text-base font-medium ${
+                  isActive('/help') ? 'text-white' : 'text-gray-300'
+                } hover:text-white transition-colors`}
+                title="Get help and support"
+              >
+                Help Center
+              </Link>
+              <Link
+                to="/support"
+                onClick={() => setMenuOpen(false)}
+                className={`block pl-4 text-base font-medium ${
+                  isActive('/support') ? 'text-white' : 'text-gray-300'
+                } hover:text-white transition-colors`}
+                title="Contact support"
+              >
+                Support
               </Link>
             </div>
           </>

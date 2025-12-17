@@ -72,13 +72,15 @@ export class CacheService {
         token: import.meta.env.VITE_UPSTASH_REDIS_TOKEN,
       });
       
-      console.log('Redis cache initialized');
+      const { LoggerService } = await import('./loggerService');
+      LoggerService.log('Redis cache initialized');
     } catch (error: any) {
       // Package not installed or initialization failed
+      const { LoggerService } = await import('./loggerService');
       if (error.message?.includes('Failed to resolve') || error.message?.includes('Cannot find module')) {
-        console.info('@upstash/redis not installed. Install it to use Redis cache: npm install @upstash/redis');
+        LoggerService.log('@upstash/redis not installed. Install it to use Redis cache: npm install @upstash/redis');
       } else {
-        console.warn('Failed to initialize Redis, using memory cache:', error.message);
+        LoggerService.warn('Failed to initialize Redis, using memory cache', { message: error.message });
       }
       this.redis = null;
     }
@@ -98,14 +100,16 @@ export class CacheService {
           const value = await this.redis.get<T>(key);
           return value;
         } catch (redisError) {
-          console.warn('Redis get error, falling back to memory cache:', redisError);
+          const { LoggerService } = await import('./loggerService');
+          LoggerService.warn('Redis get error, falling back to memory cache', { error: redisError });
           // Fall back to memory cache
         }
       }
       
       return await this.cache.get(key);
     } catch (error) {
-      console.error('Cache get error:', error);
+      const { LoggerService } = await import('./loggerService');
+      LoggerService.error('Cache get error', error);
       return null;
     }
   }
@@ -123,14 +127,16 @@ export class CacheService {
           await this.redis.set(key, value, { ex: ttl });
           return;
         } catch (redisError) {
-          console.warn('Redis set error, falling back to memory cache:', redisError);
+          const { LoggerService } = await import('./loggerService');
+          LoggerService.warn('Redis set error, falling back to memory cache', { error: redisError });
           // Fall back to memory cache
         }
       }
       
       await this.cache.set(key, value, ttl);
     } catch (error) {
-      console.error('Cache set error:', error);
+      const { LoggerService } = await import('./loggerService');
+      LoggerService.error('Cache set error', error);
     }
   }
 
@@ -147,14 +153,16 @@ export class CacheService {
           await this.redis.del(key);
           return;
         } catch (redisError) {
-          console.warn('Redis delete error, falling back to memory cache:', redisError);
+          const { LoggerService } = await import('./loggerService');
+          LoggerService.warn('Redis delete error, falling back to memory cache', { error: redisError });
           // Fall back to memory cache
         }
       }
       
       await this.cache.delete(key);
     } catch (error) {
-      console.error('Cache delete error:', error);
+      const { LoggerService } = await import('./loggerService');
+      LoggerService.error('Cache delete error', error);
     }
   }
 
@@ -174,14 +182,16 @@ export class CacheService {
           }
           return;
         } catch (redisError) {
-          console.warn('Redis deletePattern error, falling back to memory cache:', redisError);
+          const { LoggerService } = await import('./loggerService');
+          LoggerService.warn('Redis deletePattern error, falling back to memory cache', { error: redisError });
           // Fall back to memory cache
         }
       }
       
       await this.cache.deletePattern(pattern);
     } catch (error) {
-      console.error('Cache deletePattern error:', error);
+      const { LoggerService } = await import('./loggerService');
+      LoggerService.error('Cache deletePattern error', error);
     }
   }
 
@@ -197,7 +207,8 @@ export class CacheService {
       
       await this.cache.clear();
     } catch (error) {
-      console.error('Cache clear error:', error);
+      const { LoggerService } = await import('./loggerService');
+      LoggerService.error('Cache clear error', error);
     }
   }
 

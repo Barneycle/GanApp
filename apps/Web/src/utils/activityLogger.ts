@@ -1,4 +1,5 @@
 import { ActivityLogService } from '../services/activityLogService';
+import { LoggerService } from '../services/loggerService';
 
 /**
  * Utility function to log activities easily
@@ -27,7 +28,7 @@ export const logActivity = async (
     });
   } catch (error) {
     // Silently fail - don't break the main flow if logging fails
-    console.error('Failed to log activity:', error);
+    LoggerService.serviceError('ActivityLogger', 'Failed to log activity', error);
   }
 };
 

@@ -657,14 +657,35 @@ export const CreateSurvey = () => {
     setLoading(true);
 
     try {
-      // Step 1: Create the event in the database
+      // Step 1: Create or update the event in the database
+      // Check if we're continuing from a draft event
+      const existingEventId = sessionStorage.getItem('pending-event-id');
+      let eventId;
 
-      // Create the event (EventService handles its own timeouts)
-      const eventResult = await EventService.createEvent(pendingEventData);
-      if (eventResult.error) {
-        throw new Error(`Event creation failed: ${eventResult.error}`);
+      if (existingEventId) {
+        // Update existing draft event
+        const updateData = {
+          ...pendingEventData,
+          status: 'published', // Publish the event when completing creation
+          updated_at: new Date().toISOString()
+        };
+        delete updateData.id; // Remove id from update data
+        delete updateData.created_by; // Don't change creator
+        delete updateData.created_at; // Don't change creation date
+
+        const updateResult = await EventService.updateEvent(existingEventId, updateData);
+        if (updateResult.error) {
+          throw new Error(`Event update failed: ${updateResult.error}`);
+        }
+        eventId = existingEventId;
+      } else {
+        // Create new event
+        const eventResult = await EventService.createEvent(pendingEventData);
+        if (eventResult.error) {
+          throw new Error(`Event creation failed: ${eventResult.error}`);
+        }
+        eventId = eventResult.event.id;
       }
-      const eventId = eventResult.event.id;
 
       // Step 1.5: Create and link speakers to the event
       if (pendingSpeakers && pendingSpeakers.length > 0) {
@@ -879,6 +900,7 @@ export const CreateSurvey = () => {
       sessionStorage.removeItem('pending-event-speakers');
       sessionStorage.removeItem('pending-event-sponsors');
       sessionStorage.removeItem('pending-certificate-config');
+      sessionStorage.removeItem('pending-event-id'); // Clear draft event ID
 
       // Show success message
       // Calculate total questions count from sections

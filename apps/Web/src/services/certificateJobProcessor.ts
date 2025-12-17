@@ -10,6 +10,7 @@ import { JobQueueService, CertificateGenerationJobData } from './jobQueueService
 import { NotificationJobProcessor } from './notificationJobProcessor';
 import { generatePNGCertificate, convertPNGToPDF, CertificateData } from '../utils/certificateGenerator';
 import { supabase } from '../lib/supabaseClient';
+import { LoggerService } from './loggerService';
 
 /**
  * Generate a deterministic UUID for a participant based on their name and event
@@ -46,7 +47,7 @@ export class CertificateJobProcessor {
     error?: string;
   }> {
     try {
-      console.log('[Job Processor] Starting certificate generation job:', {
+      LoggerService.serviceLog('CertificateJobProcessor', 'Starting certificate generation job', {
         eventId: jobData.eventId,
         participantName: jobData.participantName,
         eventTitle: jobData.eventTitle
@@ -59,21 +60,21 @@ export class CertificateJobProcessor {
       if (providedConfig) {
         // Use provided config for standalone certificates
         config = providedConfig;
-        console.log('[Job Processor] Using provided config for standalone certificate');
+        LoggerService.serviceLog('CertificateJobProcessor', 'Using provided config for standalone certificate');
       } else {
         // Get config from database for event-based certificates
-        console.log('[Job Processor] Fetching config from database for event:', eventId);
+        LoggerService.serviceLog('CertificateJobProcessor', 'Fetching config from database for event', { eventId });
         const configResult = await CertificateService.getCertificateConfig(eventId);
         if (configResult.error || !configResult.config) {
           const errorMsg = configResult.error || 'Certificate config not found';
-          console.error('[Job Processor] Failed to get config:', errorMsg);
+          LoggerService.serviceError('CertificateJobProcessor', 'Failed to get config', undefined, { errorMsg });
           return {
             success: false,
             error: errorMsg
           };
         }
         config = configResult.config;
-        console.log('[Job Processor] Config loaded successfully');
+        LoggerService.serviceLog('CertificateJobProcessor', 'Config loaded successfully');
       }
 
       // Determine actualEventId and certificateUserId early to check for existing certificates BEFORE generating files
@@ -87,12 +88,12 @@ export class CertificateJobProcessor {
       if (eventId === 'standalone') {
         // Generate deterministic user_id for standalone certificates
         certificateUserId = generateParticipantUserId(participantName, eventId);
-        console.log('[Job Processor] Using participant-specific user_id for standalone certificate:', certificateUserId);
+        LoggerService.serviceLog('CertificateJobProcessor', 'Using participant-specific user_id for standalone certificate', { certificateUserId });
       } else {
         // For event-based certificates, use the authenticated user's ID
         // This allows participants to generate their own certificates (satisfies RLS: user_id = auth.uid())
         certificateUserId = userId;
-        console.log('[Job Processor] Using authenticated user_id for event certificate:', certificateUserId);
+        LoggerService.serviceLog('CertificateJobProcessor', 'Using authenticated user_id for event certificate', { certificateUserId });
       }
 
       // Get certificate template ID for this event
@@ -110,21 +111,21 @@ export class CertificateJobProcessor {
           .maybeSingle();
 
         if (templateError) {
-          console.error('[Job Processor] Error fetching template:', templateError);
+          LoggerService.serviceError('CertificateJobProcessor', 'Error fetching template', templateError);
           // Continue anyway - saveCertificate will try to find one
         } else if (templates) {
           templateId = templates.id;
-          console.log('[Job Processor] Found template ID:', templateId);
+          LoggerService.serviceLog('CertificateJobProcessor', 'Found template ID', { templateId });
         } else {
-          console.warn('[Job Processor] No certificate template found for event:', eventId);
+          LoggerService.serviceWarn('CertificateJobProcessor', 'No certificate template found for event', { eventId });
           // Continue anyway - saveCertificate will try to find one
         }
       } else if (eventId === 'standalone') {
         // True standalone (no event selected) - create a template for it
-        console.log('[Job Processor] Standalone certificate - creating template');
+        LoggerService.serviceLog('CertificateJobProcessor', 'Standalone certificate - creating template');
         const createTemplateResult = await CertificateService.createStandaloneTemplate(userId, eventTitle);
         if (createTemplateResult.error || !createTemplateResult.templateId) {
-          console.error('[Job Processor] Failed to create standalone template:', createTemplateResult.error);
+          LoggerService.serviceError('CertificateJobProcessor', 'Failed to create standalone template', undefined, { error: createTemplateResult.error });
           return {
             success: false,
             error: `Failed to create certificate template: ${createTemplateResult.error || 'Unknown error'}`
@@ -143,25 +144,29 @@ export class CertificateJobProcessor {
         let existingCert = null;
 
         const trimmedParticipantName = participantName.trim();
-        console.log('[Job Processor] 🔍 DUPLICATE CHECK START - participant:', JSON.stringify(trimmedParticipantName), 'event:', actualEventId, 'user_id:', certificateUserId);
+        LoggerService.serviceLog('CertificateJobProcessor', 'DUPLICATE CHECK START', {
+          participant: trimmedParticipantName,
+          event: actualEventId,
+          user_id: certificateUserId
+        });
 
         // Check by participant_name ONLY (works for both manual entries and event participants)
         // For manual entries, all participants share organizer's user_id, so user_id check would cause false positives
         const existingCertByName = await CertificateService.getCertificateByParticipantName(trimmedParticipantName, actualEventId);
         if (existingCertByName.error) {
-          console.error('[Job Processor] ❌ ERROR checking certificate by participant_name:', existingCertByName.error);
+          LoggerService.serviceError('CertificateJobProcessor', 'ERROR checking certificate by participant_name', undefined, { error: existingCertByName.error });
         } else if (existingCertByName.certificate) {
           existingCert = existingCertByName.certificate;
-          console.log('[Job Processor] ❌ DUPLICATE FOUND by participant_name:', {
+          LoggerService.serviceLog('CertificateJobProcessor', 'DUPLICATE FOUND by participant_name', {
             id: existingCert.id,
             certificate_number: existingCert.certificate_number,
-            participant_name_in_db: JSON.stringify(existingCert.participant_name),
-            searching_for: JSON.stringify(trimmedParticipantName),
+            participant_name_in_db: existingCert.participant_name,
+            searching_for: trimmedParticipantName,
             names_match: existingCert.participant_name === trimmedParticipantName,
             user_id: existingCert.user_id
           });
         } else {
-          console.log('[Job Processor] ✅ NO DUPLICATE - No certificate found by participant_name for:', JSON.stringify(trimmedParticipantName));
+          LoggerService.serviceLog('CertificateJobProcessor', 'NO DUPLICATE - No certificate found by participant_name', { participant: trimmedParticipantName });
         }
 
         // For manual entries: skip user_id check entirely since all manual entries share organizer's user_id
@@ -174,14 +179,14 @@ export class CertificateJobProcessor {
         // Only participant_name check is sufficient and correct
 
         if (existingCert) {
-          console.log('[Job Processor] Certificate already exists for this participant and event. Skipping generation to preserve certificate number uniqueness:', existingCert.id);
-          console.log('[Job Processor] Counter will NOT increment for duplicate certificates (this is correct behavior)');
+          LoggerService.serviceLog('CertificateJobProcessor', 'Certificate already exists for this participant and event. Skipping generation to preserve certificate number uniqueness', { certificateId: existingCert.id });
+          LoggerService.serviceLog('CertificateJobProcessor', 'Counter will NOT increment for duplicate certificates (this is correct behavior)');
           return {
             success: false,
             error: `Certificate already exists for this participant. Certificate number: ${existingCert.certificate_number}. Cannot create duplicate certificate.`
           };
         }
-        console.log('[Job Processor] No existing certificate found - proceeding with new certificate generation');
+        LoggerService.serviceLog('CertificateJobProcessor', 'No existing certificate found - proceeding with new certificate generation');
       }
 
       // Get certificate number (only if certificate doesn't exist)
@@ -197,10 +202,10 @@ export class CertificateJobProcessor {
           // For event-based certificates, get current count first (without incrementing)
           // We'll increment only after successful certificate save
           const eventIdForCounter = actualEventId || eventId;
-          console.log('[Job Processor] Getting current certificate count for event:', eventIdForCounter);
+          LoggerService.serviceLog('CertificateJobProcessor', 'Getting current certificate count for event', { eventId: eventIdForCounter });
           const countResult = await CertificateService.getCurrentCertificateCount(eventIdForCounter);
           if (countResult.error) {
-            console.error('[Job Processor] Failed to get certificate count:', countResult.error);
+            LoggerService.serviceError('CertificateJobProcessor', 'Failed to get certificate count', undefined, { error: countResult.error });
             return {
               success: false,
               error: `Failed to get certificate count: ${countResult.error}`
@@ -210,7 +215,11 @@ export class CertificateJobProcessor {
           const nextCount = currentCount + 1;
           const formattedNumber = String(nextCount).padStart(3, '0');
           certificateNumber = `${config.cert_id_prefix}-${formattedNumber}`;
-          console.log('[Job Processor] Current counter:', currentCount, '→ Next certificate number:', certificateNumber, '(counter will increment to', nextCount, 'after successful save)');
+          LoggerService.serviceLog('CertificateJobProcessor', 'Certificate number calculation', {
+            currentCount,
+            nextCount,
+            certificateNumber
+          });
         }
       } else {
         certificateNumber = CertificateService.generateCertificateNumber(eventId, userId);
@@ -223,16 +232,16 @@ export class CertificateJobProcessor {
           const eventResult = await EventService.getEventById(eventId);
           if (eventResult.event && eventResult.event.venue) {
             venue = eventResult.event.venue;
-            console.log('[Job Processor] Found venue:', venue);
+            LoggerService.serviceLog('CertificateJobProcessor', 'Found venue', { venue });
           }
         } catch (venueError) {
-          console.warn('[Job Processor] Could not fetch event venue:', venueError);
+          LoggerService.serviceWarn('CertificateJobProcessor', 'Could not fetch event venue', { error: venueError });
           // Continue without venue - will use fallback
         }
       }
 
       // Generate PNG first, then convert to PDF
-      console.log('[Job Processor] Generating PNG certificate...');
+      LoggerService.serviceLog('CertificateJobProcessor', 'Generating PNG certificate');
       let pdfBytes, pngBlob;
 
       // Prepare certificate data
@@ -246,13 +255,13 @@ export class CertificateJobProcessor {
       try {
         // First, generate the PNG certificate
         pngBlob = await generatePNGCertificate(config, certificateNumber, certificateData);
-        console.log('[Job Processor] PNG generated:', pngBlob ? `${pngBlob.size} bytes` : 'FAILED');
+        LoggerService.serviceLog('CertificateJobProcessor', 'PNG generated', { size: pngBlob ? `${pngBlob.size} bytes` : 'FAILED' });
 
         if (!pngBlob) {
           throw new Error('PNG generation returned null');
         }
       } catch (pngError: any) {
-        console.error('[Job Processor] PNG generation error:', pngError);
+        LoggerService.serviceError('CertificateJobProcessor', 'PNG generation error', pngError);
         return {
           success: false,
           error: `PNG generation failed: ${pngError.message || 'Unknown error'}`
@@ -261,13 +270,13 @@ export class CertificateJobProcessor {
 
       try {
         // Convert PNG to PDF
-        console.log('[Job Processor] Converting PNG to PDF...');
+        LoggerService.serviceLog('CertificateJobProcessor', 'Converting PNG to PDF');
         const width = config.width || 842;  // A4 landscape width in points
         const height = config.height || 595; // A4 landscape height in points
         pdfBytes = await convertPNGToPDF(pngBlob, width, height);
-        console.log('[Job Processor] PDF generated:', pdfBytes ? `${pdfBytes.length} bytes` : 'FAILED');
+        LoggerService.serviceLog('CertificateJobProcessor', 'PDF generated', { size: pdfBytes ? `${pdfBytes.length} bytes` : 'FAILED' });
       } catch (pdfError: any) {
-        console.error('[Job Processor] PDF conversion error:', pdfError);
+        LoggerService.serviceError('CertificateJobProcessor', 'PDF conversion error', pdfError);
         return {
           success: false,
           error: `PDF generation failed: ${pdfError.message || 'Unknown error'}`
@@ -276,7 +285,7 @@ export class CertificateJobProcessor {
 
       if (!pdfBytes || !pngBlob) {
         const errorMsg = `Failed to generate certificate files: PDF=${!!pdfBytes}, PNG=${!!pngBlob}`;
-        console.error('[Job Processor]', errorMsg);
+        LoggerService.serviceError('CertificateJobProcessor', errorMsg);
         return {
           success: false,
           error: errorMsg
@@ -284,7 +293,7 @@ export class CertificateJobProcessor {
       }
 
       // Upload files
-      console.log('[Job Processor] Uploading certificate files...');
+      LoggerService.serviceLog('CertificateJobProcessor', 'Uploading certificate files');
       const pdfFileName = `${certificateNumber}.pdf`;
       const pngFileName = `${certificateNumber}.png`;
       const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
@@ -295,9 +304,12 @@ export class CertificateJobProcessor {
           CertificateService.uploadCertificateFile(pdfBlob, pdfFileName, 'pdf', eventId, userId),
           CertificateService.uploadCertificateFile(pngBlob, pngFileName, 'png', eventId, userId)
         ]);
-        console.log('[Job Processor] Upload results - PDF:', pdfResult.error ? 'FAILED' : 'SUCCESS', 'PNG:', pngResult.error ? 'FAILED' : 'SUCCESS');
+        LoggerService.serviceLog('CertificateJobProcessor', 'Upload results', {
+          pdf: pdfResult.error ? 'FAILED' : 'SUCCESS',
+          png: pngResult.error ? 'FAILED' : 'SUCCESS'
+        });
       } catch (uploadError: any) {
-        console.error('[Job Processor] Upload error:', uploadError);
+        LoggerService.serviceError('CertificateJobProcessor', 'Upload error', uploadError);
         return {
           success: false,
           error: `Upload failed: ${uploadError.message || 'Unknown error'}`
@@ -306,7 +318,7 @@ export class CertificateJobProcessor {
 
       if (pdfResult.error || pngResult.error) {
         const errorMsg = pdfResult.error || pngResult.error || 'Failed to upload certificate files';
-        console.error('[Job Processor] Upload failed:', errorMsg);
+        LoggerService.serviceError('CertificateJobProcessor', 'Upload failed', undefined, { errorMsg });
         return {
           success: false,
           error: errorMsg
@@ -314,7 +326,7 @@ export class CertificateJobProcessor {
       }
 
       // Save to database
-      console.log('[Job Processor] Saving certificate to database with:', {
+      LoggerService.serviceLog('CertificateJobProcessor', 'Saving certificate to database', {
         event_id: actualEventId,
         template_id: templateId,
         certificate_number: certificateNumber,
@@ -334,8 +346,7 @@ export class CertificateJobProcessor {
       });
 
       if (saveResult.error) {
-        console.error('[Job Processor] Failed to save certificate:', saveResult.error);
-        console.error('[Job Processor] Save result details:', saveResult);
+        LoggerService.serviceError('CertificateJobProcessor', 'Failed to save certificate', undefined, { error: saveResult.error, details: saveResult });
         return {
           success: false,
           error: `Failed to save certificate: ${saveResult.error}`
@@ -343,31 +354,31 @@ export class CertificateJobProcessor {
       }
 
       if (!saveResult.certificate) {
-        console.error('[Job Processor] Certificate save returned no certificate object');
+        LoggerService.serviceError('CertificateJobProcessor', 'Certificate save returned no certificate object');
         return {
           success: false,
           error: 'Certificate save completed but no certificate was returned'
         };
       }
 
-      console.log('[Job Processor] Certificate saved successfully with ID:', saveResult.certificate.id);
+      LoggerService.serviceLog('CertificateJobProcessor', 'Certificate saved successfully', { certificateId: saveResult.certificate.id });
 
       // Increment certificate counter ONLY after successful save
       // This ensures the counter only increments when a certificate is actually created
       if (eventId !== 'standalone' && actualEventId && config.cert_id_prefix) {
-        console.log('[Job Processor] Incrementing certificate counter for event:', actualEventId);
+        LoggerService.serviceLog('CertificateJobProcessor', 'Incrementing certificate counter for event', { eventId: actualEventId });
         const incrementResult = await CertificateService.incrementCertificateCounter(actualEventId);
         if (incrementResult.error) {
-          console.warn('[Job Processor] Failed to increment certificate counter after save:', incrementResult.error);
+          LoggerService.serviceWarn('CertificateJobProcessor', 'Failed to increment certificate counter after save', { error: incrementResult.error });
           // Don't fail the job if counter increment fails - certificate was saved successfully
         } else {
           // Verify the counter was incremented
           const verifyResult = await CertificateService.getCurrentCertificateCount(actualEventId);
-          console.log('[Job Processor] ✅ Certificate counter incremented successfully. Current counter value:', verifyResult.count || 'unknown');
+          LoggerService.serviceLog('CertificateJobProcessor', 'Certificate counter incremented successfully', { count: verifyResult.count || 'unknown' });
         }
       }
 
-      console.log('[Job Processor] Certificate generation completed successfully:', {
+      LoggerService.serviceLog('CertificateJobProcessor', 'Certificate generation completed successfully', {
         certificateNumber,
         pdfUrl: pdfResult.url,
         pngUrl: pngResult.url
@@ -388,7 +399,7 @@ export class CertificateJobProcessor {
           }
         );
       } catch (notifError) {
-        console.error('[Job Processor] Failed to send certificate ready notification:', notifError);
+        LoggerService.serviceError('CertificateJobProcessor', 'Failed to send certificate ready notification', notifError);
         // Don't fail the job if notification fails
       }
 
@@ -399,7 +410,7 @@ export class CertificateJobProcessor {
         pngUrl: pngResult.url
       };
     } catch (error: any) {
-      console.error('[Job Processor] Unexpected error:', error);
+      LoggerService.serviceError('CertificateJobProcessor', 'Unexpected error', error);
       return {
         success: false,
         error: error.message || 'Failed to process certificate job'
@@ -433,7 +444,7 @@ export class CertificateJobProcessor {
 
       // Ensure job has an ID
       if (!job.id) {
-        console.error('[Job Processor] Job missing ID:', job);
+        LoggerService.serviceError('CertificateJobProcessor', 'Job missing ID', undefined, { job });
         failed++;
         continue;
       }
@@ -443,13 +454,13 @@ export class CertificateJobProcessor {
 
       try {
         if (job.job_type === 'certificate_generation') {
-          console.log(`[Job Processor] Processing job ${jobId}...`);
+          LoggerService.serviceLog('CertificateJobProcessor', `Processing job ${jobId}`);
           const result = await this.processCertificateJob(
             job.job_data as CertificateGenerationJobData
           );
 
           if (result.success) {
-            console.log(`[Job Processor] Job ${jobId} completed successfully`);
+            LoggerService.serviceLog('CertificateJobProcessor', `Job ${jobId} completed successfully`);
             const completeResult = await JobQueueService.completeJob(jobId, {
               certificateNumber: result.certificateNumber,
               pdfUrl: result.pdfUrl,
@@ -457,7 +468,7 @@ export class CertificateJobProcessor {
             });
 
             if (completeResult.error) {
-              console.error(`[Job Processor] Failed to mark job ${jobId} as complete:`, completeResult.error);
+              LoggerService.serviceError('CertificateJobProcessor', `Failed to mark job ${jobId} as complete`, undefined, { error: completeResult.error });
               // Try direct update as fallback
               await this.updateJobStatusDirectly(jobId, 'completed', {
                 certificateNumber: result.certificateNumber,
@@ -467,64 +478,64 @@ export class CertificateJobProcessor {
             }
             succeeded++;
           } else {
-            console.error(`[Job Processor] Job ${jobId} failed:`, result.error);
+            LoggerService.serviceError('CertificateJobProcessor', `Job ${jobId} failed`, undefined, { error: result.error });
             const failResult = await JobQueueService.failJob(jobId, result.error || 'Unknown error');
             if (failResult.error) {
-              console.error(`[Job Processor] Failed to mark job ${jobId} as failed:`, failResult.error);
+              LoggerService.serviceError('CertificateJobProcessor', `Failed to mark job ${jobId} as failed`, undefined, { error: failResult.error });
               await this.updateJobStatusDirectly(jobId, 'failed', null, result.error || 'Unknown error');
             }
             failed++;
           }
         } else if (job.job_type === 'bulk_notification') {
-          console.log(`[Job Processor] Processing bulk notification job ${jobId}...`);
+          LoggerService.serviceLog('CertificateJobProcessor', `Processing bulk notification job ${jobId}`);
           const result = await NotificationJobProcessor.processBulkNotificationJob(
             job.job_data as any
           );
 
           if (result.success) {
-            console.log(`[Job Processor] Bulk notification job ${jobId} completed successfully`);
+            LoggerService.serviceLog('CertificateJobProcessor', `Bulk notification job ${jobId} completed successfully`);
             const completeResult = await JobQueueService.completeJob(jobId, {
               sent: result.sent
             });
 
             if (completeResult.error) {
-              console.error(`[Job Processor] Failed to mark job ${jobId} as complete:`, completeResult.error);
+              LoggerService.serviceError('CertificateJobProcessor', `Failed to mark job ${jobId} as complete`, undefined, { error: completeResult.error });
             }
             succeeded++;
           } else {
-            console.error(`[Job Processor] Bulk notification job ${jobId} failed:`, result.error);
+            LoggerService.serviceError('CertificateJobProcessor', `Bulk notification job ${jobId} failed`, undefined, { error: result.error });
             const failResult = await JobQueueService.failJob(jobId, result.error || 'Unknown error');
             if (failResult.error) {
-              console.error(`[Job Processor] Failed to mark job ${jobId} as failed:`, failResult.error);
+              LoggerService.serviceError('CertificateJobProcessor', `Failed to mark job ${jobId} as failed`, undefined, { error: failResult.error });
             }
             failed++;
           }
         } else if (job.job_type === 'single_notification') {
-          console.log(`[Job Processor] Processing single notification job ${jobId}...`);
+          LoggerService.serviceLog('CertificateJobProcessor', `Processing single notification job ${jobId}`);
           const result = await NotificationJobProcessor.processSingleNotificationJob(
             job.job_data as any
           );
 
           if (result.success) {
-            console.log(`[Job Processor] Single notification job ${jobId} completed successfully`);
+            LoggerService.serviceLog('CertificateJobProcessor', `Single notification job ${jobId} completed successfully`);
             const completeResult = await JobQueueService.completeJob(jobId, {
               notificationId: result.notificationId
             });
 
             if (completeResult.error) {
-              console.error(`[Job Processor] Failed to mark job ${jobId} as complete:`, completeResult.error);
+              LoggerService.serviceError('CertificateJobProcessor', `Failed to mark job ${jobId} as complete`, undefined, { error: completeResult.error });
             }
             succeeded++;
           } else {
-            console.error(`[Job Processor] Single notification job ${jobId} failed:`, result.error);
+            LoggerService.serviceError('CertificateJobProcessor', `Single notification job ${jobId} failed`, undefined, { error: result.error });
             const failResult = await JobQueueService.failJob(jobId, result.error || 'Unknown error');
             if (failResult.error) {
-              console.error(`[Job Processor] Failed to mark job ${jobId} as failed:`, failResult.error);
+              LoggerService.serviceError('CertificateJobProcessor', `Failed to mark job ${jobId} as failed`, undefined, { error: failResult.error });
             }
             failed++;
           }
         } else {
-          console.error(`[Job Processor] Unknown job type: ${job.job_type}`);
+          LoggerService.serviceError('CertificateJobProcessor', `Unknown job type: ${job.job_type}`);
           const failResult = await JobQueueService.failJob(jobId, `Unknown job type: ${job.job_type}`);
           if (failResult.error) {
             await this.updateJobStatusDirectly(jobId, 'failed', null, `Unknown job type: ${job.job_type}`);
@@ -532,7 +543,7 @@ export class CertificateJobProcessor {
           failed++;
         }
       } catch (error: any) {
-        console.error(`[Job Processor] Exception processing job ${jobId}:`, error);
+        LoggerService.serviceError('CertificateJobProcessor', `Exception processing job ${jobId}`, error);
         const failResult = await JobQueueService.failJob(jobId, error.message || 'Processing error');
         if (failResult.error) {
           await this.updateJobStatusDirectly(jobId, 'failed', null, error.message || 'Processing error');
@@ -574,12 +585,12 @@ export class CertificateJobProcessor {
         .eq('id', jobId);
 
       if (error) {
-        console.error(`[Job Processor] Direct update failed for job ${jobId}:`, error);
+        LoggerService.serviceError('CertificateJobProcessor', `Direct update failed for job ${jobId}`, error);
       } else {
-        console.log(`[Job Processor] Direct update succeeded for job ${jobId}`);
+        LoggerService.serviceLog('CertificateJobProcessor', `Direct update succeeded for job ${jobId}`);
       }
     } catch (err: any) {
-      console.error(`[Job Processor] Exception in direct update for job ${jobId}:`, err);
+      LoggerService.serviceError('CertificateJobProcessor', `Exception in direct update for job ${jobId}`, err);
     }
   }
 }

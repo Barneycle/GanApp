@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabaseClient';
 import { logActivity } from '../utils/activityLogger';
 import { EmailService } from './emailService';
 import { NotificationService } from './notificationService';
+import { LoggerService } from './loggerService';
 
 export interface AdminUser {
   id: string;
@@ -178,12 +179,12 @@ export class AdminService {
             resourceName: userName,
             details: { user_id: userId, action: 'ban', banned_until: banUntil.toISOString(), reason }
           }
-        ).catch(err => console.error('Failed to log user ban:', err));
+        ).catch(err => LoggerService.serviceError('AdminService', 'Failed to log user ban', err));
 
         // Send email notification
         if (userEmail) {
           EmailService.sendBanEmail(userEmail, userName, banUntil, reason).catch(err =>
-            console.error('Failed to send ban email:', err)
+            LoggerService.serviceError('AdminService', 'Failed to send ban email', err)
           );
 
           // Also create an in-app notification
@@ -193,11 +194,11 @@ export class AdminService {
             `Your account has been suspended${banUntil.getTime() > new Date('2099-12-31').getTime() ? ' permanently' : ` until ${banUntil.toLocaleDateString()}`}.${reason ? ` Reason: ${reason}` : ''}`,
             'error',
             { priority: 'urgent' }
-          ).catch(err => console.error('Failed to create ban notification:', err));
+          ).catch(err => LoggerService.serviceError('AdminService', 'Failed to create ban notification', err));
         }
       } catch (logErr) {
         // Don't fail the ban operation if logging/email fails
-        console.error('Failed to fetch user for logging/email:', logErr);
+        LoggerService.serviceError('AdminService', 'Failed to fetch user for logging/email', logErr);
       }
 
       return { success: true };
@@ -259,12 +260,12 @@ export class AdminService {
             resourceName: userName,
             details: { user_id: userId, action: 'unban' }
           }
-        ).catch(err => console.error('Failed to log user unban:', err));
+        ).catch(err => LoggerService.serviceError('AdminService', 'Failed to log user unban', err));
 
         // Send email notification
         if (userEmail) {
           EmailService.sendUnbanEmail(userEmail, userName).catch(err =>
-            console.error('Failed to send unban email:', err)
+            LoggerService.serviceError('AdminService', 'Failed to send unban email', err)
           );
 
           // Also create an in-app notification
@@ -274,11 +275,11 @@ export class AdminService {
             'Your account suspension has been lifted. You can now access your account and use all GanApp services.',
             'success',
             { priority: 'high' }
-          ).catch(err => console.error('Failed to create unban notification:', err));
+          ).catch(err => LoggerService.serviceError('AdminService', 'Failed to create unban notification', err));
         }
       } catch (logErr) {
         // Don't fail the unban operation if logging/email fails
-        console.error('Failed to fetch user for logging/email:', logErr);
+        LoggerService.serviceError('AdminService', 'Failed to fetch user for logging/email', logErr);
       }
 
       return { success: true };
@@ -338,7 +339,7 @@ export class AdminService {
             resourceName: userName,
             details: { user_id: userId, action: 'change_role', new_role: newRole }
           }
-        ).catch(err => console.error('Failed to log role change:', err));
+        ).catch(err => LoggerService.serviceError('AdminService', 'Failed to log role change', err));
 
         // Send notification to user about role change
         NotificationService.createNotification(
@@ -349,10 +350,10 @@ export class AdminService {
           {
             priority: 'normal'
           }
-        ).catch(err => console.error('Failed to create role change notification:', err));
+        ).catch(err => LoggerService.serviceError('AdminService', 'Failed to create role change notification', err));
       } catch (logErr) {
         // Don't fail the role change operation if logging fails
-        console.error('Failed to fetch user for logging:', logErr);
+        LoggerService.serviceError('AdminService', 'Failed to fetch user for logging', logErr);
       }
 
       return { success: true };
@@ -408,7 +409,7 @@ export class AdminService {
             resourceName: userName,
             details: { user_id: userId, action: 'unarchive', email: data.email }
           }
-        ).catch(err => console.error('Failed to log user unarchive:', err));
+        ).catch(err => LoggerService.serviceError('AdminService', 'Failed to log user unarchive', err));
 
         // Send notification to user about account restoration
         NotificationService.createNotification(
@@ -419,9 +420,9 @@ export class AdminService {
           {
             priority: 'high'
           }
-        ).catch(err => console.error('Failed to create unarchive notification:', err));
+        ).catch(err => LoggerService.serviceError('AdminService', 'Failed to create unarchive notification', err));
       } catch (logErr) {
-        console.error('Failed to log user unarchive:', logErr);
+        LoggerService.serviceError('AdminService', 'Failed to log user unarchive', logErr);
       }
 
       return { success: true };
@@ -477,7 +478,7 @@ export class AdminService {
             resourceName: userName,
             details: { user_id: userId, action: 'archive', reason }
           }
-        ).catch(err => console.error('Failed to log user archive:', err));
+        ).catch(err => LoggerService.serviceError('AdminService', 'Failed to log user archive', err));
 
         // Send notification to user about account archive
         NotificationService.createNotification(
@@ -488,10 +489,10 @@ export class AdminService {
           {
             priority: 'high'
           }
-        ).catch(err => console.error('Failed to create archive notification:', err));
+        ).catch(err => LoggerService.serviceError('AdminService', 'Failed to create archive notification', err));
       } catch (logErr) {
         // Don't fail the archive operation if logging fails
-        console.error('Failed to fetch user for logging:', logErr);
+        LoggerService.serviceError('AdminService', 'Failed to fetch user for logging', logErr);
       }
 
       return { success: true };
@@ -514,7 +515,7 @@ export class AdminService {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('[AdminService.getAllEvents] Error fetching events:', error);
+        LoggerService.serviceError('AdminService', 'Error fetching events', error);
         return { error: error.message };
       }
 
@@ -524,11 +525,11 @@ export class AdminService {
         current_participants: event.current_participants ?? 0
       }));
 
-      console.log(`[AdminService.getAllEvents] Fetched ${events.length} events (including ${events.filter(e => e.status === 'cancelled').length} cancelled)`);
+      LoggerService.serviceLog('AdminService', `Fetched ${events.length} events (including ${events.filter(e => e.status === 'cancelled').length} cancelled)`);
 
       return { events };
     } catch (error) {
-      console.error('[AdminService.getAllEvents] Exception:', error);
+      LoggerService.serviceError('AdminService', 'Exception in getAllEvents', error);
       return { error: 'An unexpected error occurred' };
     }
   }
@@ -669,7 +670,7 @@ export class AdminService {
         .order('requested_at', { ascending: false });
 
       if (requestsError) {
-        console.error('Error fetching cancellation requests:', requestsError);
+        LoggerService.serviceError('AdminService', 'Error fetching cancellation requests', requestsError);
         return { error: requestsError.message };
       }
 
@@ -687,7 +688,7 @@ export class AdminService {
         .in('id', eventIds);
 
       if (eventsError) {
-        console.error('Error fetching events:', eventsError);
+        LoggerService.serviceError('AdminService', 'Error fetching events', eventsError);
         // Continue even if events fetch fails - we'll use 'Unknown Event'
       }
 
@@ -709,7 +710,7 @@ export class AdminService {
 
       return { requests };
     } catch (error) {
-      console.error('Exception in getCancellationRequests:', error);
+      LoggerService.serviceError('AdminService', 'Exception in getCancellationRequests', error);
       return { error: 'An unexpected error occurred' };
     }
   }
@@ -771,7 +772,7 @@ export class AdminService {
             action_text: 'View Event',
             priority: 'high'
           }
-        ).catch(err => console.error('Failed to send cancellation review notification:', err));
+        ).catch(err => LoggerService.serviceError('AdminService', 'Failed to send cancellation review notification', err));
       }
 
       return { success: true };
@@ -910,12 +911,12 @@ export class AdminService {
           event,
           total_registrations: registrations?.length || 0,
           total_attendance: attendance?.length || 0,
-          attendance_rate: registrations?.length > 0
+          attendance_rate: registrations && registrations.length > 0
             ? ((attendance?.length || 0) / registrations.length * 100).toFixed(2) + '%'
             : '0%',
           total_surveys: surveys?.length || 0,
           total_responses: responses?.length || 0,
-          response_rate: surveys?.length > 0
+          response_rate: surveys && surveys.length > 0
             ? ((responses?.length || 0) / surveys.length * 100).toFixed(2) + '%'
             : '0%',
           total_certificates: certificates?.length || 0
@@ -1038,7 +1039,7 @@ export class AdminService {
           resourceName: email,
           details: { user_id: authData.user.id, email, role, created_by: currentUser.id }
         }
-      ).catch(err => console.error('Failed to log user creation:', err));
+      ).catch(err => LoggerService.serviceError('AdminService', 'Failed to log user creation', err));
 
       return { success: true, userId: authData.user.id };
     } catch (error) {
@@ -1078,7 +1079,7 @@ export class AdminService {
           targetUserEmail = userData.email || '';
         }
       } catch (error) {
-        console.error('Error fetching user profile:', error);
+        LoggerService.serviceError('AdminService', 'Error fetching user profile', error);
       }
 
       // Use RPC function to update user metadata
@@ -1117,7 +1118,7 @@ export class AdminService {
           resourceName: userName,
           details: { user_id: userId, email: targetUserEmail, updates: Object.keys(updates) }
         }
-      ).catch(err => console.error('Failed to log user update:', err));
+      ).catch(err => LoggerService.serviceError('AdminService', 'Failed to log user update', err));
 
       return { success: true };
     } catch (error) {
@@ -1220,7 +1221,7 @@ export class AdminService {
 
       // Trigger immediate processing
       NotificationJobProcessor.processPendingJobs().catch(err =>
-        console.error('Failed to process notification jobs:', err)
+        LoggerService.serviceError('AdminService', 'Failed to process notification jobs', err)
       );
 
       return { success: true, queued: true, jobId: jobResult.job.id };

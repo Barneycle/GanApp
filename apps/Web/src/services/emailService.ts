@@ -1,3 +1,5 @@
+import { LoggerService } from './loggerService';
+
 export class EmailService {
   /**
    * Send email to a user using Resend API
@@ -14,7 +16,7 @@ export class EmailService {
       const fromEmail = import.meta.env.VITE_RESEND_FROM_EMAIL || 'noreply@ganapp.com';
 
       if (!resendApiKey) {
-        console.warn('Resend API key not found. Email will not be sent.');
+        LoggerService.warn('Resend API key not found. Email will not be sent.');
         return { error: 'Email service not configured. Please set VITE_RESEND_API_KEY in your environment variables.' };
       }
 
@@ -37,13 +39,13 @@ export class EmailService {
       const data = await response.json();
 
       if (!response.ok) {
-        console.error('Resend API error:', data);
+        LoggerService.error('Resend API error', data);
         return { error: data.message || `Failed to send email: ${response.statusText}` };
       }
 
       return { success: true };
     } catch (error) {
-      console.error('Email sending error:', error);
+      LoggerService.error('Email sending error', error);
       return { error: error instanceof Error ? error.message : 'Failed to send email' };
     }
   }

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { logActivity, createActivityDetails } from '../utils/activityLogger';
 
 export interface User {
   id: string;
@@ -295,6 +296,22 @@ export class UserService {
       // Get current user to preserve existing metadata
       const { data: { user: currentUser } } = await supabase.auth.getUser();
 
+      // Store old user data for activity logging
+      const oldUserData: User | null = currentUser ? {
+        id: currentUser.id,
+        email: currentUser.email || '',
+        role: currentUser.user_metadata?.role || 'participant',
+        prefix: currentUser.user_metadata?.prefix || '',
+        first_name: currentUser.user_metadata?.first_name || '',
+        middle_initial: currentUser.user_metadata?.middle_initial || '',
+        last_name: currentUser.user_metadata?.last_name || '',
+        affix: currentUser.user_metadata?.affix || '',
+        avatar_url: currentUser.user_metadata?.avatar_url || '',
+        affiliated_organization: currentUser.user_metadata?.affiliated_organization || '',
+        created_at: currentUser.created_at,
+        updated_at: currentUser.updated_at || currentUser.created_at
+      } : null;
+
       // Prepare update object for metadata - preserve existing values
       const updateData: any = {
         ...(currentUser?.user_metadata || {}), // Preserve existing metadata
@@ -362,6 +379,24 @@ export class UserService {
           created_at: data.user.created_at,
           updated_at: data.user.updated_at || data.user.created_at
         };
+
+        // Log activity
+        if (oldUserData) {
+          const changedFields = Object.keys(updates).filter(key => {
+            const updateKey = key as keyof User;
+            return updates[updateKey] !== undefined && updates[updateKey] !== oldUserData[updateKey];
+          });
+          logActivity(
+            userId,
+            'update',
+            'user',
+            {
+              resourceId: userData.id,
+              resourceName: `${userData.first_name} ${userData.last_name}`.trim() || userData.email,
+              details: createActivityDetails(oldUserData, userData, changedFields)
+            }
+          ).catch(err => console.error('Failed to log user profile update:', err));
+        }
 
         // Check if email confirmation is needed
         // If email was changed and data.user.email matches the new email, confirmation was NOT needed (email updated immediately)

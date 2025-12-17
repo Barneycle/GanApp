@@ -129,12 +129,56 @@ export const BulkQRCodeGenerator = ({ isOpen, onClose, event }) => {
       throw new Error('Participant ID not found');
     }
 
-    // Check if QR code already exists - if so, reuse it
+    // First check local state
     const existingQR = qrCodes[participantId];
     if (existingQR && existingQR.qrUrl) {
       return existingQR;
     }
 
+    // Check database for existing QR code for this participant+event combination
+    const { data: existingQRs, error: fetchError } = await supabase
+      .from('qr_codes')
+      .select('*')
+      .eq('event_id', event.id)
+      .eq('code_type', 'event_checkin')
+      .eq('owner_id', participantId)
+      .limit(1);
+
+    if (fetchError) {
+      console.error('Error checking for existing QR code:', fetchError);
+      // Continue to create new one if check fails
+    }
+
+    const existingQRFromDB = existingQRs && existingQRs.length > 0 ? existingQRs[0] : null;
+
+    if (existingQRFromDB) {
+      // Reuse existing QR code - ensure it has proper format
+      const qrData = existingQRFromDB.qr_data || {};
+      const qrCodeData = JSON.stringify(qrData);
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=1e3a8a&data=${encodeURIComponent(qrCodeData)}`;
+
+      // Ensure token is 8 characters
+      let finalToken = existingQRFromDB.qr_token;
+      if (!finalToken || finalToken.length !== 8) {
+        // If token is invalid, generate new one but keep the same QR code record
+        finalToken = generateQRCodeID();
+        await supabase
+          .from('qr_codes')
+          .update({ qr_token: finalToken })
+          .eq('id', existingQRFromDB.id);
+      }
+
+      return {
+        ...existingQRFromDB,
+        qrUrl,
+        qrToken: finalToken,
+        participantId,
+        participantName: qrData.participantName || participantUser.first_name || 'Participant',
+        participantEmail: qrData.participantEmail || participantUser.email
+      };
+    }
+
+    // No existing QR code found - create new one
     const participantName = `${participantUser.first_name || ''} ${participantUser.last_name || ''}`.trim() || participantUser.email || 'Participant';
     const eventDays = calculateEventDays();
 
@@ -184,7 +228,35 @@ export const BulkQRCodeGenerator = ({ isOpen, onClose, event }) => {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      // If insert fails due to unique constraint, try to fetch existing one
+      if (error.code === '23505') { // Unique violation
+        const { data: existingQRs2 } = await supabase
+          .from('qr_codes')
+          .select('*')
+          .eq('event_id', event.id)
+          .eq('code_type', 'event_checkin')
+          .eq('owner_id', participantId)
+          .limit(1);
+
+        if (existingQRs2 && existingQRs2.length > 0) {
+          const existingQRFromDB2 = existingQRs2[0];
+          const qrData2 = existingQRFromDB2.qr_data || qrData;
+          const qrCodeData2 = JSON.stringify(qrData2);
+          const qrUrl2 = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=1e3a8a&data=${encodeURIComponent(qrCodeData2)}`;
+
+          return {
+            ...existingQRFromDB2,
+            qrUrl: qrUrl2,
+            qrToken: existingQRFromDB2.qr_token || qrCodeID,
+            participantId,
+            participantName,
+            participantEmail: participantUser.email
+          };
+        }
+      }
+      throw error;
+    }
 
     // Generate QR code URL
     const qrCodeData = JSON.stringify(qrData);

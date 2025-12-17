@@ -9,6 +9,7 @@ export const DesignCertificate = () => {
   const { user, isAuthenticated } = useAuth();
   const toast = useToast();
   const [pendingEventData, setPendingEventData] = useState(null);
+  const [hasDraft, setHasDraft] = useState(false);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -27,6 +28,32 @@ export const DesignCertificate = () => {
     }
 
     setPendingEventData(JSON.parse(eventData));
+
+    // Check if there's a saved draft
+    const checkDraft = () => {
+      const draftConfig = sessionStorage.getItem('pending-certificate-config');
+      if (draftConfig) {
+        try {
+          const config = JSON.parse(draftConfig);
+          // Check if config has meaningful content
+          if (config && (config.title_text || config.name_config || config.header_config)) {
+            setHasDraft(true);
+            return;
+          }
+        } catch (e) {
+          // Invalid draft, ignore
+        }
+      }
+      setHasDraft(false);
+    };
+
+    // Check initially
+    checkDraft();
+
+    // Set up interval to check for draft updates (for auto-save)
+    const interval = setInterval(checkDraft, 1000);
+
+    return () => clearInterval(interval);
   }, [isAuthenticated, navigate, toast]);
 
   const handleContinue = () => {
@@ -93,21 +120,27 @@ export const DesignCertificate = () => {
                 </div>
 
                 {/* Connector Line */}
-                <div className="hidden sm:block w-16 h-0.5 bg-green-500"></div>
+                <div className={`hidden sm:block w-16 h-0.5 ${hasDraft ? 'bg-green-500' : 'bg-green-500'}`}></div>
 
-                {/* Step 2: Design Certificate - Current Step */}
+                {/* Step 2: Design Certificate - Current Step or Completed */}
                 <div className="flex flex-col items-center">
-                  <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-lg">
-                    2
+                  <div className={`w-12 h-12 rounded-full ${hasDraft ? 'bg-green-500' : 'bg-blue-600'} text-white flex items-center justify-center font-bold text-lg shadow-lg`}>
+                    {hasDraft ? (
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      '2'
+                    )}
                   </div>
                   <div className="mt-2 text-center">
-                    <p className="text-sm font-semibold text-blue-600">Design Certificate</p>
-                    <p className="text-xs text-slate-500 mt-1">Current Step</p>
+                    <p className={`text-sm font-semibold ${hasDraft ? 'text-green-600' : 'text-blue-600'}`}>Design Certificate</p>
+                    <p className="text-xs text-slate-500 mt-1">{hasDraft ? 'Completed' : 'Current Step'}</p>
                   </div>
                 </div>
 
                 {/* Connector Line */}
-                <div className="hidden sm:block w-16 h-0.5 bg-slate-300"></div>
+                <div className={`hidden sm:block w-16 h-0.5 ${hasDraft ? 'bg-green-500' : 'bg-slate-300'}`}></div>
 
                 {/* Step 3: Create Evaluation - Next Step */}
                 <div className="flex flex-col items-center">
@@ -131,6 +164,7 @@ export const DesignCertificate = () => {
             draftStorageKey="pending-certificate-config"
             onSave={(config) => {
               // Config is automatically saved to sessionStorage in draft mode
+              setHasDraft(true);
               toast.success('Certificate configuration saved!');
             }}
           />

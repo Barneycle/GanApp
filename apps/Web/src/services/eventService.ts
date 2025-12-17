@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
-import { logActivity } from '../utils/activityLogger';
+import { logActivity, createActivityDetails } from '../utils/activityLogger';
 import { CacheService } from './cacheService';
 
 export interface Event {
@@ -148,6 +148,13 @@ export class EventService {
 
   static async updateEvent(id: string, updates: Partial<Event>): Promise<{ event?: Event; error?: string }> {
     try {
+      // Get old event data for activity logging
+      const { data: oldEvent } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', id)
+        .single();
+
       const { data, error } = await supabase
         .from('events')
         .update(updates)
@@ -157,6 +164,21 @@ export class EventService {
 
       if (error) {
         return { error: error.message };
+      }
+
+      // Log activity
+      if (data && oldEvent) {
+        const changedFields = Object.keys(updates).filter(key => updates[key as keyof Event] !== oldEvent[key as keyof Event]);
+        logActivity(
+          data.created_by || oldEvent.created_by,
+          'update',
+          'event',
+          {
+            resourceId: data.id,
+            resourceName: data.title || 'Untitled Event',
+            details: createActivityDetails(oldEvent, data, changedFields)
+          }
+        ).catch(err => console.error('Failed to log event update:', err));
       }
 
       // Invalidate cache
@@ -171,6 +193,13 @@ export class EventService {
 
   static async deleteEvent(id: string): Promise<{ error?: string }> {
     try {
+      // Get event data before deletion for activity logging
+      const { data: oldEvent } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', id)
+        .single();
+
       const { error } = await supabase
         .from('events')
         .delete()
@@ -178,6 +207,20 @@ export class EventService {
 
       if (error) {
         return { error: error.message };
+      }
+
+      // Log activity
+      if (oldEvent) {
+        logActivity(
+          oldEvent.created_by,
+          'delete',
+          'event',
+          {
+            resourceId: oldEvent.id,
+            resourceName: oldEvent.title || 'Untitled Event',
+            details: createActivityDetails(oldEvent, null)
+          }
+        ).catch(err => console.error('Failed to log event deletion:', err));
       }
 
       // Invalidate cache

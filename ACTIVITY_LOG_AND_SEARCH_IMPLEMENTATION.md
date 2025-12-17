@@ -115,29 +115,35 @@ await logActivity(userId, 'update', 'event', {
 });
 ```
 
-## Next Steps
+## Integration Status
 
-### Recommended Integrations
+### Completed Integrations ✅
 
 1. **Event Service** (`eventService.ts`):
-   - Log `create` when creating events
-   - Log `update` when updating events
-   - Log `delete` when deleting events
-   - Log `view` when viewing event details
+   - ✅ Log `create` when creating events
+   - ✅ Log `update` when updating events (with before/after details)
+   - ✅ Log `delete` when deleting events
+   - ✅ Log `create` when creating registrations
+   - ✅ Log `create` when creating check-ins
+   - ✅ Log `update` when updating check-ins
 
 2. **Survey Service** (`surveyService.ts`):
-   - Log `create` when creating surveys
-   - Log `update` when updating surveys
-   - Log `delete` when deleting surveys
-   - Log `view` when viewing survey details
+   - ✅ Log `create` when creating surveys
+   - ✅ Log `update` when updating surveys (with before/after details)
+   - ✅ Log `delete` when deleting surveys
 
 3. **Auth Context** (`AuthContext.jsx`):
-   - Log `login` when users sign in
-   - Log `logout` when users sign out
+   - ✅ Log `login` when users sign in
+   - ✅ Log `logout` when users sign out
 
 4. **User Service** (`userService.ts`):
-   - Log `update` when updating user profiles
-   - Log `view` when viewing user profiles
+   - ✅ Log `update` when updating user profiles (with before/after details)
+
+### Optional Future Integrations
+
+- Log `view` when viewing event details (may be too frequent)
+- Log `view` when viewing survey details (may be too frequent)
+- Log `view` when viewing user profiles (may be too frequent)
 
 ## Usage Examples
 

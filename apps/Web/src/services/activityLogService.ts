@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { LoggerService } from './loggerService';
 
 export interface ActivityLog {
   id: string;
@@ -66,16 +67,16 @@ export class ActivityLogService {
       if (error) {
         // Handle missing table/function error gracefully - don't fail the operation
         if (error.message?.includes('schema cache') || error.message?.includes('does not exist') || error.message?.includes('function') && error.message?.includes('log_activity')) {
-          console.warn('Activity logs table or function not found. Activity logging is disabled. Please run the database migration to create the activity_logs table.');
+          LoggerService.serviceWarn('ActivityLogService', 'Activity logs table or function not found. Activity logging is disabled. Please run the database migration to create the activity_logs table.');
           return { success: false, error: 'Activity logs table not found' };
         }
-        console.error('Error logging activity:', error);
+        LoggerService.serviceError('ActivityLogService', 'Error logging activity', error);
         return { success: false, error: error.message };
       }
 
       return { success: true, logId: data };
     } catch (error: any) {
-      console.error('Error in logActivity:', error);
+      LoggerService.serviceError('ActivityLogService', 'Error in logActivity', error);
       return { success: false, error: error.message || 'An unexpected error occurred' };
     }
   }
@@ -142,7 +143,7 @@ export class ActivityLogService {
           return { error: 'Permission denied. Please ensure RLS policies are correctly configured for the activity_logs table.' };
         }
         // Return the actual error for debugging
-        console.error('Activity logs query error:', error);
+        LoggerService.serviceError('ActivityLogService', 'Activity logs query error', error);
         return { error: error.message || 'Failed to load activity logs' };
       }
 
@@ -165,7 +166,7 @@ export class ActivityLogService {
           }
         } catch (err) {
           // RPC function might not exist, that's okay - just show user_id
-          console.warn('Failed to fetch user for activity log:', err);
+          LoggerService.serviceWarn('ActivityLogService', 'Failed to fetch user for activity log', { error: err });
         }
         // Fallback: return log with minimal user info
         return {
@@ -230,7 +231,7 @@ export class ActivityLogService {
           }
         } catch (err) {
           // RPC function might not exist, that's okay - just show user_id
-          console.warn('Failed to fetch user for activity log:', err);
+          LoggerService.serviceWarn('ActivityLogService', 'Failed to fetch user for activity log', { error: err });
         }
         // Fallback: return log with minimal user info
         return {

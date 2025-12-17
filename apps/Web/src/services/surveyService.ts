@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
-import { logActivity } from '../utils/activityLogger';
+import { logActivity, createActivityDetails } from '../utils/activityLogger';
 
 export interface Survey {
   id: string;
@@ -111,6 +111,13 @@ export class SurveyService {
 
   static async updateSurvey(id: string, updates: Partial<Survey>): Promise<{ survey?: Survey; error?: string }> {
     try {
+      // Get old survey data for activity logging
+      const { data: oldSurvey } = await supabase
+        .from('surveys')
+        .select('*')
+        .eq('id', id)
+        .single();
+
       const { data, error } = await supabase
         .from('surveys')
         .update(updates)
@@ -122,6 +129,21 @@ export class SurveyService {
         return { error: error.message };
       }
 
+      // Log activity
+      if (data && oldSurvey) {
+        const changedFields = Object.keys(updates).filter(key => updates[key as keyof Survey] !== oldSurvey[key as keyof Survey]);
+        logActivity(
+          data.created_by || oldSurvey.created_by,
+          'update',
+          'survey',
+          {
+            resourceId: data.id,
+            resourceName: data.title || 'Untitled Survey',
+            details: createActivityDetails(oldSurvey, data, changedFields)
+          }
+        ).catch(err => console.error('Failed to log survey update:', err));
+      }
+
       return { survey: data };
     } catch (error) {
       return { error: 'An unexpected error occurred' };
@@ -130,6 +152,13 @@ export class SurveyService {
 
   static async deleteSurvey(id: string): Promise<{ error?: string }> {
     try {
+      // Get survey data before deletion for activity logging
+      const { data: oldSurvey } = await supabase
+        .from('surveys')
+        .select('*')
+        .eq('id', id)
+        .single();
+
       const { error } = await supabase
         .from('surveys')
         .delete()
@@ -137,6 +166,20 @@ export class SurveyService {
 
       if (error) {
         return { error: error.message };
+      }
+
+      // Log activity
+      if (oldSurvey) {
+        logActivity(
+          oldSurvey.created_by,
+          'delete',
+          'survey',
+          {
+            resourceId: oldSurvey.id,
+            resourceName: oldSurvey.title || 'Untitled Survey',
+            details: createActivityDetails(oldSurvey, null)
+          }
+        ).catch(err => console.error('Failed to log survey deletion:', err));
       }
 
       return {};

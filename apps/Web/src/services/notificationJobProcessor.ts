@@ -6,6 +6,7 @@
 import { JobQueueService } from './jobQueueService';
 import { supabase } from '../lib/supabaseClient';
 import { logActivity } from '../utils/activityLogger';
+import { LoggerService } from './loggerService';
 
 export interface BulkNotificationJobData {
   userIds: string[];
@@ -45,7 +46,7 @@ export class NotificationJobProcessor {
     error?: string;
   }> {
     try {
-      console.log('[Notification Job Processor] Starting bulk notification job:', {
+      LoggerService.serviceLog('Notification Job Processor', 'Starting bulk notification job', {
         userIdsCount: jobData.userIds.length,
         title: jobData.title
       });
@@ -68,7 +69,7 @@ export class NotificationJobProcessor {
         .select();
 
       if (error) {
-        console.error('[Notification Job Processor] Failed to insert notifications:', error);
+        LoggerService.serviceError('Notification Job Processor', 'Failed to insert notifications', error);
         return {
           success: false,
           error: error.message
@@ -91,10 +92,10 @@ export class NotificationJobProcessor {
               sent: data?.length || 0
             }
           }
-        ).catch(err => console.error('Failed to log bulk notification:', err));
+        ).catch(err => LoggerService.serviceError('Notification Job Processor', 'Failed to log bulk notification', err));
       }
 
-      console.log('[Notification Job Processor] Bulk notification job completed successfully:', {
+      LoggerService.serviceLog('Notification Job Processor', 'Bulk notification job completed successfully', {
         sent: data?.length || 0
       });
 
@@ -103,7 +104,7 @@ export class NotificationJobProcessor {
         sent: data?.length || 0
       };
     } catch (error: any) {
-      console.error('[Notification Job Processor] Exception in processBulkNotificationJob:', error);
+      LoggerService.serviceError('Notification Job Processor', 'Exception in processBulkNotificationJob', error);
       return {
         success: false,
         error: error.message || 'An unexpected error occurred'
@@ -120,7 +121,7 @@ export class NotificationJobProcessor {
     error?: string;
   }> {
     try {
-      console.log('[Notification Job Processor] Starting single notification job:', {
+      LoggerService.serviceLog('Notification Job Processor', 'Starting single notification job', {
         userId: jobData.userId,
         title: jobData.title
       });
@@ -142,14 +143,14 @@ export class NotificationJobProcessor {
         .single();
 
       if (error) {
-        console.error('[Notification Job Processor] Failed to insert notification:', error);
+        LoggerService.serviceError('Notification Job Processor', 'Failed to insert notification', error);
         return {
           success: false,
           error: error.message
         };
       }
 
-      console.log('[Notification Job Processor] Single notification job completed successfully:', {
+      LoggerService.serviceLog('Notification Job Processor', 'Single notification job completed successfully', {
         notificationId: data?.id
       });
 
@@ -158,7 +159,7 @@ export class NotificationJobProcessor {
         notificationId: data?.id
       };
     } catch (error: any) {
-      console.error('[Notification Job Processor] Exception in processSingleNotificationJob:', error);
+      LoggerService.serviceError('Notification Job Processor', 'Exception in processSingleNotificationJob', error);
       return {
         success: false,
         error: error.message || 'An unexpected error occurred'
@@ -191,50 +192,50 @@ export class NotificationJobProcessor {
 
         try {
           if (job.job_type === 'bulk_notification') {
-            console.log(`[Notification Job Processor] Processing bulk notification job ${jobId}...`);
+            LoggerService.serviceLog('Notification Job Processor', `Processing bulk notification job ${jobId}...`);
             const result = await this.processBulkNotificationJob(
               job.job_data as BulkNotificationJobData
             );
 
             if (result.success) {
-              console.log(`[Notification Job Processor] Bulk notification job ${jobId} completed successfully`);
+              LoggerService.serviceLog('Notification Job Processor', `Bulk notification job ${jobId} completed successfully`);
               const completeResult = await JobQueueService.completeJob(jobId, {
                 sent: result.sent
               });
 
               if (completeResult.error) {
-                console.error(`[Notification Job Processor] Failed to mark job ${jobId} as complete:`, completeResult.error);
+                LoggerService.serviceError('Notification Job Processor', `Failed to mark job ${jobId} as complete`, completeResult.error);
               }
               succeeded++;
             } else {
-              console.error(`[Notification Job Processor] Bulk notification job ${jobId} failed:`, result.error);
+              LoggerService.serviceError('Notification Job Processor', `Bulk notification job ${jobId} failed`, undefined, { error: result.error });
               const failResult = await JobQueueService.failJob(jobId, result.error || 'Unknown error');
               if (failResult.error) {
-                console.error(`[Notification Job Processor] Failed to mark job ${jobId} as failed:`, failResult.error);
+                LoggerService.serviceError('Notification Job Processor', `Failed to mark job ${jobId} as failed`, failResult.error);
               }
               failed++;
             }
           } else if (job.job_type === 'single_notification') {
-            console.log(`[Notification Job Processor] Processing single notification job ${jobId}...`);
+            LoggerService.serviceLog('Notification Job Processor', `Processing single notification job ${jobId}...`);
             const result = await this.processSingleNotificationJob(
               job.job_data as SingleNotificationJobData
             );
 
             if (result.success) {
-              console.log(`[Notification Job Processor] Single notification job ${jobId} completed successfully`);
+              LoggerService.serviceLog('Notification Job Processor', `Single notification job ${jobId} completed successfully`);
               const completeResult = await JobQueueService.completeJob(jobId, {
                 notificationId: result.notificationId
               });
 
               if (completeResult.error) {
-                console.error(`[Notification Job Processor] Failed to mark job ${jobId} as complete:`, completeResult.error);
+                LoggerService.serviceError('Notification Job Processor', `Failed to mark job ${jobId} as complete`, completeResult.error);
               }
               succeeded++;
             } else {
-              console.error(`[Notification Job Processor] Single notification job ${jobId} failed:`, result.error);
+              LoggerService.serviceError('Notification Job Processor', `Single notification job ${jobId} failed`, undefined, { error: result.error });
               const failResult = await JobQueueService.failJob(jobId, result.error || 'Unknown error');
               if (failResult.error) {
-                console.error(`[Notification Job Processor] Failed to mark job ${jobId} as failed:`, failResult.error);
+                LoggerService.serviceError('Notification Job Processor', `Failed to mark job ${jobId} as failed`, failResult.error);
               }
               failed++;
             }
@@ -243,10 +244,10 @@ export class NotificationJobProcessor {
             continue;
           }
         } catch (error: any) {
-          console.error(`[Notification Job Processor] Exception processing job ${jobId}:`, error);
+          LoggerService.serviceError('Notification Job Processor', `Exception processing job ${jobId}`, error);
           const failResult = await JobQueueService.failJob(jobId, error.message || 'Processing error');
           if (failResult.error) {
-            console.error(`[Notification Job Processor] Failed to mark job ${jobId} as failed:`, failResult.error);
+            LoggerService.serviceError('Notification Job Processor', `Failed to mark job ${jobId} as failed`, failResult.error);
           }
           failed++;
         }
@@ -255,10 +256,10 @@ export class NotificationJobProcessor {
       }
 
       if (processed > 0) {
-        console.log(`[Notification Job Processor] Processed ${processed} jobs: ${succeeded} succeeded, ${failed} failed`);
+        LoggerService.serviceLog('Notification Job Processor', `Processed ${processed} jobs: ${succeeded} succeeded, ${failed} failed`);
       }
     } catch (error: any) {
-      console.error('[Notification Job Processor] Exception in processPendingJobs:', error);
+      LoggerService.serviceError('Notification Job Processor', 'Exception in processPendingJobs', error);
     }
 
     return { processed, succeeded, failed };
