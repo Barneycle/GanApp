@@ -228,7 +228,7 @@ export const MyCertificates = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-slate-800 mb-2">My Certificates</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-2">My Certificates</h1>
           <p className="text-slate-600">
             View and download your certificates for completed events
           </p>
@@ -305,7 +305,7 @@ export const MyCertificates = () => {
                   {/* Event Header */}
                   <button
                     onClick={() => toggleEventExpansion(event.id)}
-                    className="w-full p-6 flex items-center justify-between hover:bg-slate-50 transition-colors text-left"
+                    className="w-full p-4 sm:p-6 flex items-center justify-between hover:bg-slate-50 transition-colors text-left"
                   >
                     <div className="flex-1">
                       <h3 className="text-xl font-semibold text-slate-800 mb-1">
@@ -339,7 +339,7 @@ export const MyCertificates = () => {
 
                   {/* Certificates List */}
                   {isExpanded && (
-                    <div className="border-t border-slate-200 p-6">
+                    <div className="border-t border-slate-200 p-4 sm:p-6">
                       {viewMode === 'grid' ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                           {certs.map((cert) => (

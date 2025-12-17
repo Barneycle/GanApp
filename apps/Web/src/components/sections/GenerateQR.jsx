@@ -223,7 +223,7 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">Event QR Code</h2>
           <button
             onClick={onClose}
@@ -234,7 +234,7 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
 
           {/* Loading State */}
           {loading && (
@@ -266,7 +266,7 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
           {qrCodeUrl && !loading && !error && (
             <>
               {/* Modern QR Code Card - Matching Mobile Design */}
-              <div ref={qrCardRef} className="bg-slate-900 rounded-3xl p-6 mb-6 shadow-2xl relative overflow-hidden">
+              <div ref={qrCardRef} className="bg-slate-900 rounded-3xl p-4 sm:p-6 mb-4 sm:mb-6 shadow-2xl relative overflow-hidden">
                 {/* Background Pattern Effect */}
                 <div className="absolute inset-0 bg-blue-900 opacity-10 rounded-3xl"></div>
                 
@@ -570,7 +570,7 @@ export default function GenerateQR() {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md">
+        <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 lg:p-8 max-w-md mx-auto">
           <div className="text-center">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -607,7 +607,7 @@ export default function GenerateQR() {
             {qrCodeUrl && (
               <div className="text-center">
                 <div className="mb-8">
-                  <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-6 shadow-xl border border-gray-100 inline-block">
+                  <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-4 sm:p-6 shadow-xl border border-gray-100 inline-block">
                     <img
                       src={qrCodeUrl}
                       alt="QR Code"

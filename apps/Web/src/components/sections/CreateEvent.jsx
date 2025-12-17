@@ -1882,7 +1882,7 @@ export const CreateEvent = () => {
 
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
 
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center max-w-md">
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-4 sm:p-6 lg:p-8 text-center max-w-md mx-auto">
 
           <h2 className="text-2xl font-bold text-slate-800 mb-4">Authentication Required</h2>
 
@@ -1916,7 +1916,7 @@ export const CreateEvent = () => {
 
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
 
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center max-w-md">
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-4 sm:p-6 lg:p-8 text-center max-w-md mx-auto">
 
           <h2 className="text-2xl font-bold text-slate-800 mb-4">Access Denied</h2>
 
@@ -3128,7 +3128,7 @@ export const CreateEvent = () => {
 
             </div>
 
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
 
               <FileDropzone
 
@@ -3192,7 +3192,7 @@ export const CreateEvent = () => {
 
             </div>
 
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
 
               <div className="space-y-2">
 
@@ -3795,7 +3795,7 @@ export const CreateEvent = () => {
                 </button>
               </div>
             </div>
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {sponsors.length === 0 ? (
                 <div className="text-center py-8">
                   <svg className="w-16 h-16 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3987,7 +3987,7 @@ export const CreateEvent = () => {
                 </button>
               </div>
             </div>
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {speakers.length === 0 ? (
                 <div className="text-center py-8">
                   <svg className="w-16 h-16 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

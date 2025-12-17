@@ -95,35 +95,35 @@ export const Profile = () => {
 
   return (
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
         {/* Profile Card */}
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-4 sm:p-6 lg:p-8">
           {/* Header with Avatar and Name */}
-          <div className="flex flex-col items-center mb-8">
+          <div className="flex flex-col items-center mb-6 sm:mb-8">
             {/* Avatar */}
             {user?.avatar_url ? (
               <div className="relative mb-4">
                 <img
                   src={user.avatar_url}
                   alt={getFullName()}
-                  className="w-40 h-40 rounded-full object-cover border-4 border-blue-600 shadow-lg"
+                  className="w-24 h-24 sm:w-32 sm:h-32 lg:w-40 lg:h-40 rounded-full object-cover border-4 border-blue-600 shadow-lg"
                 />
               </div>
             ) : (
-              <div className="w-40 h-40 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center border-4 border-blue-600 shadow-lg mb-4">
-                <span className="text-white text-5xl font-bold">
+              <div className="w-24 h-24 sm:w-32 sm:h-32 lg:w-40 lg:h-40 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center border-4 border-blue-600 shadow-lg mb-4">
+                <span className="text-white text-3xl sm:text-4xl lg:text-5xl font-bold">
                   {getUserInitials()}
                 </span>
               </div>
             )}
 
             {/* Name */}
-            <h1 className="text-3xl font-bold text-slate-800 mb-2 text-center">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2 text-center">
               {getDisplayName()}
             </h1>
             {/* Full name with prefix/affix if different */}
             {getFullName() !== getDisplayName() && (
-              <p className="text-lg text-slate-600 mb-2 text-center">
+              <p className="text-base sm:text-lg text-slate-600 mb-2 text-center">
                 {getFullName()}
               </p>
             )}

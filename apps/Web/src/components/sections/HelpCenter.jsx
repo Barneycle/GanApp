@@ -747,7 +747,7 @@ Use event details to manage your participation.`
             <div key={category.id} className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
               <button
                 onClick={() => toggleCategory(category.id)}
-                className="w-full p-6 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                className="w-full p-4 sm:p-6 flex items-center justify-between hover:bg-slate-50 transition-colors"
               >
                 <div className="flex items-center space-x-4">
                   <div className="text-blue-600">{category.icon}</div>
@@ -764,7 +764,7 @@ Use event details to manage your participation.`
               </button>
 
               {expandedCategory === category.id && (
-                <div className="border-t border-slate-200 p-6 space-y-4">
+                <div className="border-t border-slate-200 p-4 sm:p-6 space-y-4">
                   {category.articles.map((article) => (
                     <div key={article.id} className="border-l-4 border-blue-500 pl-4">
                       <h3 className="font-semibold text-slate-800 mb-2">{article.title}</h3>
@@ -798,7 +798,7 @@ Use event details to manage your participation.`
         )}
 
         {/* Footer */}
-        <div className="mt-12 bg-white rounded-xl shadow-lg border border-slate-200 p-8 text-center">
+        <div className="mt-8 sm:mt-12 bg-white rounded-xl shadow-lg border border-slate-200 p-4 sm:p-6 lg:p-8 text-center">
           <h3 className="text-xl font-semibold text-slate-800 mb-4">Still Need Help?</h3>
           <p className="text-slate-600 mb-6">
             Can't find what you're looking for? Our support team is here to help!

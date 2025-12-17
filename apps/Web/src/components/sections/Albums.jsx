@@ -523,7 +523,7 @@ export const Albums = () => {
   if (error && events.length === 0) {
     return (
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+        <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8 max-w-md w-full text-center mx-auto">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <X className="w-8 h-8 text-red-600" />
           </div>
@@ -576,7 +576,7 @@ export const Albums = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-4xl font-bold text-slate-800 mb-2">Event Albums</h1>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-800 mb-2">Event Albums</h1>
               <p className="text-lg text-slate-600">Browse photos from events</p>
             </div>
             <button
@@ -801,7 +801,7 @@ export const Albums = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-200">
               <div className="flex-1 mr-4">
                 <h2 className="text-2xl font-bold text-slate-800 line-clamp-1">
                   {selectedEvent.title}
@@ -869,7 +869,7 @@ export const Albums = () => {
 
             {/* Photo Grid */}
             {selectedEvent.photos && selectedEvent.photos.length > 0 ? (
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6">
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {selectedEvent.photos.map((photo) => (
                     <div
@@ -908,7 +908,7 @@ export const Albums = () => {
                 </div>
               </div>
             ) : (
-              <div className="flex-1 flex items-center justify-center p-8">
+              <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
                 <div className="text-center">
                   <Images className="w-16 h-16 text-slate-400 mx-auto mb-4" />
                   <p className="text-slate-600">No photos available</p>

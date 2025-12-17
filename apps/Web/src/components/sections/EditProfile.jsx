@@ -252,10 +252,10 @@ export const EditProfile = () => {
   }
 
   return (
-    <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        {/* Profile Form */}
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
+      <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
+          {/* Profile Form */}
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-4 sm:p-6 lg:p-8">
           {/* Success Message */}
           {success && (
             <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">
@@ -271,27 +271,27 @@ export const EditProfile = () => {
           )}
 
           {/* Avatar Upload Section - Centered at Top */}
-          <div className="flex flex-col items-center mb-8">
+          <div className="flex flex-col items-center mb-6 sm:mb-8">
             <div className="relative">
               {avatarPreview && avatarPreview !== '' ? (
                 <div className="relative">
                   <img
                     src={avatarPreview}
                     alt="Profile"
-                    className="w-48 h-48 rounded-full object-cover border-[6px] border-blue-600 shadow-2xl"
+                    className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 sm:border-[5px] lg:border-[6px] border-blue-600 shadow-2xl"
                   />
                   <button
                     type="button"
                     onClick={handleRemoveAvatar}
-                    className="absolute -top-3 -right-3 w-12 h-12 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-xl"
+                    className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 w-10 h-10 sm:w-12 sm:h-12 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-xl"
                     disabled={loading}
                   >
-                    <X className="w-6 h-6" />
+                    <X className="w-5 h-5 sm:w-6 sm:h-6" />
                   </button>
                 </div>
               ) : (
-                <div className="w-48 h-48 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center border-[6px] border-blue-600 shadow-2xl">
-                  <span className="text-white text-6xl font-bold">
+                <div className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center border-4 sm:border-[5px] lg:border-[6px] border-blue-600 shadow-2xl">
+                  <span className="text-white text-4xl sm:text-5xl lg:text-6xl font-bold">
                     {user?.first_name?.[0] || user?.email?.[0] || 'U'}
                   </span>
                 </div>

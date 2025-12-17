@@ -274,7 +274,7 @@ export const EventStatisticsDetail = () => {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Statistics
           </button>
-          <div className="bg-white rounded-2xl shadow-lg border border-red-200 p-8 text-center">
+          <div className="bg-white rounded-2xl shadow-lg border border-red-200 p-4 sm:p-6 lg:p-8 text-center mx-auto max-w-md">
             <p className="text-red-800">{error}</p>
           </div>
         </div>
@@ -322,7 +322,7 @@ export const EventStatisticsDetail = () => {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6">
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-4 sm:p-6">
             <div className="flex items-center space-x-3">
               <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-600 to-blue-800 text-white flex items-center justify-center">
                 <Users className="w-6 h-6" />
@@ -334,7 +334,7 @@ export const EventStatisticsDetail = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6">
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-4 sm:p-6">
             <div className="flex items-center space-x-3">
               <div className="w-12 h-12 rounded-full bg-gradient-to-r from-green-600 to-green-800 text-white flex items-center justify-center">
                 <TrendingUp className="w-6 h-6" />
@@ -346,7 +346,7 @@ export const EventStatisticsDetail = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6">
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-4 sm:p-6">
             <div className="flex items-center space-x-3">
               <div className="w-12 h-12 rounded-full bg-gradient-to-r from-purple-600 to-purple-800 text-white flex items-center justify-center">
                 <MessageSquare className="w-6 h-6" />
@@ -359,7 +359,7 @@ export const EventStatisticsDetail = () => {
           </div>
 
           {stats.satisfactionRate !== undefined && (
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-4 sm:p-6">
               <div className="flex items-center space-x-3">
                 <div className="w-12 h-12 rounded-full bg-gradient-to-r from-yellow-600 to-yellow-800 text-white flex items-center justify-center">
                   <Star className="w-6 h-6" />

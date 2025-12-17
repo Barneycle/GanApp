@@ -499,7 +499,7 @@ export const EditSurvey = () => {
     return (
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="bg-white rounded-2xl shadow-lg border border-red-200 p-8 max-w-md">
+          <div className="bg-white rounded-2xl shadow-lg border border-red-200 p-4 sm:p-6 lg:p-8 max-w-md mx-auto">
             <h3 className="text-xl font-semibold text-slate-800 mb-2">Error</h3>
             <p className="text-red-800 mb-6">{error}</p>
             <button 
@@ -551,7 +551,7 @@ export const EditSurvey = () => {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 sm:space-y-8">
           {/* Survey Title and Description */}
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6">
             <h2 className="text-xl font-semibold text-slate-800 mb-4">Survey Information</h2>
             
             <div className="space-y-4">
@@ -636,7 +636,7 @@ export const EditSurvey = () => {
                     </div>
                   </div>
                   
-                  <div className="p-6 space-y-4">
+                  <div className="p-4 sm:p-6 space-y-4">
                     {/* Section Title */}
                     <div className="space-y-2">
                       <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
@@ -740,7 +740,7 @@ export const EditSurvey = () => {
                         </div>
 
                         {/* Question Content */}
-                        <div className="p-6 space-y-6">
+                        <div className="p-4 sm:p-6 space-y-6">
                           {/* Question Text */}
                           <div className="space-y-2">
                             <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">

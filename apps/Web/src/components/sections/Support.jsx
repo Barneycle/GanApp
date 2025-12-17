@@ -301,10 +301,10 @@ export const Support = () => {
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-6">
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6 mb-4 sm:mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-slate-800 mb-2">Support Center</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2">Support Center</h1>
               <p className="text-slate-600">
                 {isAdmin ? 'Manage support tickets from users' : 'Get help from our support team'}
               </p>
@@ -410,7 +410,7 @@ export const Support = () => {
             {selectedTicket ? (
               <>
                 {/* Ticket Header */}
-                <div className="p-6 border-b border-slate-200">
+                <div className="p-4 sm:p-6 border-b border-slate-200">
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <h2 className="text-2xl font-bold text-slate-800 mb-2">{selectedTicket.subject}</h2>
@@ -449,7 +449,7 @@ export const Support = () => {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
                   {messages.map((message) => (
                     <div
                       key={message.id}
@@ -483,7 +483,7 @@ export const Support = () => {
 
                 {/* Message Input */}
                 {selectedTicket.status !== 'closed' && (
-                  <div className="p-6 border-t border-slate-200">
+                  <div className="p-4 sm:p-6 border-t border-slate-200">
                     <div className="flex gap-2">
                       <textarea
                         value={newMessage}
@@ -524,7 +524,7 @@ export const Support = () => {
         {/* New Ticket Modal */}
         {showNewTicketModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-bold text-slate-800 mb-6">Create New Support Ticket</h2>
               
               <div className="space-y-4">

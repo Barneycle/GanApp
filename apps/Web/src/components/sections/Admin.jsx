@@ -16,6 +16,7 @@ export const Admin = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Helper function to check if user profile is complete
   const isProfileComplete = (user) => {
@@ -88,13 +89,22 @@ export const Admin = () => {
 
         {/* Unified Table-like Container with Sidebar */}
         <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-          <div className="flex">
+          <div className="flex flex-col lg:flex-row">
             {/* Sidebar Navigation */}
-            <aside className="w-64 bg-slate-50 border-r border-slate-200 flex-shrink-0">
-              <div className="p-6 border-b border-slate-200 bg-white">
-                <h1 className="text-xl font-bold text-slate-800">Admin Panel</h1>
+            <aside className={`${sidebarOpen ? 'block' : 'hidden'} lg:block w-full lg:w-64 bg-slate-50 border-b lg:border-b-0 lg:border-r border-slate-200 flex-shrink-0`}>
+              <div className="p-4 sm:p-6 border-b border-slate-200 bg-white flex items-center justify-between">
+                <h1 className="text-lg sm:text-xl font-bold text-slate-800">Admin Panel</h1>
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="lg:hidden p-2 text-slate-600 hover:text-slate-800"
+                  aria-label="Close sidebar"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-              <nav className="p-4 space-y-1">
+              <nav className="p-3 sm:p-4 space-y-1">
                 <button
                   onClick={() => setActiveTab('dashboard')}
                   className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === 'dashboard'
@@ -179,9 +189,23 @@ export const Admin = () => {
               </nav>
             </aside>
 
+            {/* Mobile Menu Button */}
+            <div className="lg:hidden p-4 bg-white border-b border-slate-200">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="flex items-center gap-2 text-slate-700 hover:text-slate-900"
+                aria-label="Open sidebar"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+                <span className="font-semibold">Menu</span>
+              </button>
+            </div>
+
             {/* Main Content Area - Connected to Sidebar */}
             <main className="flex-1">
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 {activeTab === 'dashboard' && <DashboardTab />}
                 {activeTab === 'users' && <UsersTab />}
                 {activeTab === 'archived' && <ArchivedUsersTab />}

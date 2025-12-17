@@ -346,7 +346,7 @@ export const MyEvents = () => {
     return (
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center">
         <div className="text-center">
-          <div className="bg-white rounded-2xl shadow-lg border border-red-200 p-8 max-w-md">
+          <div className="bg-white rounded-2xl shadow-lg border border-red-200 p-4 sm:p-6 lg:p-8 max-w-md mx-auto">
             <div className="w-16 h-16 rounded-full bg-red-100 mx-auto mb-4 flex items-center justify-center">
               <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -369,7 +369,7 @@ export const MyEvents = () => {
     return (
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center">
         <div className="text-center">
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md">
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6 lg:p-8 max-w-md mx-auto">
             <div className="w-16 h-16 rounded-full bg-blue-100 mx-auto mb-4 flex items-center justify-center">
               <Calendar className="w-8 h-8 text-blue-600" />
             </div>
@@ -467,7 +467,7 @@ export const MyEvents = () => {
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
         <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
           {/* Search and Filter Bar */}
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8">
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6 mb-6 sm:mb-8">
             <div className="flex flex-col lg:flex-row gap-4">
               {/* Search Bar */}
               <div className="flex-1">
@@ -591,7 +591,7 @@ export const MyEvents = () => {
           {/* Registered Events Grid */}
           {filteredAndSortedEvents.length === 0 ? (
             <div className="text-center py-12">
-              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto">
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6 lg:p-8 max-w-md mx-auto">
                 <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
@@ -650,7 +650,7 @@ export const MyEvents = () => {
                     )}
 
                     {/* Event Content */}
-                    <div className="p-6">
+                    <div className="p-4 sm:p-6">
                       <div className="flex items-start justify-between mb-4">
                         <h3 className="text-xl font-bold text-slate-800 flex-1">{event.title}</h3>
                         <div className={`ml-2 px-3 py-1 rounded-full text-xs font-medium border ${eventStatus.color}`}>

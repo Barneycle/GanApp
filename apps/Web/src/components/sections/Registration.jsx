@@ -294,12 +294,12 @@ export const Registration = () => {
   }
 
   return (
-    <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+    <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-2xl">
         {!formData.userType ? (
           // User Type Selection Screen
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
-            <h3 className="text-xl font-semibold text-slate-800 mb-6 text-center">Are you from Partido State University?</h3>
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-4 sm:p-6 lg:p-8">
+            <h3 className="text-lg sm:text-xl font-semibold text-slate-800 mb-4 sm:mb-6 text-center">Are you from Partido State University?</h3>
 
             <div className="space-y-4">
               {/* PSU Student */}
@@ -372,7 +372,7 @@ export const Registration = () => {
           // Registration Form Screen
           <>
             {/* User Type Display */}
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-4 mb-6">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-3 sm:p-4 mb-4 sm:mb-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center mr-3 ${formData.userType === 'psu-student' ? 'bg-blue-100' :
@@ -404,7 +404,7 @@ export const Registration = () => {
             </div>
 
             {/* Registration Form */}
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-4 sm:p-6 lg:p-8">
               {/* Error Messages */}
               {(error || localError) && (
                 <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">

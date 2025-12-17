@@ -50,7 +50,7 @@ export const VerifyCertificate = () => {
   if (loading) {
     return (
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 max-w-2xl w-full text-center">
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-4 sm:p-6 lg:p-8 max-w-2xl w-full text-center mx-auto">
           <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4"></div>
           <p className="text-slate-600">Verifying certificate...</p>
         </div>
@@ -61,7 +61,7 @@ export const VerifyCertificate = () => {
   if (error) {
     return (
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl border border-red-200 p-8 max-w-2xl w-full">
+        <div className="bg-white rounded-2xl shadow-xl border border-red-200 p-4 sm:p-6 lg:p-8 max-w-2xl w-full mx-auto">
           <div className="text-center">
             <div className="w-16 h-16 rounded-full bg-red-100 mx-auto mb-4 flex items-center justify-center">
               <XCircle className="w-8 h-8 text-red-600" />
@@ -89,7 +89,7 @@ export const VerifyCertificate = () => {
   if (!certificate) {
     return (
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 max-w-2xl w-full text-center">
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-4 sm:p-6 lg:p-8 max-w-2xl w-full text-center mx-auto">
           <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4"></div>
           <p className="text-slate-600">Loading certificate details...</p>
         </div>
@@ -101,18 +101,18 @@ export const VerifyCertificate = () => {
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Success Header */}
-        <div className="bg-white rounded-2xl shadow-xl border border-green-200 p-8 mb-6">
+        <div className="bg-white rounded-2xl shadow-xl border border-green-200 p-4 sm:p-6 lg:p-8 mb-4 sm:mb-6">
           <div className="text-center">
             <div className="w-16 h-16 rounded-full bg-green-100 mx-auto mb-4 flex items-center justify-center">
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
-            <h1 className="text-3xl font-bold text-slate-800 mb-2">Certificate Verified</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2">Certificate Verified</h1>
             <p className="text-green-600 font-semibold mb-4">This certificate is authentic and valid</p>
           </div>
         </div>
 
         {/* Certificate Details */}
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 mb-6">
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-4 sm:p-6 lg:p-8 mb-4 sm:mb-6">
           <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center">
             <Award className="w-6 h-6 mr-2 text-blue-600" />
             Certificate Details

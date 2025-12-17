@@ -150,7 +150,7 @@ export const CertificatePage = () => {
   if (!eventId) {
     return (
       <div className={`${isMobile ? 'h-screen' : 'min-h-screen'} bg-slate-50 flex items-center justify-center`}>
-        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md mx-4">
+        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 lg:p-8 max-w-md mx-auto">
           <h2 className="text-2xl font-bold text-slate-800 mb-4">Error</h2>
           <p className="text-slate-600 mb-6">Event ID is required to generate a certificate.</p>
           <button

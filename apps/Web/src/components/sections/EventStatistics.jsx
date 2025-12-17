@@ -131,8 +131,8 @@ export const EventStatistics = () => {
 
         {/* Summary Stats */}
         {events.length > 0 && (
-          <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6">
+          <div className="mb-6 sm:mb-8 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-4 sm:p-6">
               <div className="flex items-center space-x-3">
                 <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-600 to-blue-800 text-white flex items-center justify-center">
                   <BarChart3 className="w-6 h-6" />

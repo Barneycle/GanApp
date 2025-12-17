@@ -164,7 +164,7 @@ export const Settings = () => {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-800 mb-2 flex items-center">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2 flex items-center">
             <SettingsIcon className="w-8 h-8 mr-3" />
             Settings
           </h1>

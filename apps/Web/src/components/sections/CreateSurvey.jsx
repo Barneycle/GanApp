@@ -1064,7 +1064,7 @@ export const CreateSurvey = () => {
               </div>
             </div>
 
-            <div className="p-6 space-y-8">
+            <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
               {watchedSections.map((section, sectionIndex) => {
                 let questionNumber = 1;
                 // Calculate question number across all previous sections
@@ -1095,7 +1095,7 @@ export const CreateSurvey = () => {
                       const globalQIndex = questionNumber - 1;
                       questionNumber++;
                       return (
-                        <div key={qIndex} className="border border-slate-200 rounded-xl p-6 bg-slate-50">
+                        <div key={qIndex} className="border border-slate-200 rounded-xl p-4 sm:p-6 bg-slate-50">
                           <div className="flex items-start space-x-3 mb-4">
                             <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
                               {globalQIndex + 1}
@@ -1174,7 +1174,7 @@ export const CreateSurvey = () => {
                     </div>
                   </div>
 
-                  <div className="p-6 space-y-4">
+                  <div className="p-4 sm:p-6 space-y-4">
                     {/* Section Title */}
                     <div className="space-y-2">
                       <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">
@@ -1279,7 +1279,7 @@ export const CreateSurvey = () => {
                         </div>
 
                         {/* Question Content */}
-                        <div className="p-6 space-y-6">
+                        <div className="p-4 sm:p-6 space-y-6">
                           {/* Question Text */}
                           <div className="space-y-2">
                             <label className="block text-sm font-semibold text-slate-700 uppercase tracking-wide">

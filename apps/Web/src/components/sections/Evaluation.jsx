@@ -791,7 +791,7 @@ export const Evaluation = () => {
     return (
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center">
         <div className="text-center">
-          <div className="bg-white rounded-2xl shadow-lg border border-red-200 p-8 max-w-md">
+          <div className="bg-white rounded-2xl shadow-lg border border-red-200 p-4 sm:p-6 lg:p-8 max-w-md mx-auto">
             <div className="w-16 h-16 rounded-full bg-red-100 mx-auto mb-4 flex items-center justify-center">
               <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -989,7 +989,7 @@ export const Evaluation = () => {
 
         {/* Event Info Card */}
         {event && (
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 mb-8">
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-4 sm:p-6 mb-6 sm:mb-8">
             <h2 className="text-2xl font-bold text-slate-800 mb-4">{event.title}</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1019,7 +1019,7 @@ export const Evaluation = () => {
         )}
 
         {/* Survey Form */}
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 sm:p-8">
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-4 sm:p-6 lg:p-8">
           <form onSubmit={handleSubmit}>
             {survey.questions && survey.questions.length > 0 ? (() => {
               // Group questions by section
@@ -1082,7 +1082,7 @@ export const Evaluation = () => {
                     )}
                     
                     {/* Section Questions */}
-                    <div className="p-6 space-y-6">
+                    <div className="p-4 sm:p-6 space-y-6">
                       {section.questions.map((question, qIdx) => {
                         const questionId = question.id || `q_${question.globalIndex}`;
                         return (
@@ -1103,7 +1103,7 @@ export const Evaluation = () => {
                             </div>
                             
                             {/* Question Content */}
-                            <div className="p-6">
+                            <div className="p-4 sm:p-6">
                               {renderQuestion(question, question.globalIndex)}
                             </div>
                           </div>

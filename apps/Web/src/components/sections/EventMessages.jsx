@@ -485,16 +485,16 @@ export const EventMessages = () => {
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-6">
-          <div className="flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6 mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-slate-800 mb-2">Event Messages</h1>
-              <p className="text-slate-600">
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2">Event Messages</h1>
+              <p className="text-sm sm:text-base text-slate-600">
                 Manage conversations with participants for your events
               </p>
             </div>
             {totalUnreadCount > 0 && (
-              <div className="bg-red-500 text-white px-4 py-2 rounded-full font-semibold">
+              <div className="bg-red-500 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full font-semibold text-sm sm:text-base whitespace-nowrap">
                 {totalUnreadCount} Unread
               </div>
             )}

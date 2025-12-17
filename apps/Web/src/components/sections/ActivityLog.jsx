@@ -186,7 +186,7 @@ export const ActivityLog = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-slate-900">Activity Log</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Activity Log</h1>
         </div>
 
         {/* Filters */}

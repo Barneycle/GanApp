@@ -1164,11 +1164,8 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
 
         <div className="space-y-8">
           {/* Preview Section */}
-          <div className="flex justify-center w-full overflow-x-auto">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200/50 overflow-hidden flex-shrink-0" style={{
-              width: '3500px',
-              minWidth: '3500px'
-            }}>
+          <div className="w-full overflow-x-auto">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200/50 overflow-hidden inline-block">
               <div className="bg-gradient-to-r from-slate-50 to-slate-100/50 px-6 py-4 border-b border-slate-200/50">
                 <div className="flex items-center justify-between">
                   <h4 className="text-lg font-semibold text-slate-800 flex items-center gap-2">

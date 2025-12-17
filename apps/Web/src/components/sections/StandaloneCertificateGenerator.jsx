@@ -929,8 +929,8 @@ export const StandaloneCertificateGenerator = () => {
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-6">
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">Standalone Certificate Generator</h1>
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6 mb-4 sm:mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2">Standalone Certificate Generator</h1>
           <p className="text-slate-600">Generate certificates for multiple participants via manual entry or CSV/Excel import</p>
         </div>
 
@@ -938,7 +938,7 @@ export const StandaloneCertificateGenerator = () => {
           {/* Left Column - Configuration */}
           <div className="lg:col-span-2 space-y-6">
             {/* Event Selection */}
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6">
               <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <Settings className="w-5 h-5" />
                 Event Selection
@@ -1032,7 +1032,7 @@ export const StandaloneCertificateGenerator = () => {
 
             {/* Custom Config for No Event */}
             {!selectedEventId && (
-              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6">
                 <h2 className="text-xl font-semibold text-slate-800 mb-4">Certificate Configuration</h2>
                 <p className="text-slate-600 mb-4">
                   For custom certificates without an event, the default certificate design will be used.
@@ -1050,7 +1050,7 @@ export const StandaloneCertificateGenerator = () => {
             )}
 
             {/* Participant Input */}
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6">
               <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <Users className="w-5 h-5" />
                 Participants
@@ -1140,7 +1140,7 @@ export const StandaloneCertificateGenerator = () => {
               {/* File Upload */}
               {inputMode === 'file' && (
                 <div className="space-y-4">
-                  <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center">
+                  <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 sm:p-6 text-center">
                     <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
                     <p className="text-slate-600 mb-2">Upload CSV or Excel file</p>
                     <p className="text-sm text-slate-500 mb-4">
@@ -1168,7 +1168,7 @@ export const StandaloneCertificateGenerator = () => {
               {inputMode === 'event' && (
                 <div className="space-y-4">
                   {!selectedEventId ? (
-                    <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center">
+                    <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 sm:p-6 text-center">
                       <Users className="w-12 h-12 text-slate-400 mx-auto mb-4" />
                       <p className="text-slate-600">Please select an event first to view registered participants</p>
                     </div>
@@ -1178,7 +1178,7 @@ export const StandaloneCertificateGenerator = () => {
                       <p className="text-slate-600">Loading registered participants...</p>
                     </div>
                   ) : eventParticipants.length === 0 ? (
-                    <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center">
+                    <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 sm:p-6 text-center">
                       <Users className="w-12 h-12 text-slate-400 mx-auto mb-4" />
                       <p className="text-slate-600">No registered participants found for this event</p>
                     </div>
@@ -1294,7 +1294,7 @@ export const StandaloneCertificateGenerator = () => {
             </div>
 
             {/* Generate Button */}
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6">
               <button
                 onClick={handleGenerate}
                 disabled={generating || participants.length === 0 || !config}
@@ -1367,7 +1367,7 @@ export const StandaloneCertificateGenerator = () => {
 
             {/* Download Certificates Section */}
             {completedCertificates.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                   <div>
@@ -1514,7 +1514,7 @@ export const StandaloneCertificateGenerator = () => {
 
           {/* Right Column - Info/Preview */}
           <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6">
               <h3 className="text-lg font-semibold text-slate-800 mb-4">Instructions</h3>
               <div className="space-y-3 text-sm text-slate-600">
                 <div>
@@ -1537,7 +1537,7 @@ export const StandaloneCertificateGenerator = () => {
             </div>
 
             {selectedEvent && (
-              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6">
                 <h3 className="text-lg font-semibold text-slate-800 mb-4">Event Details</h3>
                 <div className="space-y-2 text-sm">
                   <p><span className="font-medium">Title:</span> {selectedEvent.title}</p>

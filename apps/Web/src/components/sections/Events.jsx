@@ -1266,7 +1266,7 @@ export const Events = () => {
   if (error) {
     return (
       <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center max-w-md">
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-4 sm:p-6 lg:p-8 text-center max-w-md mx-auto">
           <h2 className="text-2xl font-bold text-slate-800 mb-4">Error Loading Events</h2>
           <p className="text-slate-600 mb-6">{error}</p>
           <button
@@ -1752,7 +1752,7 @@ export const Events = () => {
           {/* Events Grid */}
           {(activeTab === 'archived' ? (!archivedEvents || !Array.isArray(archivedEvents) || archivedEvents.length === 0) : (!events || !Array.isArray(events) || events.length === 0)) ? (
             <div className="text-center py-12">
-              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md mx-auto mb-8">
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6 lg:p-8 max-w-md mx-auto mb-6 sm:mb-8">
                 <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
@@ -2305,7 +2305,7 @@ export const Events = () => {
         {/* Registration Confirmation Modal */}
         {showConfirmationModal && eventToRegister && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6">
               <div className="text-center">
                 <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
                   <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2365,7 +2365,7 @@ export const Events = () => {
         {/* Success Modal */}
         {showSuccessModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6">
               <div className="text-center">
                 <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
                   <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2395,7 +2395,7 @@ export const Events = () => {
         {/* Manage Event Modal */}
         {showManageModal && selectedEvent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <div className="text-center mb-6">
                 <h3 className="text-2xl font-semibold text-slate-900 mb-2">
                   Manage Event
@@ -2519,7 +2519,7 @@ export const Events = () => {
         {/* View Registrations Modal */}
         {showRegistrationsModal && selectedEvent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex-1">
                   <h3 className="text-2xl font-semibold text-slate-900 mb-2">
@@ -3027,7 +3027,7 @@ export const Events = () => {
         {/* Add Check-In Modal - Participant Selection */}
         {showParticipantSelectModal && selectedEvent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-4 sm:p-6 max-h-[80vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-2xl font-semibold text-slate-900">Select Participant</h3>
                 <button
@@ -3129,7 +3129,7 @@ export const Events = () => {
         {/* Add Check-In Confirmation Modal */}
         {showAddCheckInModal && selectedParticipantForCheckIn && selectedEvent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6">
               <h3 className="text-xl font-semibold text-slate-900 mb-4">Confirm Manual Check-In</h3>
               <div className="space-y-3 mb-6">
                 <div>
@@ -3216,7 +3216,7 @@ export const Events = () => {
         {/* Cancellation Request Modal */}
         {showCancellationModal && eventToCancel && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6">
               <div className="mb-6">
                 <h3 className="text-xl font-semibold text-slate-900 mb-2">
                   Request Event Cancellation
