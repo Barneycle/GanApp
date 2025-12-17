@@ -83,16 +83,16 @@ export class EmailService {
           <div class="content">
             <p>Dear ${userName || 'User'},</p>
             <p>We are writing to inform you that your GanApp account has been suspended.</p>
-            ${isPermanent 
-              ? '<p><strong>This suspension is permanent.</strong></p>'
-              : `<p><strong>Suspension Period:</strong> Until ${banDate} at ${banTime}</p>`
-            }
+            ${isPermanent
+        ? '<p><strong>This suspension is permanent.</strong></p>'
+        : `<p><strong>Suspension Period:</strong> Until ${banDate} at ${banTime}</p>`
+      }
             ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
             <p>During this suspension period, you will not be able to access your account or use GanApp services.</p>
-            ${!isPermanent 
-              ? '<p>If you believe this suspension was made in error, please contact our support team for assistance.</p>'
-              : '<p>If you have any questions or concerns, please contact our support team.</p>'
-            }
+            ${!isPermanent
+        ? '<p>If you believe this suspension was made in error, please contact our support team for assistance.</p>'
+        : '<p>If you have any questions or concerns, please contact our support team.</p>'
+      }
             <p>Thank you for your understanding.</p>
             <p>Best regards,<br>The GanApp Team</p>
           </div>
@@ -111,19 +111,19 @@ Dear ${userName || 'User'},
 
 We are writing to inform you that your GanApp account has been suspended.
 
-${isPermanent 
-  ? 'This suspension is permanent.'
-  : `Suspension Period: Until ${banDate} at ${banTime}`
-}
+${isPermanent
+        ? 'This suspension is permanent.'
+        : `Suspension Period: Until ${banDate} at ${banTime}`
+      }
 
 ${reason ? `Reason: ${reason}` : ''}
 
 During this suspension period, you will not be able to access your account or use GanApp services.
 
-${!isPermanent 
-  ? 'If you believe this suspension was made in error, please contact our support team for assistance.'
-  : 'If you have any questions or concerns, please contact our support team.'
-}
+${!isPermanent
+        ? 'If you believe this suspension was made in error, please contact our support team for assistance.'
+        : 'If you have any questions or concerns, please contact our support team.'
+      }
 
 Thank you for your understanding.
 

@@ -48,11 +48,14 @@ BEGIN
 END;
 $$;
 
--- Only admins can view system settings
-CREATE POLICY "Admins can view system settings"
+-- Everyone (including unauthenticated users) can view maintenance_mode (needed for maintenance check)
+-- Only admins can view other system settings
+CREATE POLICY "Users can view maintenance_mode"
   ON system_settings
   FOR SELECT
-  USING (is_admin(auth.uid()));
+  USING (
+    setting_key = 'maintenance_mode' OR is_admin(auth.uid())
+  );
 
 -- Only admins can insert system settings
 CREATE POLICY "Admins can insert system settings"
@@ -80,11 +83,7 @@ CREATE POLICY "Admins can delete system settings"
 -- Insert default settings if they don't exist
 INSERT INTO system_settings (setting_key, setting_value, description)
 VALUES 
-  ('maintenance_mode', 'false'::jsonb, 'Temporarily disable the system for maintenance'),
-  ('registration_enabled', 'true'::jsonb, 'Allow new users to register'),
-  ('event_creation_enabled', 'true'::jsonb, 'Allow organizers to create events'),
-  ('survey_creation_enabled', 'true'::jsonb, 'Allow organizers to create surveys'),
-  ('email_notifications_enabled', 'true'::jsonb, 'Enable system-wide email notifications')
+  ('maintenance_mode', 'false'::jsonb, 'Temporarily disable the system for maintenance')
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- =====================================================

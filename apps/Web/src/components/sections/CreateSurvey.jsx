@@ -69,7 +69,6 @@ export const CreateSurvey = () => {
   const [pendingSpeakers, setPendingSpeakers] = useState([]);
   const [pendingSponsors, setPendingSponsors] = useState([]);
   const [hasCertificateConfig, setHasCertificateConfig] = useState(false);
-
   // Get saved form data from session storage
   const getSavedFormData = () => {
     try {
@@ -136,6 +135,7 @@ export const CreateSurvey = () => {
       return () => clearTimeout(timeoutId);
     }
   }, [watchedSections, trigger]);
+
 
   // Check for pending event data on component mount
   useEffect(() => {
@@ -897,6 +897,8 @@ export const CreateSurvey = () => {
       setLoading(false);
     }
   };
+
+  // Show message if survey creation is disabled
 
   return (
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">

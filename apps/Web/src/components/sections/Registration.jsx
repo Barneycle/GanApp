@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { SystemSettingsService } from '../../services/systemSettingsService';
 import TermsModal from '../TermsModal';
 import { AcademicCapIcon, BriefcaseIcon, UserGroupIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
@@ -24,7 +25,7 @@ export const Registration = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [localError, setLocalError] = useState('');
-  
+
   // Email validation state
   const [emailValidation, setEmailValidation] = useState({ isValid: null, message: '' });
   const [emailSuggestions, setEmailSuggestions] = useState([]);
@@ -32,7 +33,6 @@ export const Registration = () => {
   const [showPasswordRequirements, setShowPasswordRequirements] = useState(false);
   const emailInputRef = useRef(null);
   const suggestionsRef = useRef(null);
-
   // Real-time email validation
   useEffect(() => {
     const email = formData.email.trim();
@@ -44,7 +44,7 @@ export const Registration = () => {
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const isValid = emailRegex.test(email);
-    
+
     // Check PSU email requirement for students and employees
     if (isValid && (formData.userType === 'psu-student' || formData.userType === 'psu-employee')) {
       const isPSUEmail = email.endsWith('@parsu.edu.ph') || email.endsWith('.pbox@parsu.edu.ph');
@@ -56,7 +56,7 @@ export const Registration = () => {
       setEmailSuggestions([]);
       return;
     }
-    
+
     if (isValid) {
       setEmailValidation({ isValid: true, message: 'Valid email address' });
       setEmailSuggestions([]);
@@ -67,7 +67,7 @@ export const Registration = () => {
         if (atIndex > 0 && !email.includes('@', atIndex + 1)) {
           const localPart = email.substring(0, atIndex);
           const domainPart = email.substring(atIndex + 1);
-          
+
           if (domainPart.length > 0) {
             const suggestions = COMMON_EMAIL_DOMAINS
               .filter(domain => domain.startsWith(domainPart.toLowerCase()))
@@ -87,11 +87,11 @@ export const Registration = () => {
         setEmailSuggestions([]);
         setShowEmailSuggestions(false);
       }
-      
+
       if (email.length > 0) {
-        setEmailValidation({ 
-          isValid: false, 
-          message: email.includes('@') ? 'Please enter a valid email address' : 'Email must include @ symbol' 
+        setEmailValidation({
+          isValid: false,
+          message: email.includes('@') ? 'Please enter a valid email address' : 'Email must include @ symbol'
         });
       } else {
         setEmailValidation({ isValid: null, message: '' });
@@ -103,8 +103,8 @@ export const Registration = () => {
   // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target) && 
-          emailInputRef.current && !emailInputRef.current.contains(event.target)) {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target) &&
+        emailInputRef.current && !emailInputRef.current.contains(event.target)) {
         setShowEmailSuggestions(false);
       }
     };
@@ -119,7 +119,7 @@ export const Registration = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
-    
+
     // Clear local error when user starts typing
     if (localError) {
       setLocalError('');
@@ -149,7 +149,7 @@ export const Registration = () => {
     const trimmedEmail = formData.email.trim();
     const trimmedPassword = formData.password.trim();
     const trimmedConfirmPassword = formData.confirmPassword.trim();
-    
+
     if (!trimmedEmail || !trimmedPassword || !formData.userType) {
       return 'All required fields must be filled';
     }
@@ -183,9 +183,9 @@ export const Registration = () => {
     }
 
     // PSU email validation for students and employees only
-    if ((formData.userType === 'psu-student' || formData.userType === 'psu-employee') && 
-        !trimmedEmail.endsWith('@parsu.edu.ph') && 
-        !trimmedEmail.endsWith('.pbox@parsu.edu.ph')) {
+    if ((formData.userType === 'psu-student' || formData.userType === 'psu-employee') &&
+      !trimmedEmail.endsWith('@parsu.edu.ph') &&
+      !trimmedEmail.endsWith('.pbox@parsu.edu.ph')) {
       return 'PSU students and employees must use @parsu.edu.ph or .pbox@parsu.edu.ph email addresses';
     }
 
@@ -194,11 +194,11 @@ export const Registration = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Clear any previous errors
     clearError();
     setLocalError('');
-    
+
     // Trim all string values
     const trimmedData = {
       ...formData,
@@ -206,7 +206,7 @@ export const Registration = () => {
       password: formData.password.trim(),
       confirmPassword: formData.confirmPassword.trim()
     };
-    
+
     // Check if email exists before submitting
     if (emailValidation.isValid === false && emailValidation.message.includes('already registered')) {
       setLocalError('This email address is already registered. Please use a different email or try logging in.');
@@ -229,14 +229,14 @@ export const Registration = () => {
       };
 
       const result = await signUp(trimmedData.email, trimmedData.password, userData);
-      
+
       if (result.error) {
         // Check if error is about duplicate email
         const errorMessage = result.error.toLowerCase();
-        if (errorMessage.includes('already registered') || 
-            errorMessage.includes('user already exists') ||
-            errorMessage.includes('email already exists') ||
-            errorMessage.includes('already been registered')) {
+        if (errorMessage.includes('already registered') ||
+          errorMessage.includes('user already exists') ||
+          errorMessage.includes('email already exists') ||
+          errorMessage.includes('already been registered')) {
           setLocalError('This email address is already registered. Please use a different email or try logging in.');
         } else {
           setLocalError(result.error);
@@ -300,7 +300,7 @@ export const Registration = () => {
           // User Type Selection Screen
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
             <h3 className="text-xl font-semibold text-slate-800 mb-6 text-center">Are you from Partido State University?</h3>
-            
+
             <div className="space-y-4">
               {/* PSU Student */}
               <button
@@ -375,10 +375,9 @@ export const Registration = () => {
             <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-4 mb-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center mr-3 ${
-                    formData.userType === 'psu-student' ? 'bg-blue-100' : 
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center mr-3 ${formData.userType === 'psu-student' ? 'bg-blue-100' :
                     formData.userType === 'psu-employee' ? 'bg-green-100' : 'bg-purple-100'
-                  }`}>
+                    }`}>
                     {formData.userType === 'psu-student' ? (
                       <AcademicCapIcon className="w-5 h-5 text-slate-800" />
                     ) : formData.userType === 'psu-employee' ? (
@@ -390,8 +389,8 @@ export const Registration = () => {
                   <div>
                     <p className="text-sm font-medium text-slate-600">Selected User Type</p>
                     <p className="text-base font-semibold text-slate-800">
-                      {formData.userType === 'psu-student' ? 'PSU Student' : 
-                       formData.userType === 'psu-employee' ? 'PSU Employee' : 'Outside PSU'}
+                      {formData.userType === 'psu-student' ? 'PSU Student' :
+                        formData.userType === 'psu-employee' ? 'PSU Employee' : 'Outside PSU'}
                     </p>
                   </div>
                 </div>
@@ -419,38 +418,37 @@ export const Registration = () => {
                     Email Address *
                   </label>
                   <div className="relative" ref={suggestionsRef}>
-                  <input
+                    <input
                       ref={emailInputRef}
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
                       onFocus={() => {
                         if (emailSuggestions.length > 0) {
                           setShowEmailSuggestions(true);
                         }
                       }}
-                    required
-                    disabled={loading}
+                      required
+                      disabled={loading}
                       autoComplete="email"
                       aria-describedby="email-validation email-help"
                       aria-invalid={emailValidation.isValid === false}
                       aria-required="true"
-                      className={`w-full px-4 py-3 pr-12 border rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                        emailValidation.isValid === false 
-                          ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                          : emailValidation.isValid === true
+                      className={`w-full px-4 py-3 pr-12 border rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${emailValidation.isValid === false
+                        ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                        : emailValidation.isValid === true
                           ? 'border-green-300 focus:ring-green-500 focus:border-green-500'
                           : 'border-slate-300 focus:ring-blue-500 focus:border-transparent'
-                      }`}
-                    placeholder={
-                      formData.userType === 'psu-student' || formData.userType === 'psu-employee'
-                        ? 'Enter your PSU email (@parsu.edu.ph)'
-                        : 'Enter your email address'
-                    }
-                  />
-                    
+                        }`}
+                      placeholder={
+                        formData.userType === 'psu-student' || formData.userType === 'psu-employee'
+                          ? 'Enter your PSU email (@parsu.edu.ph)'
+                          : 'Enter your email address'
+                      }
+                    />
+
                     {/* Email Validation Indicator */}
                     {emailValidation.isValid !== null && formData.email && (
                       <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -483,10 +481,10 @@ export const Registration = () => {
                       </div>
                     )}
                   </div>
-                  
+
                   {/* Email Validation Message */}
                   {emailValidation.message && (
-                    <p 
+                    <p
                       id="email-validation"
                       className={`mt-1 text-xs ${emailValidation.isValid ? 'text-green-600' : 'text-red-600'}`}
                       role="status"
@@ -495,7 +493,7 @@ export const Registration = () => {
                       {emailValidation.message}
                     </p>
                   )}
-                  
+
                   {/* Helper text */}
                   {(formData.userType === 'psu-student' || formData.userType === 'psu-employee') && !emailValidation.message && (
                     <p className="text-xs text-slate-500 mt-1">
@@ -507,7 +505,7 @@ export const Registration = () => {
                       Any valid email address is accepted
                     </p>
                   )}
-                  
+
                   <p id="email-help" className="mt-1 text-xs text-slate-500 sr-only">
                     Enter your email address. We'll suggest common email domains as you type.
                   </p>
@@ -518,8 +516,8 @@ export const Registration = () => {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label htmlFor="password" className="block text-sm font-medium text-slate-700">
-                      Password *
-                    </label>
+                        Password *
+                      </label>
                       <button
                         type="button"
                         onClick={() => setShowPasswordRequirements(!showPasswordRequirements)}
@@ -530,7 +528,7 @@ export const Registration = () => {
                         Requirements?
                       </button>
                     </div>
-                    
+
                     {/* Password Requirements Tooltip */}
                     {showPasswordRequirements && (
                       <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800" role="tooltip">
@@ -544,7 +542,7 @@ export const Registration = () => {
                         </ul>
                       </div>
                     )}
-                    
+
                     <div className="relative">
                       <input
                         type={showPassword ? "text" : "password"}
@@ -674,15 +672,16 @@ export const Registration = () => {
               </div>
             </div>
           </>
-        )}
-      </div>
+        )
+        }
+      </div >
 
       {/* Terms Modal */}
-      <TermsModal
+      < TermsModal
         isOpen={isTermsModalOpen}
         onClose={closeTermsModal}
         contentType={modalContentType}
       />
-    </section>
+    </section >
   );
 };

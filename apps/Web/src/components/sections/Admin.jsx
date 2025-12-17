@@ -2689,10 +2689,6 @@ const SettingsTab = () => {
   const { user } = useAuth();
   const [settings, setSettings] = useState({
     maintenance_mode: false,
-    registration_enabled: true,
-    event_creation_enabled: true,
-    survey_creation_enabled: true,
-    email_notifications_enabled: true,
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -2820,88 +2816,6 @@ const SettingsTab = () => {
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-              </label>
-            </div>
-
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-              <div className="flex-1">
-                <label htmlFor="registration_enabled" className="text-sm font-medium text-slate-700 cursor-pointer">
-                  User Registration
-                </label>
-                <p className="text-xs text-slate-500 mt-1">Allow new users to register</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  id="registration_enabled"
-                  checked={settings.registration_enabled}
-                  onChange={(e) => handleSettingChange('registration_enabled', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/* Feature Settings */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">Feature Settings</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-              <div className="flex-1">
-                <label htmlFor="event_creation_enabled" className="text-sm font-medium text-slate-700 cursor-pointer">
-                  Event Creation
-                </label>
-                <p className="text-xs text-slate-500 mt-1">Allow organizers to create events</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  id="event_creation_enabled"
-                  checked={settings.event_creation_enabled}
-                  onChange={(e) => handleSettingChange('event_creation_enabled', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-              <div className="flex-1">
-                <label htmlFor="survey_creation_enabled" className="text-sm font-medium text-slate-700 cursor-pointer">
-                  Survey Creation
-                </label>
-                <p className="text-xs text-slate-500 mt-1">Allow organizers to create surveys</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  id="survey_creation_enabled"
-                  checked={settings.survey_creation_enabled}
-                  onChange={(e) => handleSettingChange('survey_creation_enabled', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-              <div className="flex-1">
-                <label htmlFor="email_notifications_enabled" className="text-sm font-medium text-slate-700 cursor-pointer">
-                  Email Notifications
-                </label>
-                <p className="text-xs text-slate-500 mt-1">Enable system-wide email notifications</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  id="email_notifications_enabled"
-                  checked={settings.email_notifications_enabled}
-                  onChange={(e) => handleSettingChange('email_notifications_enabled', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
               </label>
             </div>
           </div>
@@ -3911,8 +3825,8 @@ const ActivityLogsTab = () => {
               <Clock className="w-16 h-16 text-slate-400 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-slate-800 mb-2">No Activity Logs</h3>
               <p className="text-slate-600">
-                {total === 0 
-                  ? "No activity logs have been recorded yet." 
+                {total === 0
+                  ? "No activity logs have been recorded yet."
                   : "No activity logs match your filters."}
               </p>
             </div>

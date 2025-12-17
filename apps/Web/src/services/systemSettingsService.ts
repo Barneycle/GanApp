@@ -2,13 +2,26 @@ import { supabase } from '../lib/supabaseClient';
 
 export interface SystemSettings {
   maintenance_mode: boolean;
-  registration_enabled: boolean;
-  event_creation_enabled: boolean;
-  survey_creation_enabled: boolean;
-  email_notifications_enabled: boolean;
 }
 
 export class SystemSettingsService {
+  /**
+   * Get maintenance mode status (works for unauthenticated users)
+   */
+  static async getMaintenanceMode(): Promise<boolean> {
+    try {
+      const { data, error } = await supabase.rpc('get_maintenance_mode');
+      if (error) {
+        console.error('Error getting maintenance mode:', error);
+        return false; // Default to not in maintenance mode
+      }
+      return data === true;
+    } catch (error: any) {
+      console.error('Error getting maintenance mode:', error);
+      return false; // Default to not in maintenance mode
+    }
+  }
+
   /**
    * Get all system settings
    */
@@ -25,10 +38,6 @@ export class SystemSettingsService {
           return {
             settings: {
               maintenance_mode: false,
-              registration_enabled: true,
-              event_creation_enabled: true,
-              survey_creation_enabled: true,
-              email_notifications_enabled: true,
             }
           };
         }
@@ -38,23 +47,27 @@ export class SystemSettingsService {
       // Convert array of {setting_key, setting_value} to object
       const settings: SystemSettings = {
         maintenance_mode: false,
-        registration_enabled: true,
-        event_creation_enabled: true,
-        survey_creation_enabled: true,
-        email_notifications_enabled: true,
       };
 
       if (data) {
         data.forEach((item) => {
           const key = item.setting_key as keyof SystemSettings;
-          const value = item.setting_value;
+          let value = item.setting_value;
 
-          if (key === 'maintenance_mode' ||
-            key === 'registration_enabled' ||
-            key === 'event_creation_enabled' ||
-            key === 'survey_creation_enabled' ||
-            key === 'email_notifications_enabled') {
-            settings[key] = value === true || value === 'true' || (typeof value === 'string' && value.toLowerCase() === 'true');
+          if (key === 'maintenance_mode') {
+            // Handle JSONB values - Supabase returns them as-is
+            // If it's already a boolean, use it directly
+            if (typeof value === 'boolean') {
+              settings[key] = value;
+            } else if (value === true || value === false) {
+              // Handle explicit true/false values
+              settings[key] = value;
+            } else if (typeof value === 'string') {
+              // If it's a string, convert to boolean
+              settings[key] = value.toLowerCase() === 'true';
+            } else if (value === null || value === undefined) {
+              // Keep default value (already set above)
+            }
           }
         });
       }
@@ -73,12 +86,19 @@ export class SystemSettingsService {
     userId: string
   ): Promise<{ success?: boolean; error?: string }> {
     try {
-      const updates = Object.entries(settings).map(([key, value]) => ({
-        setting_key: key,
-        setting_value: value,
-        updated_by: userId,
-        updated_at: new Date().toISOString(),
-      }));
+      const updates = Object.entries(settings).map(([key, value]) => {
+        // Ensure boolean values are stored as actual booleans, not strings
+        let normalizedValue = value;
+        if (typeof value === 'string') {
+          normalizedValue = value.toLowerCase() === 'true';
+        }
+        return {
+          setting_key: key,
+          setting_value: normalizedValue,
+          updated_by: userId,
+          updated_at: new Date().toISOString(),
+        };
+      });
 
       // Use upsert to update or insert settings
       const { error } = await supabase
@@ -129,10 +149,6 @@ export class SystemSettingsService {
   private static getDefaultValue(key: keyof SystemSettings): any {
     const defaults: SystemSettings = {
       maintenance_mode: false,
-      registration_enabled: true,
-      event_creation_enabled: true,
-      survey_creation_enabled: true,
-      email_notifications_enabled: true,
     };
     return defaults[key];
   }
