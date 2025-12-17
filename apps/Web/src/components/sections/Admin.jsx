@@ -102,7 +102,6 @@ export const Admin = () => {
                     : 'text-slate-700 hover:bg-white hover:text-slate-900'
                     }`}
                 >
-                  <Activity className="w-5 h-5 mr-3" />
                   Dashboard
                 </button>
                 <button
@@ -112,7 +111,6 @@ export const Admin = () => {
                     : 'text-slate-700 hover:bg-white hover:text-slate-900'
                     }`}
                 >
-                  <Shield className="w-5 h-5 mr-3" />
                   User Management
                 </button>
                 <button
@@ -122,7 +120,6 @@ export const Admin = () => {
                     : 'text-slate-700 hover:bg-white hover:text-slate-900'
                     }`}
                 >
-                  <Activity className="w-5 h-5 mr-3" />
                   Event Management
                 </button>
                 <button
@@ -132,7 +129,6 @@ export const Admin = () => {
                     : 'text-slate-700 hover:bg-white hover:text-slate-900'
                     }`}
                 >
-                  <AlertCircle className="w-5 h-5 mr-3" />
                   Cancellation Requests
                 </button>
                 <button
@@ -142,7 +138,6 @@ export const Admin = () => {
                     : 'text-slate-700 hover:bg-white hover:text-slate-900'
                     }`}
                 >
-                  <Activity className="w-5 h-5 mr-3" />
                   Analytics & Reports
                 </button>
                 <button
@@ -152,7 +147,6 @@ export const Admin = () => {
                     : 'text-slate-700 hover:bg-white hover:text-slate-900'
                     }`}
                 >
-                  <Shield className="w-5 h-5 mr-3" />
                   System Settings
                 </button>
                 <button
@@ -162,7 +156,6 @@ export const Admin = () => {
                     : 'text-slate-700 hover:bg-white hover:text-slate-900'
                     }`}
                 >
-                  <AlertCircle className="w-5 h-5 mr-3" />
                   Notification Management
                 </button>
                 <button
@@ -172,7 +165,6 @@ export const Admin = () => {
                     : 'text-slate-700 hover:bg-white hover:text-slate-900'
                     }`}
                 >
-                  <Database className="w-5 h-5 mr-3" />
                   Database Maintenance
                 </button>
                 <button
@@ -182,7 +174,6 @@ export const Admin = () => {
                     : 'text-slate-700 hover:bg-white hover:text-slate-900'
                     }`}
                 >
-                  <Clock className="w-5 h-5 mr-3" />
                   Activity Logs
                 </button>
               </nav>
