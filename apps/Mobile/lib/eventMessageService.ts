@@ -19,10 +19,11 @@ export interface EventMessage {
 
 export class EventMessageService {
   /**
-   * Get chat settings for an event
+   * Get chat settings for a specific participant thread
    */
   static async getChatSettings(
-    eventId: string
+    eventId: string,
+    participantId: string
   ): Promise<{ isOpen?: boolean; error?: string; fromCache?: boolean }> {
     try {
       // Try to fetch from server if online
@@ -32,17 +33,22 @@ export class EventMessageService {
             .from('event_chat_settings')
             .select('is_chat_open')
             .eq('event_id', eventId)
+            .eq('participant_id', participantId)
             .maybeSingle();
 
           if (error && error.code !== 'PGRST116') {
             // Fall through to cache
           } else if (data !== null) {
-            // Save to local database
+            // Save to local database (for offline support, we'll save with composite key)
             await LocalDatabaseService.saveChatSettings({
               event_id: eventId,
+              participant_id: participantId,
               is_chat_open: data.is_chat_open,
             });
             return { isOpen: data.is_chat_open, fromCache: false };
+          } else {
+            // No settings exist, default to open
+            return { isOpen: true, fromCache: false };
           }
         } catch (error) {
           console.error('Network error, falling back to cache:', error);
@@ -51,7 +57,7 @@ export class EventMessageService {
       }
 
       // Fallback to local database
-      const cachedSettings = await LocalDatabaseService.getChatSettings(eventId);
+      const cachedSettings = await LocalDatabaseService.getChatSettings(eventId, participantId);
       return { isOpen: cachedSettings?.is_chat_open ?? true, fromCache: true };
     } catch (error) {
       return { error: 'An unexpected error occurred' };
@@ -154,16 +160,12 @@ export class EventMessageService {
       const organizerId = eventResult.data.created_by;
       const isOrganizer = senderId === organizerId;
 
-      // For participants, check if chat is open
+      // For participants, we need to ensure they're registered and get participant_id
+      let participantId = senderId;
       if (!isOrganizer) {
-        const chatSettings = await this.getChatSettings(eventId);
-        if (chatSettings.error) {
-          return { error: chatSettings.error };
-        }
-        if (!chatSettings.isOpen) {
-          return { error: 'The chat for this event is currently closed by the organizer. Please contact them through other means.' };
-        }
+        participantId = senderId;
 
+        // Check if participant is registered
         const { data: registration } = await supabase
           .from('event_registrations')
           .select('user_id')
@@ -175,10 +177,18 @@ export class EventMessageService {
         if (!registration) {
           return { error: 'You must be registered for this event to contact the organizer' };
         }
+
+        // For participants, check if their specific chat thread is open
+        const chatSettings = await this.getChatSettings(eventId, participantId);
+        if (chatSettings.error) {
+          return { error: chatSettings.error };
+        }
+        if (!chatSettings.isOpen) {
+          return { error: 'This conversation thread is currently closed by the organizer. Please contact them through other means.' };
+        }
       }
 
-      // For participants, we need to ensure they're registered and get participant_id
-      let participantId = senderId;
+      // For organizer replies, find participant_id from existing messages if not already set
       if (isOrganizer) {
         // For organizer replies, we need to find the participant_id from existing messages
         const { data: existingMessage } = await supabase
@@ -396,6 +406,86 @@ export class EventMessageService {
       }
 
       return { count: count || 0 };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Delete all messages in a conversation (organizers only)
+   */
+  static async deleteAllMessages(
+    eventId: string,
+    userId: string,
+    participantId?: string
+  ): Promise<{ error?: string }> {
+    try {
+      // Only allow deletion when online
+      if (!NetworkStatusMonitor.isOnline()) {
+        return { error: 'Deletion is only available when online' };
+      }
+
+      // Get event to find organizer
+      const { data: event, error: eventError } = await supabase
+        .from('events')
+        .select('created_by')
+        .eq('id', eventId)
+        .single();
+
+      if (eventError || !event) {
+        return { error: 'Event not found' };
+      }
+
+      const organizerId = event.created_by;
+      const isOrganizer = userId === organizerId;
+
+      // Only organizers can delete messages
+      if (!isOrganizer) {
+        return { error: 'Only event organizers can delete messages' };
+      }
+
+      // Build query - always filter by event_id first
+      let query = supabase
+        .from('event_messages')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('organizer_id', organizerId)
+        .select(); // Select deleted rows to get count
+
+      // If participantId specified, delete only messages for that participant
+      if (participantId) {
+        query = query.eq('participant_id', participantId);
+      }
+
+      const { data, error: deleteError } = await query;
+
+      if (deleteError) {
+        console.error('Delete messages error:', deleteError);
+        console.error('Delete error details:', {
+          eventId,
+          userId,
+          participantId,
+          organizerId
+        });
+        return { error: deleteError.message || 'Failed to delete messages. Please check RLS policies.' };
+      }
+
+      // Log deletion result for debugging
+      const deletedCount = data?.length || 0;
+      console.log(`Successfully deleted ${deletedCount} message(s) from conversation`, {
+        eventId,
+        participantId
+      });
+
+      if (deletedCount === 0) {
+        console.warn('No messages were deleted. This might indicate an RLS policy issue or no matching messages.');
+      }
+
+      // Delete from local database as well
+      await LocalDatabaseService.deleteEventMessages(eventId, organizerId, participantId);
+
+      // Return success even if no rows were deleted (already empty)
+      return {};
     } catch (error) {
       return { error: 'An unexpected error occurred' };
     }

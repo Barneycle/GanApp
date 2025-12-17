@@ -43,16 +43,16 @@ export default function Certificate() {
   const toast = useToast();
   const eventId = params.eventId as string;
   const isMobile = params.mobile === 'true';
-  const accessToken = params.accessToken as string | null;
-  const refreshToken = params.refreshToken as string | null;
+  const paramAccessToken = params.accessToken as string | null;
+  const paramRefreshToken = params.refreshToken as string | null;
 
   const webViewRef = useRef<WebView>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [refreshToken, setRefreshToken] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(paramAccessToken);
+  const [refreshToken, setRefreshToken] = useState<string | null>(paramRefreshToken);
   const [webViewUrl, setWebViewUrl] = useState<string>('');
-  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastUrlRef = useRef<string>('');
   const readyMessageReceivedRef = useRef(false);
 
@@ -64,7 +64,8 @@ export default function Certificate() {
           setAccessToken(session.access_token);
           setRefreshToken(session.refresh_token);
           console.log('✅ Session tokens obtained');
-        } else {
+        } else if (!paramAccessToken || !paramRefreshToken) {
+          // Only warn if we don't have tokens from params either
           console.warn('⚠️ No session tokens available');
         }
       } catch (error) {

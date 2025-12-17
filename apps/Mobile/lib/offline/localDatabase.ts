@@ -133,12 +133,14 @@ export class LocalDatabaseService {
       );
     `);
 
-    // Event chat settings table
+    // Event chat settings table (per participant)
     await this.db.execAsync(`
       CREATE TABLE IF NOT EXISTS event_chat_settings (
-        event_id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL,
+        participant_id TEXT NOT NULL,
         is_chat_open INTEGER DEFAULT 1,
-        synced_at TEXT
+        synced_at TEXT,
+        PRIMARY KEY (event_id, participant_id)
       );
     `);
 
@@ -169,6 +171,7 @@ export class LocalDatabaseService {
       CREATE INDEX IF NOT EXISTS idx_event_messages_event ON event_messages(event_id);
       CREATE INDEX IF NOT EXISTS idx_event_messages_participant ON event_messages(participant_id);
       CREATE INDEX IF NOT EXISTS idx_event_messages_created_at ON event_messages(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_event_chat_settings_event_participant ON event_chat_settings(event_id, participant_id);
     `);
   }
 
@@ -566,18 +569,23 @@ export class LocalDatabaseService {
    */
   static async saveChatSettings(settings: {
     event_id: string;
+    participant_id?: string;
     is_chat_open: boolean;
   }): Promise<void> {
     if (!this.db) {
       await this.initialize();
     }
 
+    // If participant_id is provided, use it; otherwise use a placeholder for backward compatibility
+    const participantId = settings.participant_id || 'default';
+
     await this.db!.runAsync(
       `INSERT OR REPLACE INTO event_chat_settings (
-        event_id, is_chat_open, synced_at
-      ) VALUES (?, ?, ?)`,
+        event_id, participant_id, is_chat_open, synced_at
+      ) VALUES (?, ?, ?, ?)`,
       [
         settings.event_id,
+        participantId,
         settings.is_chat_open ? 1 : 0,
         new Date().toISOString(),
       ]
@@ -585,16 +593,18 @@ export class LocalDatabaseService {
   }
 
   /**
-   * Get chat settings
+   * Get chat settings for a specific participant
    */
-  static async getChatSettings(eventId: string): Promise<any | null> {
+  static async getChatSettings(eventId: string, participantId?: string): Promise<any | null> {
     if (!this.db) {
       await this.initialize();
     }
 
+    // If participantId is provided, query with it; otherwise use default for backward compatibility
+    const pid = participantId || 'default';
     const results = await this.db!.getAllAsync(
-      'SELECT * FROM event_chat_settings WHERE event_id = ?',
-      [eventId]
+      'SELECT * FROM event_chat_settings WHERE event_id = ? AND participant_id = ?',
+      [eventId, pid]
     ) as any[];
 
     if (results.length === 0) {
@@ -604,6 +614,7 @@ export class LocalDatabaseService {
     const result = results[0];
     return {
       event_id: result.event_id,
+      participant_id: result.participant_id,
       is_chat_open: result.is_chat_open === 1,
       synced_at: result.synced_at,
     };
@@ -677,6 +688,33 @@ export class LocalDatabaseService {
       read_at: row.read_at,
       created_at: row.created_at,
     }));
+  }
+
+  /**
+   * Delete event messages from local database
+   */
+  static async deleteEventMessages(
+    eventId: string,
+    organizerId: string,
+    participantId?: string
+  ): Promise<void> {
+    if (!this.db) {
+      await this.initialize();
+    }
+
+    if (participantId) {
+      // Delete messages for specific participant thread
+      await this.db!.runAsync(
+        'DELETE FROM event_messages WHERE event_id = ? AND organizer_id = ? AND participant_id = ?',
+        [eventId, organizerId, participantId]
+      );
+    } else {
+      // Delete all messages for the organizer in this event
+      await this.db!.runAsync(
+        'DELETE FROM event_messages WHERE event_id = ? AND organizer_id = ?',
+        [eventId, organizerId]
+      );
+    }
   }
 
   /**

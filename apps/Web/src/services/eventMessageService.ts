@@ -16,16 +16,18 @@ export interface EventMessage {
 
 export class EventMessageService {
   /**
-   * Get chat settings for an event
+   * Get chat settings for a specific participant thread
    */
   static async getChatSettings(
-    eventId: string
+    eventId: string,
+    participantId: string
   ): Promise<{ isOpen?: boolean; error?: string }> {
     try {
       const { data, error } = await supabase
         .from('event_chat_settings')
         .select('is_chat_open')
         .eq('event_id', eventId)
+        .eq('participant_id', participantId)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
@@ -40,10 +42,11 @@ export class EventMessageService {
   }
 
   /**
-   * Update chat settings (open/close chat) - organizer only
+   * Update chat settings (open/close chat) for a specific participant thread - organizer only
    */
   static async updateChatSettings(
     eventId: string,
+    participantId: string,
     organizerId: string,
     isOpen: boolean
   ): Promise<{ error?: string }> {
@@ -59,16 +62,17 @@ export class EventMessageService {
         return { error: 'Only the event organizer can update chat settings' };
       }
 
-      // Upsert chat settings
+      // Upsert chat settings for this specific participant
       const { error } = await supabase
         .from('event_chat_settings')
         .upsert({
           event_id: eventId,
+          participant_id: participantId,
           is_chat_open: isOpen,
           updated_by: organizerId,
           updated_at: new Date().toISOString()
         }, {
-          onConflict: 'event_id'
+          onConflict: 'event_id,participant_id'
         });
 
       if (error) {
@@ -160,16 +164,12 @@ export class EventMessageService {
       const organizerId = event.created_by;
       const isOrganizer = senderId === organizerId;
 
-      // For participants, check if chat is open
+      // For participants, we need to ensure they're registered and get participant_id
+      let participantId = senderId;
       if (!isOrganizer) {
-        const chatSettings = await this.getChatSettings(eventId);
-        if (chatSettings.error) {
-          return { error: chatSettings.error };
-        }
-        if (!chatSettings.isOpen) {
-          return { error: 'The chat for this event is currently closed by the organizer. Please contact them through other means.' };
-        }
+        participantId = senderId;
 
+        // Check if participant is registered
         const { data: registration } = await supabase
           .from('event_registrations')
           .select('user_id')
@@ -181,12 +181,15 @@ export class EventMessageService {
         if (!registration) {
           return { error: 'You must be registered for this event to contact the organizer' };
         }
-      }
 
-      // For participants, we need to ensure they're registered and get participant_id
-      let participantId = senderId;
-      if (!isOrganizer) {
-        participantId = senderId;
+        // For participants, check if their specific chat thread is open
+        const chatSettings = await this.getChatSettings(eventId, participantId);
+        if (chatSettings.error) {
+          return { error: chatSettings.error };
+        }
+        if (!chatSettings.isOpen) {
+          return { error: 'This conversation thread is currently closed by the organizer. Please contact them through other means.' };
+        }
       } else {
         // For organizer replies, we need to find the participant_id from existing messages
         const { data: existingMessage } = await supabase
@@ -423,7 +426,7 @@ export class EventMessageService {
   }
 
   /**
-   * Delete all messages in a conversation (organizer or participant)
+   * Delete all messages in a conversation (organizers only)
    */
   static async deleteAllMessages(
     eventId: string,
@@ -445,27 +448,22 @@ export class EventMessageService {
       const organizerId = event.created_by;
       const isOrganizer = userId === organizerId;
 
-      // Build query based on role
-      // Always filter by event_id first
+      // Only organizers can delete messages
+      if (!isOrganizer) {
+        return { error: 'Only event organizers can delete messages' };
+      }
+
+      // Build query - always filter by event_id first
       let query = supabase
         .from('event_messages')
         .delete()
         .eq('event_id', eventId)
+        .eq('organizer_id', organizerId)
         .select(); // Select deleted rows to get count
 
-      if (isOrganizer) {
-        // Organizer can delete all messages for a specific participant conversation
-        if (participantId) {
-          // Delete all messages in the conversation thread (both from organizer and participant)
-          query = query.eq('participant_id', participantId);
-        } else {
-          // If no participantId specified, delete all messages where organizer is involved
-          query = query.eq('organizer_id', organizerId);
-        }
-      } else {
-        // Participant can delete all messages in their conversation thread
-        // (both their own messages and organizer's messages to them)
-        query = query.eq('participant_id', userId);
+      // If participantId specified, delete only messages for that participant
+      if (participantId) {
+        query = query.eq('participant_id', participantId);
       }
 
       const { data, error: deleteError } = await query;
@@ -476,7 +474,6 @@ export class EventMessageService {
           eventId,
           userId,
           participantId,
-          isOrganizer,
           organizerId
         });
         return { error: deleteError.message || 'Failed to delete messages. Please check RLS policies.' };
@@ -486,8 +483,7 @@ export class EventMessageService {
       const deletedCount = data?.length || 0;
       console.log(`Successfully deleted ${deletedCount} message(s) from conversation`, {
         eventId,
-        participantId,
-        isOrganizer
+        participantId
       });
 
       if (deletedCount === 0) {

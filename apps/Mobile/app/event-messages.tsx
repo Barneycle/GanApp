@@ -92,10 +92,11 @@ export default function EventMessages() {
   };
 
   const loadChatStatus = async () => {
-    if (!eventId) return;
+    if (!eventId || !user?.id) return;
     try {
       setLoadingChatStatus(true);
-      const result = await EventMessageService.getChatSettings(eventId);
+      // For participants, user.id is the participant_id
+      const result = await EventMessageService.getChatSettings(eventId, user.id);
       if (!result.error && result.isOpen !== undefined) {
         setChatIsOpen(result.isOpen);
       }

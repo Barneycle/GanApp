@@ -16,11 +16,13 @@ export const EventChatModal = ({ isOpen, onClose, eventId, eventTitle }) => {
   const [chatIsOpen, setChatIsOpen] = useState(true);
   const [loadingChatStatus, setLoadingChatStatus] = useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [isOrganizer, setIsOrganizer] = useState(false);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
   useEffect(() => {
     if (isOpen && eventId && user?.id) {
+      checkIfOrganizer();
       loadChatStatus();
       loadMessages();
       // Set up real-time subscription
@@ -54,11 +56,30 @@ export const EventChatModal = ({ isOpen, onClose, eventId, eventTitle }) => {
     }
   }, [isOpen, eventId, user?.id]);
 
+  const checkIfOrganizer = async () => {
+    if (!eventId || !user?.id) return;
+    try {
+      const { data: event } = await supabase
+        .from('events')
+        .select('created_by')
+        .eq('id', eventId)
+        .single();
+
+      if (event) {
+        setIsOrganizer(event.created_by === user.id);
+      }
+    } catch (error) {
+      console.error('Failed to check if organizer:', error);
+      setIsOrganizer(false);
+    }
+  };
+
   const loadChatStatus = async () => {
-    if (!eventId) return;
+    if (!eventId || !user?.id) return;
     try {
       setLoadingChatStatus(true);
-      const result = await EventMessageService.getChatSettings(eventId);
+      // For participants, user.id is the participant_id
+      const result = await EventMessageService.getChatSettings(eventId, user.id);
       if (!result.error && result.isOpen !== undefined) {
         setChatIsOpen(result.isOpen);
       }
@@ -135,7 +156,11 @@ export const EventChatModal = ({ isOpen, onClose, eventId, eventTitle }) => {
   };
 
   const handleDeleteAllMessages = async () => {
-    if (!eventId || !user?.id) return;
+    if (!eventId || !user?.id || !isOrganizer) return;
+
+    // For organizers, get participant_id from the first message if available
+    // If viewing all messages, this will delete all messages for the event
+    const participantId = messages.length > 0 ? messages[0].participant_id : undefined;
 
     const result = await Swal.fire({
       title: 'Delete Conversation Thread?',
@@ -153,7 +178,7 @@ export const EventChatModal = ({ isOpen, onClose, eventId, eventTitle }) => {
 
     try {
       setDeletingAll(true);
-      const deleteResult = await EventMessageService.deleteAllMessages(eventId, user.id);
+      const deleteResult = await EventMessageService.deleteAllMessages(eventId, user.id, participantId);
 
       if (deleteResult.error) {
         toast.error(deleteResult.error);
@@ -208,7 +233,7 @@ export const EventChatModal = ({ isOpen, onClose, eventId, eventTitle }) => {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {messages.length > 0 && (
+            {isOrganizer && messages.length > 0 && (
               <button
                 onClick={handleDeleteAllMessages}
                 disabled={deletingAll}

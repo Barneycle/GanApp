@@ -119,10 +119,14 @@ export const EventMessages = () => {
     if (!selectedConversation || !user?.id || !isMountedRef.current) return;
 
     try {
-      // Load chat status
-      const statusResult = await EventMessageService.getChatSettings(selectedConversation.event_id);
+      // Load chat status for this specific participant thread
+      const statusResult = await EventMessageService.getChatSettings(
+        selectedConversation.event_id,
+        selectedConversation.participant_id
+      );
       if (!statusResult.error && statusResult.isOpen !== undefined && isMountedRef.current) {
-        setChatStatuses(prev => ({ ...prev, [selectedConversation.event_id]: statusResult.isOpen }));
+        const threadKey = `${selectedConversation.event_id}_${selectedConversation.participant_id}`;
+        setChatStatuses(prev => ({ ...prev, [threadKey]: statusResult.isOpen }));
       }
 
       const result = await EventMessageService.getEventMessages(
@@ -192,15 +196,17 @@ export const EventMessages = () => {
     }
   };
 
-  const toggleChatStatus = async (eventId) => {
-    if (!user?.id) return;
+  const toggleChatStatus = async (eventId, participantId) => {
+    if (!user?.id || !selectedConversation) return;
 
-    const currentStatus = chatStatuses[eventId] ?? true;
+    const threadKey = `${eventId}_${participantId}`;
+    const currentStatus = chatStatuses[threadKey] ?? true;
     const newStatus = !currentStatus;
 
     try {
       const result = await EventMessageService.updateChatSettings(
         eventId,
+        participantId,
         user.id,
         newStatus
       );
@@ -208,8 +214,8 @@ export const EventMessages = () => {
       if (result.error) {
         toast.error(result.error);
       } else {
-        setChatStatuses(prev => ({ ...prev, [eventId]: newStatus }));
-        toast.success(`Chat ${newStatus ? 'opened' : 'closed'} successfully`);
+        setChatStatuses(prev => ({ ...prev, [threadKey]: newStatus }));
+        toast.success(`Thread ${newStatus ? 'opened' : 'closed'} successfully`);
       }
     } catch (error) {
       toast.error('Failed to update chat status');
@@ -638,25 +644,29 @@ export const EventMessages = () => {
                           {deletingAll ? 'Deleting...' : 'Delete Thread'}
                         </button>
                       )}
-                      {chatStatuses[selectedConversation.event_id] === false ? (
-                        <button
-                          onClick={() => toggleChatStatus(selectedConversation.event_id)}
-                          className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center gap-2"
-                          title="Open chat"
-                        >
-                          <Unlock size={16} />
-                          Open Chat
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => toggleChatStatus(selectedConversation.event_id)}
-                          className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm flex items-center gap-2"
-                          title="Close chat"
-                        >
-                          <Lock size={16} />
-                          Close Chat
-                        </button>
-                      )}
+                      {(() => {
+                        const threadKey = `${selectedConversation.event_id}_${selectedConversation.participant_id}`;
+                        const isClosed = chatStatuses[threadKey] === false;
+                        return isClosed ? (
+                          <button
+                            onClick={() => toggleChatStatus(selectedConversation.event_id, selectedConversation.participant_id)}
+                            className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center gap-2"
+                            title="Open thread"
+                          >
+                            <Unlock size={16} />
+                            Open Thread
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => toggleChatStatus(selectedConversation.event_id, selectedConversation.participant_id)}
+                            className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm flex items-center gap-2"
+                            title="Close thread"
+                          >
+                            <Lock size={16} />
+                            Close Thread
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>

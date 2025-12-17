@@ -126,6 +126,7 @@ CREATE POLICY "Participants can send event messages" ON event_messages
     EXISTS (
       SELECT 1 FROM event_chat_settings 
       WHERE event_id = event_messages.event_id 
+      AND participant_id = event_messages.participant_id
       AND is_chat_open = true
     )
   );
