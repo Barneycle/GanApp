@@ -74,8 +74,15 @@ export class LoggerService {
       
       // In production, send to error tracking service
       if (this.isProduction && error) {
-        // TODO: Integrate with error tracking service (e.g., Sentry, LogRocket)
-        // ErrorTrackingService.captureException(error, { message, context });
+        // Dynamically import to avoid circular dependencies
+        import('./errorTrackingService').then(({ ErrorTrackingService }) => {
+          ErrorTrackingService.captureException(error, {
+            message,
+            ...context,
+          });
+        }).catch(() => {
+          // Error tracking not available - that's okay
+        });
       }
     }
   }
@@ -91,7 +98,10 @@ export class LoggerService {
    * Log service-specific errors with service name prefix
    */
   static serviceError(serviceName: string, message: string, error?: any, context?: LogContext): void {
-    this.error(`[${serviceName}] ${message}`, error, context);
+    this.error(`[${serviceName}] ${message}`, error, {
+      serviceName,
+      ...context,
+    });
   }
 
   /**

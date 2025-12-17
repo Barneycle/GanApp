@@ -78,6 +78,22 @@ This document describes all environment variables used in the GanApp web applica
 - **Example**: `/app` (if deploying to `https://example.com/app`)
 - **Used in**: `vite.config.js` for routing
 
+#### `VITE_SENTRY_DSN`
+- **Type**: String (URL)
+- **Required**: No (error tracking disabled if not set)
+- **Description**: Sentry DSN (Data Source Name) for error tracking
+- **Where to get it**: https://sentry.io → Your Project → Settings → Client Keys (DSN)
+- **Used in**: `errorTrackingService.ts` - for production error tracking
+- **Note**: Only used in production mode. Errors are tracked automatically when configured.
+
+#### `VITE_APP_VERSION`
+- **Type**: String
+- **Required**: No
+- **Description**: Application version for error tracking and release management
+- **Example**: `1.0.0`, `v2.1.3`
+- **Used in**: Error tracking service for release tracking
+- **Note**: Useful for tracking which version introduced bugs
+
 ---
 
 ## Development vs Production

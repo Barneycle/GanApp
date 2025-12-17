@@ -13,6 +13,7 @@ export default defineConfig({
     extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json'],
   },
   build: {
+    sourcemap: true, // Enable source maps for better error tracking
     rollupOptions: {
       output: {
         manualChunks: {

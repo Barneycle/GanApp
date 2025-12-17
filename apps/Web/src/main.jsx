@@ -6,6 +6,15 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { supabase } from './lib/supabaseClient';
 import './index.css';
 
+// Initialize error tracking (must be done before React renders)
+import('./services/errorTrackingService').then(({ ErrorTrackingService }) => {
+  ErrorTrackingService.initialize().catch((err) => {
+    console.error('Failed to initialize error tracking:', err);
+  });
+}).catch(() => {
+  // Error tracking service not available - that's okay
+});
+
 // Expose supabase globally for debugging
 window.supabase = supabase;
 

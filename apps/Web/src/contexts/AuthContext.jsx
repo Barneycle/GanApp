@@ -3,6 +3,27 @@ import { UserService } from '../services/userService';
 import { supabase } from '../lib/supabaseClient';
 import { logActivity } from '../utils/activityLogger';
 
+// Helper to set user in error tracking
+const setErrorTrackingUser = (user) => {
+  if (user) {
+    import('../services/errorTrackingService').then(({ ErrorTrackingService }) => {
+      ErrorTrackingService.setUser({
+        id: user.id,
+        email: user.email,
+        username: user.email,
+      });
+    }).catch(() => {
+      // Error tracking not available - that's okay
+    });
+  } else {
+    import('../services/errorTrackingService').then(({ ErrorTrackingService }) => {
+      ErrorTrackingService.setUser(null);
+    }).catch(() => {
+      // Error tracking not available - that's okay
+    });
+  }
+};
+
 const AuthContext = createContext();
 
 function useAuth() {
@@ -161,6 +182,7 @@ export function AuthProvider({ children }) {
             updated_at: session.user.updated_at || session.user.created_at
           };
           setUser(userData);
+          setErrorTrackingUser(userData);
           hasFetchedUser.current = true;
           setLoading(false);
           isInitializing.current = false;
@@ -217,6 +239,7 @@ export function AuthProvider({ children }) {
                 updated_at: session.user.updated_at || session.user.created_at
               };
               setUser(userData);
+              setErrorTrackingUser(userData);
               setError(null);
               hasFetchedUser.current = true;
             } catch (error) {
@@ -224,6 +247,7 @@ export function AuthProvider({ children }) {
             }
           } else if (event === 'SIGNED_OUT') {
             setUser(null);
+            setErrorTrackingUser(null);
             setError(null);
             hasFetchedUser.current = false;
           }
@@ -263,6 +287,7 @@ export function AuthProvider({ children }) {
       const result = await UserService.signIn(email, password, rememberMe);
       if (result.user) {
         setUser(result.user);
+        setErrorTrackingUser(result.user);
         setLoading(false);
         
         // Log activity
@@ -314,6 +339,7 @@ export function AuthProvider({ children }) {
       
       if (result.user) {
         setUser(result.user);
+        setErrorTrackingUser(result.user);
         setLoading(false);
         return { success: true, user: result.user, message: result.message };
       } else {
@@ -339,6 +365,7 @@ export function AuthProvider({ children }) {
       
       // Clear user state first
       setUser(null);
+      setErrorTrackingUser(null);
       hasFetchedUser.current = false;
       isInitializing.current = true;
       
@@ -433,6 +460,7 @@ export function AuthProvider({ children }) {
         const userData = await UserService.getCurrentUser();
         if (userData && !userData.error) {
           setUser(userData);
+          setErrorTrackingUser(userData);
         } else {
           // Fallback to metadata if getCurrentUser fails
           const userDataFromMetadata = {

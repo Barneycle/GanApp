@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabaseClient';
 import { logActivity, createActivityDetails } from '../utils/activityLogger';
 import { CacheService } from './cacheService';
+import { LoggerService } from './loggerService';
 
 export interface Event {
   id: string;
@@ -134,7 +135,7 @@ export class EventService {
             resourceName: data.title || 'Untitled Event',
             details: { event_id: data.id, title: data.title }
           }
-        ).catch(err => console.error('Failed to log event creation:', err));
+        ).catch(err => LoggerService.serviceError('EventService', 'Failed to log event creation', err));
       }
 
       // Invalidate cache
@@ -178,7 +179,7 @@ export class EventService {
             resourceName: data.title || 'Untitled Event',
             details: createActivityDetails(oldEvent, data, changedFields)
           }
-        ).catch(err => console.error('Failed to log event update:', err));
+        ).catch(err => LoggerService.serviceError('EventService', 'Failed to log event update', err));
       }
 
       // Invalidate cache
@@ -220,7 +221,7 @@ export class EventService {
             resourceName: oldEvent.title || 'Untitled Event',
             details: createActivityDetails(oldEvent, null)
           }
-        ).catch(err => console.error('Failed to log event deletion:', err));
+        ).catch(err => LoggerService.serviceError('EventService', 'Failed to log event deletion', err));
       }
 
       // Invalidate cache
@@ -371,7 +372,7 @@ export class EventService {
               action_text: 'View Event',
               priority: 'normal'
             }
-          ).catch(err => console.error('Failed to send event published notification:', err));
+          ).catch(err => LoggerService.serviceError('EventService', 'Failed to send event published notification', err));
         } else if (status === 'cancelled' && oldEvent.status !== 'cancelled') {
           // Notify all registered participants when event is cancelled
           const { data: registrations } = await supabase
@@ -393,7 +394,7 @@ export class EventService {
                 action_text: 'View Details',
                 priority: 'high'
               }
-            ).catch(err => console.error('Failed to send event cancelled notifications:', err));
+            ).catch(err => LoggerService.serviceError('EventService', 'Failed to send event cancelled notifications', err));
           }
         }
       }
@@ -434,7 +435,7 @@ export class EventService {
               action_text: 'View Event',
               priority: 'normal'
             }
-          ).catch(err => console.error('Failed to send event published notification:', err));
+          ).catch(err => LoggerService.serviceError('EventService', 'Failed to send event published notification', err));
         } else if (status === 'cancelled' && oldEvent.status !== 'cancelled') {
           // Notify all registered participants when event is cancelled
           const { data: registrations } = await supabase
@@ -456,7 +457,7 @@ export class EventService {
                 action_text: 'View Details',
                 priority: 'high'
               }
-            ).catch(err => console.error('Failed to send event cancelled notifications:', err));
+            ).catch(err => LoggerService.serviceError('EventService', 'Failed to send event cancelled notifications', err));
           }
         }
       }
@@ -476,7 +477,7 @@ export class EventService {
         .neq('id', id);
 
       if (unfeatureError) {
-        console.error('Error unfeaturing other events:', unfeatureError);
+        LoggerService.serviceError('EventService', 'Error unfeaturing other events', unfeatureError);
         return { error: `Failed to unfeature other events: ${unfeatureError.message}` };
       }
 
@@ -489,7 +490,7 @@ export class EventService {
         .single();
 
       if (error) {
-        console.error('Error featuring event:', error);
+        LoggerService.serviceError('EventService', 'Error featuring event', error);
         return { error: error.message };
       }
 
@@ -509,9 +510,9 @@ export class EventService {
         .eq('is_featured', true);
 
       if (verifyError) {
-        console.warn('Warning: Could not verify featured events:', verifyError);
+        LoggerService.serviceWarn('EventService', 'Could not verify featured events', { error: verifyError });
       } else if (featuredEvents && featuredEvents.length > 1) {
-        console.warn('Warning: Multiple events are featured:', featuredEvents);
+        LoggerService.serviceWarn('EventService', 'Multiple events are featured', { featuredEvents });
         // Try to fix it by unfeaturing all except the current one
         const otherFeaturedIds = featuredEvents
           .filter(e => e.id !== id)
@@ -531,7 +532,7 @@ export class EventService {
 
       return { event: data };
     } catch (error: any) {
-      console.error('Unexpected error in setFeaturedEvent:', error);
+      LoggerService.serviceError('EventService', 'Unexpected error in setFeaturedEvent', error);
       return { error: error?.message || 'An unexpected error occurred' };
     }
   }
@@ -577,7 +578,7 @@ export class EventService {
               action_text: 'View Event',
               priority: 'normal'
             }
-          ).catch(err => console.error('Failed to send registration closed notifications:', err));
+          ).catch(err => LoggerService.serviceError('EventService', 'Failed to send registration closed notifications', err));
         }
       }
 
@@ -716,7 +717,7 @@ export class EventService {
           resourceName: eventResult.event.title || 'Event Registration',
           details: { registration_id: registrationData.id, event_id: eventId, event_title: eventResult.event.title }
         }
-      ).catch(err => console.error('Failed to log event registration:', err));
+      ).catch(err => LoggerService.serviceError('EventService', 'Failed to log event registration', err));
 
       // Send notification to user
       const { NotificationService } = await import('./notificationService');
@@ -730,7 +731,7 @@ export class EventService {
           action_text: 'View Event Details',
           priority: 'normal'
         }
-      ).catch(err => console.error('Failed to send registration notification:', err));
+      ).catch(err => LoggerService.serviceError('EventService', 'Failed to send registration notification', err));
 
       // Update event participant count - use database count + 1
       const currentCount = eventResult.event.current_participants || 0;
@@ -1155,7 +1156,7 @@ export class EventService {
             });
             userData = data;
           } catch (err) {
-            console.error('Error fetching user profile:', err);
+            LoggerService.serviceError('EventService', 'Error fetching user profile', err);
           }
 
           return {
@@ -1250,7 +1251,7 @@ export class EventService {
           resourceName: 'Manual Check-In',
           details: { event_id: eventId, user_id: userId, method: 'manual' }
         }
-      ).catch(err => console.error('Failed to log check-in:', err));
+      ).catch(err => LoggerService.serviceError('EventService', 'Failed to log check-in', err));
 
       return { checkIn: data };
     } catch (error) {
@@ -1311,13 +1312,13 @@ export class EventService {
         .select('id', { count: 'exact' });
 
       if (updateError) {
-        console.error('Update error:', updateError);
+        LoggerService.serviceError('EventService', 'Update error', updateError);
         return { error: updateError.message || 'Failed to update check-in' };
       }
 
       // Check if any rows were actually updated
       if (!updatedRows || updatedRows.length === 0) {
-        console.error('No rows updated - likely blocked by RLS policy');
+        LoggerService.serviceError('EventService', 'No rows updated - likely blocked by RLS policy');
         return { error: 'Update failed: No rows were updated. This may be due to missing UPDATE permissions on attendance_logs table. Please ensure the RLS UPDATE policy exists.' };
       }
 
@@ -1329,7 +1330,7 @@ export class EventService {
         .maybeSingle();
 
       if (selectError) {
-        console.error('Select error:', selectError);
+        LoggerService.serviceError('EventService', 'Select error', selectError);
         return { error: selectError.message || 'Failed to fetch updated check-in' };
       }
 
@@ -1339,7 +1340,7 @@ export class EventService {
 
       // Verify the update actually changed the validation status
       if (updatedCheckIn.is_validated !== isValidated) {
-        console.error('Update did not change validation status', {
+        LoggerService.serviceError('EventService', 'Update did not change validation status', null, {
           expected: isValidated,
           actual: updatedCheckIn.is_validated,
           checkInId
@@ -1357,11 +1358,11 @@ export class EventService {
           resourceName: 'Check-In Validation',
           details: { is_validated: isValidated, method: 'organizer_update' }
         }
-      ).catch(err => console.error('Failed to log validation update:', err));
+      ).catch(err => LoggerService.serviceError('EventService', 'Failed to log validation update', err));
 
       return { checkIn: updatedCheckIn };
     } catch (error: any) {
-      console.error('Error in updateCheckInValidation:', error);
+      LoggerService.serviceError('EventService', 'Error in updateCheckInValidation', error);
       return { error: error?.message || 'An unexpected error occurred' };
     }
   }

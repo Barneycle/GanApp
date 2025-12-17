@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { CacheService } from './cacheService';
+import { LoggerService } from './loggerService';
 
 export interface CertificateConfig {
   id?: string;
@@ -273,10 +274,11 @@ export class CertificateService {
           .single();
 
         if (error) {
-          console.error('Certificate config insert error:', error);
-          console.error('Insert data:', JSON.stringify(insertData, null, 2));
-          console.error('Event ID:', eventId);
-          console.error('User ID:', userId);
+          LoggerService.serviceError('CertificateService', 'Certificate config insert error', error, {
+            insertData: JSON.stringify(insertData, null, 2),
+            eventId,
+            userId,
+          });
           return { error: error.message || 'Failed to create certificate config' };
         }
 
@@ -286,7 +288,7 @@ export class CertificateService {
         return { config: data as CertificateConfig };
       }
     } catch (err: any) {
-      console.error('Certificate config save error:', err);
+      LoggerService.serviceError('CertificateService', 'Certificate config save error', err);
       return { error: err.message || 'Failed to save certificate config' };
     }
   }
@@ -330,7 +332,7 @@ export class CertificateService {
   ): Promise<{ certificate?: Certificate; error?: string }> {
     try {
       const trimmedName = participantName.trim();
-      console.log('[CertificateService] getCertificateByParticipantName - searching for:', JSON.stringify(trimmedName), 'in event:', eventId);
+      LoggerService.debug('getCertificateByParticipantName - searching for:', { participantName: JSON.stringify(trimmedName), eventId });
 
       // Check by participant_name - this is the primary duplicate check
       // Simplified query to avoid connection issues
@@ -344,31 +346,28 @@ export class CertificateService {
       if (error) {
         if (error.code === 'PGRST116') {
           // No certificate found
-          console.log('[CertificateService] ✅ No certificate found by participant_name (PGRST116)');
+          LoggerService.debug('No certificate found by participant_name (PGRST116)');
           return { certificate: undefined };
         }
-        console.error('[CertificateService] ❌ Error checking certificate by participant_name:', error);
+        LoggerService.serviceError('CertificateService', 'Error checking certificate by participant_name', error);
         return { error: error.message };
       }
 
       if (data) {
-        console.log('[CertificateService] ⚠️ Found certificate by participant_name:', {
+        LoggerService.debug('Found certificate by participant_name', {
           id: data.id,
           certificate_number: data.certificate_number,
           participant_name: JSON.stringify(data.participant_name),
-          participant_name_length: data.participant_name?.length,
           searching_for: JSON.stringify(trimmedName),
-          searching_length: trimmedName.length,
           names_match: data.participant_name === trimmedName,
-          user_id: data.user_id
         });
       } else {
-        console.log('[CertificateService] ✅ No certificate found by participant_name (data is null)');
+        LoggerService.debug('No certificate found by participant_name (data is null)');
       }
 
       return { certificate: data as Certificate | undefined };
     } catch (err: any) {
-      console.error('[CertificateService] ❌ Exception in getCertificateByParticipantName:', err);
+      LoggerService.serviceError('CertificateService', 'Exception in getCertificateByParticipantName', err);
       return { error: err.message || 'Failed to check certificate by participant name' };
     }
   }
@@ -487,23 +486,22 @@ export class CertificateService {
 
       if (numberError && numberError.code !== 'PGRST116') {
         // Error other than "not found" - log but continue to create new certificate
-        console.error('Error checking certificate by number:', numberError);
+        LoggerService.serviceError('CertificateService', 'Error checking certificate by number', numberError);
         // Fall through to create new certificate
       }
 
       if (existingByNumber) {
         // Certificate with this number already exists - return it without updating
         // Certificate numbers should remain unique and should not be overwritten
-        console.log('[saveCertificate] ⚠️ Certificate with this number already exists. Returning existing certificate without modification:', {
+        LoggerService.serviceWarn('CertificateService', 'Certificate with this number already exists. Returning existing certificate without modification', {
           id: existingByNumber.id,
           certificate_number: existingByNumber.certificate_number,
           participant_name: existingByNumber.participant_name,
-          searching_for: certificateData.participant_name
         });
         return { certificate: existingByNumber as Certificate };
       }
 
-      console.log('[saveCertificate] ✅ No certificate found with number:', certificateData.certificate_number, '- proceeding with insert');
+      LoggerService.debug('No certificate found with number - proceeding with insert', { certificate_number: certificateData.certificate_number });
 
       // No certificate with this number exists - check if there's one with same (event_id, user_id)
       // This handles the UNIQUE(event_id, user_id) constraint
@@ -523,9 +521,9 @@ export class CertificateService {
           // This allows multiple certificates for different participants sharing the same user_id (manual entries)
           if (existing.participant_name === certificateData.participant_name.trim()) {
             existingByEventUser = existing;
-            console.log('[saveCertificate] Found existing certificate by (event_id, user_id, participant_name):', existing.id);
+            LoggerService.debug('Found existing certificate by (event_id, user_id, participant_name)', { id: existing.id });
           } else {
-            console.log('[saveCertificate] Certificate exists for (event_id, user_id) but different participant_name - allowing new certificate creation');
+            LoggerService.debug('Certificate exists for (event_id, user_id) but different participant_name - allowing new certificate creation');
           }
         }
       }
@@ -535,7 +533,7 @@ export class CertificateService {
 
       // If template ID not provided but event_id exists, get template from event
       if (!templateId && certificateData.event_id) {
-        console.log('[saveCertificate] Attempting to fetch template for event:', certificateData.event_id);
+        LoggerService.debug('Attempting to fetch template for event', { eventId: certificateData.event_id });
         const { data: templates, error: templateError } = await supabase
           .from('certificate_templates')
           .select('id')
@@ -545,16 +543,16 @@ export class CertificateService {
           .maybeSingle(); // Use maybeSingle to handle no results gracefully
 
         if (templateError) {
-          console.error('[saveCertificate] Error fetching template:', templateError);
+          LoggerService.serviceError('CertificateService', 'Error fetching template', templateError);
           return { error: `Failed to fetch certificate template: ${templateError.message || 'Unknown error'}` };
         } else if (templates) {
           templateId = templates.id;
-          console.log('[saveCertificate] Found template ID:', templateId);
+          LoggerService.debug('Found template ID', { templateId });
         } else {
           // No template found - this is OK for events using certificate configs
           // The certificate_template_id column should be nullable to support this
           // Don't try to create a template automatically as participants don't have permission
-          console.log('[saveCertificate] No template found for event:', certificateData.event_id, '- proceeding without template_id (using certificate config)');
+          LoggerService.debug('No template found for event - proceeding without template_id (using certificate config)', { eventId: certificateData.event_id });
           templateId = undefined; // Leave as undefined so it's not included in the insert
         }
       }
@@ -563,7 +561,7 @@ export class CertificateService {
       // Certificate numbers should remain unique and should not be overwritten
       // This handles the UNIQUE(event_id, user_id) constraint
       if (existingByEventUser) {
-        console.log('[saveCertificate] Certificate already exists for (event_id, user_id). Returning existing certificate without modification:', existingByEventUser.id);
+        LoggerService.debug('Certificate already exists for (event_id, user_id). Returning existing certificate without modification', { id: existingByEventUser.id });
         // Return the existing certificate without any updates
         // This ensures certificate numbers remain unique and are never overwritten
         return { certificate: existingByEventUser as Certificate };
@@ -588,7 +586,7 @@ export class CertificateService {
         insertData.certificate_template_id = templateId;
       }
 
-      console.log('[saveCertificate] 📝 Inserting new certificate:', {
+      LoggerService.debug('Inserting new certificate', {
         certificate_number: insertData.certificate_number,
         participant_name: insertData.participant_name,
         event_id: insertData.event_id,
@@ -602,8 +600,7 @@ export class CertificateService {
         .single();
 
       if (error) {
-        console.error('[saveCertificate] ❌ Error inserting certificate:', error);
-        console.error('[saveCertificate] Error details:', {
+        LoggerService.serviceError('CertificateService', 'Error inserting certificate', error, {
           code: error.code,
           message: error.message,
           details: error.details,
@@ -613,11 +610,11 @@ export class CertificateService {
       }
 
       if (!data) {
-        console.error('[saveCertificate] ❌ Insert succeeded but no data returned');
+        LoggerService.serviceError('CertificateService', 'Insert succeeded but no data returned');
         return { error: 'Certificate insert completed but no certificate was returned' };
       }
 
-      console.log('[saveCertificate] ✅ Certificate inserted successfully:', {
+      LoggerService.debug('Certificate inserted successfully', {
         id: data.id,
         certificate_number: data.certificate_number,
         participant_name: data.participant_name
@@ -670,13 +667,13 @@ export class CertificateService {
         .single();
 
       if (createTemplateError || !newTemplate) {
-        console.error('Failed to create template for event:', createTemplateError);
+        LoggerService.serviceError('CertificateService', 'Failed to create template for event', createTemplateError);
         return { error: createTemplateError?.message || 'Failed to create template' };
       }
 
       return { templateId: newTemplate.id };
     } catch (err: any) {
-      console.error('Error creating template for event:', err);
+      LoggerService.serviceError('CertificateService', 'Error creating template for event', err);
       return { error: err.message || 'Failed to create template' };
     }
   }
@@ -704,7 +701,7 @@ export class CertificateService {
         .single();
 
       if (createEventError || !newEvent) {
-        console.error('Failed to create standalone event:', createEventError);
+        LoggerService.serviceError('CertificateService', 'Failed to create standalone event', createEventError);
         return { error: createEventError?.message || 'Failed to create event for standalone certificate' };
       }
 
@@ -733,13 +730,13 @@ export class CertificateService {
         .single();
 
       if (createTemplateError || !newTemplate) {
-        console.error('Failed to create standalone template:', createTemplateError);
+        LoggerService.serviceError('CertificateService', 'Failed to create standalone template', createTemplateError);
         return { error: createTemplateError?.message || 'Failed to create template for standalone certificate' };
       }
 
       return { templateId: newTemplate.id, eventId: eventId };
     } catch (err: any) {
-      console.error('Error creating standalone template:', err);
+      LoggerService.serviceError('CertificateService', 'Error creating standalone template', err);
       return { error: err.message || 'Failed to create standalone template' };
     }
   }
@@ -828,27 +825,27 @@ export class CertificateService {
    */
   static async getNextCertificateNumber(eventId: string, prefix: string = ''): Promise<{ number?: string; error?: string }> {
     try {
-      console.log('[CertificateService] Getting next certificate number for event:', eventId, 'with prefix:', prefix);
+      LoggerService.debug('Getting next certificate number for event', { eventId, prefix });
       // Call the database function to get and increment the counter atomically
       const { data, error } = await supabase.rpc('get_next_certificate_number', {
         event_uuid: eventId
       });
 
       if (error) {
-        console.error('[CertificateService] Error calling get_next_certificate_number RPC:', error);
+        LoggerService.serviceError('CertificateService', 'Error calling get_next_certificate_number RPC', error);
         return { error: error.message };
       }
 
       // Format the number with prefix
       const counter = data || 1;
-      console.log('[CertificateService] Counter value returned from RPC:', counter);
+      LoggerService.debug('Counter value returned from RPC', { counter });
       const formattedNumber = String(counter).padStart(3, '0');
       const certId = prefix ? `${prefix}-${formattedNumber}` : formattedNumber;
-      console.log('[CertificateService] Formatted certificate number:', certId);
+      LoggerService.debug('Formatted certificate number', { certId });
 
       return { number: certId };
     } catch (err: any) {
-      console.error('[CertificateService] Exception in getNextCertificateNumber:', err);
+      LoggerService.serviceError('CertificateService', 'Exception in getNextCertificateNumber', err);
       return { error: err.message || 'Failed to generate certificate number' };
     }
   }

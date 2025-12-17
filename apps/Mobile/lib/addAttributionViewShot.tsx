@@ -418,26 +418,68 @@ export async function addAttributionToImageWithViewShot(
   try {
     console.log('addAttributionToImageWithViewShot: Starting', { imageUri, userName });
     
-    // Load the logo asset
+    // Load the logo asset - use Image.resolveAssetSource for reliable asset resolution
     const logoAsset = require('../assets/images/ganapp_attri.png');
-    const asset = Asset.fromModule(logoAsset);
-    await asset.downloadAsync();
-
-    let logoPath = asset.localUri;
-    if (!logoPath) {
-      const logoFileName = 'ganapp_attri_logo.png';
-      const logoLocalPath = `${FileSystem.cacheDirectory}${logoFileName}`;
-      const fileInfo = await FileSystem.getInfoAsync(logoLocalPath);
-      if (!fileInfo.exists && asset.uri && (asset.uri.startsWith('http://') || asset.uri.startsWith('https://'))) {
-        const downloadResult = await FileSystem.downloadAsync(asset.uri, logoLocalPath);
-        logoPath = downloadResult.uri;
-      } else {
-        logoPath = fileInfo.exists ? logoLocalPath : asset.uri;
+    let logoUri: string | null = null;
+    
+    try {
+      // Method 1: Try Image.resolveAssetSource (works in both dev and production)
+      const resolvedAsset = Image.resolveAssetSource(logoAsset);
+      if (resolvedAsset?.uri) {
+        logoUri = resolvedAsset.uri;
+        console.log('addAttributionToImageWithViewShot: Logo resolved via Image.resolveAssetSource', { logoUri });
+      }
+    } catch (resolveError) {
+      console.warn('addAttributionToImageWithViewShot: Image.resolveAssetSource failed, trying Asset.fromModule', resolveError);
+    }
+    
+    // Method 2: Fallback to Asset.fromModule if Image.resolveAssetSource didn't work
+    if (!logoUri) {
+      try {
+        const asset = Asset.fromModule(logoAsset);
+        await asset.downloadAsync();
+        
+        // Prefer localUri if available (production builds)
+        if (asset.localUri) {
+          logoUri = asset.localUri.startsWith('file://') ? asset.localUri : `file://${asset.localUri}`;
+          console.log('addAttributionToImageWithViewShot: Logo loaded via Asset.localUri', { logoUri });
+        } else if (asset.uri) {
+          // If localUri is not available, use uri directly
+          // For bundled assets, uri should work directly
+          logoUri = asset.uri;
+          console.log('addAttributionToImageWithViewShot: Logo loaded via Asset.uri', { logoUri });
+          
+          // If it's a remote URL, try to download it
+          if (logoUri.startsWith('http://') || logoUri.startsWith('https://')) {
+            const logoFileName = 'ganapp_attri_logo.png';
+            const logoLocalPath = `${FileSystem.cacheDirectory}${logoFileName}`;
+            const fileInfo = await FileSystem.getInfoAsync(logoLocalPath);
+            
+            if (!fileInfo.exists) {
+              try {
+                const downloadResult = await FileSystem.downloadAsync(logoUri, logoLocalPath);
+                logoUri = downloadResult.uri;
+                console.log('addAttributionToImageWithViewShot: Logo downloaded to cache', { logoUri });
+              } catch (downloadError) {
+                console.warn('addAttributionToImageWithViewShot: Failed to download logo, using remote URI', downloadError);
+              }
+            } else {
+              logoUri = logoLocalPath.startsWith('file://') ? logoLocalPath : `file://${logoLocalPath}`;
+              console.log('addAttributionToImageWithViewShot: Logo found in cache', { logoUri });
+            }
+          }
+        }
+      } catch (assetError) {
+        console.error('addAttributionToImageWithViewShot: Asset.fromModule failed', assetError);
       }
     }
-
-    const logoUri = logoPath ? (logoPath.startsWith('file://') ? logoPath : `file://${logoPath}`) : null;
-    console.log('addAttributionToImageWithViewShot: Logo loaded', { logoUri });
+    
+    // Ensure logoUri has file:// prefix if it's a local path
+    if (logoUri && !logoUri.startsWith('file://') && !logoUri.startsWith('http://') && !logoUri.startsWith('https://')) {
+      logoUri = `file://${logoUri}`;
+    }
+    
+    console.log('addAttributionToImageWithViewShot: Logo loaded', { logoUri, hasLogo: !!logoUri });
 
     // Calculate parameters
     const params = await calculateAttributionParams(

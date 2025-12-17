@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { logActivity, createActivityDetails } from '../utils/activityLogger';
+import { LoggerService } from './loggerService';
 
 export interface Survey {
   id: string;
@@ -100,7 +101,7 @@ export class SurveyService {
             resourceName: data.title || 'Untitled Survey',
             details: { survey_id: data.id, title: data.title, event_id: data.event_id }
           }
-        ).catch(err => console.error('Failed to log survey creation:', err));
+        ).catch(err => LoggerService.serviceError('SurveyService', 'Failed to log survey creation', err));
       }
 
       return { survey: data };
@@ -141,7 +142,7 @@ export class SurveyService {
             resourceName: data.title || 'Untitled Survey',
             details: createActivityDetails(oldSurvey, data, changedFields)
           }
-        ).catch(err => console.error('Failed to log survey update:', err));
+        ).catch(err => LoggerService.serviceError('SurveyService', 'Failed to log survey update', err));
       }
 
       return { survey: data };
@@ -179,7 +180,7 @@ export class SurveyService {
             resourceName: oldSurvey.title || 'Untitled Survey',
             details: createActivityDetails(oldSurvey, null)
           }
-        ).catch(err => console.error('Failed to log survey deletion:', err));
+        ).catch(err => LoggerService.serviceError('SurveyService', 'Failed to log survey deletion', err));
       }
 
       return {};
@@ -415,14 +416,11 @@ export class SurveyService {
       const now = new Date();
 
       // Debug logging
-      console.log('Auto-open check:', {
+      LoggerService.debug('Auto-open check', {
         surveyId: survey.id,
         opensAt: opensAt.toISOString(),
-        opensAtLocal: opensAt.toLocaleString(),
         now: now.toISOString(),
-        nowLocal: now.toLocaleString(),
         shouldOpen: now >= opensAt,
-        updatedAt: survey.updated_at
       });
 
       // If opens_at time has arrived, check if we should auto-open
@@ -435,7 +433,7 @@ export class SurveyService {
           // If the survey was updated (manually closed) after the opens_at time,
           // don't auto-open it - respect the manual close
           if (updatedAt > opensAt) {
-            console.log('Survey was manually closed after opens_at time, respecting manual close:', survey.id);
+            LoggerService.debug('Survey was manually closed after opens_at time, respecting manual close', { surveyId: survey.id });
             return;
           }
         }
@@ -448,14 +446,14 @@ export class SurveyService {
             .eq('id', survey.id);
 
           if (error) {
-            console.error('Failed to auto-open survey:', error);
+            LoggerService.serviceError('SurveyService', 'Failed to auto-open survey', error);
           } else {
-            console.log('Survey auto-opened:', survey.id);
+            LoggerService.debug('Survey auto-opened', { surveyId: survey.id });
             // Update the survey object in memory
             survey.is_open = true;
           }
         } catch (error) {
-          console.error('Failed to auto-open survey:', error);
+          LoggerService.serviceError('SurveyService', 'Failed to auto-open survey', error);
         }
       }
     }
@@ -485,7 +483,7 @@ export class SurveyService {
           // If the survey was updated (manually opened) after the closes_at time,
           // don't auto-close it - respect the manual open
           if (updatedAt > closesAt) {
-            console.log('Survey was manually opened after closes_at time, respecting manual open:', survey.id);
+            LoggerService.debug('Survey was manually opened after closes_at time, respecting manual open', { surveyId: survey.id });
             return;
           }
         }
@@ -498,14 +496,14 @@ export class SurveyService {
             .eq('id', survey.id);
 
           if (error) {
-            console.error('Failed to auto-close survey:', error);
+            LoggerService.serviceError('SurveyService', 'Failed to auto-close survey', error);
           } else {
-            console.log('Survey auto-closed:', survey.id);
+            LoggerService.debug('Survey auto-closed', { surveyId: survey.id });
             // Update the survey object in memory
             survey.is_open = false;
           }
         } catch (error) {
-          console.error('Failed to auto-close survey:', error);
+          LoggerService.serviceError('SurveyService', 'Failed to auto-close survey', error);
         }
       }
     }
