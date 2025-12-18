@@ -8,6 +8,33 @@ import { calculateAttributionParams } from './addAttributionWithViewShot';
 
 let attributionLogoDiagAlertShown = false;
 
+function normalizeLogoUriCandidate(uri: string | null | undefined): string | null {
+  if (!uri) return null;
+  const trimmed = String(uri).trim();
+  if (!trimmed) return null;
+
+  const lower = trimmed.toLowerCase();
+  // Keep known URI schemes as-is (do NOT force file:// onto these)
+  if (
+    lower.startsWith('http://') ||
+    lower.startsWith('https://') ||
+    lower.startsWith('file://') ||
+    lower.startsWith('content://') ||
+    lower.startsWith('asset:') ||
+    lower.startsWith('data:')
+  ) {
+    return trimmed;
+  }
+
+  // If it's an absolute filesystem path (Android/iOS), convert to file://
+  if (trimmed.startsWith('/')) {
+    return `file://${trimmed}`;
+  }
+
+  // Anything else (e.g. "assets_images_ganapp_attri") is NOT a resolvable file URI.
+  return null;
+}
+
 function attributionLogoDiag(message: string, data?: any) {
   // In many RN/Expo production builds, `console.log` can be stripped while `warn/error` remain.
   // Use warn in production so it shows in release `adb logcat`.
@@ -472,8 +499,18 @@ export async function addAttributionToImageWithViewShot(
       resolvedAssetForDiag = resolvedAsset;
       attributionLogoDiag('Image.resolveAssetSource result', resolvedAsset);
       if (resolvedAsset?.uri) {
-        logoUri = resolvedAsset.uri;
-        attributionLogoDiag('Logo resolved via Image.resolveAssetSource', { logoUri });
+        const normalized = normalizeLogoUriCandidate(resolvedAsset.uri);
+        if (normalized) {
+          logoUri = normalized;
+          attributionLogoDiag('Logo resolved via Image.resolveAssetSource (normalized)', {
+            original: resolvedAsset.uri,
+            logoUri,
+          });
+        } else {
+          attributionLogoDiag('Image.resolveAssetSource returned non-URI candidate; will fallback to Asset.fromModule', {
+            original: resolvedAsset.uri,
+          });
+        }
       }
     } catch (resolveError) {
       console.warn('[ATTRIBUTION_LOGO_DIAG] Image.resolveAssetSource failed, trying Asset.fromModule', resolveError);
@@ -511,7 +548,7 @@ export async function addAttributionToImageWithViewShot(
         } else if (asset.uri) {
           // If localUri is not available, use uri directly
           // For bundled assets, uri should work directly
-          logoUri = asset.uri;
+          logoUri = normalizeLogoUriCandidate(asset.uri) ?? asset.uri;
           attributionLogoDiag('Logo loaded via Asset.uri', { logoUri });
           
           // If it's a remote URL, try to download it
@@ -537,11 +574,6 @@ export async function addAttributionToImageWithViewShot(
       } catch (assetError) {
         console.error('[ATTRIBUTION_LOGO_DIAG] Asset.fromModule failed', assetError);
       }
-    }
-    
-    // Ensure logoUri has file:// prefix if it's a local path
-    if (logoUri && !logoUri.startsWith('file://') && !logoUri.startsWith('http://') && !logoUri.startsWith('https://')) {
-      logoUri = `file://${logoUri}`;
     }
     
     attributionLogoDiag('Final logoUri selected', {
