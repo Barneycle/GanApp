@@ -4,6 +4,7 @@ import {
   Text,
   TouchableOpacity,
   Modal,
+  ScrollView,
   StyleSheet,
   Dimensions,
   Animated,
@@ -30,6 +31,7 @@ export default function TutorialOverlay({ screenId, steps, onComplete }: Tutoria
     const checkTutorial = async () => {
       const completed = await isTutorialCompleted(screenId, user?.id);
       if (!completed && steps.length > 0) {
+        setCurrentStep(0);
         setVisible(true);
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -41,11 +43,24 @@ export default function TutorialOverlay({ screenId, steps, onComplete }: Tutoria
     checkTutorial();
   }, [screenId, steps.length, user?.id]);
 
+  useEffect(() => {
+    // If steps change while visible, keep index in range.
+    if (currentStep > steps.length - 1) {
+      setCurrentStep(0);
+    }
+  }, [steps.length]);
+
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
       handleComplete();
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
     }
   };
 
@@ -69,6 +84,7 @@ export default function TutorialOverlay({ screenId, steps, onComplete }: Tutoria
 
   const step = steps[currentStep];
   const isLastStep = currentStep === steps.length - 1;
+  const isFirstStep = currentStep === 0;
 
   return (
     <Modal
@@ -80,6 +96,16 @@ export default function TutorialOverlay({ screenId, steps, onComplete }: Tutoria
       <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
         <View style={styles.container}>
           <View style={styles.content}>
+            {/* Top actions */}
+            <View style={styles.topRow}>
+              <Text style={styles.stepCount}>
+                {currentStep + 1} / {steps.length}
+              </Text>
+              <TouchableOpacity onPress={handleSkip} style={styles.skipLink}>
+                <Text style={styles.skipLinkText}>Skip</Text>
+              </TouchableOpacity>
+            </View>
+
             {/* Header */}
             <View style={styles.header}>
               <View style={styles.iconContainer}>
@@ -89,13 +115,17 @@ export default function TutorialOverlay({ screenId, steps, onComplete }: Tutoria
             </View>
 
             {/* Description */}
-            <Text style={styles.description}>{step.description}</Text>
+            <ScrollView style={styles.descriptionScroll} contentContainerStyle={styles.descriptionScrollContent}>
+              <Text style={styles.description}>{step.description}</Text>
+            </ScrollView>
 
             {/* Step indicator */}
             <View style={styles.stepIndicator}>
               {steps.map((_, index) => (
-                <View
+                <TouchableOpacity
                   key={index}
+                  onPress={() => setCurrentStep(index)}
+                  accessibilityRole="button"
                   style={[
                     styles.stepDot,
                     index === currentStep && styles.stepDotActive,
@@ -107,10 +137,12 @@ export default function TutorialOverlay({ screenId, steps, onComplete }: Tutoria
             {/* Buttons */}
             <View style={styles.buttons}>
               <TouchableOpacity
-                onPress={handleSkip}
-                style={[styles.button, styles.skipButton]}
+                onPress={handlePrev}
+                disabled={isFirstStep}
+                style={[styles.button, styles.backButton, isFirstStep && styles.buttonDisabled]}
               >
-                <Text style={styles.skipButtonText}>Skip</Text>
+                <Ionicons name="arrow-back" size={18} color={isFirstStep ? '#94a3b8' : '#0f172a'} style={{ marginRight: 6 }} />
+                <Text style={[styles.backButtonText, isFirstStep && styles.backButtonTextDisabled]}>Back</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleNext}
@@ -153,6 +185,27 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  stepCount: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  skipLink: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  skipLinkText: {
+    color: '#64748b',
+    fontSize: 13,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
   header: {
     alignItems: 'center',
     marginBottom: 16,
@@ -170,14 +223,22 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     color: '#1e293b',
-    textAlign: 'center',
+    alignSelf: 'stretch',
+    textAlign: 'left',
   },
   description: {
     fontSize: 16,
     color: '#64748b',
-    textAlign: 'center',
+    alignSelf: 'stretch',
+    textAlign: 'left',
     lineHeight: 24,
-    marginBottom: 24,
+  },
+  descriptionScroll: {
+    maxHeight: Math.min(320, SCREEN_HEIGHT * 0.35),
+    marginBottom: 20,
+  },
+  descriptionScrollContent: {
+    paddingBottom: 2,
   },
   stepIndicator: {
     flexDirection: 'row',
@@ -209,13 +270,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'row',
   },
-  skipButton: {
+  backButton: {
     backgroundColor: '#f1f5f9',
   },
-  skipButtonText: {
-    color: '#64748b',
+  backButtonText: {
+    color: '#0f172a',
     fontSize: 16,
     fontWeight: '600',
+  },
+  backButtonTextDisabled: {
+    color: '#94a3b8',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   nextButton: {
     backgroundColor: '#1e40af',

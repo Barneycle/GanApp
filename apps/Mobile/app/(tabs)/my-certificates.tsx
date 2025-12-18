@@ -21,6 +21,7 @@ import { useToast } from '../../components/Toast';
 import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
 import { saveFileToGanApp } from '../../lib/mediaStoreSaver';
+import TutorialOverlay from '../../components/TutorialOverlay';
 
 interface CertificateWithEvent extends Certificate {
     event?: {
@@ -307,6 +308,26 @@ export default function MyCertificates() {
 
     return (
         <SafeAreaView className="flex-1 bg-blue-900">
+            <TutorialOverlay
+                screenId="my-certificates"
+                steps={[
+                    {
+                        id: '1',
+                        title: 'Your Certificates',
+                        description: 'This tab shows certificates you’ve earned from events. Certificates are grouped by event for easier browsing.',
+                    },
+                    {
+                        id: '2',
+                        title: 'Search & Expand',
+                        description: 'Use the search box to quickly find a certificate. Tap an event to expand/collapse and view the certificates inside it.',
+                    },
+                    {
+                        id: '3',
+                        title: 'Download',
+                        description: 'Download certificates as PDF or PNG. Files are saved to Downloads/GanApp on Android, or Photos/GanApp album on iOS.',
+                    },
+                ]}
+            />
             <ScrollView
                 className="flex-1"
                 contentContainerStyle={{

@@ -25,7 +25,7 @@ interface Category {
   articles: Article[];
 }
 
-const categories: Category[] = [
+export const helpCenterCategories: Category[] = [
   {
     id: 'getting-started',
     title: 'Getting Started',
@@ -709,7 +709,7 @@ export default function HelpCenter({ visible, onClose }: HelpCenterProps) {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const router = useRouter();
 
-  const filteredCategories = categories.map(category => ({
+  const filteredCategories = helpCenterCategories.map(category => ({
     ...category,
     articles: category.articles.filter(article =>
       article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
