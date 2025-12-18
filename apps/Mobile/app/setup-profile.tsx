@@ -802,7 +802,12 @@ export default function SetupProfileScreen() {
                     Prefix <Text className="text-gray-500 font-normal text-sm">(optional)</Text>
                   </Text>
                   <TouchableOpacity
-                    onPress={() => setShowPrefixDropdown(!showPrefixDropdown)}
+                    onPress={() => {
+                      // Match web behavior: only one dropdown open at a time
+                      setShowAffixDropdown(false);
+                      setShowOrgDropdown(false);
+                      setShowPrefixDropdown(prev => !prev);
+                    }}
                     className="flex-row items-center justify-between border border-gray-300 rounded-xl px-3 bg-gray-50 h-12"
                   >
                     <Text className={`text-base ${formData.prefix ? 'text-black' : 'text-gray-500'}`}>
@@ -828,7 +833,7 @@ export default function SetupProfileScreen() {
                           }`}
                         >
                           <Text className={`text-base ${formData.prefix === option ? 'text-blue-700 font-semibold' : 'text-gray-700'}`}>
-                            {option || 'None'}
+                            {option || 'Select...'}
                           </Text>
                         </TouchableOpacity>
                       ))}
@@ -926,7 +931,12 @@ export default function SetupProfileScreen() {
                     Affix <Text className="text-gray-500 font-normal text-sm">(optional)</Text>
                   </Text>
                   <TouchableOpacity
-                    onPress={() => setShowAffixDropdown(!showAffixDropdown)}
+                    onPress={() => {
+                      // Match web behavior: only one dropdown open at a time
+                      setShowPrefixDropdown(false);
+                      setShowOrgDropdown(false);
+                      setShowAffixDropdown(prev => !prev);
+                    }}
                     className="flex-row items-center justify-between border border-gray-300 rounded-xl px-3 bg-gray-50 h-12"
                   >
                     <Text className={`text-base ${formData.affix ? 'text-black' : 'text-gray-500'}`}>
@@ -952,7 +962,7 @@ export default function SetupProfileScreen() {
                           }`}
                         >
                           <Text className={`text-base ${formData.affix === option ? 'text-blue-700 font-semibold' : 'text-gray-700'}`}>
-                            {option || 'None'}
+                            {option || 'Select...'}
                           </Text>
                         </TouchableOpacity>
                       ))}
@@ -977,7 +987,10 @@ export default function SetupProfileScreen() {
                         <View>
                           <TouchableOpacity
                             onPress={() => {
-                              setShowOrgDropdown(!showOrgDropdown);
+                              // Match web behavior: only one dropdown open at a time
+                              setShowPrefixDropdown(false);
+                              setShowAffixDropdown(false);
+                              setShowOrgDropdown(prev => !prev);
                               Keyboard.dismiss();
                             }}
                             className="flex-row items-center border border-gray-300 rounded-xl px-3 bg-gray-50 h-12"
@@ -988,9 +1001,17 @@ export default function SetupProfileScreen() {
                               className="flex-1 h-12 text-base text-black"
                               placeholder="Type to search organizations..."
                               placeholderTextColor="#666"
-                              value={orgSearchQuery || formData.affiliatedOrganization}
+                              value={showOrgDropdown ? orgSearchQuery : (formData.affiliatedOrganization || '')}
                               onChangeText={handleOrgSearchChange}
-                              onFocus={() => setShowOrgDropdown(true)}
+                              onFocus={() => {
+                                setShowPrefixDropdown(false);
+                                setShowAffixDropdown(false);
+                                setShowOrgDropdown(true);
+                                // If there's a selected org, show it in search query for editing (matches web)
+                                if (formData.affiliatedOrganization && !orgSearchQuery) {
+                                  setOrgSearchQuery(formData.affiliatedOrganization);
+                                }
+                              }}
                               autoCapitalize="words"
                               returnKeyType="done"
                               blurOnSubmit={true}

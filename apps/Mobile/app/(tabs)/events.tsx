@@ -18,7 +18,7 @@ import { useAuth } from '../../lib/authContext';
 import { stripHtmlTags } from '../../lib/htmlUtils';
 import TutorialOverlay from '../../components/TutorialOverlay';
 
-type DateFilter = 'all' | 'upcoming' | 'past';
+type EventTab = 'all' | 'draft' | 'upcoming' | 'ongoing' | 'past' | 'cancelled';
 type SortOption = 'date-asc' | 'date-desc' | 'title-asc' | 'title-desc' | 'participants-asc' | 'participants-desc';
 
 export default function Events() {
@@ -27,7 +27,7 @@ export default function Events() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [activeTab, setActiveTab] = useState<EventTab>('all');
   const [venueFilter, setVenueFilter] = useState<string>('all');
   const [sortOption, setSortOption] = useState<SortOption>('date-asc');
   const [showFilters, setShowFilters] = useState(false);
@@ -36,24 +36,38 @@ export default function Events() {
   const router = useRouter();
   const { user: currentUser } = useAuth();
   
-  // Check if user is organizer or admin
-  const isOrganizer = currentUser?.role === 'organizer' || currentUser?.role === 'admin';
+  // Drafts should be visible only to organizers
+  const canSeeDrafts = currentUser?.role === 'organizer';
+  // Organizers/admins can manage their own events (but drafts are still organizer-only)
+  const canManageOwnEvents = currentUser?.role === 'organizer' || currentUser?.role === 'admin';
 
-  useEffect(() => {
-    loadEvents();
-  }, []);
+  const getEventCategory = (event: Event): EventTab => {
+    if (event.status === 'draft') return 'draft';
+    if (event.status === 'cancelled') return 'cancelled';
+    const now = new Date();
+    const start = new Date(`${event.start_date}T${event.start_time || '00:00:00'}`);
+    const end = new Date(`${event.end_date}T${event.end_time || '23:59:59'}`);
+
+    if (now < start) return 'upcoming';
+    if (now >= start && now <= end) return 'ongoing';
+    return 'past';
+  };
 
   const loadEvents = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const result = await EventService.getPublishedEvents();
+      const result = canManageOwnEvents && currentUser?.id
+        ? await EventService.getEventsByCreator(currentUser.id)
+        : await EventService.getBrowseEvents();
       
       if (result.error) {
         setError(result.error);
       } else {
-        setEvents(result.events || []);
+        const loaded = result.events || [];
+        const filtered = canSeeDrafts ? loaded : loaded.filter(e => e?.status !== 'draft');
+        setEvents(filtered);
       }
     } catch (err) {
       setError('Failed to load events from database');
@@ -61,6 +75,17 @@ export default function Events() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadEvents();
+  }, [currentUser?.id, canManageOwnEvents, canSeeDrafts]);
+
+  // If non-organizer somehow lands on Drafts tab, move them back to All.
+  useEffect(() => {
+    if (activeTab === 'draft' && !canSeeDrafts) {
+      setActiveTab('all');
+    }
+  }, [activeTab, canSeeDrafts]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -93,6 +118,26 @@ export default function Events() {
     return Array.from(new Set(venues)).sort();
   }, [events]);
 
+  const categoryCounts = useMemo(() => {
+    const counts: Record<EventTab, number> = {
+      all: 0,
+      draft: 0,
+      upcoming: 0,
+      ongoing: 0,
+      past: 0,
+      cancelled: 0,
+    };
+
+    for (const event of events) {
+      const cat = getEventCategory(event);
+      counts[cat] += 1;
+      // "all" excludes cancelled + drafts (each has its own tab)
+      if (cat !== 'cancelled' && cat !== 'draft') counts.all += 1;
+    }
+
+    return counts;
+  }, [events]);
+
   // Filter and sort events
   const filteredAndSortedEvents = useMemo(() => {
     let filtered = [...events];
@@ -107,13 +152,12 @@ export default function Events() {
       );
     }
 
-    // Date filter
-    const now = new Date();
-    if (dateFilter === 'upcoming') {
-      filtered = filtered.filter(event => new Date(event.start_date) >= now);
-    } else if (dateFilter === 'past') {
-      filtered = filtered.filter(event => new Date(event.end_date) < now);
-    }
+    // Tab filter (matches web: ongoing/past/cancelled)
+    filtered = filtered.filter(event => {
+      const cat = getEventCategory(event);
+      if (activeTab === 'all') return cat !== 'cancelled' && cat !== 'draft';
+      return cat === activeTab;
+    });
 
     // Venue filter
     if (venueFilter !== 'all') {
@@ -141,7 +185,7 @@ export default function Events() {
     });
 
     return filtered;
-  }, [events, searchQuery, dateFilter, venueFilter, sortOption]);
+  }, [events, searchQuery, activeTab, venueFilter, sortOption]);
 
   if (loading) {
     return (
@@ -224,6 +268,50 @@ export default function Events() {
           </View>
         </View>
 
+        {/* Tabs (like web): All / Upcoming / Ongoing / Past / Cancelled */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          className="mb-4"
+          contentContainerStyle={{ paddingRight: 16 }}
+        >
+          {([
+            { key: 'all', label: 'All' },
+            ...(canSeeDrafts ? [{ key: 'draft', label: 'Drafts' } as const] : []),
+            { key: 'upcoming', label: 'Upcoming' },
+            { key: 'ongoing', label: 'Ongoing' },
+            { key: 'past', label: 'Past' },
+            { key: 'cancelled', label: 'Cancelled' },
+          ] as Array<{ key: EventTab; label: string }>).map(tab => {
+            const isActive = activeTab === tab.key;
+            const count = categoryCounts[tab.key] ?? 0;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                onPress={() => setActiveTab(tab.key)}
+                className={`mr-3 px-4 py-2 rounded-xl flex-row items-center ${
+                  isActive ? 'bg-white' : 'bg-white/20'
+                }`}
+              >
+                <Text className={`font-semibold ${isActive ? 'text-blue-900' : 'text-white'}`}>
+                  {tab.label}
+                </Text>
+                {count > 0 && (
+                  <View
+                    className={`ml-2 px-2 py-0.5 rounded-full ${
+                      isActive ? 'bg-blue-100' : 'bg-white/30'
+                    }`}
+                  >
+                    <Text className={`text-xs font-semibold ${isActive ? 'text-blue-900' : 'text-white'}`}>
+                      {count}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
         {/* Filter and Sort Controls */}
         <View className="flex-row items-center gap-2 mb-4">
           <TouchableOpacity
@@ -232,7 +320,7 @@ export default function Events() {
           >
             <Ionicons name="filter" size={18} color="#1e40af" />
             <Text className="ml-2 text-slate-800 font-medium">Filters</Text>
-            {(dateFilter !== 'all' || venueFilter !== 'all') && (
+            {(activeTab !== 'all' || venueFilter !== 'all') && (
               <View className="ml-2 w-2 h-2 bg-blue-600 rounded-full" />
             )}
           </TouchableOpacity>
@@ -262,25 +350,6 @@ export default function Events() {
         {/* Filter Panel */}
         {showFilters && (
           <View className="bg-white rounded-xl p-4 mb-4 shadow-md">
-            <Text className="text-lg font-bold text-slate-800 mb-3">Date Filter</Text>
-            <View className="flex-row flex-wrap gap-2 mb-4">
-              {(['all', 'upcoming', 'past'] as DateFilter[]).map((filter) => (
-                <TouchableOpacity
-                  key={filter}
-                  onPress={() => setDateFilter(filter)}
-                  className={`px-4 py-2 rounded-lg ${
-                    dateFilter === filter ? 'bg-blue-600' : 'bg-slate-100'
-                  }`}
-                >
-                  <Text className={`font-medium ${
-                    dateFilter === filter ? 'text-white' : 'text-slate-700'
-                  }`}>
-                    {filter === 'all' ? 'All' : filter === 'upcoming' ? 'Upcoming' : 'Past'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
             {uniqueVenues.length > 0 && (
               <>
                 <Text className="text-lg font-bold text-slate-800 mb-3">Venue</Text>
@@ -318,7 +387,7 @@ export default function Events() {
           </View>
         )}
           {/* Create New Event Button - Only for organizers/admins */}
-          {isOrganizer && (
+          {canManageOwnEvents && (
             <View className="mb-5">
               <TouchableOpacity
                 onPress={() => router.push('/create-event')}
@@ -362,9 +431,12 @@ export default function Events() {
                   <Ionicons name="calendar" size={22} color="#2563eb" />
                 </View>
                 <Text className="text-2xl font-bold text-slate-900">
-                  {filteredAndSortedEvents.length === events.length 
-                    ? 'Upcoming Events' 
-                    : `Events (${filteredAndSortedEvents.length}${events.length > 0 ? ` of ${events.length}` : ''})`}
+                  {activeTab === 'all' ? 'Events' :
+                    activeTab === 'draft' ? 'Draft Events' :
+                    activeTab === 'upcoming' ? 'Upcoming Events' :
+                    activeTab === 'ongoing' ? 'Ongoing Events' :
+                    activeTab === 'past' ? 'Past Events' :
+                    'Cancelled Events'}
                 </Text>
               </View>
             </View>

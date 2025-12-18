@@ -52,12 +52,12 @@ const TermsModal = ({ isOpen, onClose, contentType }) => {
             
             <section className="space-y-3">
               <h3 className="font-semibold text-gray-900 text-base sm:text-lg border-l-4 border-blue-500 pl-3">8. Modifications</h3>
-              <p className="pl-3">We may revise these terms of service at any time without notice. By continuing to use GanApp, you are agreeing to be bound by the then current version of these terms of service.</p>
+              <p className="pl-3">We may revise these Terms and Conditions at any time without notice. By continuing to use GanApp, you are agreeing to be bound by the then current version of these Terms and Conditions.</p>
             </section>
             
             <section className="space-y-3">
               <h3 className="font-semibold text-gray-900 text-base sm:text-lg border-l-4 border-blue-500 pl-3">9. Termination</h3>
-              <p className="pl-3">We reserve the right to terminate or suspend your account and access to GanApp immediately, without prior notice, for conduct that we believe violates these Terms of Service or is harmful to other users, us, or third parties.</p>
+              <p className="pl-3">We reserve the right to terminate or suspend your account and access to GanApp immediately, without prior notice, for conduct that we believe violates these Terms and Conditions or is harmful to other users, us, or third parties.</p>
             </section>
           </div>
         )

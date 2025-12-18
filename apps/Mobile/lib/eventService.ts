@@ -73,6 +73,47 @@ export class EventService {
     }
   }
 
+  /**
+   * Fetch events for the browse/events screen (published + cancelled),
+   * categorized client-side into upcoming/ongoing/past/cancelled like the web UI.
+   */
+  static async getBrowseEvents(): Promise<{ events: Event[]; error?: string; fromCache?: boolean }> {
+    try {
+      // Try to fetch from server if online
+      if (NetworkStatusMonitor.isOnline()) {
+        try {
+          const { data, error } = await supabase
+            .from('events')
+            .select('*')
+            .in('status', ['published', 'cancelled'])
+            .order('start_date', { ascending: true });
+
+          if (error) {
+            console.error('Error fetching browse events:', error);
+            // Fall through to cache
+          } else if (data) {
+            // Save to local database
+            for (const event of data) {
+              await LocalDatabaseService.saveEvent(event);
+            }
+            return { events: data || [], error: undefined, fromCache: false };
+          }
+        } catch (error) {
+          console.error('Network error, falling back to cache:', error);
+          // Fall through to cache
+        }
+      }
+
+      // Fallback to local database (we can’t query multiple statuses in SQLite helper, so filter in JS)
+      const cachedEvents = await LocalDatabaseService.getEvents();
+      const filtered = (cachedEvents || []).filter((e: any) => e?.status === 'published' || e?.status === 'cancelled');
+      return { events: filtered, error: undefined, fromCache: true };
+    } catch (error) {
+      console.error('Unexpected error in getBrowseEvents:', error);
+      return { events: [], error: 'An unexpected error occurred' };
+    }
+  }
+
   static async getEventsByCreator(creatorId: string): Promise<{ events: Event[]; error?: string }> {
     try {
       const { data, error } = await supabase

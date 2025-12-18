@@ -541,11 +541,25 @@ export async function addAttributionToImageWithViewShot(
           downloaded: asset.downloaded,
         });
         
-        // Prefer localUri if available (production builds)
+        // Prefer localUri if available (production builds) — but only if it's a real URI/path
         if (asset.localUri) {
-          logoUri = asset.localUri.startsWith('file://') ? asset.localUri : `file://${asset.localUri}`;
-          attributionLogoDiag('Logo loaded via Asset.localUri', { logoUri });
-        } else if (asset.uri) {
+          const normalizedLocal = normalizeLogoUriCandidate(asset.localUri);
+          if (normalizedLocal) {
+            logoUri = normalizedLocal;
+            attributionLogoDiag('Logo loaded via Asset.localUri (normalized)', {
+              original: asset.localUri,
+              logoUri,
+            });
+          } else {
+            // Some environments expose localUri as a non-path identifier (e.g. "assets_images_ganapp_attri")
+            // Do NOT force file:// onto it — fall back to other resolution methods instead.
+            attributionLogoDiag('Asset.localUri is not a valid URI/path; ignoring', {
+              original: asset.localUri,
+            });
+          }
+        }
+
+        if (!logoUri && asset.uri) {
           // If localUri is not available, use uri directly
           // For bundled assets, uri should work directly
           logoUri = normalizeLogoUriCandidate(asset.uri) ?? asset.uri;

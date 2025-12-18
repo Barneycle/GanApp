@@ -544,7 +544,7 @@ export default function RegistrationScreen() {
                           className="text-blue-800 underline font-semibold"
                           onPress={() => router.push('/terms?type=terms')}
                         >
-                          Terms of Use
+                          Terms and Conditions
                         </Text>
                         {' '}and{' '}
                         <Text 

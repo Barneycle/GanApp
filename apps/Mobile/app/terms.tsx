@@ -19,7 +19,7 @@ export default function TermsScreen() {
     setShowPrivacy(isPrivacy);
     // Update header title dynamically
     navigation.setOptions({
-      title: isPrivacy ? 'Privacy Policy' : 'Terms & Conditions',
+      title: isPrivacy ? 'Privacy Policy' : 'Terms and Conditions',
     });
   }, [type, navigation]);
 
@@ -66,12 +66,12 @@ export default function TermsScreen() {
       
       <Text className="font-semibold text-gray-900 text-xl mb-3">8. Modifications</Text>
       <Text className="text-gray-700 text-lg mb-5 leading-7">
-        We may revise these terms of service at any time without notice. By continuing to use GanApp, you are agreeing to be bound by the then current version of these terms of service.
+        We may revise these Terms and Conditions at any time without notice. By continuing to use GanApp, you are agreeing to be bound by the then current version of these Terms and Conditions.
       </Text>
       
       <Text className="font-semibold text-gray-900 text-xl mb-3">9. Termination</Text>
       <Text className="text-gray-700 text-lg mb-5 leading-7">
-        We reserve the right to terminate or suspend your account and access to GanApp immediately, without prior notice, for conduct that we believe violates these Terms of Service or is harmful to other users, us, or third parties.
+        We reserve the right to terminate or suspend your account and access to GanApp immediately, without prior notice, for conduct that we believe violates these Terms and Conditions or is harmful to other users, us, or third parties.
       </Text>
     </View>
   );

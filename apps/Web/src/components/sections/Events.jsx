@@ -140,7 +140,7 @@ export const Events = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState('published'); // 'published', 'past', 'cancelled', or 'archived' (admin only)
+  const [activeTab, setActiveTab] = useState('published'); // 'published', 'draft', 'past', 'cancelled', or 'archived' (admin only)
   const [events, setEvents] = useState([]);
   const [archivedEvents, setArchivedEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -232,6 +232,13 @@ export const Events = () => {
     }
   }, [user?.id, user?.role]); // Only depend on user ID and role, not the entire user object
 
+  // Drafts tab is organizer-only. If a non-organizer somehow lands on it, kick them back to Published.
+  useEffect(() => {
+    if (activeTab === 'draft' && user?.role !== 'organizer') {
+      setActiveTab('published');
+    }
+  }, [activeTab, user?.role]);
+
   // Load archived events when switching to archived tab (admin only)
   useEffect(() => {
     if (activeTab === 'archived' && archivedEvents.length === 0 && !archivedLoading && user?.role === 'admin') {
@@ -290,7 +297,12 @@ export const Events = () => {
           if (result.error) {
             setError(result.error);
           } else {
-            setEvents(result.events || []);
+            // Draft events should only be visible to organizers
+            const loadedEvents = result.events || [];
+            const filtered = user?.role === 'organizer'
+              ? loadedEvents
+              : loadedEvents.filter(e => e?.status !== 'draft');
+            setEvents(filtered);
           }
         }
       } else if (user) {
@@ -1047,6 +1059,9 @@ export const Events = () => {
   // Helper function to determine event category
   const getEventCategory = useMemo(() => {
     return (event) => {
+      if (event.status === 'draft') {
+        return 'draft';
+      }
       if (event.status === 'cancelled') {
         return 'cancelled';
       }
@@ -1060,18 +1075,19 @@ export const Events = () => {
         return 'past';
       }
 
-      return null; // Draft or other statuses
+      return null; // Other statuses
     };
   }, []);
 
   // Count events by category for tab badges
   const categoryCounts = useMemo(() => {
-    if (!Array.isArray(events)) return { published: 0, past: 0, cancelled: 0 };
+    if (!Array.isArray(events)) return { draft: 0, published: 0, past: 0, cancelled: 0 };
 
-    const counts = { published: 0, past: 0, cancelled: 0 };
+    const counts = { draft: 0, published: 0, past: 0, cancelled: 0 };
     events.forEach(event => {
       const category = getEventCategory(event);
-      if (category === 'published') counts.published++;
+      if (category === 'draft') counts.draft++;
+      else if (category === 'published') counts.published++;
       else if (category === 'past') counts.past++;
       else if (category === 'cancelled') counts.cancelled++;
     });
@@ -1082,6 +1098,7 @@ export const Events = () => {
   const filteredAndSortedEvents = (Array.isArray(events) ? events : []).filter(event => {
     // Category filter based on active tab
     const eventCategory = getEventCategory(event);
+    if (activeTab === 'draft' && eventCategory !== 'draft') return false;
     if (activeTab === 'published' && eventCategory !== 'published') return false;
     if (activeTab === 'past' && eventCategory !== 'past') return false;
     if (activeTab === 'cancelled' && eventCategory !== 'cancelled') return false;
@@ -1361,6 +1378,23 @@ export const Events = () => {
 
           {/* Category Tabs */}
           <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-2 mb-8 flex gap-2 flex-wrap">
+            {/* Drafts tab - Organizers only */}
+            {user?.role === 'organizer' && (
+              <button
+                onClick={() => setActiveTab('draft')}
+                className={`flex-1 min-w-[120px] px-6 py-3 rounded-xl font-medium transition-colors ${activeTab === 'draft'
+                  ? 'bg-blue-900 text-white'
+                  : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+              >
+                Drafts
+                {categoryCounts.draft > 0 && (
+                  <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-700 text-white">
+                    {categoryCounts.draft}
+                  </span>
+                )}
+              </button>
+            )}
             <button
               onClick={() => setActiveTab('published')}
               className={`flex-1 min-w-[120px] px-6 py-3 rounded-xl font-medium transition-colors ${activeTab === 'published'
