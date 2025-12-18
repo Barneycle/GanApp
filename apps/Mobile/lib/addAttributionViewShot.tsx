@@ -1,11 +1,33 @@
-import { Image } from 'react-native';
+import { Alert, Image, Platform, View, Text } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text } from 'react-native';
 import ViewShot from 'react-native-view-shot';
 import * as FileSystem from 'expo-file-system';
 import { Asset } from 'expo-asset';
 import { calculateAttributionParams } from './addAttributionWithViewShot';
+
+let attributionLogoDiagAlertShown = false;
+
+function attributionLogoDiag(message: string, data?: any) {
+  // In many RN/Expo production builds, `console.log` can be stripped while `warn/error` remain.
+  // Use warn in production so it shows in release `adb logcat`.
+  if (__DEV__) {
+    console.log('[ATTRIBUTION_LOGO_DIAG]', message, data ?? '');
+  } else {
+    console.warn('[ATTRIBUTION_LOGO_DIAG]', message, data ?? '');
+  }
+}
+
+function attributionLogoDiagAlertOnce(title: string, message: string) {
+  if (attributionLogoDiagAlertShown) return;
+  attributionLogoDiagAlertShown = true;
+  try {
+    Alert.alert(title, message);
+  } catch (e) {
+    // If alerts can't render (e.g., no UI context), fall back to console.
+    console.error('[ATTRIBUTION_LOGO_DIAG] Failed to show alert', e);
+  }
+}
 
 /**
  * Internal component used for programmatic view-shot compositing
@@ -278,12 +300,24 @@ const AttributionViewShotComponent: React.FC<{
               height: logoHeight,
               resizeMode: 'contain',
             }}
+            onLoadStart={() => {
+              attributionLogoDiag('Logo load started', { logoUri });
+            }}
             onLoad={() => {
-              console.log('AttributionViewShotComponent: Logo loaded');
+              attributionLogoDiag('Logo loaded', { logoUri });
               setLogoLoaded(true);
             }}
             onError={(error) => {
-              console.error('AttributionViewShotComponent: Logo error', error);
+              // Keep as error so it shows up in production logs and any error tracking integrations.
+              console.error('[ATTRIBUTION_LOGO_DIAG] Logo error', {
+                logoUri,
+                nativeEvent: (error as any)?.nativeEvent,
+                error,
+              });
+              attributionLogoDiagAlertOnce(
+                'Attribution Logo Debug (Error)',
+                `Logo failed to load.\n\nlogoUri: ${logoUri}\n\nnativeEvent: ${JSON.stringify((error as any)?.nativeEvent ?? {}, null, 2)}`
+              );
               setLogoLoaded(true); // Set to true anyway to not block
             }}
           />
@@ -421,33 +455,64 @@ export async function addAttributionToImageWithViewShot(
     // Load the logo asset - use Image.resolveAssetSource for reliable asset resolution
     const logoAsset = require('../assets/images/ganapp_attri.png');
     let logoUri: string | null = null;
+    let resolvedAssetForDiag: any = null;
+    let assetForDiag: any = null;
+
+    attributionLogoDiag('Starting attribution logo resolution', {
+      platform: Platform.OS,
+      isDev: __DEV__,
+      logoAssetType: typeof logoAsset,
+      // In RN `require("...png")` usually becomes a number (module id)
+      logoAssetValue: logoAsset,
+    });
     
     try {
       // Method 1: Try Image.resolveAssetSource (works in both dev and production)
       const resolvedAsset = Image.resolveAssetSource(logoAsset);
+      resolvedAssetForDiag = resolvedAsset;
+      attributionLogoDiag('Image.resolveAssetSource result', resolvedAsset);
       if (resolvedAsset?.uri) {
         logoUri = resolvedAsset.uri;
-        console.log('addAttributionToImageWithViewShot: Logo resolved via Image.resolveAssetSource', { logoUri });
+        attributionLogoDiag('Logo resolved via Image.resolveAssetSource', { logoUri });
       }
     } catch (resolveError) {
-      console.warn('addAttributionToImageWithViewShot: Image.resolveAssetSource failed, trying Asset.fromModule', resolveError);
+      console.warn('[ATTRIBUTION_LOGO_DIAG] Image.resolveAssetSource failed, trying Asset.fromModule', resolveError);
     }
     
     // Method 2: Fallback to Asset.fromModule if Image.resolveAssetSource didn't work
     if (!logoUri) {
       try {
         const asset = Asset.fromModule(logoAsset);
+        assetForDiag = {
+          uri: asset.uri,
+          localUri: asset.localUri,
+          width: asset.width,
+          height: asset.height,
+          downloaded: asset.downloaded,
+        };
+        attributionLogoDiag('Asset.fromModule created', {
+          uri: asset.uri,
+          localUri: asset.localUri,
+          width: asset.width,
+          height: asset.height,
+          downloaded: asset.downloaded,
+        });
         await asset.downloadAsync();
+        attributionLogoDiag('Asset.downloadAsync completed', {
+          uri: asset.uri,
+          localUri: asset.localUri,
+          downloaded: asset.downloaded,
+        });
         
         // Prefer localUri if available (production builds)
         if (asset.localUri) {
           logoUri = asset.localUri.startsWith('file://') ? asset.localUri : `file://${asset.localUri}`;
-          console.log('addAttributionToImageWithViewShot: Logo loaded via Asset.localUri', { logoUri });
+          attributionLogoDiag('Logo loaded via Asset.localUri', { logoUri });
         } else if (asset.uri) {
           // If localUri is not available, use uri directly
           // For bundled assets, uri should work directly
           logoUri = asset.uri;
-          console.log('addAttributionToImageWithViewShot: Logo loaded via Asset.uri', { logoUri });
+          attributionLogoDiag('Logo loaded via Asset.uri', { logoUri });
           
           // If it's a remote URL, try to download it
           if (logoUri.startsWith('http://') || logoUri.startsWith('https://')) {
@@ -459,18 +524,18 @@ export async function addAttributionToImageWithViewShot(
               try {
                 const downloadResult = await FileSystem.downloadAsync(logoUri, logoLocalPath);
                 logoUri = downloadResult.uri;
-                console.log('addAttributionToImageWithViewShot: Logo downloaded to cache', { logoUri });
+                attributionLogoDiag('Logo downloaded to cache', { logoUri });
               } catch (downloadError) {
-                console.warn('addAttributionToImageWithViewShot: Failed to download logo, using remote URI', downloadError);
+                console.warn('[ATTRIBUTION_LOGO_DIAG] Failed to download logo, using remote URI', downloadError);
               }
             } else {
               logoUri = logoLocalPath.startsWith('file://') ? logoLocalPath : `file://${logoLocalPath}`;
-              console.log('addAttributionToImageWithViewShot: Logo found in cache', { logoUri });
+              attributionLogoDiag('Logo found in cache', { logoUri });
             }
           }
         }
       } catch (assetError) {
-        console.error('addAttributionToImageWithViewShot: Asset.fromModule failed', assetError);
+        console.error('[ATTRIBUTION_LOGO_DIAG] Asset.fromModule failed', assetError);
       }
     }
     
@@ -479,7 +544,39 @@ export async function addAttributionToImageWithViewShot(
       logoUri = `file://${logoUri}`;
     }
     
-    console.log('addAttributionToImageWithViewShot: Logo loaded', { logoUri, hasLogo: !!logoUri });
+    attributionLogoDiag('Final logoUri selected', {
+      logoUri,
+      hasLogo: !!logoUri,
+      scheme: logoUri ? logoUri.split(':')[0] : null,
+    });
+
+    // If we couldn't resolve a logo at all, surface this immediately as an alert in production.
+    if (!logoUri) {
+      attributionLogoDiagAlertOnce(
+        'Attribution Logo Debug (Missing)',
+        `Logo URI could not be resolved.\n\nresolveAssetSource: ${JSON.stringify(resolvedAssetForDiag ?? null, null, 2)}\n\nasset: ${JSON.stringify(assetForDiag ?? null, null, 2)}`
+      );
+    }
+
+    // Extra production diagnostics: verify file exists if it's a local file URI
+    if (logoUri?.startsWith('file://')) {
+      try {
+        const info = await FileSystem.getInfoAsync(logoUri);
+        attributionLogoDiag('Logo file info (FileSystem.getInfoAsync)', info);
+        if (!info.exists) {
+          attributionLogoDiagAlertOnce(
+            'Attribution Logo Debug (File Missing)',
+            `Logo resolved to a file:// URI but the file does not exist.\n\nlogoUri: ${logoUri}\n\ninfo: ${JSON.stringify(info, null, 2)}`
+          );
+        }
+      } catch (e) {
+        console.error('[ATTRIBUTION_LOGO_DIAG] Failed to stat logo file', { logoUri, error: e });
+        attributionLogoDiagAlertOnce(
+          'Attribution Logo Debug (Stat Failed)',
+          `Failed to stat logo file.\n\nlogoUri: ${logoUri}\n\nerror: ${String(e)}`
+        );
+      }
+    }
 
     // Calculate parameters
     const params = await calculateAttributionParams(
