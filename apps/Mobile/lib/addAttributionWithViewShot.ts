@@ -8,7 +8,8 @@ import { AttributionCompositeView } from './AttributionCompositeView';
 export async function calculateAttributionParams(
   imageUri: string,
   userName: string,
-  logoUri: string | null
+  logoUri: string | null,
+  logoAssetModule?: any
 ): Promise<{
   backgroundImageUri: string;
   attributionText: string;
@@ -49,7 +50,8 @@ export async function calculateAttributionParams(
   // Check if it fits with the text length
   const leftPadding = Math.max(20, Math.floor(imageWidth / 50));
   const rightPadding = Math.max(20, Math.floor(imageWidth / 50));
-  const logoSpace = logoUri ? dynamicFontSize * 6.0 : 0;
+  const hasLogo = !!logoUri || !!logoAssetModule;
+  const logoSpace = hasLogo ? dynamicFontSize * 6.0 : 0;
   const availableWidth = imageWidth - leftPadding - rightPadding - logoSpace;
 
   const textLength = attributionText.length;
@@ -75,6 +77,16 @@ export async function calculateAttributionParams(
       });
     } catch (e) {
       console.warn('Could not get logo dimensions');
+    }
+  } else if (logoAssetModule) {
+    try {
+      const resolved = Image.resolveAssetSource(logoAssetModule);
+      if (resolved?.width && resolved?.height) {
+        logoWidth = resolved.width;
+        logoHeight = resolved.height;
+      }
+    } catch (e) {
+      console.warn('Could not resolve logo asset dimensions');
     }
   }
 

@@ -64,6 +64,7 @@ const AttributionViewShotComponent: React.FC<{
   backgroundImageUri: string;
   attributionText: string;
   logoUri: string | null;
+  logoAssetModule?: any;
   fontSize: number;
   paddingX: number;
   paddingY: number;
@@ -77,6 +78,7 @@ const AttributionViewShotComponent: React.FC<{
   backgroundImageUri,
   attributionText,
   logoUri,
+  logoAssetModule,
   fontSize,
   paddingX,
   paddingY,
@@ -87,272 +89,269 @@ const AttributionViewShotComponent: React.FC<{
   height,
   onReady,
 }) => {
-  console.log('AttributionViewShotComponent: Component initialized with props', { width, height, backgroundImageUri });
-  const viewRef = useRef<ViewShot | null>(null);
-  const viewRefStable = useRef<ViewShot | null>(null); // Stable ref that won't be cleared
-  const [isReady, setIsReady] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [logoLoaded, setLogoLoaded] = useState(!logoUri);
-  const [layoutReady, setLayoutReady] = useState(false);
-  const captureFnRef = useRef<(() => Promise<string>) | null>(null);
+    console.log('AttributionViewShotComponent: Component initialized with props', { width, height, backgroundImageUri });
+    const viewRef = useRef<ViewShot | null>(null);
+    const viewRefStable = useRef<ViewShot | null>(null); // Stable ref that won't be cleared
+    const [isReady, setIsReady] = useState(false);
+    const [imageLoaded, setImageLoaded] = useState(false);
+    const [logoLoaded, setLogoLoaded] = useState(!(logoUri || logoAssetModule));
+    const [layoutReady, setLayoutReady] = useState(false);
+    const captureFnRef = useRef<(() => Promise<string>) | null>(null);
 
-  // Fallback: Set imageLoaded after a timeout if it doesn't load
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!imageLoaded) {
-        console.warn('AttributionViewShotComponent: Image load timeout, proceeding anyway');
-        setImageLoaded(true);
-      }
-    }, 2000); // 2 second timeout for image loading
-    return () => clearTimeout(timer);
-  }, [imageLoaded]);
-
-  // Set isReady immediately if we have dimensions
-  useEffect(() => {
-    if (width > 0 && height > 0) {
-      console.log('AttributionViewShotComponent: Dimensions available', { width, height });
-      // Set ready immediately - component is mounted
-      setIsReady(true);
-    }
-  }, [width, height]);
-
-  useEffect(() => {
-    const allReady = isReady && imageLoaded && logoLoaded && layoutReady && width > 0 && height > 0;
-    const currentRef = viewRefStable.current || viewRef.current;
-    console.log('AttributionViewShotComponent: Checking ready state', { 
-      isReady, 
-      imageLoaded, 
-      logoLoaded,
-      layoutReady,
-      hasRef: !!currentRef,
-      hasStableRef: !!viewRefStable.current,
-      width,
-      height,
-      allReady,
-      hasOnReady: !!onReady
-    });
-
-    if (allReady && onReady) {
-      // Wait a bit more to ensure ref is set
+    // Fallback: Set imageLoaded after a timeout if it doesn't load
+    useEffect(() => {
       const timer = setTimeout(() => {
-        const refToUse = viewRefStable.current || viewRef.current;
-        if (!refToUse) {
-          console.error('AttributionViewShotComponent: ViewShot ref still null after delay');
-          return;
+        if (!imageLoaded) {
+          console.warn('AttributionViewShotComponent: Image load timeout, proceeding anyway');
+          setImageLoaded(true);
         }
-        
-        console.log('AttributionViewShotComponent: All conditions met, creating capture function', {
-          hasStableRef: !!viewRefStable.current,
-          hasRef: !!viewRef.current
-        });
-        
-        // Store ref in closure to ensure it's available
-        const stableRef = refToUse;
-        const capture = async (): Promise<string> => {
-          // Use the stable ref stored in closure
-          if (!stableRef) {
-            throw new Error('ViewShot ref not available during capture');
-          }
-          
-          // Add a delay to ensure everything is fully rendered and laid out
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-          console.log('AttributionViewShotComponent: Capturing with dimensions', { 
-            width, 
-            height, 
-            hasRef: !!stableRef 
-          });
-          try {
-            const uri = await captureRef(stableRef, {
-              format: 'png',
-              quality: 1.0,
-              result: 'tmpfile',
-            });
-            console.log('AttributionViewShotComponent: Captured successfully', uri);
-            return uri;
-          } catch (error: any) {
-            console.error('AttributionViewShotComponent: Capture error', error, { 
-              width, 
-              height, 
-              hasRef: !!stableRef 
-            });
-            throw error;
-          }
-        };
-        captureFnRef.current = capture;
-        console.log('AttributionViewShotComponent: Calling onReady with capture function');
-        onReady(capture);
-      }, 200);
-      
+      }, 2000); // 2 second timeout for image loading
       return () => clearTimeout(timer);
-    }
-  }, [isReady, imageLoaded, logoLoaded, layoutReady, onReady, width, height, logoUri]);
+    }, [imageLoaded]);
 
-  const barY = height - barHeight;
-  const logoWidth = logoSize;
-  const logoHeight = logoSize / logoAspectRatio;
-  const logoX = width - paddingX - logoWidth;
-  const logoY = barY + (barHeight - logoHeight) / 2 - (paddingY * 0.3);
+    // Set isReady immediately if we have dimensions
+    useEffect(() => {
+      if (width > 0 && height > 0) {
+        console.log('AttributionViewShotComponent: Dimensions available', { width, height });
+        // Set ready immediately - component is mounted
+        setIsReady(true);
+      }
+    }, [width, height]);
 
-  // Don't render if we don't have dimensions
-  if (width <= 0 || height <= 0) {
-    console.warn('AttributionViewShotComponent: Invalid dimensions', { width, height });
-    return null;
-  }
+    useEffect(() => {
+      const allReady = isReady && imageLoaded && logoLoaded && layoutReady && width > 0 && height > 0;
+      const currentRef = viewRefStable.current || viewRef.current;
+      console.log('AttributionViewShotComponent: Checking ready state', {
+        isReady,
+        imageLoaded,
+        logoLoaded,
+        layoutReady,
+        hasRef: !!currentRef,
+        hasStableRef: !!viewRefStable.current,
+        width,
+        height,
+        allReady,
+        hasOnReady: !!onReady
+      });
 
-  return (
-    <ViewShot
-      ref={(ref) => {
-        viewRef.current = ref;
-        viewRefStable.current = ref; // Store in stable ref
-        if (ref) {
-          console.log('AttributionViewShotComponent: ViewShot ref set', { 
-            hasRef: !!ref,
-            hasStableRef: !!viewRefStable.current
+      if (allReady && onReady) {
+        // Wait a bit more to ensure ref is set
+        const timer = setTimeout(() => {
+          const refToUse = viewRefStable.current || viewRef.current;
+          if (!refToUse) {
+            console.error('AttributionViewShotComponent: ViewShot ref still null after delay');
+            return;
+          }
+
+          console.log('AttributionViewShotComponent: All conditions met, creating capture function', {
+            hasStableRef: !!viewRefStable.current,
+            hasRef: !!viewRef.current
           });
-        } else {
-          // Ref cleared during unmount - this is normal React behavior
-          // The stable ref in closure will still work for ongoing captures
-          console.log('AttributionViewShotComponent: ViewShot ref cleared (component unmounting)');
-        }
-      }}
-      style={{ 
-        width: Math.floor(width), 
-        height: Math.floor(height),
-        // Disable view collapsing on Android
-        collapsable: false,
-        // Ensure view is not removed from hierarchy
-        overflow: 'hidden',
-      }}
-      options={{
-        format: 'png',
-        quality: 1.0,
-        result: 'tmpfile',
-      }}
-      onLayout={(event) => {
-        const { width: layoutWidth, height: layoutHeight } = event.nativeEvent.layout;
-        console.log('AttributionViewShotComponent: ViewShot onLayout fired', { 
-          layoutWidth, 
-          layoutHeight, 
-          expectedWidth: width, 
-          expectedHeight: height,
-          hasRef: !!viewRef.current
-        });
-        if (layoutWidth > 0 && layoutHeight > 0) {
-          setLayoutReady(true);
-        }
-      }}
-    >
-      <View 
-        style={{ 
-          width: Math.floor(width), 
-          height: Math.floor(height), 
-          position: 'relative',
-          // Disable view collapsing on Android
-          collapsable: false,
+
+          // Store ref in closure to ensure it's available
+          const stableRef = refToUse;
+          const capture = async (): Promise<string> => {
+            // Use the stable ref stored in closure
+            if (!stableRef) {
+              throw new Error('ViewShot ref not available during capture');
+            }
+
+            // Add a delay to ensure everything is fully rendered and laid out
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            console.log('AttributionViewShotComponent: Capturing with dimensions', {
+              width,
+              height,
+              hasRef: !!stableRef
+            });
+            try {
+              const uri = await captureRef(stableRef, {
+                format: 'png',
+                quality: 1.0,
+                result: 'tmpfile',
+              });
+              console.log('AttributionViewShotComponent: Captured successfully', uri);
+              return uri;
+            } catch (error: any) {
+              console.error('AttributionViewShotComponent: Capture error', error, {
+                width,
+                height,
+                hasRef: !!stableRef
+              });
+              throw error;
+            }
+          };
+          captureFnRef.current = capture;
+          console.log('AttributionViewShotComponent: Calling onReady with capture function');
+          onReady(capture);
+        }, 200);
+
+        return () => clearTimeout(timer);
+      }
+    }, [isReady, imageLoaded, logoLoaded, layoutReady, onReady, width, height, logoUri]);
+
+    const barY = height - barHeight;
+    const logoWidth = logoSize;
+    const logoHeight = logoSize / logoAspectRatio;
+    const logoX = width - paddingX - logoWidth;
+    const logoY = barY + (barHeight - logoHeight) / 2 - (paddingY * 0.3);
+
+    // Don't render if we don't have dimensions
+    if (width <= 0 || height <= 0) {
+      console.warn('AttributionViewShotComponent: Invalid dimensions', { width, height });
+      return null;
+    }
+
+    return (
+      <ViewShot
+        ref={(ref) => {
+          viewRef.current = ref;
+          viewRefStable.current = ref; // Store in stable ref
+          if (ref) {
+            console.log('AttributionViewShotComponent: ViewShot ref set', {
+              hasRef: !!ref,
+              hasStableRef: !!viewRefStable.current
+            });
+          } else {
+            // Ref cleared during unmount - this is normal React behavior
+            // The stable ref in closure will still work for ongoing captures
+            console.log('AttributionViewShotComponent: ViewShot ref cleared (component unmounting)');
+          }
+        }}
+        style={{
+          width: Math.floor(width),
+          height: Math.floor(height),
+          // Ensure view is not removed from hierarchy
+          overflow: 'hidden',
+        }}
+        options={{
+          format: 'png',
+          quality: 1.0,
+          result: 'tmpfile',
         }}
         onLayout={(event) => {
           const { width: layoutWidth, height: layoutHeight } = event.nativeEvent.layout;
-          console.log('AttributionViewShotComponent: Inner View onLayout fired', { layoutWidth, layoutHeight });
+          console.log('AttributionViewShotComponent: ViewShot onLayout fired', {
+            layoutWidth,
+            layoutHeight,
+            expectedWidth: width,
+            expectedHeight: height,
+            hasRef: !!viewRef.current
+          });
+          if (layoutWidth > 0 && layoutHeight > 0) {
+            setLayoutReady(true);
+          }
         }}
       >
-        {/* Background Image */}
-        <Image
-          source={{ uri: backgroundImageUri }}
-          style={{ 
-            width: Math.floor(width), 
-            height: Math.floor(height), 
-            position: 'absolute', 
-            top: 0, 
-            left: 0 
-          }}
-          resizeMode="cover"
-          onLoadStart={() => {
-            console.log('AttributionViewShotComponent: Background image load started', { backgroundImageUri, width, height });
-          }}
-          onLoad={(e) => {
-            console.log('AttributionViewShotComponent: Background image loaded', { 
-              width: e.nativeEvent.source.width, 
-              height: e.nativeEvent.source.height,
-              componentWidth: width,
-              componentHeight: height
-            });
-            setImageLoaded(true);
-          }}
-          onError={(error) => {
-            console.error('AttributionViewShotComponent: Background image error', error, { backgroundImageUri });
-            // Set to true anyway to not block - maybe image is cached
-            setImageLoaded(true);
-          }}
-        />
-        
-        {/* Black Bar Background */}
         <View
           style={{
-            position: 'absolute',
-            left: 0,
-            top: barY,
-            width: width,
-            height: barHeight,
-            backgroundColor: '#000000',
+            width: Math.floor(width),
+            height: Math.floor(height),
+            position: 'relative',
           }}
-        />
-        
-        {/* Attribution Text */}
-        <Text
-          style={{
-            position: 'absolute',
-            left: paddingX,
-            bottom: paddingY,
-            color: '#FFFFFF',
-            fontSize: fontSize,
-            fontFamily: 'Roboto',
-            fontWeight: 'normal',
-            includeFontPadding: false,
-            textAlignVertical: 'bottom',
+          collapsable={false}
+          onLayout={(event) => {
+            const { width: layoutWidth, height: layoutHeight } = event.nativeEvent.layout;
+            console.log('AttributionViewShotComponent: Inner View onLayout fired', { layoutWidth, layoutHeight });
           }}
         >
-          {attributionText}
-        </Text>
-        
-        {/* Logo */}
-        {logoUri && (
+          {/* Background Image */}
           <Image
-            source={{ uri: logoUri }}
+            source={{ uri: backgroundImageUri }}
             style={{
+              width: Math.floor(width),
+              height: Math.floor(height),
               position: 'absolute',
-              left: logoX,
-              top: logoY,
-              width: logoWidth,
-              height: logoHeight,
-              resizeMode: 'contain',
+              top: 0,
+              left: 0
             }}
+            resizeMode="cover"
             onLoadStart={() => {
-              attributionLogoDiag('Logo load started', { logoUri });
+              console.log('AttributionViewShotComponent: Background image load started', { backgroundImageUri, width, height });
             }}
-            onLoad={() => {
-              attributionLogoDiag('Logo loaded', { logoUri });
-              setLogoLoaded(true);
+            onLoad={(e) => {
+              console.log('AttributionViewShotComponent: Background image loaded', {
+                width: e.nativeEvent.source.width,
+                height: e.nativeEvent.source.height,
+                componentWidth: width,
+                componentHeight: height
+              });
+              setImageLoaded(true);
             }}
             onError={(error) => {
-              // Keep as error so it shows up in production logs and any error tracking integrations.
-              console.error('[ATTRIBUTION_LOGO_DIAG] Logo error', {
-                logoUri,
-                nativeEvent: (error as any)?.nativeEvent,
-                error,
-              });
-              attributionLogoDiagAlertOnce(
-                'Attribution Logo Debug (Error)',
-                `Logo failed to load.\n\nlogoUri: ${logoUri}\n\nnativeEvent: ${JSON.stringify((error as any)?.nativeEvent ?? {}, null, 2)}`
-              );
-              setLogoLoaded(true); // Set to true anyway to not block
+              console.error('AttributionViewShotComponent: Background image error', error, { backgroundImageUri });
+              // Set to true anyway to not block - maybe image is cached
+              setImageLoaded(true);
             }}
           />
-        )}
-      </View>
-    </ViewShot>
-  );
-};
+
+          {/* Black Bar Background */}
+          <View
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: barY,
+              width: width,
+              height: barHeight,
+              backgroundColor: '#000000',
+            }}
+          />
+
+          {/* Attribution Text */}
+          <Text
+            style={{
+              position: 'absolute',
+              left: paddingX,
+              bottom: paddingY,
+              color: '#FFFFFF',
+              fontSize: fontSize,
+              fontFamily: 'Roboto',
+              fontWeight: 'normal',
+              includeFontPadding: false,
+              textAlignVertical: 'bottom',
+            }}
+          >
+            {attributionText}
+          </Text>
+
+          {/* Logo */}
+          {(logoUri || logoAssetModule) && (
+            <Image
+              source={logoAssetModule ? logoAssetModule : { uri: logoUri as string }}
+              style={{
+                position: 'absolute',
+                left: logoX,
+                top: logoY,
+                width: logoWidth,
+                height: logoHeight,
+                resizeMode: 'contain',
+              }}
+              onLoadStart={() => {
+                attributionLogoDiag('Logo load started', { logoUri });
+              }}
+              onLoad={() => {
+                attributionLogoDiag('Logo loaded', { logoUri });
+                setLogoLoaded(true);
+              }}
+              onError={(error) => {
+                // Keep as error so it shows up in production logs and any error tracking integrations.
+                console.error('[ATTRIBUTION_LOGO_DIAG] Logo error', {
+                  logoUri,
+                  nativeEvent: (error as any)?.nativeEvent,
+                  error,
+                });
+                attributionLogoDiagAlertOnce(
+                  'Attribution Logo Debug (Error)',
+                  `Logo failed to load.\n\nlogoUri: ${logoUri}\n\nnativeEvent: ${JSON.stringify((error as any)?.nativeEvent ?? {}, null, 2)}`
+                );
+                setLogoLoaded(true); // Set to true anyway to not block
+              }}
+            />
+          )}
+        </View>
+      </ViewShot>
+    );
+  };
 
 /**
  * Global registry for attribution components
@@ -421,21 +420,21 @@ export function setAttributionCaptureFn(captureFn: () => Promise<string>) {
     hasResolve: !!attributionComponentRegistry.resolve,
     hasReject: !!attributionComponentRegistry.reject,
   });
-  
+
   // Store the capture function
   attributionComponentRegistry.captureFn = captureFn;
-  
+
   // If we have both captureFn and resolve, execute immediately
-  if (attributionComponentRegistry.captureFn && attributionComponentRegistry.resolve) {
+  const captureFnToUse = attributionComponentRegistry.captureFn;
+  const resolveToUse = attributionComponentRegistry.resolve;
+  const rejectToUse = attributionComponentRegistry.reject;
+
+  if (captureFnToUse && resolveToUse) {
     console.log('setAttributionCaptureFn: Both captureFn and resolve available, executing capture...');
-    
-    // Store resolve/reject before clearing registry
-    const resolve = attributionComponentRegistry.resolve;
-    const reject = attributionComponentRegistry.reject;
-    
+
     // Execute capture - but DON'T clear registry yet, keep component mounted
-    const capturePromise = attributionComponentRegistry.captureFn();
-    
+    const capturePromise = captureFnToUse();
+
     // Handle the capture result - clear registry AFTER capture completes
     capturePromise
       .then((uri) => {
@@ -447,7 +446,7 @@ export function setAttributionCaptureFn(captureFn: () => Promise<string>) {
           resolve: null,
           reject: null,
         };
-        resolve(uri);
+        resolveToUse(uri);
       })
       .catch((error) => {
         console.error('setAttributionCaptureFn: Capture failed', error);
@@ -458,7 +457,9 @@ export function setAttributionCaptureFn(captureFn: () => Promise<string>) {
           resolve: null,
           reject: null,
         };
-        reject(error);
+        if (rejectToUse) {
+          rejectToUse(error);
+        }
       });
   } else {
     console.warn('setAttributionCaptureFn: Missing captureFn or resolve, will wait', {
@@ -478,9 +479,10 @@ export async function addAttributionToImageWithViewShot(
 ): Promise<string> {
   try {
     console.log('addAttributionToImageWithViewShot: Starting', { imageUri, userName });
-    
+
     // Load the logo asset - use Image.resolveAssetSource for reliable asset resolution
     const logoAsset = require('../assets/images/ganapp_attri.png');
+    const logoAssetModule = logoAsset;
     let logoUri: string | null = null;
     let resolvedAssetForDiag: any = null;
     let assetForDiag: any = null;
@@ -492,7 +494,7 @@ export async function addAttributionToImageWithViewShot(
       // In RN `require("...png")` usually becomes a number (module id)
       logoAssetValue: logoAsset,
     });
-    
+
     try {
       // Method 1: Try Image.resolveAssetSource (works in both dev and production)
       const resolvedAsset = Image.resolveAssetSource(logoAsset);
@@ -515,7 +517,7 @@ export async function addAttributionToImageWithViewShot(
     } catch (resolveError) {
       console.warn('[ATTRIBUTION_LOGO_DIAG] Image.resolveAssetSource failed, trying Asset.fromModule', resolveError);
     }
-    
+
     // Method 2: Fallback to Asset.fromModule if Image.resolveAssetSource didn't work
     if (!logoUri) {
       try {
@@ -540,7 +542,7 @@ export async function addAttributionToImageWithViewShot(
           localUri: asset.localUri,
           downloaded: asset.downloaded,
         });
-        
+
         // Prefer localUri if available (production builds) — but only if it's a real URI/path
         if (asset.localUri) {
           const normalizedLocal = normalizeLogoUriCandidate(asset.localUri);
@@ -564,13 +566,13 @@ export async function addAttributionToImageWithViewShot(
           // For bundled assets, uri should work directly
           logoUri = normalizeLogoUriCandidate(asset.uri) ?? asset.uri;
           attributionLogoDiag('Logo loaded via Asset.uri', { logoUri });
-          
+
           // If it's a remote URL, try to download it
           if (logoUri.startsWith('http://') || logoUri.startsWith('https://')) {
             const logoFileName = 'ganapp_attri_logo.png';
             const logoLocalPath = `${FileSystem.cacheDirectory}${logoFileName}`;
             const fileInfo = await FileSystem.getInfoAsync(logoLocalPath);
-            
+
             if (!fileInfo.exists) {
               try {
                 const downloadResult = await FileSystem.downloadAsync(logoUri, logoLocalPath);
@@ -589,15 +591,16 @@ export async function addAttributionToImageWithViewShot(
         console.error('[ATTRIBUTION_LOGO_DIAG] Asset.fromModule failed', assetError);
       }
     }
-    
+
     attributionLogoDiag('Final logoUri selected', {
       logoUri,
       hasLogo: !!logoUri,
       scheme: logoUri ? logoUri.split(':')[0] : null,
     });
 
-    // If we couldn't resolve a logo at all, surface this immediately as an alert in production.
-    if (!logoUri) {
+    // If we couldn't resolve a logo URI AND we somehow don't have a bundled asset module (should never happen),
+    // surface this immediately as an alert in production.
+    if (!logoUri && !logoAssetModule) {
       attributionLogoDiagAlertOnce(
         'Attribution Logo Debug (Missing)',
         `Logo URI could not be resolved.\n\nresolveAssetSource: ${JSON.stringify(resolvedAssetForDiag ?? null, null, 2)}\n\nasset: ${JSON.stringify(assetForDiag ?? null, null, 2)}`
@@ -628,7 +631,8 @@ export async function addAttributionToImageWithViewShot(
     const params = await calculateAttributionParams(
       imageUri.startsWith('file://') ? imageUri : `file://${imageUri}`,
       userName,
-      logoUri
+      logoUri,
+      logoAssetModule
     );
     console.log('addAttributionToImageWithViewShot: Parameters calculated', params);
 
@@ -638,6 +642,7 @@ export async function addAttributionToImageWithViewShot(
       backgroundImageUri: params.backgroundImageUri,
       attributionText: params.attributionText,
       logoUri: params.logoUri,
+      logoAssetModule,
       fontSize: params.fontSize,
       paddingX: params.paddingX,
       paddingY: params.paddingY,
