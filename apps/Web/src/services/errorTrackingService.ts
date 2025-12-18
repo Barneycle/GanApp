@@ -49,7 +49,10 @@ class ErrorTrackingService {
 
     try {
       // Dynamic import - only load Sentry if configured
-      const SentryModule = await import('@sentry/react');
+      // Use a variable to make the import path dynamic and avoid Vite static analysis
+      // This allows the app to work without @sentry/react installed
+      const sentryPackage = '@sentry/react';
+      const SentryModule = await import(/* @vite-ignore */ sentryPackage);
       const { init, captureException: sentryCaptureException, setUser: sentrySetUser, setContext: sentrySetContext } = SentryModule;
 
       // Initialize Sentry
@@ -58,8 +61,9 @@ class ErrorTrackingService {
         environment: import.meta.env.MODE,
         integrations: [
           // Browser tracing integration for performance monitoring
-          SentryModule.browserTracingIntegration(),
-        ],
+          // Check if browserTracingIntegration exists (it might not in older versions)
+          SentryModule.browserTracingIntegration ? SentryModule.browserTracingIntegration() : undefined,
+        ].filter(Boolean),
         // Performance Monitoring
         tracesSampleRate: 0.1, // 10% of transactions (adjust based on traffic)
         // Session Replay (optional - can be enabled later)

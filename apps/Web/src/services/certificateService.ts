@@ -163,35 +163,37 @@ export class CertificateService {
    * Get certificate config for an event
    */
   static async getCertificateConfig(eventId: string): Promise<{ config?: CertificateConfig; error?: string }> {
-    try {
-      // Check cache first
-      const cacheKey = CacheService.keys.certificateConfig(eventId);
-      const cached = await CacheService.get<CertificateConfig>(cacheKey);
-      if (cached) {
-        return { config: cached };
-      }
-
-      const { data, error } = await supabase
-        .from('certificate_configs')
-        .select('*')
-        .eq('event_id', eventId)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          // No config found
-          return { config: undefined };
+    return LoggerService.time('CertificateService.getCertificateConfig', async () => {
+      try {
+        // Check cache first
+        const cacheKey = CacheService.keys.certificateConfig(eventId);
+        const cached = await CacheService.get<CertificateConfig>(cacheKey);
+        if (cached) {
+          return { config: cached };
         }
-        return { error: error.message };
+
+        const { data, error } = await supabase
+          .from('certificate_configs')
+          .select('*')
+          .eq('event_id', eventId)
+          .single();
+
+        if (error) {
+          if (error.code === 'PGRST116') {
+            // No config found
+            return { config: undefined };
+          }
+          return { error: error.message };
+        }
+
+        // Cache the result
+        await CacheService.set(cacheKey, data, CacheService.TTL.MEDIUM);
+
+        return { config: data as CertificateConfig };
+      } catch (err: any) {
+        return { error: err.message || 'Failed to fetch certificate config' };
       }
-
-      // Cache the result
-      await CacheService.set(cacheKey, data, CacheService.TTL.MEDIUM);
-
-      return { config: data as CertificateConfig };
-    } catch (err: any) {
-      return { error: err.message || 'Failed to fetch certificate config' };
-    }
+    }, { eventId });
   }
 
   /**
@@ -202,7 +204,8 @@ export class CertificateService {
     config: Omit<CertificateConfig, 'id' | 'event_id' | 'created_at' | 'updated_at'>,
     userId: string
   ): Promise<{ config?: CertificateConfig; error?: string }> {
-    try {
+    return LoggerService.time('CertificateService.saveCertificateConfig', async () => {
+      try {
       // Check if config exists
       const existing = await this.getCertificateConfig(eventId);
 
@@ -291,6 +294,7 @@ export class CertificateService {
       LoggerService.serviceError('CertificateService', 'Certificate config save error', err);
       return { error: err.message || 'Failed to save certificate config' };
     }
+    });
   }
 
   /**
@@ -300,26 +304,28 @@ export class CertificateService {
     userId: string,
     eventId: string
   ): Promise<{ certificate?: Certificate; error?: string }> {
-    try {
-      const { data, error } = await supabase
-        .from('certificates')
-        .select('*')
-        .eq('event_id', eventId)
-        .eq('user_id', userId)
-        .single();
+    return LoggerService.time('CertificateService.getUserCertificate', async () => {
+      try {
+        const { data, error } = await supabase
+          .from('certificates')
+          .select('*')
+          .eq('event_id', eventId)
+          .eq('user_id', userId)
+          .single();
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          // No certificate found
-          return { certificate: undefined };
+        if (error) {
+          if (error.code === 'PGRST116') {
+            // No certificate found
+            return { certificate: undefined };
+          }
+          return { error: error.message };
         }
-        return { error: error.message };
-      }
 
-      return { certificate: data as Certificate };
-    } catch (err: any) {
-      return { error: err.message || 'Failed to fetch certificate' };
-    }
+        return { certificate: data as Certificate };
+      } catch (err: any) {
+        return { error: err.message || 'Failed to fetch certificate' };
+      }
+    }, { userId, eventId });
   }
 
   /**
@@ -472,7 +478,8 @@ export class CertificateService {
       certificate_template_id?: string;
     }
   ): Promise<{ certificate?: Certificate; error?: string }> {
-    try {
+    return LoggerService.time('CertificateService.saveCertificate', async () => {
+      try {
       // Check if certificate already exists by certificate_number (unique constraint)
       // This handles both event-based and standalone certificates correctly
       let existing: { certificate?: Certificate; error?: string } = { certificate: undefined };
@@ -624,6 +631,7 @@ export class CertificateService {
     } catch (err: any) {
       return { error: err.message || 'Failed to save certificate' };
     }
+    }, { eventId: certificateData.event_id, userId: certificateData.user_id });
   }
 
   /**

@@ -124,5 +124,49 @@ export class LoggerService {
   static getLogLevel(): LogLevel {
     return this.logLevel;
   }
+
+  /**
+   * Time an async operation and log the duration
+   * Integrates with PerformanceService for metrics tracking
+   */
+  static async time<T>(
+    operation: string,
+    fn: () => Promise<T>,
+    context?: LogContext
+  ): Promise<T> {
+    const { PerformanceService } = await import('./performanceService');
+    return PerformanceService.measure(operation, fn, context);
+  }
+
+  /**
+   * Time a synchronous operation and log the duration
+   * Integrates with PerformanceService for metrics tracking
+   */
+  static timeSync<T>(
+    operation: string,
+    fn: () => T,
+    context?: LogContext
+  ): T {
+    // Dynamic import for sync operation
+    const { PerformanceService } = require('./performanceService');
+    return PerformanceService.measureSync(operation, fn, context);
+  }
+
+  /**
+   * Start a performance timer
+   * Returns a timer object that can be passed to endTimer
+   */
+  static async startTimer(operation: string, context?: LogContext): Promise<any> {
+    const { PerformanceService } = await import('./performanceService');
+    return PerformanceService.startTimer(operation, context);
+  }
+
+  /**
+   * End a performance timer and log the duration
+   */
+  static async endTimer(timer: any, additionalContext?: LogContext): Promise<number> {
+    const { PerformanceService } = await import('./performanceService');
+    return PerformanceService.endTimer(timer, additionalContext);
+  }
 }
 

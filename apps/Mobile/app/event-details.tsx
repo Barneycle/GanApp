@@ -167,6 +167,18 @@ export default function EventDetails() {
     return { allowed: true };
   }, [event]);
 
+  const isEventPast = useMemo(() => {
+    if (!event) return false;
+    const now = new Date();
+    const endDateTime = new Date(`${event.end_date}T${event.end_time || '23:59:59'}`);
+    return endDateTime < now;
+  }, [event]);
+
+  const isEventCancelled = useMemo(() => {
+    if (!event) return false;
+    return event.status === 'cancelled';
+  }, [event]);
+
   const handleRegister = async () => {
     if (!user) {
       toast.warning('Please log in to register for this event.');
@@ -366,55 +378,53 @@ export default function EventDetails() {
                       You are registered for this event
                     </Text>
                   </View>
-                ) : (() => {
-                  const registrationAllowed = canRegister.allowed;
-                  const isDisabled = !registrationAllowed || isRegistering;
-
-                  return (
-                    <TouchableOpacity
-                      className={`rounded-2xl py-4 px-6 shadow-lg ${isDisabled
-                        ? 'bg-gray-400 opacity-60'
-                        : 'bg-blue-700'
-                        } ${isRegistering ? 'opacity-50' : ''}`}
-                      onPress={handleRegister}
-                      disabled={isDisabled}
-                    >
-                      <View className="flex-row items-center justify-center">
-                        {isRegistering ? (
-                          <>
-                            <ActivityIndicator size="small" color="#ffffff" />
-                            <Text className="text-white font-bold text-lg ml-3">
-                              Registering...
-                            </Text>
-                          </>
-                        ) : !registrationAllowed ? (
-                          <>
-                            <Ionicons name="lock-closed" size={24} color="#ffffff" />
-                            <Text className="text-white font-bold text-lg ml-3">
-                              Registration Closed
-                            </Text>
-                          </>
-                        ) : (
-                          <>
-                            <Ionicons name="person-add" size={24} color="#ffffff" />
-                            <Text className="text-white font-bold text-lg ml-3">
-                              Register for Event
-                            </Text>
-                          </>
-                        )}
-                      </View>
-                      {!registrationAllowed && canRegister.reason && (
-                        <Text className="text-white text-center mt-2 text-sm opacity-90">
-                          {canRegister.reason}
-                        </Text>
+                ) : canRegister.allowed ? (
+                  <TouchableOpacity
+                    className={`rounded-2xl py-4 px-6 shadow-lg bg-blue-700 ${isRegistering ? 'opacity-50' : ''}`}
+                    onPress={handleRegister}
+                    disabled={isRegistering}
+                  >
+                    <View className="flex-row items-center justify-center">
+                      {isRegistering ? (
+                        <>
+                          <ActivityIndicator size="small" color="#ffffff" />
+                          <Text className="text-white font-bold text-lg ml-3">
+                            Registering...
+                          </Text>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons name="person-add" size={24} color="#ffffff" />
+                          <Text className="text-white font-bold text-lg ml-3">
+                            Register for Event
+                          </Text>
+                        </>
                       )}
-                    </TouchableOpacity>
-                  );
-                })()}
+                    </View>
+                  </TouchableOpacity>
+                ) : (
+                  <View className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                    <View className="flex-row items-center justify-center">
+                      <Ionicons
+                        name={isEventCancelled ? "close-circle" : isEventPast ? "time" : "lock-closed"}
+                        size={22}
+                        color="#64748b"
+                      />
+                      <Text className="text-slate-700 font-semibold text-lg ml-2">
+                        {isEventCancelled ? 'Event Cancelled' : isEventPast ? 'Event Ended' : 'Registration Closed'}
+                      </Text>
+                    </View>
+                    {!!canRegister.reason && (
+                      <Text className="text-slate-600 text-center mt-2 text-sm">
+                        {canRegister.reason}
+                      </Text>
+                    )}
+                  </View>
+                )}
               </View>
 
               {/* Contact Organizer Button - Show for registered users */}
-              {isRegistered && user && (
+              {isRegistered && user && !isEventPast && !isEventCancelled && (
                 <View className="mb-6">
                   <TouchableOpacity
                     className="bg-purple-600 rounded-2xl py-4 px-6 shadow-lg"

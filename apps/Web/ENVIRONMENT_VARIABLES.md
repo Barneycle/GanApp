@@ -94,6 +94,18 @@ This document describes all environment variables used in the GanApp web applica
 - **Used in**: Error tracking service for release tracking
 - **Note**: Useful for tracking which version introduced bugs
 
+#### `VITE_ENABLE_PERFORMANCE_MONITORING`
+- **Type**: String (`true` | `false`)
+- **Required**: No (defaults to `false` in production, `true` in development)
+- **Description**: Enable performance monitoring and metrics tracking
+- **Example**: `true`
+- **Used in**: `performanceService.ts` - for tracking operation durations and slow operations
+- **Note**: 
+  - Always enabled in development mode
+  - In production, set to `true` to enable performance tracking
+  - Tracks operation durations and detects slow operations (>1 second)
+  - Minimal performance overhead (~0.1ms per operation)
+
 ---
 
 ## Development vs Production

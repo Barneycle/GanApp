@@ -2135,6 +2135,17 @@ export const Events = () => {
                                 </p>
                               )}
                             </div>
+                          ) : (event.status === 'cancelled' || isEventPast(event)) ? (
+                            <div className="w-full bg-slate-50 rounded-lg p-3 border border-slate-200 text-center">
+                              <p className="text-sm text-slate-600">
+                                {event.status === 'cancelled' ? 'This event was cancelled' : 'This event has ended'}
+                              </p>
+                              {user && userRegistrations.has(event.id) && (
+                                <p className="text-xs text-slate-500 mt-1">
+                                  You are registered for this event.
+                                </p>
+                              )}
+                            </div>
                           ) : user?.role === 'organizer' || user?.role === 'admin' ? (
                             <>
                               <div className="flex space-x-3">

@@ -48,103 +48,109 @@ export interface EventRegistration {
 
 export class EventService {
   static async getAllEvents(): Promise<{ events?: Event[]; error?: string }> {
-    try {
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .order('created_at', { ascending: false });
+    return LoggerService.time('EventService.getAllEvents', async () => {
+      try {
+        const { data, error } = await supabase
+          .from('events')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      if (error) {
-        return { error: error.message };
+        if (error) {
+          return { error: error.message };
+        }
+
+        // Calculate current participants for each event
+        const eventsWithParticipants = await Promise.all(
+          data.map(async (event) => {
+            const { count } = await supabase
+              .from('event_registrations')
+              .select('*', { count: 'exact', head: true })
+              .eq('event_id', event.id)
+              .eq('status', 'registered'); // Only count 'registered' status
+
+            return {
+              ...event,
+              current_participants: count || 0
+            };
+          })
+        );
+
+        return { events: eventsWithParticipants };
+      } catch (error) {
+        return { error: 'An unexpected error occurred' };
       }
-
-      // Calculate current participants for each event
-      const eventsWithParticipants = await Promise.all(
-        data.map(async (event) => {
-          const { count } = await supabase
-            .from('event_registrations')
-            .select('*', { count: 'exact', head: true })
-            .eq('event_id', event.id)
-            .eq('status', 'registered'); // Only count 'registered' status
-
-          return {
-            ...event,
-            current_participants: count || 0
-          };
-        })
-      );
-
-      return { events: eventsWithParticipants };
-    } catch (error) {
-      return { error: 'An unexpected error occurred' };
-    }
+    });
   }
 
   static async getEventById(id: string): Promise<{ event?: Event; error?: string }> {
-    try {
-      // Check cache first
-      const cacheKey = CacheService.keys.event(id);
-      const cached = await CacheService.get<Event>(cacheKey);
-      if (cached) {
-        return { event: cached };
+    return LoggerService.time('EventService.getEventById', async () => {
+      try {
+        // Check cache first
+        const cacheKey = CacheService.keys.event(id);
+        const cached = await CacheService.get<Event>(cacheKey);
+        if (cached) {
+          return { event: cached };
+        }
+
+        const { data, error } = await supabase
+          .from('events')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (error) {
+          return { error: error.message };
+        }
+
+        if (!data) {
+          return { error: 'Event not found' };
+        }
+
+        // Cache the result
+        await CacheService.set(cacheKey, data, CacheService.TTL.MEDIUM);
+
+        return { event: data };
+      } catch (error) {
+        return { error: 'An unexpected error occurred' };
       }
-
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (error) {
-        return { error: error.message };
-      }
-
-      if (!data) {
-        return { error: 'Event not found' };
-      }
-
-      // Cache the result
-      await CacheService.set(cacheKey, data, CacheService.TTL.MEDIUM);
-
-      return { event: data };
-    } catch (error) {
-      return { error: 'An unexpected error occurred' };
-    }
+    }, { eventId: id });
   }
 
   static async createEvent(eventData: Partial<Event>): Promise<{ event?: Event; error?: string }> {
-    try {
-      const { data, error } = await supabase
-        .from('events')
-        .insert([eventData])
-        .select()
-        .single();
+    return LoggerService.time('EventService.createEvent', async () => {
+      try {
+        const { data, error } = await supabase
+          .from('events')
+          .insert([eventData])
+          .select()
+          .single();
 
-      if (error) {
-        return { error: error.message };
+        if (error) {
+          return { error: error.message };
+        }
+
+        // Log activity
+        if (data && eventData.created_by) {
+          logActivity(
+            eventData.created_by,
+            'create',
+            'event',
+            {
+              resourceId: data.id,
+              resourceName: data.title || 'Untitled Event',
+              details: { event_id: data.id, title: data.title }
+            }
+          ).catch(err => LoggerService.serviceError('EventService', 'Failed to log event creation', err));
+        }
+
+        // Invalidate cache
+        await CacheService.deletePattern('events:*');
+
+        return { event: data };
+      } catch (error) {
+        return { error: 'An unexpected error occurred' };
       }
-
-      // Log activity
-      if (data && eventData.created_by) {
-        logActivity(
-          eventData.created_by,
-          'create',
-          'event',
-          {
-            resourceId: data.id,
-            resourceName: data.title || 'Untitled Event',
-            details: { event_id: data.id, title: data.title }
-          }
-        ).catch(err => LoggerService.serviceError('EventService', 'Failed to log event creation', err));
-      }
-
-      // Invalidate cache
-      await CacheService.deletePattern('events:*');
-
-      return { event: data };
-    } catch (error) {
-      return { error: 'An unexpected error occurred' };
-    }
+    }, { userId: eventData.created_by });
   }
 
   static async updateEvent(id: string, updates: Partial<Event>): Promise<{ event?: Event; error?: string }> {

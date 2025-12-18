@@ -19,29 +19,31 @@ export class NotificationService {
    * Get all notifications for a user
    */
   static async getNotifications(userId: string): Promise<{ notifications?: Notification[]; error?: string }> {
-    try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(100);
+    return LoggerService.time('NotificationService.getNotifications', async () => {
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(100);
 
-      if (error) {
-        return { error: error.message };
+        if (error) {
+          return { error: error.message };
+        }
+
+        // Filter out expired notifications
+        const now = new Date();
+        const validNotifications = (data || []).filter(notification => {
+          if (!notification.expires_at) return true;
+          return new Date(notification.expires_at) > now;
+        });
+
+        return { notifications: validNotifications };
+      } catch (error: any) {
+        return { error: 'An unexpected error occurred' };
       }
-
-      // Filter out expired notifications
-      const now = new Date();
-      const validNotifications = (data || []).filter(notification => {
-        if (!notification.expires_at) return true;
-        return new Date(notification.expires_at) > now;
-      });
-
-      return { notifications: validNotifications };
-    } catch (error: any) {
-      return { error: 'An unexpected error occurred' };
-    }
+    }, { userId });
   }
 
   /**
@@ -183,8 +185,9 @@ export class NotificationService {
       immediate?: boolean; // If true, insert immediately instead of queuing
     }
   ): Promise<{ notification?: Notification; queued?: boolean; jobId?: string; error?: string }> {
-    try {
-      // If immediate flag is set, insert directly (for backward compatibility)
+    return LoggerService.time('NotificationService.createNotification', async () => {
+      try {
+        // If immediate flag is set, insert directly (for backward compatibility)
       if (options?.immediate) {
         const { data, error } = await supabase
           .from('notifications')
@@ -242,6 +245,7 @@ export class NotificationService {
     } catch (error: any) {
       return { error: error.message || 'An unexpected error occurred' };
     }
+    }, { userId, type, priority: options?.priority });
   }
 
   /**

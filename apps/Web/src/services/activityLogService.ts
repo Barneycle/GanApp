@@ -90,10 +90,21 @@ export class ActivityLogService {
     offset: number = 0
   ): Promise<{ logs?: ActivityLog[]; total?: number; error?: string }> {
     try {
+      // Optimize query by selecting specific columns instead of *
+      // This reduces data transfer and improves performance
       let query = supabase
         .from('activity_logs')
         .select(`
-          *
+          id,
+          user_id,
+          action,
+          resource_type,
+          resource_id,
+          resource_name,
+          details,
+          ip_address,
+          user_agent,
+          created_at
         `, { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -132,14 +143,14 @@ export class ActivityLogService {
 
       if (error) {
         // Handle missing table error gracefully
-        if (error.message?.includes('schema cache') || 
-            error.message?.includes('does not exist') ||
-            error.message?.includes('relation "activity_logs" does not exist')) {
+        if (error.message?.includes('schema cache') ||
+          error.message?.includes('does not exist') ||
+          error.message?.includes('relation "activity_logs" does not exist')) {
           return { error: 'Activity logs table not found. Please run the database migration to create the activity_logs table.' };
         }
         // Handle RLS/permission errors
-        if (error.message?.includes('permission denied') || 
-            error.message?.includes('new row violates row-level security')) {
+        if (error.message?.includes('permission denied') ||
+          error.message?.includes('new row violates row-level security')) {
           return { error: 'Permission denied. Please ensure RLS policies are correctly configured for the activity_logs table.' };
         }
         // Return the actual error for debugging
@@ -195,10 +206,20 @@ export class ActivityLogService {
     resourceId: string
   ): Promise<{ logs?: ActivityLog[]; error?: string }> {
     try {
+      // Optimize query by selecting specific columns
       const { data, error } = await supabase
         .from('activity_logs')
         .select(`
-          *
+          id,
+          user_id,
+          action,
+          resource_type,
+          resource_id,
+          resource_name,
+          details,
+          ip_address,
+          user_agent,
+          created_at
         `)
         .eq('resource_type', resourceType)
         .eq('resource_id', resourceId)
