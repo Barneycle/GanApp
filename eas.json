@@ -1,19 +1,5 @@
 {
-    "cli": {
-      "appDir": "apps/Mobile"
-    },
-    "build": {
-      "preview": {
-        "distribution": "internal",
-        "android": {
-          "buildType": "apk"
-        }
-      },
-      "production": {
-        "android": {
-          "buildType": "app-bundle"
-        }
-      }
-    }
+  "cli": {
+    "appDir": "apps/Mobile"
   }
-  
+}

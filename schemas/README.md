@@ -1,43 +1,31 @@
-# Database Schemas
+# Database schemas
 
-This folder contains all database schema files organized by purpose.
+SQL in this folder is a **reference copy** of changes that were applied in Supabase. It is not an automatic migration runner. There is no `supabase/migrations` history in this repo.
 
-## Structure
+## What to use
 
-### Main Schemas
-- `schema.sql` - Main database schema (renamed from `supabase_schema_fixed.sql`)
-- `attendance_workflow_schema.sql` - Attendance workflow schema
-- `qr_code_schema.sql` - QR code schema (v1)
-- `qr_code_schema_v2.sql` - QR code schema (v2)
-- `storage_policies.sql` - Storage bucket policies
-- `notification_triggers.sql` - Notification trigger definitions
+1. **`schema.sql`** — base schema snapshot.
+2. **`migrations/`** — larger, named schema changes. Apply in date/name order only if that change is not already on the database.
+3. **`patches/`** — one-off creates, RLS fixes, and functions. Many of these are already applied. Do not re-run `drop_*` or `complete_database_cleanup.sql` on production.
+4. **`qr_code_schema_v2.sql`** — current QR schema. `qr_code_schema.sql` is the older v1 copy.
+5. **`storage_policies.sql`**, **`notification_triggers.sql`**, **`attendance_workflow_schema.sql`** — supporting snapshots.
 
-### Migrations (`migrations/`)
-Database migration scripts for schema changes:
-- `migrate_*.sql` - Migration scripts
-- `rollback_*.sql` - Rollback scripts
-- `update_*.sql` - Update scripts
-- `populate_organizations.sql` - Data population script
+## Diagnostic / already-applied (do not treat as setup)
 
-### Patches (`patches/`)
-Database patches, fixes, and utility scripts:
-- `add_*.sql` - Add column/feature scripts
-- `create_*.sql` - Create table/function scripts
-- `fix_*.sql` - Fix/patch scripts
-- `drop_*.sql` - Drop table/column scripts
-- `cleanup_*.sql` - Cleanup scripts
-- `check_*.sql` - Diagnostic/check scripts
-- Other utility scripts
+These were written as one-off checks or emergency fixes. Safe to ignore on a new environment unless you are debugging the same issue:
 
-## Usage
+- `patches/check_registration_status.sql` (hard-coded event id)
+- `patches/check_trigger_status.sql`
+- `patches/check_users_table_dependencies.sql`
+- `patches/check_storage_policies.sql`
+- `patches/check_rls_and_fix.sql`
+- `patches/fix_counts_immediately.sql`
+- `patches/fix_participant_counts_now.sql`
+- `patches/complete_database_cleanup.sql`
+- `patches/drop_indexes.sql`
 
-1. **Initial Setup**: Run `schema.sql` first to set up the base schema
-2. **Migrations**: Apply migrations in chronological order as needed
-3. **Patches**: Apply patches as needed for fixes and enhancements
+Keep **`patches/check_email_exists_function.sql`**. That is a live RPC, not a diagnostic.
 
-## Notes
+## New environments
 
-- Debug and test SQL files have been removed
-- All schema files are now organized in this folder structure
-- Main schema file is `schema.sql` (previously `supabase_schema_fixed.sql`)
-
+Prefer dumping the current production/staging schema from Supabase over replaying this folder from scratch.

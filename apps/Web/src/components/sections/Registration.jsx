@@ -8,7 +8,7 @@ import { fieldForError, inlineError, toErrorCopy } from '../../utils/errorCopy';
 import { FIELD_LIMITS, isPasswordValid, isValidEmail } from '../../utils/formFields';
 import { CharCount, FieldError, FieldLabel, PasswordChecklist, controlClass } from '../form/Field';
 import { statusError } from '../Toast';
-import { AcademicCapIcon, BriefcaseIcon, UserGroupIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { Briefcase, GraduationCap, Users, X } from 'lucide-react';
 
 // Common email domains for autocomplete
 const COMMON_EMAIL_DOMAINS = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com', 'aol.com', 'mail.com', 'protonmail.com'];
@@ -314,7 +314,7 @@ export const Registration = () => {
               >
                 <div className="flex items-center">
                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
-                    <AcademicCapIcon className="w-6 h-6 text-blue-800" />
+                    <GraduationCap className="w-6 h-6 text-blue-800" />
                   </div>
                   <div className="flex-1">
                     <h4 className="text-base font-medium text-slate-800">PSU Student</h4>
@@ -330,7 +330,7 @@ export const Registration = () => {
               >
                 <div className="flex items-center">
                   <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-                    <BriefcaseIcon className="w-6 h-6 text-green-800" />
+                    <Briefcase className="h-6 w-6 text-green-800" />
                   </div>
                   <div className="flex-1">
                     <h4 className="text-base font-medium text-slate-800">PSU Employee</h4>
@@ -346,7 +346,7 @@ export const Registration = () => {
               >
                 <div className="flex items-center">
                   <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
-                    <UserGroupIcon className="w-6 h-6 text-purple-800" />
+                    <Users className="h-6 w-6 text-purple-800" />
                   </div>
                   <div className="flex-1">
                     <h4 className="text-base font-medium text-slate-800">Outside PSU</h4>
@@ -384,11 +384,11 @@ export const Registration = () => {
                     formData.userType === 'psu-employee' ? 'bg-green-100' : 'bg-purple-100'
                     }`}>
                     {formData.userType === 'psu-student' ? (
-                      <AcademicCapIcon className="w-5 h-5 text-slate-800" />
+                      <GraduationCap className="h-5 w-5 text-slate-800" />
                     ) : formData.userType === 'psu-employee' ? (
-                      <BriefcaseIcon className="w-5 h-5 text-slate-800" />
+                      <Briefcase className="h-5 w-5 text-slate-800" />
                     ) : (
-                      <UserGroupIcon className="w-5 h-5 text-slate-800" />
+                      <Users className="h-5 w-5 text-slate-800" />
                     )}
                   </div>
                   <div>
@@ -403,7 +403,7 @@ export const Registration = () => {
                   onClick={() => setFormData(prev => ({ ...prev, userType: '' }))}
                   className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
                 >
-                  <XMarkIcon className="w-6 h-6" />
+                  <X className="h-6 w-6" />
                 </button>
               </div>
             </div>

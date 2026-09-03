@@ -8,9 +8,6 @@
     "paths": {
       "@/*": [
         "./*"
-      ],
-      "@ganapp/shared": [
-        "../../packages/shared"
       ]
     }
   },

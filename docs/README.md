@@ -4,11 +4,11 @@ This directory contains comprehensive user manuals for GanApp Web and Mobile app
 
 ## Files
 
-- **WEB_USER_MANUAL.md** - Complete user manual for GanApp Web application (Participants & Organizers)
-- **MOBILE_APP_USER_MANUAL.md** - Complete user manual for GanApp Mobile application (Participants & Organizers)
-- **ADMIN_USER_MANUAL.md** - Administrator manual for system administrators (Admin access required)
-- **PDF_GENERATION_GUIDE.md** - Instructions for generating PDF versions
-- **PACKAGE_VERSIONS.md** - Complete list of all packages, frameworks, and their versions used in Web and Mobile applications
+- **WEB_USER_MANUAL.md** — Web app (participants and organizers)
+- **MOBILE_APP_USER_MANUAL.md** — Mobile app
+- **ADMIN_USER_MANUAL.md** — Administrators
+- **PDF_GENERATION_GUIDE.md** — How the PDF copies were generated
+- **PACKAGE_VERSIONS.md** — Package list snapshot
 
 ## Manual Contents
 
