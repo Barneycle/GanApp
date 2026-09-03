@@ -30,3 +30,10 @@ NUL.*
 # Environment files
 .env
 .env.*
+
+# Local tooling and deploy leftovers
+.cursor/
+coverage/
+.vercel
+*.keystore
+*.jks
