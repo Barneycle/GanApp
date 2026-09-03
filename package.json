@@ -1,0 +1,33 @@
+{
+  "name": "ganapp",
+  "version": "1.0.0",
+  "description": "GanApp - Web and Mobile Applications",
+  "private": true,
+  "scripts": {
+    "dev:web": "cd apps/Web && npm run dev",
+    "dev:mobile": "cd apps/Mobile && npm start",
+    "build:web": "cd apps/Web && npm run build",
+    "build:mobile": "cd apps/Mobile && npm run build",
+    "install:all": "npm install && cd apps/Web && npm install && cd ../Mobile && npm install",
+    "send-event-reminders": "node scripts/send-event-reminders.js",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=20.19.0",
+    "npm": ">=10.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/ganapp.git"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "expo": "~53.0.24",
+    "react": "19.0.0",
+    "react-native": "0.79.6"
+  }
+}

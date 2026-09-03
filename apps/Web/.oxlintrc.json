@@ -1,0 +1,51 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "oxc", "react"],
+  "env": {
+    "browser": true
+  },
+  "ignorePatterns": ["dist/**", "coverage/**", "node_modules/**"],
+  "settings": {
+    "react": {
+      "version": "19.2.8"
+    }
+  },
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "no-unused-vars": [
+      "error",
+      {
+        "varsIgnorePattern": "^[A-Z_]",
+        "argsIgnorePattern": "^_",
+        "caughtErrors": "none"
+      }
+    ],
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "warn",
+    "react/only-export-components": [
+      "warn",
+      {
+        "allowConstantExport": true
+      }
+    ],
+    "react/purity": "off",
+    "react/immutability": "off",
+    "react/set-state-in-effect": "off",
+    "react/incompatible-library": "off",
+    "react/preserve-manual-memoization": "off",
+    "react/refs": "off",
+    "react/globals": "off",
+    "react/error-boundaries": "off",
+    "react/set-state-in-render": "off"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.{test,spec}.{js,jsx,ts,tsx}", "src/test/**"],
+      "env": {
+        "vitest": true
+      }
+    }
+  ]
+}

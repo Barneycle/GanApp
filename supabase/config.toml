@@ -1,0 +1,7 @@
+# Minimal config for deploying Edge Functions with the Supabase CLI.
+# Full local stack config is not required to deploy process-job-queue.
+project_id = "hekjabrlgdpbffzidshz"
+
+[functions.process-job-queue]
+# Cron (pg_net) authenticates with CRON_SECRET / service role instead of a user JWT.
+verify_jwt = false
