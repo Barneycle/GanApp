@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EventShowcase } from '../EventShowcase';
 import { EventService } from '../../services/eventService';
+import { AlbumService } from '../../services/albumService';
 import { usePageVisibility } from '../../hooks/usePageVisibility';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -17,6 +18,7 @@ export const Organizer = () => {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [events, setEvents] = useState([]);
   const [featuredEvent, setFeaturedEvent] = useState(null);
+  const [albums, setAlbums] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const isVisible = usePageVisibility();
@@ -41,6 +43,7 @@ export const Organizer = () => {
       hasLoadedRef.current = true;
       loadEvents();
       loadFeaturedEvent();
+      loadAlbums();
     }
   }, [user, isAuthenticated, authLoading, navigate]);
 
@@ -86,6 +89,15 @@ export const Organizer = () => {
     }
   };
 
+  const loadAlbums = async () => {
+    try {
+      const result = await AlbumService.getAlbumHighlights(3);
+      if (isVisible) setAlbums(result.events || []);
+    } catch {
+      if (isVisible) setAlbums([]);
+    }
+  };
+
   if (!authLoading && (!isAuthenticated || user?.role !== 'organizer' || !isProfileComplete(user))) {
     return null;
   }
@@ -99,6 +111,10 @@ export const Organizer = () => {
       onRetry={loadEvents}
       emptyActionLabel="Create one"
       onEmptyAction={() => navigate('/create-event')}
+      upcomingLimit={3}
+      seeAllLabel="See all events"
+      showAlbums
+      albums={albums}
     />
   );
 };

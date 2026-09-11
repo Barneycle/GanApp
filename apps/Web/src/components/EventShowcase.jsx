@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import EventModal from './sections/EventModal';
 import { PageSkeleton } from './loading/Skeleton';
@@ -67,13 +67,17 @@ export const EventShowcase = ({
   emptyTitle = 'No events yet',
   emptyActionLabel,
   onEmptyAction,
+  upcomingLimit = null,
+  seeAllLabel = 'See all events',
+  showAlbums = false,
+  albums = [],
 }) => {
-  const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
 
   const displayFeaturedEvent = withSpeakers(featuredEvent) || withSpeakers(events[0]);
   const restEvents = events.filter((event) => event.id !== displayFeaturedEvent?.id);
+  const teaserEvents = typeof upcomingLimit === 'number' ? restEvents.slice(0, upcomingLimit) : restEvents;
 
   const openEvent = (event) => {
     setSelectedEvent(withSpeakers(event));
@@ -158,20 +162,17 @@ export const EventShowcase = ({
 
       <div className="mt-12 flex items-end justify-between border-t border-slate-200 pt-8">
         <h2 className="text-[13px] font-medium text-slate-400">Upcoming</h2>
-        {restEvents.length > 0 && (
-          <button
-            type="button"
-            onClick={() => navigate('/events')}
-            className="text-[13px] text-slate-400 transition-colors hover:text-blue-700"
-          >
-            All events
-          </button>
-        )}
+        <Link
+          to="/events"
+          className="text-[13px] text-slate-400 transition-colors hover:text-blue-700"
+        >
+          {seeAllLabel}
+        </Link>
       </div>
 
-      {restEvents.length > 0 ? (
+      {teaserEvents.length > 0 ? (
         <div className="organizer-hide-scroll mt-5 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2">
-          {restEvents.map((event, index) => (
+          {teaserEvents.map((event, index) => (
             <motion.button
               key={event.id || index}
               type="button"
@@ -200,6 +201,76 @@ export const EventShowcase = ({
         </div>
       ) : displayFeaturedEvent ? (
         <p className="mt-4 text-[14px] text-slate-400">Nothing else on the calendar.</p>
+      ) : null}
+
+      {showAlbums ? (
+        <>
+          <div className="mt-12 flex items-end justify-between border-t border-slate-200 pt-8">
+            <div>
+              <h2 className="text-[13px] font-medium text-slate-400">Albums</h2>
+              <p className="mt-1 text-[14px] text-slate-500">Photos from recent events</p>
+            </div>
+            <Link
+              to="/albums"
+              className="text-[13px] text-slate-400 transition-colors hover:text-blue-700"
+            >
+              See all albums
+            </Link>
+          </div>
+
+          {albums.length > 0 ? (
+            <div className="mt-5 grid gap-5 sm:grid-cols-3">
+              {albums.map((album, index) => {
+                const cover = album.photos?.[0]?.photo_url || FALLBACK;
+                return (
+                  <Link
+                    key={album.id || index}
+                    to={`/albums/${album.id}`}
+                    className="group text-left"
+                  >
+                    <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                      <div className="relative h-40">
+                        <img
+                          src={cover}
+                          alt=""
+                          onError={handleImgError}
+                          className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
+                        />
+                        {album.photos?.length > 1 ? (
+                          <div className="absolute inset-x-0 bottom-0 flex gap-0.5 p-1">
+                            {album.photos.slice(1, 4).map((photo) => (
+                              <img
+                                key={photo.id}
+                                src={photo.photo_url}
+                                alt=""
+                                onError={handleImgError}
+                                className="h-10 flex-1 rounded object-cover"
+                              />
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                    <p className="mt-3 line-clamp-2 text-[15px] font-medium leading-snug tracking-tight text-slate-900">
+                      {album.title}
+                    </p>
+                    <p className="mt-1 text-[13px] text-slate-400">
+                      {album.photo_count || album.photos?.length || 0} photo{(album.photo_count || album.photos?.length || 0) === 1 ? '' : 's'}
+                    </p>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <Link
+              to="/albums"
+              className="mt-5 flex min-h-[140px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center hover:border-slate-300"
+            >
+              <p className="text-[15px] font-medium text-slate-800">No albums yet</p>
+              <p className="mt-1 text-[13px] text-slate-400">Event photos will appear here when they are uploaded.</p>
+            </Link>
+          )}
+        </>
       ) : null}
 
       {(selectedEvent || displayFeaturedEvent) && (

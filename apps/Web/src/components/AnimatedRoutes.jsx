@@ -79,6 +79,7 @@ function AnimatedRoutes() {
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/albums" element={<Albums />} />
+            <Route path="/albums/:eventId" element={<Albums />} />
             <Route path="/certificate" element={<CertificatePage />} />
             <Route path="/verify-certificate/:certificateNumber" element={<VerifyCertificate />} />
             <Route path="/standalone-certificate-generator" element={<StandaloneCertificateGenerator />} />

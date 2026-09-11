@@ -84,6 +84,17 @@ export class AlbumService {
   }
 
   /**
+   * A few recent albums for the public home teaser.
+   */
+  static async getAlbumHighlights(limit = 3): Promise<{ events: EventWithPhotos[]; error?: string }> {
+    const result = await this.getEventsWithPhotos();
+    if (result.error) {
+      return { events: [], error: result.error };
+    }
+    return { events: (result.events || []).slice(0, limit) };
+  }
+
+  /**
    * Get photos for a specific event
    */
   static async getEventPhotos(eventId: string): Promise<{ photos: EventPhoto[]; error?: string }> {

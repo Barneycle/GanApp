@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EventShowcase } from '../EventShowcase';
 import { EventService } from '../../services/eventService';
+import { AlbumService } from '../../services/albumService';
 import { useAuth } from '../../contexts/AuthContext';
 
 const isProfileComplete = (user) => {
@@ -16,6 +17,7 @@ export const Participants = () => {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [events, setEvents] = useState([]);
   const [featuredEvent, setFeaturedEvent] = useState(null);
+  const [albums, setAlbums] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -35,6 +37,7 @@ export const Participants = () => {
     }
     loadEvents();
     loadFeaturedEvent();
+    loadAlbums();
   }, [user, isAuthenticated, authLoading, navigate]);
 
   const loadEvents = async () => {
@@ -74,6 +77,15 @@ export const Participants = () => {
     }
   };
 
+  const loadAlbums = async () => {
+    try {
+      const result = await AlbumService.getAlbumHighlights(3);
+      setAlbums(result.events || []);
+    } catch {
+      setAlbums([]);
+    }
+  };
+
   if (!authLoading && (!isAuthenticated || user?.role !== 'participant' || !isProfileComplete(user))) {
     return null;
   }
@@ -85,6 +97,10 @@ export const Participants = () => {
       loading={authLoading || loading}
       error={error}
       onRetry={loadEvents}
+      upcomingLimit={3}
+      seeAllLabel="See all events"
+      showAlbums
+      albums={albums}
     />
   );
 };

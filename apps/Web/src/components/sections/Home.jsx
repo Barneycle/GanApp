@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { EventShowcase } from '../EventShowcase';
 import { useAuth } from '../../contexts/AuthContext';
 import { EventService } from '../../services/eventService';
+import { AlbumService } from '../../services/albumService';
 
 export const Home = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [events, setEvents] = useState([]);
   const [featuredEvent, setFeaturedEvent] = useState(null);
+  const [albums, setAlbums] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -56,10 +58,20 @@ export const Home = () => {
     }
   }, []);
 
+  const loadAlbums = useCallback(async () => {
+    try {
+      const result = await AlbumService.getAlbumHighlights(3);
+      setAlbums(result.events || []);
+    } catch {
+      setAlbums([]);
+    }
+  }, []);
+
   useEffect(() => {
     loadEvents();
     loadFeaturedEvent();
-  }, [loadEvents, loadFeaturedEvent]);
+    loadAlbums();
+  }, [loadEvents, loadFeaturedEvent, loadAlbums]);
 
   if (user?.role === 'admin' || user?.role === 'organizer' || user?.role === 'participant') {
     return null;
@@ -72,6 +84,10 @@ export const Home = () => {
       loading={loading}
       error={error}
       onRetry={loadEvents}
+      upcomingLimit={3}
+      seeAllLabel="See all events"
+      showAlbums
+      albums={albums}
     />
   );
 };

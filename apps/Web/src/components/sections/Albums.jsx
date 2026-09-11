@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { AlbumService } from '../../services/albumService';
 import { downloadImageWithAttribution } from '../../services/imageAttribution';
@@ -25,6 +25,7 @@ const isProfileComplete = (user) => {
 
 export const Albums = () => {
   const navigate = useNavigate();
+  const { eventId } = useParams();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const toast = useToast();
   const [events, setEvents] = useState([]);
@@ -114,32 +115,30 @@ export const Albums = () => {
   useEffect(() => {
     if (authLoading) return;
 
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
-    }
-
-    // Redirect to setup-profile if profile is incomplete
-    if (!isProfileComplete(user)) {
+    if (isAuthenticated && user && !isProfileComplete(user)) {
       navigate('/setup-profile');
       return;
     }
 
-    // Only load once on mount, prevent reloading when switching tabs/windows
-    if (!hasLoadedRef.current && user?.id) {
+    if (!hasLoadedRef.current) {
       hasLoadedRef.current = true;
       loadEvents();
-    } else if (!hasLoadedRef.current && !user?.id) {
-      // If user.id is not available yet, wait a bit and try again
-      const timeoutId = setTimeout(() => {
-        if (user?.id && !hasLoadedRef.current) {
-          hasLoadedRef.current = true;
-          loadEvents();
-        }
-      }, 100);
-      return () => clearTimeout(timeoutId);
     }
   }, [user, isAuthenticated, authLoading, navigate, loadEvents]);
+
+  useEffect(() => {
+    if (loading || events.length === 0) return;
+    if (!eventId) {
+      setIsModalVisible(false);
+      setSelectedEvent(null);
+      return;
+    }
+    const match = events.find((event) => event.id === eventId);
+    if (match) {
+      setSelectedEvent(match);
+      setIsModalVisible(true);
+    }
+  }, [eventId, events, loading]);
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -500,12 +499,7 @@ export const Albums = () => {
   const canUploadPhotos = user && (user.role === 'participant' || user.role === 'organizer');
 
   // Show loading state while checking auth
-  if (authLoading) {
-    return <PageSkeleton variant="list" />;
-  }
-
-  // Show loading state while fetching events or if not authenticated yet
-  if (loading || !isAuthenticated || !user) {
+  if (authLoading || loading) {
     return <PageSkeleton variant="list" />;
   }
 
@@ -728,6 +722,7 @@ export const Albums = () => {
                         onClick={() => {
                           setSelectedEvent(event);
                           setIsModalVisible(true);
+                          navigate(`/albums/${event.id}`, { replace: true });
                         }}
                         className="px-3 py-1.5 bg-blue-900 text-white rounded-lg text-sm font-semibold hover:bg-blue-800 transition-colors whitespace-nowrap"
                       >
@@ -847,7 +842,11 @@ export const Albums = () => {
                   </button>
                 )}
                 <button
-                  onClick={() => setIsModalVisible(false)}
+                  onClick={() => {
+                    setIsModalVisible(false);
+                    setSelectedEvent(null);
+                    if (eventId) navigate('/albums', { replace: true });
+                  }}
                   className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 transition-colors"
                 >
                   <X className="w-5 h-5 text-slate-600" />
