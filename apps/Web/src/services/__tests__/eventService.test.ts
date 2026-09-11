@@ -120,8 +120,22 @@ describe('EventService', () => {
 
   describe('getShowcaseEvents', () => {
     it('loads upcoming events and featured in a single query', async () => {
-      const featured = { ...mockEvent, id: 'feat', is_featured: true, title: 'Featured' };
-      const other = { ...mockEvent, id: 'other', is_featured: false, title: 'Soon' };
+      const featured = {
+        ...mockEvent,
+        id: 'feat',
+        is_featured: true,
+        title: 'Featured',
+        start_date: '2027-01-10',
+        end_date: '2027-01-11',
+      };
+      const other = {
+        ...mockEvent,
+        id: 'other',
+        is_featured: false,
+        title: 'Soon',
+        start_date: '2027-02-10',
+        end_date: '2027-02-11',
+      };
       const mockLimit = vi.fn().mockResolvedValue({
         data: [featured, other],
         error: null,
@@ -129,7 +143,6 @@ describe('EventService', () => {
       const chain = {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
-        gte: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
         limit: mockLimit,
       };
@@ -138,27 +151,27 @@ describe('EventService', () => {
       const result = await EventService.getShowcaseEvents(6);
 
       expect(supabase.from).toHaveBeenCalledTimes(1);
-      expect(mockLimit).toHaveBeenCalledWith(6);
+      expect(mockLimit).toHaveBeenCalledWith(24);
       expect(result.events?.map((event) => event.id)).toEqual(['feat', 'other']);
       expect(result.featured?.id).toBe('feat');
       expect(result.error).toBeUndefined();
     });
 
-    it('falls back to the soonest event when none are featured', async () => {
+    it('does not feature an event that has ended', async () => {
       const mockLimit = vi.fn().mockResolvedValue({
-        data: [{ ...mockEvent, is_featured: false }],
+        data: [{ ...mockEvent, is_featured: true }],
         error: null,
       });
       (supabase.from as any).mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
-        gte: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
         limit: mockLimit,
       });
 
       const result = await EventService.getShowcaseEvents();
-      expect(result.featured?.id).toBe('event-123');
+      expect(result.featured).toBeUndefined();
+      expect(result.events?.[0].id).toBe('event-123');
     });
   });
 

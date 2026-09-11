@@ -52,7 +52,7 @@ export const Organizer = () => {
       setLoading(true);
       setError(null);
       const [showcase, albumResult] = await Promise.all([
-        EventService.getShowcaseEvents(6),
+        EventService.getShowcaseEvents(12),
         AlbumService.getAlbumHighlights(3),
       ]);
       if (!isVisible) return;
@@ -84,7 +84,7 @@ export const Organizer = () => {
       onRetry={loadShowcase}
       emptyActionLabel="Create one"
       onEmptyAction={() => navigate('/create-event')}
-      upcomingLimit={3}
+      upcomingLimit={5}
       seeAllLabel="See all events"
       showAlbums
       albums={albums}

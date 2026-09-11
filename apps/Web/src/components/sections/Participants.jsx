@@ -43,7 +43,7 @@ export const Participants = () => {
       setLoading(true);
       setError(null);
       const [showcase, albumResult] = await Promise.all([
-        EventService.getShowcaseEvents(6),
+        EventService.getShowcaseEvents(12),
         AlbumService.getAlbumHighlights(3),
       ]);
       if (showcase.error) {
@@ -71,7 +71,7 @@ export const Participants = () => {
       loading={authLoading || loading}
       error={error}
       onRetry={loadShowcase}
-      upcomingLimit={3}
+      upcomingLimit={5}
       seeAllLabel="See all events"
       showAlbums
       albums={albums}

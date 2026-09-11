@@ -37,9 +37,13 @@ export interface EventWithDetails extends Event {
   };
 }
 
-export function eventHasEnded(event?: Pick<Event, 'end_date' | 'end_time'> | null): boolean {
-  if (!event?.end_date) return false;
-  const endDateTime = new Date(`${event.end_date}T${event.end_time || '23:59:59'}`);
+export function eventHasEnded(event?: Pick<Event, 'end_date' | 'end_time' | 'start_date'> | null): boolean {
+  if (!event) return false;
+  const raw = event.end_date || event.start_date;
+  if (!raw) return false;
+  const endDateTime = raw.includes('T')
+    ? new Date(raw)
+    : new Date(`${raw}T${event.end_time || '23:59:59'}`);
   if (Number.isNaN(endDateTime.getTime())) return false;
   return endDateTime < new Date();
 }
@@ -434,30 +438,34 @@ export class EventService {
   }
 
   /**
-   * Home/showcase teaser: one lightweight query, no registration embed,
-   * no exact count, no cache lookup. Featured is the is_featured row
-   * among upcoming events, otherwise the soonest upcoming event.
+   * Home/showcase teaser: published events, upcoming first, then recent past
+   * so the home calendar is not empty when only finished events exist.
    */
   static async getShowcaseEvents(
     limit = 6
   ): Promise<{ events?: Event[]; featured?: Event; error?: string }> {
     try {
-      const today = new Date().toISOString().split('T')[0];
       const { data, error } = await supabase
         .from('events')
         .select('*')
         .eq('status', 'published')
-        .gte('end_date', today)
-        .order('is_featured', { ascending: false, nullsFirst: false })
-        .order('start_date', { ascending: true })
-        .limit(limit);
+        .order('start_date', { ascending: false })
+        .limit(Math.max(limit * 2, 24));
 
       if (error) {
         return { error: error.message };
       }
 
-      const events = (data || []) as Event[];
-      const featured = events.find((event) => event.is_featured) || events[0];
+      const rows = (data || []) as Event[];
+      const upcoming = rows
+        .filter((event) => !eventHasEnded(event))
+        .sort((a, b) => (a.start_date || '').localeCompare(b.start_date || ''));
+      const recent = rows
+        .filter((event) => eventHasEnded(event))
+        .sort((a, b) => (b.start_date || '').localeCompare(a.start_date || ''));
+
+      const featured = upcoming.find((event) => event.is_featured) || upcoming[0] || undefined;
+      const events = [...upcoming, ...recent].slice(0, limit);
       return { events, featured };
     } catch (error) {
       return { error: 'An unexpected error occurred' };

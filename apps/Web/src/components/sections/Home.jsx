@@ -22,7 +22,7 @@ export const Home = () => {
     try {
       setLoading(true);
       setError(null);
-      const result = await EventService.getShowcaseEvents(6);
+      const result = await EventService.getShowcaseEvents(12);
       if (result.error) {
         setError(result.error);
       } else {
@@ -51,7 +51,7 @@ export const Home = () => {
       loading={loading}
       error={error}
       onRetry={loadShowcase}
-      upcomingLimit={3}
+      upcomingLimit={5}
       seeAllLabel="See all events"
     />
   );
