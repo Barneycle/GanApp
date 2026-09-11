@@ -69,8 +69,8 @@ export const MyEvents = () => {
       return;
     }
 
-    if (user?.role !== 'participant') {
-      navigate('/');
+    if (user?.role === 'organizer' || user?.role === 'admin') {
+      navigate(user.role === 'admin' ? '/admin' : '/organizer');
       return;
     }
 

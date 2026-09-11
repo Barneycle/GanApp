@@ -9,6 +9,7 @@ const named = (importer, exportName) =>
 const Home = named(() => import("./sections/Home"), "Home");
 const Admin = named(() => import("./sections/Admin"), "Admin");
 const Organizer = named(() => import("./sections/Organizer"), "Organizer");
+const EventRoster = named(() => import("./sections/EventRoster"), "EventRoster");
 const Participants = named(() => import("./sections/Participants"), "Participants");
 const Login = named(() => import("./sections/Login"), "Login");
 const CreateEvent = named(() => import("./sections/CreateEvent"), "CreateEvent");
@@ -56,7 +57,9 @@ function AnimatedRoutes() {
             <Route path="/login" element={<Login />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/organizer" element={<Organizer />} />
+            <Route path="/manage-events" element={<Organizer />} />
             <Route path="/events" element={<Events />} />
+            <Route path="/events/:eventId/participants" element={<EventRoster />} />
             <Route path="/create-event" element={<CreateEvent />} />
             <Route path="/edit-event/:eventId" element={<EditEvent />} />
             <Route path="/design-certificate" element={<DesignCertificate />} />
