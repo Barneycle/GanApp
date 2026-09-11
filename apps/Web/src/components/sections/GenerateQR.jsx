@@ -321,8 +321,7 @@ export const GenerateQRModal = ({ isOpen, onClose, event }) => {
                       src={qrCodeUrl}
                       alt="Event QR Code"
                       className="w-full h-auto mx-auto"
-                      style={{ maxWidth: '240px' }}
-                    />
+                      style={{ maxWidth: '240px' }} loading="lazy" decoding="async" />
                   </div>
 
                   {/* User Name */}
@@ -642,8 +641,7 @@ export default function GenerateQR() {
                     <img
                       src={qrCodeUrl}
                       alt="QR Code"
-                      className="w-72 h-72 mx-auto drop-shadow-lg"
-                    />
+                      className="w-72 h-72 mx-auto drop-shadow-lg" loading="lazy" decoding="async" />
                   </div>
                 </div>
 

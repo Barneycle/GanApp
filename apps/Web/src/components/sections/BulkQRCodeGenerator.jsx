@@ -577,8 +577,7 @@ export const BulkQRCodeGenerator = ({ isOpen, onClose, event }) => {
                             src={qrCode.qrUrl}
                             alt={`QR Code for ${participantName}`}
                             className="w-full h-auto mx-auto"
-                            style={{ maxWidth: '200px' }}
-                          />
+                            style={{ maxWidth: '200px' }} loading="lazy" decoding="async" />
                         </div>
 
                         {/* Participant Name */}

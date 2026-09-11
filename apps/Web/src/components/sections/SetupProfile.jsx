@@ -403,6 +403,8 @@ export const SetupProfile = () => {
                     <img
                       src={avatarPreview}
                       alt="Profile"
+                      loading="lazy"
+                      decoding="async"
                       className="w-32 h-32 rounded-full object-cover border-4 border-blue-600 shadow-lg"
                     />
                     <button

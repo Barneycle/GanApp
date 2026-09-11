@@ -308,14 +308,24 @@ export const EventStatisticsDetail = () => {
     <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
       <div className="w-full max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <button
             onClick={() => navigate('/event-statistics')}
-            className="flex items-center text-slate-600 hover:text-slate-800 mb-4 transition-colors"
+            className="flex items-center text-slate-600 hover:text-slate-800 transition-colors"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Statistics
           </button>
+          {(user?.role === 'admin' || user?.role === 'organizer') && (
+            <button
+              type="button"
+              onClick={() => navigate(`/events/${eventId}/participants`)}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800"
+            >
+              <Users className="h-4 w-4" />
+              Check participants
+            </button>
+          )}
         </div>
 
         {/* Summary Cards */}

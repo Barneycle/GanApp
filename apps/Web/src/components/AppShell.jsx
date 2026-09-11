@@ -28,9 +28,7 @@ const NAV = {
       { to: '/', label: 'Home', end: true },
       { to: '/events', label: 'Events' },
     ],
-    more: [
-      { to: '/albums', label: 'Albums', icon: Images },
-    ],
+    more: [],
   },
   participant: {
     primary: [

@@ -214,25 +214,29 @@ export const Events = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(12);
   const [useInfiniteScroll, setUseInfiniteScroll] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [categoryCounts, setCategoryCounts] = useState({ draft: 0, published: 0, past: 0, cancelled: 0 });
   const observerTarget = useRef(null);
   const isVisible = usePageVisibility();
   const loadingRef = useRef(false);
-  const hasLoadedRef = useRef(false);
+  const requestIdRef = useRef(0);
+  const registrationsLoadedRef = useRef(false);
 
   useEffect(() => {
-    // Only load once on mount, prevent reloading when switching tabs/windows
-    if (!hasLoadedRef.current && !loadingRef.current) {
-      hasLoadedRef.current = true;
-      loadEvents();
-      if (user) {
-        loadUserRegistrations();
-        // Load archived events for admins only
-        if (user.role === 'admin') {
-          loadArchivedEvents();
-        }
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (user && !registrationsLoadedRef.current) {
+      registrationsLoadedRef.current = true;
+      loadUserRegistrations();
+      if (user.role === 'admin') {
+        loadArchivedEvents();
       }
     }
-  }, [user?.id, user?.role]); // Only depend on user ID and role, not the entire user object
+  }, [user?.id, user?.role]);
 
   // Drafts tab is organizer-only. If a non-organizer somehow lands on it, kick them back to Published.
   useEffect(() => {
@@ -275,74 +279,101 @@ export const Events = () => {
     }
   };
 
+  const loadCategoryCounts = async () => {
+    const result = await EventService.getEventCategoryCounts(
+      user?.role === 'organizer' || user?.role === 'admin'
+        ? { createdBy: user.id }
+        : {}
+    );
+    if (result.counts) {
+      setCategoryCounts(result.counts);
+    }
+  };
+
   const loadEvents = async () => {
-    // Don't start loading if page is not visible
-    if (!isVisible) {
+    if (!isVisible || activeTab === 'archived') {
       return;
     }
 
-    // Prevent multiple simultaneous loads
-    if (loadingRef.current) {
-      return;
-    }
+    const requestId = ++requestIdRef.current;
+    const from = (currentPage - 1) * itemsPerPage;
+    const to = currentPage * itemsPerPage - 1;
+    const listOptions = {
+      from,
+      to,
+      search: useAdvancedSearch ? (advancedSearch.title || undefined) : (debouncedSearch || undefined),
+      venue: venueFilter !== 'all' ? venueFilter : undefined,
+      dateFilter: dateFilter !== 'all' ? dateFilter : undefined,
+      sort: sortOption,
+      category: activeTab,
+    };
 
     try {
       loadingRef.current = true;
-      setLoading(true);
+      if (!(useInfiniteScroll && currentPage > 1)) {
+        setLoading(true);
+      }
       setError('');
 
-      if (user?.role === 'organizer' || user?.role === 'admin') {
-        // Load user's own events
-        const result = await EventService.getEventsByCreator(user.id);
-        // Only update state if page is still visible
-        if (isVisible) {
-          if (result.error) {
-            setError(result.error);
-          } else {
-            // Draft events should only be visible to organizers
-            const loadedEvents = result.events || [];
-            const filtered = user?.role === 'organizer'
-              ? loadedEvents
-              : loadedEvents.filter(e => e?.status !== 'draft');
-            setEvents(filtered);
-          }
-        }
-      } else if (user) {
-        // Load published events for authenticated participants
-        const result = await EventService.getPublishedEvents();
-        // Only update state if page is still visible
-        if (isVisible) {
-          if (result.error) {
-            setError(result.error);
-          } else {
-            setEvents(result.events || []);
-          }
-        }
-      } else {
-        // Load published events for unauthenticated users
-        const result = await EventService.getPublishedEvents();
-        // Only update state if page is still visible
-        if (isVisible) {
-          if (result.error) {
-            setError(result.error);
-          } else {
-            setEvents(result.events || []);
-          }
-        }
+      const result = (user?.role === 'organizer' || user?.role === 'admin')
+        ? await EventService.getEventsByCreator(user.id, listOptions)
+        : await EventService.getPublishedEvents(listOptions);
+
+      if (requestId !== requestIdRef.current || !isVisible) {
+        return;
       }
+
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+
+      const loadedEvents = result.events || [];
+      if (useInfiniteScroll && currentPage > 1) {
+        setEvents((prev) => {
+          const seen = new Set(prev.map((event) => event.id));
+          return [...prev, ...loadedEvents.filter((event) => !seen.has(event.id))];
+        });
+      } else {
+        setEvents(loadedEvents);
+      }
+      setTotalCount(result.count || 0);
     } catch (err) {
-      // Only update error if page is still visible
-      if (isVisible) {
+      if (requestId === requestIdRef.current && isVisible) {
         setError('Failed to load events. Please try again.');
       }
     } finally {
-      loadingRef.current = false;
-      // Only set loading to false if page is still visible
-      if (isVisible) {
-        setLoading(false);
+      if (requestId === requestIdRef.current) {
+        loadingRef.current = false;
+        if (isVisible) {
+          setLoading(false);
+        }
       }
     }
   };
+
+  useEffect(() => {
+    if (activeTab === 'archived') return;
+    loadEvents();
+  }, [
+    user?.id,
+    user?.role,
+    currentPage,
+    itemsPerPage,
+    debouncedSearch,
+    dateFilter,
+    venueFilter,
+    sortOption,
+    activeTab,
+    useInfiniteScroll,
+    useAdvancedSearch,
+    advancedSearch.title,
+    isVisible,
+  ]);
+
+  useEffect(() => {
+    loadCategoryCounts();
+  }, [user?.id, user?.role]);
 
   const handlePublishEvent = async (eventId) => {
     try {
@@ -352,6 +383,7 @@ export const Events = () => {
       await EventService.updateEventStatus(eventId, 'published');
 
       await loadEvents();
+      loadCategoryCounts();
       statusDialog({
         title: 'Event published',
         message: 'Participants can now find and register for this event.',
@@ -1115,20 +1147,6 @@ export const Events = () => {
   }, []);
 
   // Count events by category for tab badges
-  const categoryCounts = useMemo(() => {
-    if (!Array.isArray(events)) return { draft: 0, published: 0, past: 0, cancelled: 0 };
-
-    const counts = { draft: 0, published: 0, past: 0, cancelled: 0 };
-    events.forEach(event => {
-      const category = getEventCategory(event);
-      if (category === 'draft') counts.draft++;
-      else if (category === 'published') counts.published++;
-      else if (category === 'past') counts.past++;
-      else if (category === 'cancelled') counts.cancelled++;
-    });
-    return counts;
-  }, [events, getEventCategory]);
-
   // Filter and sort events by category
   const filteredAndSortedEvents = (Array.isArray(events) ? events : []).filter(event => {
     // Category filter based on active tab
@@ -1232,30 +1250,28 @@ export const Events = () => {
     }
   });
 
-  // Determine which events to display based on active tab
-  const allFilteredEvents = activeTab === 'archived'
-    ? (filteredAndSortedArchivedEvents || [])
-    : (filteredAndSortedEvents || []);
+  const serverPaginated = activeTab !== 'archived';
+  const allFilteredEvents = serverPaginated
+    ? (Array.isArray(events) ? events : [])
+    : (filteredAndSortedArchivedEvents || []);
   const isLoading = activeTab === 'archived' ? archivedLoading : loading;
 
-  // Pagination logic - calculate displayed events directly
-  const totalPages = Math.max(1, Math.ceil((allFilteredEvents?.length || 0) / itemsPerPage));
-
-  // Ensure currentPage is valid
+  const totalPages = Math.max(1, Math.ceil((serverPaginated ? totalCount : (allFilteredEvents?.length || 0)) / itemsPerPage));
   const validCurrentPage = Math.max(1, Math.min(currentPage || 1, totalPages));
 
   let displayEvents = [];
   let hasMore = false;
 
   try {
-    if (allFilteredEvents && Array.isArray(allFilteredEvents) && allFilteredEvents.length > 0) {
+    if (serverPaginated) {
+      displayEvents = allFilteredEvents;
+      hasMore = displayEvents.length < totalCount;
+    } else if (allFilteredEvents && Array.isArray(allFilteredEvents) && allFilteredEvents.length > 0) {
       if (useInfiniteScroll) {
-        // For infinite scroll, show all events up to current page
         const endIndex = validCurrentPage * itemsPerPage;
         displayEvents = allFilteredEvents.slice(0, endIndex);
         hasMore = endIndex < allFilteredEvents.length;
       } else {
-        // For regular pagination
         const startIndex = (validCurrentPage - 1) * itemsPerPage;
         const endIndex = startIndex + itemsPerPage;
         displayEvents = allFilteredEvents.slice(startIndex, endIndex);
@@ -1279,7 +1295,9 @@ export const Events = () => {
 
     // Calculate if there are more events to load
     const endIndex = currentPage * itemsPerPage;
-    const currentHasMore = endIndex < allFilteredEvents.length;
+    const currentHasMore = serverPaginated
+      ? events.length < totalCount
+      : endIndex < allFilteredEvents.length;
 
     if (!currentHasMore) return;
 
@@ -1302,7 +1320,7 @@ export const Events = () => {
         observer.unobserve(currentTarget);
       }
     };
-  }, [useInfiniteScroll, isLoading, currentPage, itemsPerPage, allFilteredEvents.length]);
+  }, [useInfiniteScroll, isLoading, currentPage, itemsPerPage, allFilteredEvents.length, serverPaginated, totalCount, events.length]);
 
   if (isLoading && (activeTab !== 'archived' ? events.length === 0 : archivedEvents.length === 0)) {
     return <PageSkeleton variant="list" />;
@@ -1320,78 +1338,7 @@ export const Events = () => {
 
   return (
     <>
-      <style>{`
-        .rich-text-content h1, .rich-text-content h2, .rich-text-content h3, 
-        .rich-text-content h4, .rich-text-content h5, .rich-text-content h6 {
-          font-weight: 700;
-          margin-top: 0.5em;
-          margin-bottom: 0.25em;
-        }
-        .rich-text-content h1 { font-size: 1.5em; }
-        .rich-text-content h2 { font-size: 1.25em; }
-        .rich-text-content h3 { font-size: 1.1em; }
-        .rich-text-content h4 { font-size: 1em; }
-        .rich-text-content h5 { font-size: 0.9em; }
-        .rich-text-content h6 { font-size: 0.8em; }
-        .rich-text-content p {
-          margin: 0.25em 0;
-        }
-        .rich-text-content ul, .rich-text-content ol {
-          padding-left: 1.5em;
-          margin: 0.25em 0;
-        }
-        .rich-text-content ul {
-          list-style-type: disc;
-        }
-        .rich-text-content ol {
-          list-style-type: decimal;
-        }
-        .rich-text-content li {
-          margin: 0.1em 0;
-        }
-        .rich-text-content strong {
-          font-weight: 700;
-        }
-        .rich-text-content em {
-          font-style: italic;
-        }
-        .rich-text-content u {
-          text-decoration: underline;
-        }
-        .rich-text-content s {
-          text-decoration: line-through;
-        }
-        .rich-text-content blockquote {
-          border-left: 4px solid rgb(203, 213, 225);
-          padding-left: 0.5em;
-          margin: 0.5em 0;
-          color: rgb(100, 116, 139);
-        }
-        .rich-text-content a {
-          color: rgb(37, 99, 235);
-          text-decoration: underline;
-        }
-        .rich-text-content code {
-          background: rgb(241, 245, 249);
-          padding: 1px 4px;
-          border-radius: 4px;
-          font-family: monospace;
-          font-size: 0.9em;
-        }
-        .rich-text-content pre {
-          background: rgb(241, 245, 249);
-          padding: 0.5em;
-          border-radius: 4px;
-          overflow-x: auto;
-          font-size: 0.9em;
-        }
-        .rich-text-content img {
-          max-width: 100%;
-          height: auto;
-          margin: 8px 0;
-        }
-      `}</style>
-      <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
+<section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="text-center mb-8 sm:mb-12">
@@ -1846,6 +1793,8 @@ export const Events = () => {
                               src={event.banner_url}
                               alt={event.title}
                               className="w-full h-full object-cover"
+                              loading="lazy"
+                              decoding="async"
                             />
                           </div>
                         )}
@@ -2085,6 +2034,8 @@ export const Events = () => {
                             src={event.banner_url}
                             alt={event.title}
                             className="w-full h-full object-cover"
+                            loading="lazy"
+                            decoding="async"
                             onError={(e) => {
                               e.target.style.display = 'none';
                               e.target.nextSibling.style.display = 'flex';
@@ -2216,7 +2167,8 @@ export const Events = () => {
                               </button>
                             </>
                           ) : (event.status === 'cancelled' || isEventPast(event)) ? (
-                            <div className="w-full bg-slate-50 rounded-lg p-3 border border-slate-200 text-center">
+                            <div className="w-full space-y-3">
+                              <div className="w-full bg-slate-50 rounded-lg p-3 border border-slate-200 text-center">
                               <p className="text-sm text-slate-600">
                                 {event.status === 'cancelled' ? 'This event was cancelled' : 'This event has ended'}
                               </p>
@@ -2225,9 +2177,24 @@ export const Events = () => {
                                   You are registered for this event.
                                 </p>
                               )}
+                              </div>
+                              {(user?.role === 'organizer' || user?.role === 'admin') && (
+                                <button
+                                  onClick={() => navigate(`/events/${event.id}/participants`)}
+                                  className="w-full px-4 py-3 bg-white border border-slate-200 text-slate-800 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium"
+                                >
+                                  Check participants
+                                </button>
+                              )}
                             </div>
                           ) : user?.role === 'organizer' || user?.role === 'admin' ? (
                             <>
+                              <button
+                                onClick={() => navigate(`/events/${event.id}/participants`)}
+                                className="w-full px-4 py-3 bg-white border border-slate-200 text-slate-800 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium"
+                              >
+                                Check participants
+                              </button>
                               <div className="flex space-x-3">
                                 <button
                                   onClick={() => handleEditEvent(event.id)}
@@ -2493,11 +2460,13 @@ export const Events = () => {
                   <h4 className="font-semibold text-green-900 mb-2">Quick Actions</h4>
                   <div className="space-y-2">
                     <button
-                      onClick={() => handleViewRegistrations(selectedEvent.id)}
-                      disabled={loadingRegistrations}
-                      className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => {
+                        setShowManageModal(false);
+                        navigate(`/events/${selectedEvent.id}/participants`);
+                      }}
+                      className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors"
                     >
-                      {loadingRegistrations ? 'Loading...' : 'View Registrations'}
+                      Check participants
                     </button>
                     <button
                       onClick={() => handleViewCheckIns(selectedEvent.id)}

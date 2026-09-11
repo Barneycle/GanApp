@@ -123,6 +123,8 @@ const EventModal = ({ isOpen, onClose, event }) => {
               src={event.banner_url}
               alt={event.title}
               className="w-full h-full object-cover"
+              loading="lazy"
+              decoding="async"
               onError={(e) => handleImageError(e, event.banner_url)}
             />
           </div>
@@ -176,76 +178,7 @@ const EventModal = ({ isOpen, onClose, event }) => {
                   </button>
                 )}
               </div>
-              <style>{`
-                .rich-text-content h1, .rich-text-content h2, .rich-text-content h3, 
-                .rich-text-content h4, .rich-text-content h5, .rich-text-content h6 {
-                  font-weight: 700;
-                  margin-top: 1em;
-                  margin-bottom: 0.5em;
-                }
-                .rich-text-content h1 { font-size: 2em; }
-                .rich-text-content h2 { font-size: 1.5em; }
-                .rich-text-content h3 { font-size: 1.25em; }
-                .rich-text-content h4 { font-size: 1.1em; }
-                .rich-text-content h5 { font-size: 1em; }
-                .rich-text-content h6 { font-size: 0.9em; }
-                .rich-text-content p {
-                  margin: 0.5em 0;
-                }
-                .rich-text-content ul, .rich-text-content ol {
-                  padding-left: 1.5em;
-                  margin: 0.5em 0;
-                }
-                .rich-text-content ul {
-                  list-style-type: disc;
-                }
-                .rich-text-content ol {
-                  list-style-type: decimal;
-                }
-                .rich-text-content li {
-                  margin: 0.25em 0;
-                }
-                .rich-text-content strong {
-                  font-weight: 700;
-                }
-                .rich-text-content em {
-                  font-style: italic;
-                }
-                .rich-text-content u {
-                  text-decoration: underline;
-                }
-                .rich-text-content s {
-                  text-decoration: line-through;
-                }
-                .rich-text-content blockquote {
-                  border-left: 4px solid rgb(203, 213, 225);
-                  padding-left: 1em;
-                  margin: 1em 0;
-                  color: rgb(100, 116, 139);
-                }
-                .rich-text-content a {
-                  color: rgb(37, 99, 235);
-                  text-decoration: underline;
-                }
-                .rich-text-content code {
-                  background: rgb(241, 245, 249);
-                  padding: 2px 6px;
-                  border-radius: 4px;
-                  font-family: monospace;
-                }
-                .rich-text-content pre {
-                  background: rgb(241, 245, 249);
-                  padding: 1em;
-                  border-radius: 4px;
-                  overflow-x: auto;
-                }
-                .rich-text-content img {
-                  max-width: 100%;
-                  height: auto;
-                  margin: 16px 0;
-                }
-              `}</style>
-            </div>
+</div>
           )}
 
           {/* Event Materials - Show for authenticated users */}
@@ -463,6 +396,8 @@ const EventModal = ({ isOpen, onClose, event }) => {
                               src={speaker.photo_url} 
                               alt={fullName}
                               className="w-full h-full object-cover"
+                              loading="lazy"
+                              decoding="async"
                               onError={(e) => {
                                 e.target.style.display = 'none';
                                 e.target.nextSibling.style.display = 'flex';
@@ -521,6 +456,8 @@ const EventModal = ({ isOpen, onClose, event }) => {
                               src={sponsor.logo_url} 
                               alt={sponsor.name}
                               className="w-full h-full object-contain p-2"
+                              loading="lazy"
+                              decoding="async"
                               onError={(e) => {
                                 e.target.style.display = 'none';
                                 e.target.nextSibling.style.display = 'flex';

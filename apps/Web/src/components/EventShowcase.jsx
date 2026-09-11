@@ -115,6 +115,7 @@ export const EventShowcase = ({
               src={displayFeaturedEvent.banner_url || FALLBACK}
               alt=""
               onError={handleImgError}
+              fetchPriority="high"
               className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
@@ -187,6 +188,8 @@ export const EventShowcase = ({
                   src={event.banner_url || FALLBACK}
                   alt=""
                   onError={handleImgError}
+                  loading="lazy"
+                  decoding="async"
                   className="h-40 w-full object-cover transition-transform duration-500 ease-out hover:scale-[1.03]"
                 />
               </div>
@@ -234,6 +237,8 @@ export const EventShowcase = ({
                           src={cover}
                           alt=""
                           onError={handleImgError}
+                          loading="lazy"
+                          decoding="async"
                           className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
                         />
                         {album.photos?.length > 1 ? (
@@ -244,6 +249,8 @@ export const EventShowcase = ({
                                 src={photo.photo_url}
                                 alt=""
                                 onError={handleImgError}
+                                loading="lazy"
+                                decoding="async"
                                 className="h-10 flex-1 rounded object-cover"
                               />
                             ))}

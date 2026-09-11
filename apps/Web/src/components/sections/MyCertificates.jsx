@@ -348,6 +348,8 @@ export const MyCertificates = () => {
                                     src={cert.certificate_png_url}
                                     alt={`Certificate ${cert.certificate_number}`}
                                     className="w-full h-full object-contain"
+                                    loading="lazy"
+                                    decoding="async"
                                     onError={(e) => {
                                       e.target.style.display = 'none';
                                       e.target.nextSibling.style.display = 'flex';
@@ -423,6 +425,8 @@ export const MyCertificates = () => {
                                       src={cert.certificate_png_url}
                                       alt={`Certificate ${cert.certificate_number}`}
                                       className="w-full h-full object-contain"
+                                      loading="lazy"
+                                      decoding="async"
                                       onError={(e) => {
                                         e.target.style.display = 'none';
                                         e.target.nextSibling.style.display = 'flex';

@@ -53,6 +53,29 @@ export interface EventRegistration {
   created_at: string;
 }
 
+export type EventListSort =
+  | 'date-asc'
+  | 'date-desc'
+  | 'title-asc'
+  | 'title-desc'
+  | 'participants-asc'
+  | 'participants-desc';
+
+export type EventListCategory = 'draft' | 'published' | 'past' | 'cancelled';
+
+export interface EventListOptions {
+  from?: number;
+  to?: number;
+  search?: string;
+  venue?: string;
+  dateFilter?: 'all' | 'upcoming' | 'past';
+  sort?: EventListSort | string;
+  upcomingOnly?: boolean;
+  category?: EventListCategory;
+  createdBy?: string;
+  status?: Event['status'];
+}
+
 export class EventService {
   static async getAllEvents(): Promise<{ events?: Event[]; error?: string }> {
     return LoggerService.time('EventService.getAllEvents', async () => {
@@ -247,107 +270,191 @@ export class EventService {
     }
   }
 
-  static async getEventsByCreator(creatorId: string): Promise<{ events?: Event[]; error?: string }> {
+  private static escapeIlike(value: string): string {
+    return value.replace(/[%_,()]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  private static async attachParticipantCounts(events: Event[]): Promise<Event[]> {
+    if (!events.length) return events;
+
+    const { data, error } = await supabase
+      .from('event_registrations')
+      .select('event_id')
+      .in('event_id', events.map((event) => event.id))
+      .eq('status', 'registered');
+
+    if (error) {
+      return events.map((event) => ({
+        ...event,
+        current_participants: event.current_participants || 0,
+      }));
+    }
+
+    const counts: Record<string, number> = {};
+    (data || []).forEach((row: { event_id: string }) => {
+      counts[row.event_id] = (counts[row.event_id] || 0) + 1;
+    });
+
+    return events.map((event) => ({
+      ...event,
+      current_participants: counts[event.id] || 0,
+    }));
+  }
+
+  private static applyEventListOptions(query: any, options: EventListOptions) {
+    const today = new Date().toISOString().split('T')[0];
+
+    if (options.createdBy) {
+      query = query.eq('created_by', options.createdBy);
+    }
+
+    if (options.category === 'draft') {
+      query = query.eq('status', 'draft');
+    } else if (options.category === 'cancelled') {
+      query = query.eq('status', 'cancelled');
+    } else if (options.category === 'published') {
+      query = query.eq('status', 'published').gte('end_date', today);
+    } else if (options.category === 'past') {
+      query = query.eq('status', 'published').lt('end_date', today);
+    } else if (options.status) {
+      query = query.eq('status', options.status);
+    }
+
+    if (options.upcomingOnly) {
+      query = query.gte('end_date', today);
+    }
+
+    if (options.dateFilter === 'upcoming') {
+      query = query.gte('start_date', today);
+    } else if (options.dateFilter === 'past') {
+      query = query.lt('end_date', today);
+    }
+
+    const search = options.search ? this.escapeIlike(options.search) : '';
+    if (search) {
+      query = query.or(`title.ilike.%${search}%,venue.ilike.%${search}%,rationale.ilike.%${search}%`);
+    }
+
+    if (options.venue) {
+      query = query.eq('venue', options.venue);
+    }
+
+    switch (options.sort) {
+      case 'date-desc':
+        query = query.order('start_date', { ascending: false });
+        break;
+      case 'title-asc':
+        query = query.order('title', { ascending: true });
+        break;
+      case 'title-desc':
+        query = query.order('title', { ascending: false });
+        break;
+      case 'participants-asc':
+        query = query.order('current_participants', { ascending: true, nullsFirst: true });
+        break;
+      case 'participants-desc':
+        query = query.order('current_participants', { ascending: false, nullsFirst: false });
+        break;
+      case 'date-asc':
+        query = query.order('start_date', { ascending: true });
+        break;
+      default:
+        query = query.order(options.createdBy ? 'created_at' : 'start_date', {
+          ascending: !options.createdBy,
+        });
+        break;
+    }
+
+    if (typeof options.from === 'number' && typeof options.to === 'number') {
+      query = query.range(options.from, options.to);
+    } else if (typeof options.to === 'number') {
+      query = query.range(0, options.to);
+    }
+
+    return query;
+  }
+
+  private static async queryEventList(
+    options: EventListOptions = {}
+  ): Promise<{ events?: Event[]; count?: number; error?: string }> {
     try {
-      // Check cache first
-      const cacheKey = CacheService.keys.eventList('organizer', creatorId);
-      const cached = await CacheService.get<Event[]>(cacheKey);
+      const cacheKey = CacheService.keys.events(JSON.stringify(options));
+      const cached = await CacheService.get<{ events: Event[]; count: number }>(cacheKey);
       if (cached) {
-        return { events: cached };
+        return { events: cached.events, count: cached.count };
       }
 
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .eq('created_by', creatorId)
-        .order('created_at', { ascending: false });
+      let query = supabase.from('events').select('*', { count: 'exact' });
+      query = this.applyEventListOptions(query, options);
+
+      const { data, error, count } = await query;
 
       if (error) {
+        if (error.code === 'PGRST205') {
+          return { events: [], count: 0 };
+        }
         return { error: error.message };
       }
 
-      // Cache the result
-      await CacheService.set(cacheKey, data, CacheService.TTL.SHORT);
+      const eventsWithParticipants = await this.attachParticipantCounts(data || []);
+      await CacheService.set(
+        cacheKey,
+        { events: eventsWithParticipants, count: count ?? 0 },
+        CacheService.TTL.SHORT
+      );
 
-      return { events: data };
+      return { events: eventsWithParticipants, count: count ?? 0 };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('table') && errorMessage.includes('not found')) {
+        return { events: [], count: 0 };
+      }
+      return { error: 'An unexpected error occurred' };
+    }
+  }
+
+  static async getEventCategoryCounts(
+    options: { createdBy?: string } = {}
+  ): Promise<{ counts?: Record<EventListCategory, number>; error?: string }> {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const scoped = (query: any) =>
+        options.createdBy ? query.eq('created_by', options.createdBy) : query;
+
+      const [draft, published, past, cancelled] = await Promise.all([
+        scoped(supabase.from('events').select('id', { count: 'exact', head: true })).eq('status', 'draft'),
+        scoped(supabase.from('events').select('id', { count: 'exact', head: true })).eq('status', 'published').gte('end_date', today),
+        scoped(supabase.from('events').select('id', { count: 'exact', head: true })).eq('status', 'published').lt('end_date', today),
+        scoped(supabase.from('events').select('id', { count: 'exact', head: true })).eq('status', 'cancelled'),
+      ]);
+
+      return {
+        counts: {
+          draft: draft.count || 0,
+          published: published.count || 0,
+          past: past.count || 0,
+          cancelled: cancelled.count || 0,
+        },
+      };
     } catch (error) {
       return { error: 'An unexpected error occurred' };
     }
   }
 
-  static async getPublishedEvents(): Promise<{ events?: Event[]; error?: string }> {
-    try {
-      // Check cache first
-      const cacheKey = CacheService.keys.events('published');
-      const cached = await CacheService.get<Event[]>(cacheKey);
-      if (cached) {
-        return { events: cached };
-      }
+  static async getEventsByCreator(
+    creatorId: string,
+    options: EventListOptions = {}
+  ): Promise<{ events?: Event[]; count?: number; error?: string }> {
+    return this.queryEventList({ ...options, createdBy: creatorId });
+  }
 
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .eq('status', 'published')
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        // If table doesn't exist, return empty array instead of error
-        if (error.code === 'PGRST205') {
-          return { events: [] };
-        }
-
-        return { error: error.message };
-      }
-
-
-      // Always calculate count from actual registrations to avoid stale data
-      const eventsWithParticipants = await Promise.all(
-        data.map(async (event) => {
-
-          // First, let's see what registrations exist for this event
-          const { data: allRegistrations, error: allError } = await supabase
-            .from('event_registrations')
-            .select('*')
-            .eq('event_id', event.id);
-
-          if (allError) {
-          } else {
-            // Show the status of each registration
-            allRegistrations.forEach((_reg, _index) => {
-            });
-          }
-
-          // Now count only registered ones
-          const { count, error } = await supabase
-            .from('event_registrations')
-            .select('*', { count: 'exact', head: true })
-            .eq('event_id', event.id)
-            .eq('status', 'registered'); // Only count 'registered' status
-
-          if (error) {
-          }
-
-
-          return {
-            ...event,
-            current_participants: count || 0
-          };
-        })
-      );
-
-      // Cache the result
-      await CacheService.set(cacheKey, eventsWithParticipants, CacheService.TTL.SHORT);
-
-      return { events: eventsWithParticipants };
-    } catch (error) {
-      // If it's a table not found error, return empty array
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes('table') && errorMessage.includes('not found')) {
-        return { events: [] };
-      }
-
-      return { error: 'An unexpected error occurred' };
-    }
+  static async getPublishedEvents(
+    options: EventListOptions = {}
+  ): Promise<{ events?: Event[]; count?: number; error?: string }> {
+    return this.queryEventList({
+      ...options,
+      status: options.category ? undefined : (options.status || 'published'),
+    });
   }
 
   static async updateEventStatus(id: string, status: string): Promise<{ event?: Event; error?: string }> {

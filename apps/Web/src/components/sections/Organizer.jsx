@@ -56,20 +56,15 @@ export const Organizer = () => {
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Loading timeout after 10 seconds')), 10000)
       );
-      const result = await Promise.race([EventService.getPublishedEvents(), timeoutPromise]);
+      const result = await Promise.race([
+        EventService.getPublishedEvents({ from: 0, to: 5, upcomingOnly: true, sort: 'date-asc' }),
+        timeoutPromise,
+      ]);
       if (!isVisible) return;
       if (result.error) {
         setError(result.error);
       } else {
-        const now = new Date();
-        const upcomingEvents = (result.events || []).filter((event) => {
-          if (!event.end_date) return true;
-          return new Date(event.end_date) >= now;
-        });
-        upcomingEvents.sort(
-          (a, b) => new Date(a.start_date || a.created_at) - new Date(b.start_date || b.created_at)
-        );
-        setEvents(upcomingEvents);
+        setEvents(result.events || []);
       }
     } catch {
       if (isVisible) setError('Failed to load events from database');

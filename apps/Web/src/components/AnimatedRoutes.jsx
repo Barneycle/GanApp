@@ -20,6 +20,7 @@ const EventStatistics = named(() => import("./sections/EventStatistics"), "Event
 const EventStatisticsDetail = named(() => import("./sections/EventStatisticsDetail"), "EventStatisticsDetail");
 const Registration = named(() => import("./sections/Registration"), "Registration");
 const Events = named(() => import("./sections/Events"), "Events");
+const EventRoster = named(() => import("./sections/EventRoster"), "EventRoster");
 const MyEvents = named(() => import("./sections/MyEvents"), "MyEvents");
 const MyCertificates = named(() => import("./sections/MyCertificates"), "MyCertificates");
 const GenerateQR = lazy(() => import("./sections/GenerateQR"));
@@ -57,6 +58,7 @@ function AnimatedRoutes() {
             <Route path="/admin" element={<Admin />} />
             <Route path="/organizer" element={<Organizer />} />
             <Route path="/events" element={<Events />} />
+            <Route path="/events/:eventId/participants" element={<EventRoster />} />
             <Route path="/create-event" element={<CreateEvent />} />
             <Route path="/edit-event/:eventId" element={<EditEvent />} />
             <Route path="/design-certificate" element={<DesignCertificate />} />

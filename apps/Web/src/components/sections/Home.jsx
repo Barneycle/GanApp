@@ -3,14 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { EventShowcase } from '../EventShowcase';
 import { useAuth } from '../../contexts/AuthContext';
 import { EventService } from '../../services/eventService';
-import { AlbumService } from '../../services/albumService';
 
 export const Home = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [events, setEvents] = useState([]);
   const [featuredEvent, setFeaturedEvent] = useState(null);
-  const [albums, setAlbums] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -27,19 +25,14 @@ export const Home = () => {
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Loading timeout after 10 seconds')), 10000)
       );
-      const result = await Promise.race([EventService.getPublishedEvents(), timeoutPromise]);
+      const result = await Promise.race([
+        EventService.getPublishedEvents({ from: 0, to: 5, upcomingOnly: true, sort: 'date-asc' }),
+        timeoutPromise,
+      ]);
       if (result.error) {
         setError(result.error);
       } else {
-        const now = new Date();
-        const upcomingEvents = (result.events || []).filter((event) => {
-          if (!event.end_date) return true;
-          return new Date(event.end_date) >= now;
-        });
-        upcomingEvents.sort(
-          (a, b) => new Date(a.start_date || a.created_at) - new Date(b.start_date || b.created_at)
-        );
-        setEvents(upcomingEvents);
+        setEvents(result.events || []);
       }
     } catch {
       setError('Failed to load events from database');
@@ -58,20 +51,10 @@ export const Home = () => {
     }
   }, []);
 
-  const loadAlbums = useCallback(async () => {
-    try {
-      const result = await AlbumService.getAlbumHighlights(3);
-      setAlbums(result.events || []);
-    } catch {
-      setAlbums([]);
-    }
-  }, []);
-
   useEffect(() => {
     loadEvents();
     loadFeaturedEvent();
-    loadAlbums();
-  }, [loadEvents, loadFeaturedEvent, loadAlbums]);
+  }, [loadEvents, loadFeaturedEvent]);
 
   if (user?.role === 'admin' || user?.role === 'organizer' || user?.role === 'participant') {
     return null;
@@ -86,8 +69,6 @@ export const Home = () => {
       onRetry={loadEvents}
       upcomingLimit={3}
       seeAllLabel="See all events"
-      showAlbums
-      albums={albums}
     />
   );
 };

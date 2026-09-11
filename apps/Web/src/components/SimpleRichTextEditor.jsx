@@ -6,6 +6,9 @@ import Link from '@tiptap/extension-link';
 import { Bold, Italic, Underline as UnderlineIcon, Link2, List, ListOrdered } from 'lucide-react';
 import './richTextEditor.css';
 
+// Lightweight GForms-style editor for survey titles/descriptions.
+// Event rationale uses RichTextEditor.jsx (images, colors, alignment).
+
 const isEmptyHtml = (html) => {
   if (!html) return true;
   return html.replace(/<p>(<br\s*\/?>)?<\/p>/gi, '').replace(/\s/g, '') === '';

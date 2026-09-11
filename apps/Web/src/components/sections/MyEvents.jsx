@@ -375,78 +375,7 @@ export const MyEvents = () => {
 
   return (
     <>
-      <style>{`
-        .rich-text-content h1, .rich-text-content h2, .rich-text-content h3, 
-        .rich-text-content h4, .rich-text-content h5, .rich-text-content h6 {
-          font-weight: 700;
-          margin-top: 0.5em;
-          margin-bottom: 0.25em;
-        }
-        .rich-text-content h1 { font-size: 1.5em; }
-        .rich-text-content h2 { font-size: 1.25em; }
-        .rich-text-content h3 { font-size: 1.1em; }
-        .rich-text-content h4 { font-size: 1em; }
-        .rich-text-content h5 { font-size: 0.9em; }
-        .rich-text-content h6 { font-size: 0.8em; }
-        .rich-text-content p {
-          margin: 0.25em 0;
-        }
-        .rich-text-content ul, .rich-text-content ol {
-          padding-left: 1.5em;
-          margin: 0.25em 0;
-        }
-        .rich-text-content ul {
-          list-style-type: disc;
-        }
-        .rich-text-content ol {
-          list-style-type: decimal;
-        }
-        .rich-text-content li {
-          margin: 0.1em 0;
-        }
-        .rich-text-content strong {
-          font-weight: 700;
-        }
-        .rich-text-content em {
-          font-style: italic;
-        }
-        .rich-text-content u {
-          text-decoration: underline;
-        }
-        .rich-text-content s {
-          text-decoration: line-through;
-        }
-        .rich-text-content blockquote {
-          border-left: 4px solid rgb(203, 213, 225);
-          padding-left: 0.5em;
-          margin: 0.5em 0;
-          color: rgb(100, 116, 139);
-        }
-        .rich-text-content a {
-          color: rgb(37, 99, 235);
-          text-decoration: underline;
-        }
-        .rich-text-content code {
-          background: rgb(241, 245, 249);
-          padding: 1px 4px;
-          border-radius: 4px;
-          font-family: monospace;
-          font-size: 0.9em;
-        }
-        .rich-text-content pre {
-          background: rgb(241, 245, 249);
-          padding: 0.5em;
-          border-radius: 4px;
-          overflow-x: auto;
-          font-size: 0.9em;
-        }
-        .rich-text-content img {
-          max-width: 100%;
-          height: auto;
-          margin: 8px 0;
-        }
-      `}</style>
-      <section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+<section className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
         <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
           {/* Search and Filter Bar */}
           <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-4 sm:p-6 mb-6 sm:mb-8">
@@ -622,6 +551,8 @@ export const MyEvents = () => {
                           src={event.banner_url}
                           alt={event.title}
                           className="w-full h-full object-cover"
+                          loading="lazy"
+                          decoding="async"
                           onError={(e) => {
                             e.target.style.display = 'none';
                             e.target.nextSibling.style.display = 'flex';

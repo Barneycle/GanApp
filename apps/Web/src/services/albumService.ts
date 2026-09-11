@@ -36,7 +36,36 @@ export class AlbumService {
         return { events: [] };
       }
 
-      // Check storage bucket for photos (assuming bucket name is 'event-photos')
+      const { data: photoRows } = await supabase
+        .from('event_photos')
+        .select('id, event_id, photo_url, user_id, created_at, uploaded_at')
+        .in('event_id', events.map((event) => event.id))
+        .order('created_at', { ascending: false });
+
+      const photosByEvent = new Map<string, EventPhoto[]>();
+      (photoRows || []).forEach((row: any) => {
+        const list = photosByEvent.get(row.event_id) || [];
+        list.push({
+          id: row.id,
+          event_id: row.event_id,
+          photo_url: row.photo_url,
+          uploaded_by: row.user_id || '',
+          uploaded_at: row.uploaded_at || row.created_at || new Date().toISOString(),
+        });
+        photosByEvent.set(row.event_id, list);
+      });
+
+      if (photosByEvent.size > 0) {
+        const eventsWithPhotos = events
+          .filter((event) => (photosByEvent.get(event.id) || []).length > 0)
+          .map((event) => {
+            const photos = photosByEvent.get(event.id) || [];
+            return { ...event, photos, photo_count: photos.length };
+          });
+        return { events: eventsWithPhotos, error: undefined };
+      }
+
+      // Fallback: list files in storage when the tracking table is empty.
       const eventsWithPhotos: EventWithPhotos[] = [];
 
       for (const event of events) {

@@ -100,6 +100,8 @@ export const Profile = () => {
                 <img
                   src={user.avatar_url}
                   alt={getFullName()}
+                  loading="lazy"
+                  decoding="async"
                   className="w-24 h-24 sm:w-32 sm:h-32 lg:w-40 lg:h-40 rounded-full object-cover border-4 border-blue-600 shadow-lg"
                 />
               </div>

@@ -6,6 +6,7 @@ import { notify } from '../Toast';
 import { ProgressBar } from '../loading/ProgressBar';
 import { FieldError, FieldLabel } from '../form/Field';
 import { errorCopy } from '../../utils/errorCopy';
+import { compressImage } from '../../utils/compressImage';
 
 export const EventFileDropzone = ({ label, name, multiple = false, accept, onFileChange, onUpload, uploadType, maxSizeMB = 1024, error, control, uploadedFiles = [], onRemoveFile }) => {
 
@@ -81,22 +82,22 @@ export const EventFileDropzone = ({ label, name, multiple = false, accept, onFil
               throw new Error('Banner must be an image file');
             }
 
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+            const compressed = await compressImage(file);
+            const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.jpg`;
             const filePath = `banners/${fileName}`;
-            const publicUrl = await uploadTracked('event-banners', filePath, file);
+            const publicUrl = await uploadTracked('event-banners', filePath, compressed);
 
 
 
             const fileResult = {
 
-              file: file,
+              file: compressed,
 
-              filename: file.name,
+              filename: compressed.name,
 
-              size: file.size,
+              size: compressed.size,
 
-              type: file.type,
+              type: compressed.type,
 
               id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
 
@@ -1127,9 +1128,7 @@ export const EventFileDropzone = ({ label, name, multiple = false, accept, onFil
 
                                     alt={file.filename}
 
-                                    className="w-full h-full object-cover"
-
-                                  />
+                                    className="w-full h-full object-cover" loading="lazy" decoding="async" />
 
                                 </div>
 

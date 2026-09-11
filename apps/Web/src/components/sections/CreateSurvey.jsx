@@ -108,10 +108,10 @@ export const CreateSurvey = () => {
       didMountValidate.current = true;
       return;
     }
-    const timeoutId = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
       trigger();
     }, 300);
-    return () => clearTimeout(timeoutId);
+      return () => clearTimeout(timeoutId);
   }, [watchedSections, trigger]);
 
 
@@ -149,7 +149,7 @@ export const CreateSurvey = () => {
 
     const applyCertificateState = (config) => {
       if (!isCertificateConfigured(config)) return false;
-      setHasCertificateConfig(true);
+          setHasCertificateConfig(true);
       markPipelineCertificateDone();
       try {
         if (!sessionStorage.getItem('pending-certificate-config')) {
@@ -176,9 +176,9 @@ export const CreateSurvey = () => {
   useEffect(() => {
     const checkCertificateConfig = () => {
       if (isPipelineCertificateDone() || isCertificateConfigured(readSessionCertificateConfig())) {
-        setHasCertificateConfig(true);
+            setHasCertificateConfig(true);
         markPipelineCertificateDone();
-      }
+          }
     };
 
     checkCertificateConfig();
@@ -548,9 +548,9 @@ export const CreateSurvey = () => {
   };
 
   const goBack = () => {
-    if (hasCertificateConfig) {
-      navigate('/design-certificate');
-    } else {
+                if (hasCertificateConfig) {
+                  navigate('/design-certificate');
+                } else {
       const draftEventId = sessionStorage.getItem('pending-event-id');
       navigate(draftEventId ? `/edit-event/${draftEventId}` : '/create-event');
     }
@@ -572,7 +572,7 @@ export const CreateSurvey = () => {
             aria-label={hasCertificateConfig ? 'Back to certificate designer' : 'Back to create event'}
           >
             <ChevronLeft className="h-5 w-5" />
-          </button>
+            </button>
           <div className="mx-auto max-w-xl px-12 text-center sm:px-14">
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
               Create Evaluation
@@ -584,16 +584,16 @@ export const CreateSurvey = () => {
             <div className="mt-5 flex flex-wrap items-center justify-center gap-4">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-slate-600">Auto-save</span>
-                <button
+              <button
                   type="button"
-                  onClick={toggleAutoSave}
+                onClick={toggleAutoSave}
                   className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${autoSaveEnabled ? 'bg-blue-900' : 'bg-slate-300'}`}
                   aria-pressed={autoSaveEnabled}
                 >
                   <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${autoSaveEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
                 <span className="text-sm text-slate-500">{autoSaveEnabled ? 'On' : 'Off'}</span>
-              </div>
+                </div>
               <button
                 type="button"
                 onClick={handleClearDraft}
@@ -605,7 +605,7 @@ export const CreateSurvey = () => {
               </button>
             </div>
           </div>
-        </div>
+            </div>
 
         <div className="rounded-2xl border border-slate-200 bg-slate-100">
           <div className="flex justify-center border-b border-slate-200 bg-white">
@@ -629,7 +629,7 @@ export const CreateSurvey = () => {
               <Eye className="h-4 w-4" />
               Preview
             </button>
-          </div>
+        </div>
 
         {showPreview ? (
           <div className="mx-auto max-w-3xl space-y-3 px-3 py-6 sm:px-6 pb-16">
@@ -645,8 +645,8 @@ export const CreateSurvey = () => {
                     {sectionFields.length > 1 && (
                       <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">
                         Section {sectionIndex + 1} of {sectionFields.length}
-                      </p>
-                    )}
+                          </p>
+                        )}
                     {htmlHasText(section.sectionTitle) ? (
                       <div
                         className="text-2xl font-normal text-slate-900 [&_p]:m-0"
@@ -660,9 +660,9 @@ export const CreateSurvey = () => {
                         className="mt-2 text-[15px] text-slate-600 [&_p]:m-0"
                         dangerouslySetInnerHTML={{ __html: section.sectionDescription }}
                       />
-                    )}
-                  </div>
-                </div>
+                              )}
+                            </div>
+                          </div>
                 {(section.questions || []).map((question, qIndex) => (
                   <div key={qIndex} className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
                     <p className="mb-4 text-base text-slate-800">
@@ -670,9 +670,9 @@ export const CreateSurvey = () => {
                       {question.required && <span className="ml-1 text-red-500">*</span>}
                     </p>
                     <QuestionPreview question={question} />
-                  </div>
+                        </div>
                 ))}
-              </div>
+                  </div>
             ))}
             <div className="flex justify-end pt-2">
               <button
@@ -682,19 +682,19 @@ export const CreateSurvey = () => {
               >
                 Back to questions
               </button>
+                </div>
             </div>
-          </div>
         ) : (
           <form onSubmit={handleSubmit(onSubmit)} className="px-3 py-6 sm:px-6 pb-24">
             <div className="mx-auto flex max-w-3xl items-start gap-3 lg:max-w-none lg:justify-center">
               <div className="min-w-0 w-full max-w-3xl">
                 <div className="space-y-3">
-              {sectionFields.map((sectionField, sectionIndex) => {
-                const sectionQuestions = watchedSections[sectionIndex]?.questions || [];
+          {sectionFields.map((sectionField, sectionIndex) => {
+            const sectionQuestions = watchedSections[sectionIndex]?.questions || [];
                 const sectionSelected =
                   selectedCard.type === 'section' && selectedCard.section === sectionIndex;
 
-                return (
+            return (
                   <div key={sectionField.id} className="space-y-3">
                     <div
                       onClick={() => setSelectedCard({ type: 'section', section: sectionIndex, question: 0 })}
@@ -706,7 +706,7 @@ export const CreateSurvey = () => {
                     >
                       <div className="p-5 sm:px-6 sm:pt-5 sm:pb-6">
                         <div className="mb-3 flex items-start justify-between gap-3">
-                          <div>
+                        <div>
                             {sectionIndex === 0 && pendingEventData?.title && (
                               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                                 {pendingEventData.title}
@@ -717,10 +717,10 @@ export const CreateSurvey = () => {
                                 Section {sectionIndex + 1} of {sectionFields.length}
                               </p>
                             )}
-                          </div>
-                          {sectionFields.length > 1 && (
-                            <button
-                              type="button"
+                        </div>
+                      {sectionFields.length > 1 && (
+                        <button
+                          type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 removeSectionHandler(sectionIndex);
@@ -729,44 +729,44 @@ export const CreateSurvey = () => {
                               aria-label="Delete section"
                             >
                               <Trash2 className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                        <Controller
-                          name={`sections.${sectionIndex}.sectionTitle`}
-                          control={control}
-                          render={({ field }) => (
-                            <SimpleRichTextEditor
-                              value={field.value || ''}
-                              onChange={(html) => {
-                                field.onChange(html);
-                                setValue(`sections.${sectionIndex}.sectionTitle`, html, { shouldValidate: true });
-                              }}
+                        </button>
+                      )}
+                    </div>
+                      <Controller
+                        name={`sections.${sectionIndex}.sectionTitle`}
+                        control={control}
+                        render={({ field }) => (
+                          <SimpleRichTextEditor
+                            value={field.value || ''}
+                            onChange={(html) => {
+                              field.onChange(html);
+                              setValue(`sections.${sectionIndex}.sectionTitle`, html, { shouldValidate: true });
+                            }}
                               placeholder={sectionIndex === 0 ? 'Untitled form' : 'Untitled section'}
                               variant="title"
-                            />
-                          )}
-                        />
+                          />
+                        )}
+                      />
                         <FieldError error={errors.sections?.[sectionIndex]?.sectionTitle?.message} />
                         <div className="mt-3">
-                          <Controller
-                            name={`sections.${sectionIndex}.sectionDescription`}
-                            control={control}
-                            render={({ field }) => (
-                              <SimpleRichTextEditor
-                                value={field.value || ''}
-                                onChange={(html) => {
-                                  field.onChange(html);
-                                  setValue(`sections.${sectionIndex}.sectionDescription`, html);
-                                }}
+                      <Controller
+                        name={`sections.${sectionIndex}.sectionDescription`}
+                        control={control}
+                        render={({ field }) => (
+                          <SimpleRichTextEditor
+                            value={field.value || ''}
+                            onChange={(html) => {
+                              field.onChange(html);
+                              setValue(`sections.${sectionIndex}.sectionDescription`, html);
+                            }}
                                 placeholder={sectionIndex === 0 ? 'Form description' : 'Section description'}
                                 variant="description"
-                              />
-                            )}
                           />
-                        </div>
-                      </div>
+                        )}
+                      />
                     </div>
+                  </div>
+                </div>
 
                     {sectionQuestions.map((question, qIndex) => (
                       <SurveyQuestionCard
@@ -778,7 +778,7 @@ export const CreateSurvey = () => {
                         selected={selectedCard.type === 'question' && selectedCard.section === sectionIndex && selectedCard.question === qIndex}
                         errors={errors}
                         register={register}
-                        control={control}
+                              control={control}
                         setValue={setValue}
                         setSelectedCard={setSelectedCard}
                         handleQuestionTypeChange={handleQuestionTypeChange}
@@ -793,36 +793,36 @@ export const CreateSurvey = () => {
                       />
                     ))}
 
-                    <button
-                      type="button"
-                      onClick={() => addQuestion(sectionIndex)}
+                  <button
+                    type="button"
+                    onClick={() => addQuestion(sectionIndex)}
                       className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-600 hover:border-blue-300 hover:bg-white hover:text-blue-900 lg:hidden"
                     >
                       <Plus className="h-4 w-4" />
                       Add question
-                    </button>
-                  </div>
-                );
-              })}
+                  </button>
+              </div>
+            );
+          })}
                 </div>
 
                 <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <button
-                    type="button"
-                    onClick={addSection}
+            <button
+              type="button"
+              onClick={addSection}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 lg:hidden"
                   >
                     <LayoutGrid className="h-4 w-4" />
                     Add section
-                  </button>
-                  <button
-                    type="submit"
+            </button>
+            <button
+              type="submit"
                     disabled={loading}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-blue-900 px-6 text-sm font-medium text-white transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60 sm:ml-auto"
                   >
                     {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
                     {loading ? 'Creating' : 'Create Event & Survey'}
-                  </button>
+            </button>
                 </div>
               </div>
 
@@ -836,8 +836,8 @@ export const CreateSurvey = () => {
                   </RailIconButton>
                 </div>
               </aside>
-            </div>
-          </form>
+          </div>
+        </form>
         )}
         </div>
       </div>

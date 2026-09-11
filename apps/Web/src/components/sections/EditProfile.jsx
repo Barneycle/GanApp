@@ -401,6 +401,8 @@ export const EditProfile = () => {
                   <img
                     src={avatarPreview}
                     alt="Profile"
+                    loading="lazy"
+                    decoding="async"
                     className="w-32 h-32 sm:w-40 sm:h-40 lg:w-48 lg:h-48 rounded-full object-cover border-4 sm:border-[5px] lg:border-[6px] border-blue-600 shadow-2xl"
                   />
                   <button

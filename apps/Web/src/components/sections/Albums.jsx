@@ -115,7 +115,12 @@ export const Albums = () => {
   useEffect(() => {
     if (authLoading) return;
 
-    if (isAuthenticated && user && !isProfileComplete(user)) {
+    if (!isAuthenticated) {
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    if (user && !isProfileComplete(user)) {
       navigate('/setup-profile');
       return;
     }
@@ -498,8 +503,7 @@ export const Albums = () => {
   // Check if user can upload photos
   const canUploadPhotos = user && (user.role === 'participant' || user.role === 'organizer');
 
-  // Show loading state while checking auth
-  if (authLoading || loading) {
+  if (authLoading || !isAuthenticated || (loading && events.length === 0)) {
     return <PageSkeleton variant="list" />;
   }
 
@@ -755,8 +759,7 @@ export const Albums = () => {
                           <img
                             src={photo.photo_url}
                             alt={`${event.title} photo ${index + 1}`}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                          />
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" loading="lazy" decoding="async" />
                           {index === 3 && event.photos.length > 4 && (
                             <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                               <span className="text-white font-bold text-sm">
@@ -870,8 +873,7 @@ export const Albums = () => {
                         <img
                           src={photo.photo_url}
                           alt={`${selectedEvent.title} photo`}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                        />
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" loading="lazy" decoding="async" />
                       </button>
                       <div className="absolute top-2 right-2 flex items-center gap-1">
                         {downloadedPhotoIds.has(photo.id) && (
@@ -947,8 +949,7 @@ export const Albums = () => {
             <img
               src={selectedEvent.photos[currentPhotoIndex].photo_url}
               alt={`${selectedEvent.title} photo ${currentPhotoIndex + 1}`}
-              className="max-w-full max-h-full object-contain"
-            />
+              className="max-w-full max-h-full object-contain" loading="lazy" decoding="async" />
           </div>
 
           {/* Navigation Buttons */}
