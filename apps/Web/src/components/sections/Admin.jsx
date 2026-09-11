@@ -9,6 +9,7 @@ import { Eye, EyeOff, Send, Trash2, CircleAlert, CircleCheck, CircleX, Info, Dat
 import { useToast } from '../../components/Toast';
 import { ActivityLogService } from '../../services/activityLogService';
 import { usePageVisibility } from '../../hooks/usePageVisibility';
+import { Modal } from '../../components/Modal';
 
 export const Admin = () => {
   const navigate = useNavigate();
@@ -946,7 +947,7 @@ const BanUserModal = ({ user, onBan, onClose, loading }) => {
   const [durationUnit, setDurationUnit] = useState('days');
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <Modal onClose={onClose}>
       <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">Ban User</h3>
         <p className="text-slate-600 mb-4">
@@ -993,7 +994,7 @@ const BanUserModal = ({ user, onBan, onClose, loading }) => {
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -1002,7 +1003,7 @@ const ChangeRoleModal = ({ user, onChangeRole, onClose, loading }) => {
   const [newRole, setNewRole] = useState(user.role);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <Modal onClose={onClose}>
       <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">Change Role</h3>
         <p className="text-slate-600 mb-4">
@@ -1037,7 +1038,7 @@ const ChangeRoleModal = ({ user, onChangeRole, onClose, loading }) => {
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -1046,7 +1047,7 @@ const ArchiveUserModal = ({ user, onArchive, onClose, loading }) => {
   const [reason, setReason] = useState('');
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <Modal onClose={onClose}>
       <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">Archive User</h3>
         <p className="text-slate-600 mb-4">
@@ -1079,7 +1080,7 @@ const ArchiveUserModal = ({ user, onArchive, onClose, loading }) => {
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -1242,7 +1243,7 @@ const EditUserModal = ({ user, onUpdate, onClose, loading }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <Modal onClose={onClose}>
       <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">Edit User</h3>
         <p className="text-slate-600 mb-4">
@@ -1479,7 +1480,7 @@ const EditUserModal = ({ user, onUpdate, onClose, loading }) => {
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -1535,7 +1536,7 @@ const CreateUserModal = ({ onCreate, onClose, loading }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <Modal onClose={onClose}>
       <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">Create New User</h3>
 
@@ -1655,7 +1656,7 @@ const CreateUserModal = ({ onCreate, onClose, loading }) => {
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -2078,7 +2079,7 @@ const ArchiveEventModal = ({ event, onArchive, onClose, loading }) => {
   const [reason, setReason] = useState('');
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <Modal onClose={onClose}>
       <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">Archive Event</h3>
         <p className="text-slate-600 mb-4">
@@ -2111,7 +2112,7 @@ const ArchiveEventModal = ({ event, onArchive, onClose, loading }) => {
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -2120,7 +2121,7 @@ const UnarchiveEventModal = ({ event, onUnarchive, onClose, loading }) => {
   const [reason, setReason] = useState('');
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <Modal onClose={onClose}>
       <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">Unarchive Event</h3>
         <p className="text-slate-600 mb-4">
@@ -2159,7 +2160,7 @@ const UnarchiveEventModal = ({ event, onUnarchive, onClose, loading }) => {
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -2182,7 +2183,7 @@ const EventStatsModal = ({ event, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <Modal onClose={onClose}>
       <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">Event Statistics</h3>
         {loading ? (
@@ -2218,7 +2219,7 @@ const EventStatsModal = ({ event, onClose }) => {
           Close
         </button>
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -2436,7 +2437,7 @@ const ReviewCancellationModal = ({ request, onApprove, onDecline, onClose, loadi
   const [notes, setNotes] = useState('');
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <Modal onClose={onClose}>
       <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
         <h3 className="text-lg font-semibold text-slate-800 mb-2">Review Cancellation Request</h3>
         <p className="text-xs text-slate-500 mb-4">Only administrators can approve or decline cancellation requests</p>
@@ -2481,7 +2482,7 @@ const ReviewCancellationModal = ({ request, onApprove, onDecline, onClose, loadi
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -3113,8 +3114,7 @@ const NotificationsTab = () => {
       </div>
 
       {/* Bulk Notification Modal */}
-      {showBulkModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <Modal isOpen={showBulkModal} onClose={() => setShowBulkModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-semibold text-slate-800 mb-4">Send Bulk Notification</h3>
 
@@ -3216,8 +3216,7 @@ const NotificationsTab = () => {
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </Modal>
     </div>
   );
 };

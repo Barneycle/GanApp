@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { AnimatePresence, motion } from 'framer-motion';
 import { Award, Download, FileText, Image as ImageIcon, Loader2, X } from 'lucide-react';
 import { CertificateService } from '../services/certificateService';
 import { EventService } from '../services/eventService';
@@ -11,7 +9,7 @@ import { useToast, statusDialog, statusError } from './Toast';
 import { ErrorBanner, ErrorState } from './ErrorState';
 import { Skeleton } from './loading/Skeleton';
 import { ProgressBar } from './loading/ProgressBar';
-import { overlayEnter, panelEnter } from './motion/tokens';
+import { Modal } from './Modal';
 import { formatErrorCopy, toErrorCopy } from '../utils/errorCopy';
 
 const previewFromCertificate = (cert) => {
@@ -789,22 +787,10 @@ const CertificateGenerator = ({ eventId, onClose, isMobile = false }) => {
     return <div className="flex h-screen flex-col bg-white">{panel}</div>;
   }
 
-  const modalRoot = document.getElementById('root') || document.body;
-  return createPortal(
-    <AnimatePresence>
-      <motion.div
-        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-        onClick={(event) => {
-          if (event.target === event.currentTarget) onClose();
-        }}
-        {...overlayEnter}
-      >
-        <motion.div className="w-full max-w-2xl" {...panelEnter}>
-          {panel}
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>,
-    modalRoot
+  return (
+    <Modal isOpen onClose={onClose} panelClassName="w-full max-w-2xl bg-white">
+      {panel}
+    </Modal>
   );
 };
 

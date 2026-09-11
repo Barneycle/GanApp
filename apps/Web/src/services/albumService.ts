@@ -15,112 +15,189 @@ export interface EventWithPhotos extends Event {
   photo_count: number;
 }
 
+const ALBUM_EVENT_COLUMNS =
+  'id, title, venue, start_date, end_date, start_time, end_time, banner_url, status';
+const ALBUM_PHOTO_COLUMNS = 'id, event_id, photo_url, user_id, created_at, uploaded_at';
+const ALBUM_LIST_SELECT = `${ALBUM_EVENT_COLUMNS}, event_photos!inner(${ALBUM_PHOTO_COLUMNS})`;
+const IMAGE_NAME = /\.(jpg|jpeg|png|gif|webp)$/i;
+
 export class AlbumService {
+  private static mapPhotoRow(row: Record<string, any>, fallbackEventId = ''): EventPhoto {
+    return {
+      id: row.id,
+      event_id: row.event_id || fallbackEventId,
+      photo_url: row.photo_url || row.photo_url_public || '',
+      uploaded_by: row.user_id || row.uploaded_by || '',
+      uploaded_at: row.uploaded_at || row.created_at || new Date().toISOString(),
+      file_name: row.file_name,
+    };
+  }
+
+  private static mapEventsWithEmbeddedPhotos(rows: any[] | null): EventWithPhotos[] {
+    return (rows || [])
+      .map((row) => {
+        const { event_photos: embedded, ...event } = row || {};
+        const photos = (Array.isArray(embedded) ? embedded : [])
+          .map((photo) => this.mapPhotoRow(photo, event.id))
+          .sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime());
+        return { ...event, photos, photo_count: photos.length } as EventWithPhotos;
+      })
+      .filter((event) => event.photo_count > 0);
+  }
+
+  private static filesToPhotos(eventId: string, files: any[] | null): EventPhoto[] {
+    return (files || [])
+      .filter((file) => IMAGE_NAME.test(file?.name || ''))
+      .map((file) => ({
+        id: file.id || `${eventId}-${file.name}`,
+        event_id: eventId,
+        photo_url: supabase.storage.from('event-photos').getPublicUrl(`${eventId}/${file.name}`).data.publicUrl,
+        uploaded_by: '',
+        uploaded_at: file.created_at || new Date().toISOString(),
+        file_name: file.name,
+      }));
+  }
+
+  private static async fetchAlbumsFromTable(
+    eventLimit?: number
+  ): Promise<{ events: EventWithPhotos[]; error?: string; usedTable: boolean }> {
+    let query = supabase
+      .from('events')
+      .select(ALBUM_LIST_SELECT)
+      .eq('status', 'published')
+      .order('start_date', { ascending: false });
+
+    if (typeof eventLimit === 'number') {
+      query = query.limit(eventLimit);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      return { events: [], error: error.message, usedTable: false };
+    }
+
+    const events = this.mapEventsWithEmbeddedPhotos(data);
+    return { events, usedTable: events.length > 0 };
+  }
+
+  private static async listStorageFolders(): Promise<{ ids: string[]; ok: boolean }> {
+    const { data, error } = await supabase.storage.from('event-photos').list('', { limit: 200 });
+    if (error || !data) {
+      return { ids: [], ok: false };
+    }
+    return {
+      ok: true,
+      ids: data
+        .filter((entry) => {
+          const looksLikeFolder = entry.id == null || !entry.metadata;
+          return looksLikeFolder && /^[0-9a-f-]{36}$/i.test(entry.name);
+        })
+        .map((entry) => entry.name),
+    };
+  }
+
+  private static async attachStoragePhotos(
+    events: Array<Record<string, any>>
+  ): Promise<EventWithPhotos[]> {
+    const listed = await Promise.all(
+      events.map(async (event) => {
+        try {
+          const { data: files, error } = await supabase.storage
+            .from('event-photos')
+            .list(event.id, { limit: 100, offset: 0 });
+          if (error) {
+            return null;
+          }
+          const photos = this.filesToPhotos(event.id, files);
+          if (photos.length === 0) {
+            return null;
+          }
+          return { ...event, photos, photo_count: photos.length } as EventWithPhotos;
+        } catch {
+          return null;
+        }
+      })
+    );
+    return listed.filter((event): event is EventWithPhotos => event != null);
+  }
+
+  private static async fetchAlbumsFromStorage(
+    eventLimit?: number
+  ): Promise<{ events: EventWithPhotos[]; error?: string }> {
+    const folders = await this.listStorageFolders();
+    if (folders.ok && folders.ids.length === 0) {
+      return { events: [] };
+    }
+
+    let eventQuery = supabase
+      .from('events')
+      .select(ALBUM_EVENT_COLUMNS)
+      .eq('status', 'published')
+      .order('start_date', { ascending: false });
+
+    if (folders.ok && folders.ids.length > 0) {
+      eventQuery = eventQuery.in('id', folders.ids);
+      if (typeof eventLimit === 'number') {
+        eventQuery = eventQuery.limit(eventLimit);
+      }
+    }
+
+    const { data: events, error } = await eventQuery;
+    if (error) {
+      return { events: [], error: error.message };
+    }
+    if (!events || events.length === 0) {
+      return { events: [] };
+    }
+
+    const withPhotos = await this.attachStoragePhotos(events);
+    return {
+      events: typeof eventLimit === 'number' ? withPhotos.slice(0, eventLimit) : withPhotos,
+    };
+  }
+
   /**
-   * Get all events that have photos uploaded by participants
+   * Get published events that have photos. One round-trip via embedded
+   * event_photos when the tracking table is populated; otherwise a slim
+   * events query plus parallel storage listings (not one-per-event sequential).
    */
   static async getEventsWithPhotos(): Promise<{ events: EventWithPhotos[]; error?: string }> {
     try {
-      // Get all published events
-      const { data: events, error: eventsError } = await supabase
-        .from('events')
-        .select('*')
-        .eq('status', 'published')
-        .order('start_date', { ascending: false });
-
-      if (eventsError) {
-        return { events: [], error: eventsError.message };
+      const fromTable = await this.fetchAlbumsFromTable();
+      if (fromTable.usedTable) {
+        return { events: fromTable.events };
       }
 
-      if (!events || events.length === 0) {
-        return { events: [] };
-      }
-
-      const { data: photoRows } = await supabase
-        .from('event_photos')
-        .select('id, event_id, photo_url, user_id, created_at, uploaded_at')
-        .in('event_id', events.map((event) => event.id))
-        .order('created_at', { ascending: false });
-
-      const photosByEvent = new Map<string, EventPhoto[]>();
-      (photoRows || []).forEach((row: any) => {
-        const list = photosByEvent.get(row.event_id) || [];
-        list.push({
-          id: row.id,
-          event_id: row.event_id,
-          photo_url: row.photo_url,
-          uploaded_by: row.user_id || '',
-          uploaded_at: row.uploaded_at || row.created_at || new Date().toISOString(),
-        });
-        photosByEvent.set(row.event_id, list);
-      });
-
-      if (photosByEvent.size > 0) {
-        const eventsWithPhotos = events
-          .filter((event) => (photosByEvent.get(event.id) || []).length > 0)
-          .map((event) => {
-            const photos = photosByEvent.get(event.id) || [];
-            return { ...event, photos, photo_count: photos.length };
-          });
-        return { events: eventsWithPhotos, error: undefined };
-      }
-
-      // Fallback: list files in storage when the tracking table is empty.
-      const eventsWithPhotos: EventWithPhotos[] = [];
-
-      for (const event of events) {
-        try {
-          // List files in the event's folder in storage
-          const { data: files, error: listError } = await supabase.storage
-            .from('event-photos')
-            .list(event.id, {
-              limit: 100,
-              offset: 0,
-            });
-
-          if (!listError && files && files.length > 0) {
-            // Get public URLs for the photos
-            const photos: EventPhoto[] = files
-              .filter(file => file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i))
-              .map(file => ({
-                id: file.id || `${event.id}-${file.name}`,
-                event_id: event.id,
-                photo_url: supabase.storage.from('event-photos').getPublicUrl(`${event.id}/${file.name}`).data.publicUrl,
-                uploaded_by: '', // Not available from storage metadata
-                uploaded_at: file.created_at || new Date().toISOString(),
-                file_name: file.name,
-              }));
-
-            if (photos.length > 0) {
-              eventsWithPhotos.push({
-                ...event,
-                photos,
-                photo_count: photos.length,
-              });
-            }
-          }
-        } catch (err) {
-          // Skip events where we can't access photos
-          console.log(`Could not load photos for event ${event.id}:`, err);
-        }
-      }
-
-      return { events: eventsWithPhotos, error: undefined };
+      return this.fetchAlbumsFromStorage();
     } catch (error) {
-      console.error('Error fetching events with photos from storage:', error);
+      console.error('Error fetching events with photos:', error);
       return { events: [], error: error instanceof Error ? error.message : 'Failed to load albums' };
     }
   }
 
   /**
-   * A few recent albums for the public home teaser.
+   * A few recent albums for the home teaser. Does not load the full catalog.
    */
   static async getAlbumHighlights(limit = 3): Promise<{ events: EventWithPhotos[]; error?: string }> {
-    const result = await this.getEventsWithPhotos();
-    if (result.error) {
-      return { events: [], error: result.error };
+    try {
+      const fromTable = await this.fetchAlbumsFromTable(limit);
+      if (fromTable.usedTable) {
+        return { events: fromTable.events.slice(0, limit) };
+      }
+      if (fromTable.error && /could not find|relationship|schema cache/i.test(fromTable.error)) {
+        // Fall through to storage when the embed is unavailable.
+      } else if (fromTable.error) {
+        return { events: [], error: fromTable.error };
+      }
+
+      const fromStorage = await this.fetchAlbumsFromStorage(limit);
+      if (fromStorage.error) {
+        return { events: [], error: fromStorage.error };
+      }
+      return { events: (fromStorage.events || []).slice(0, limit) };
+    } catch (error) {
+      return { events: [], error: error instanceof Error ? error.message : 'Failed to load albums' };
     }
-    return { events: (result.events || []).slice(0, limit) };
   }
 
   /**
@@ -221,6 +298,16 @@ export class AlbumService {
 
       if (uploadError) {
         return { success: false, error: uploadError.message };
+      }
+
+      const photoUrl = supabase.storage.from('event-photos').getPublicUrl(filename).data.publicUrl;
+      const { error: insertError } = await supabase.from('event_photos').insert({
+        event_id: eventId,
+        user_id: userId,
+        photo_url: photoUrl,
+      });
+      if (insertError) {
+        console.warn('Photo uploaded but tracking row was not saved:', insertError.message);
       }
 
       onProgress?.(100);

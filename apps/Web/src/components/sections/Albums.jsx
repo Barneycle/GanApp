@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { AlbumService } from '../../services/albumService';
 import { downloadImageWithAttribution } from '../../services/imageAttribution';
 import { ConfirmationDialog } from '../ConfirmationDialog';
+import { Modal } from '../Modal';
 import { Search, Filter, X, ChevronLeft, ChevronRight, Download, CircleCheckBig, Images, Calendar, MapPin, RefreshCw, Upload, Camera } from 'lucide-react';
 import { useToast } from '../Toast';
 import { PageSkeleton } from '../loading/Skeleton';
@@ -144,6 +145,24 @@ export const Albums = () => {
       setIsModalVisible(true);
     }
   }, [eventId, events, loading]);
+
+  const openAlbum = (event) => {
+    if (!event) return;
+    setSelectedEvent(event);
+    setIsModalVisible(true);
+    if (event.id && eventId !== event.id) {
+      navigate(`/albums/${event.id}`, { replace: true, preventScrollReset: true });
+    }
+  };
+
+  const closeAlbum = () => {
+    setIsModalVisible(false);
+    setIsFullScreenVisible(false);
+    setSelectedEvent(null);
+    if (eventId) {
+      navigate('/albums', { replace: true, preventScrollReset: true });
+    }
+  };
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -723,11 +742,7 @@ export const Albums = () => {
                         </button>
                       )}
                       <button
-                        onClick={() => {
-                          setSelectedEvent(event);
-                          setIsModalVisible(true);
-                          navigate(`/albums/${event.id}`, { replace: true });
-                        }}
+                        onClick={() => openAlbum(event)}
                         className="px-3 py-1.5 bg-blue-900 text-white rounded-lg text-sm font-semibold hover:bg-blue-800 transition-colors whitespace-nowrap"
                       >
                         View All
@@ -779,9 +794,12 @@ export const Albums = () => {
       </div>
 
       {/* Photo Gallery Modal */}
-      {isModalVisible && selectedEvent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col">
+      {selectedEvent && (
+      <Modal
+        isOpen={isModalVisible}
+        onClose={closeAlbum}
+        panelClassName="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+      >
             {/* Header */}
             <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-200">
               <div className="flex-1 mr-4">
@@ -845,11 +863,7 @@ export const Albums = () => {
                   </button>
                 )}
                 <button
-                  onClick={() => {
-                    setIsModalVisible(false);
-                    setSelectedEvent(null);
-                    if (eventId) navigate('/albums', { replace: true });
-                  }}
+                  onClick={closeAlbum}
                   className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 transition-colors"
                 >
                   <X className="w-5 h-5 text-slate-600" />
@@ -904,13 +918,18 @@ export const Albums = () => {
                 </div>
               </div>
             )}
-          </div>
-        </div>
+      </Modal>
       )}
 
       {/* Full Screen Image Viewer */}
-      {isFullScreenVisible && selectedEvent && selectedEvent.photos[currentPhotoIndex] && (
-        <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
+      {selectedEvent?.photos?.[currentPhotoIndex] && (
+      <Modal
+        isOpen={isFullScreenVisible}
+        onClose={() => setIsFullScreenVisible(false)}
+        zIndex={11000}
+        overlayClassName="bg-black p-0"
+        panelClassName="relative h-full w-full bg-transparent"
+      >
           {/* Header */}
           <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent">
             <button
@@ -971,7 +990,7 @@ export const Albums = () => {
           )}
 
           {/* Thumbnail Strip (optional, can be added later) */}
-        </div>
+      </Modal>
       )}
 
       {/* Confirmation Dialog */}

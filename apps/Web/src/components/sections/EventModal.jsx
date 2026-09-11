@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { X } from "lucide-react";
 import { SpeakerService } from '../../services/speakerService';
 import { SponsorService } from '../../services/sponsorService';
 import { useAuth } from '../../contexts/AuthContext';
 import { PageSkeleton } from '../loading/Skeleton';
-import { overlayEnter, panelEnter } from '../motion/tokens';
+import { Modal } from '../Modal';
 
 const EventModal = ({ isOpen, onClose, event }) => {
   const { user } = useAuth();
@@ -49,20 +48,6 @@ const EventModal = ({ isOpen, onClose, event }) => {
     }
   }, [isOpen, event?.id]);
 
-  // Prevent body scroll when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-
-    // Cleanup function to restore scroll when component unmounts
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
-
   if (!event) return null;
 
   const handleImageError = (e, fallbackUrl) => {
@@ -93,18 +78,11 @@ const EventModal = ({ isOpen, onClose, event }) => {
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-    <motion.div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-      onClick={onClose}
-      {...overlayEnter}
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      panelClassName="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-slate-200 bg-white"
     >
-      <motion.div 
-        className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-slate-200 bg-white"
-        onClick={(e) => e.stopPropagation()}
-        {...panelEnter}
-      >
         {/* Modal Header */}
         <div className="flex items-center justify-end p-6">
           <button
@@ -489,10 +467,7 @@ const EventModal = ({ isOpen, onClose, event }) => {
           )}
 
         </div>
-      </motion.div>
-    </motion.div>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 };
 

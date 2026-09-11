@@ -7,6 +7,7 @@ import { MessageSquare, Plus, Send, Clock, CircleAlert, CircleCheck, CircleX, Fi
 import { PageSkeleton } from '../loading/Skeleton';
 import { FIELD_LIMITS } from '../../utils/formFields';
 import { CharCount, FieldLabel } from '../form/Field';
+import { Modal } from '../Modal';
 
 export const Support = () => {
   const navigate = useNavigate();
@@ -520,9 +521,8 @@ export const Support = () => {
         </div>
 
         {/* New Ticket Modal */}
-        {showNewTicketModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
+        <Modal isOpen={showNewTicketModal} onClose={() => setShowNewTicketModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-bold text-slate-800 mb-6">Create New Support Ticket</h2>
               
               <div className="space-y-4">
@@ -600,8 +600,7 @@ export const Support = () => {
                 </button>
               </div>
             </div>
-          </div>
-        )}
+        </Modal>
       </div>
     </section>
   );

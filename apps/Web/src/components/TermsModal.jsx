@@ -1,4 +1,5 @@
 import React from 'react';
+import { Modal } from './Modal';
 
 const TermsModal = ({ isOpen, onClose, contentType }) => {
   if (!isOpen) return null;
@@ -161,8 +162,11 @@ const TermsModal = ({ isOpen, onClose, contentType }) => {
   const { title, content } = getContent();
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg w-full max-w-xs sm:max-w-md md:max-w-lg lg:max-w-2xl h-[90vh] flex flex-col mx-2 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      panelClassName="flex h-[90vh] w-full max-w-xs flex-col rounded-lg bg-white shadow-2xl sm:max-w-md md:max-w-lg lg:max-w-2xl"
+    >
         <div className="flex justify-between items-center p-3 sm:p-4 md:p-6 border-b bg-gray-50 flex-shrink-0">
           <h2 className="text-base sm:text-lg md:text-xl font-semibold text-gray-900">{title}</h2>
           <button
@@ -200,8 +204,7 @@ const TermsModal = ({ isOpen, onClose, contentType }) => {
             Close
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 };
 

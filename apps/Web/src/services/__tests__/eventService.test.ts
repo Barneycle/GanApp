@@ -48,33 +48,16 @@ describe('EventService', () => {
   describe('getAllEvents', () => {
     it('should return all events successfully', async () => {
       const mockSelect = vi.fn().mockReturnThis();
+      const mockEq = vi.fn().mockReturnThis();
       const mockOrder = vi.fn().mockResolvedValue({
-        data: [mockEvent],
+        data: [{ ...mockEvent, event_registrations: [{ count: 0 }] }],
         error: null,
       });
 
       (supabase.from as any).mockReturnValue({
         select: mockSelect,
+        eq: mockEq,
         order: mockOrder,
-      });
-
-      // Mock participant count query
-      const mockCount = vi.fn().mockResolvedValue({ count: 5 });
-      const mockEq = vi.fn().mockReturnThis();
-      const mockHead = vi.fn().mockReturnValue(mockCount);
-
-      (supabase.from as any).mockImplementation((table: string) => {
-        if (table === 'event_registrations') {
-          return {
-            select: vi.fn().mockReturnThis(),
-            eq: mockEq,
-            head: mockHead,
-          };
-        }
-        return {
-          select: mockSelect,
-          order: mockOrder,
-        };
       });
 
       const result = await EventService.getAllEvents();
@@ -82,11 +65,13 @@ describe('EventService', () => {
       expect(result.events).toBeDefined();
       expect(result.events?.length).toBe(1);
       expect(result.events?.[0].title).toBe('Test Event');
+      expect(result.events?.[0].current_participants).toBe(0);
       expect(result.error).toBeUndefined();
     });
 
     it('should handle database errors', async () => {
       const mockSelect = vi.fn().mockReturnThis();
+      const mockEq = vi.fn().mockReturnThis();
       const mockOrder = vi.fn().mockResolvedValue({
         data: null,
         error: { message: 'Database error' },
@@ -94,6 +79,7 @@ describe('EventService', () => {
 
       (supabase.from as any).mockReturnValue({
         select: mockSelect,
+        eq: mockEq,
         order: mockOrder,
       });
 
@@ -104,31 +90,22 @@ describe('EventService', () => {
     });
 
     it('should calculate current participants for each event', async () => {
-      const events = [mockEvent, { ...mockEvent, id: 'event-456' }];
-      let callCount = 0;
+      const events = [
+        { ...mockEvent, event_registrations: [{ count: 2 }] },
+        { ...mockEvent, id: 'event-456', event_registrations: [{ count: 4 }] },
+      ];
 
       const mockSelect = vi.fn().mockReturnThis();
+      const mockEq = vi.fn().mockReturnThis();
       const mockOrder = vi.fn().mockResolvedValue({
         data: events,
         error: null,
       });
 
-      (supabase.from as any).mockImplementation((table: string) => {
-        if (table === 'event_registrations') {
-          callCount++;
-          const mockEq1 = vi.fn().mockReturnThis();
-          const mockEq2 = vi.fn().mockResolvedValue({ count: callCount * 2 });
-          return {
-            select: vi.fn().mockReturnThis(),
-            eq: mockEq1.mockReturnValue({
-              eq: mockEq2,
-            }),
-          };
-        }
-        return {
-          select: mockSelect,
-          order: mockOrder,
-        };
+      (supabase.from as any).mockReturnValue({
+        select: mockSelect,
+        eq: mockEq,
+        order: mockOrder,
       });
 
       const result = await EventService.getAllEvents();
@@ -137,6 +114,51 @@ describe('EventService', () => {
       expect(result.events?.length).toBe(2);
       expect(result.events?.[0].current_participants).toBe(2);
       expect(result.events?.[1].current_participants).toBe(4);
+      expect(supabase.from).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getShowcaseEvents', () => {
+    it('loads upcoming events and featured in a single query', async () => {
+      const featured = { ...mockEvent, id: 'feat', is_featured: true, title: 'Featured' };
+      const other = { ...mockEvent, id: 'other', is_featured: false, title: 'Soon' };
+      const mockLimit = vi.fn().mockResolvedValue({
+        data: [featured, other],
+        error: null,
+      });
+      const chain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: mockLimit,
+      };
+      (supabase.from as any).mockReturnValue(chain);
+
+      const result = await EventService.getShowcaseEvents(6);
+
+      expect(supabase.from).toHaveBeenCalledTimes(1);
+      expect(mockLimit).toHaveBeenCalledWith(6);
+      expect(result.events?.map((event) => event.id)).toEqual(['feat', 'other']);
+      expect(result.featured?.id).toBe('feat');
+      expect(result.error).toBeUndefined();
+    });
+
+    it('falls back to the soonest event when none are featured', async () => {
+      const mockLimit = vi.fn().mockResolvedValue({
+        data: [{ ...mockEvent, is_featured: false }],
+        error: null,
+      });
+      (supabase.from as any).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: mockLimit,
+      });
+
+      const result = await EventService.getShowcaseEvents();
+      expect(result.featured?.id).toBe('event-123');
     });
   });
 

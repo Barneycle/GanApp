@@ -1,9 +1,9 @@
 export const EASE = [0.16, 1, 0.3, 1];
 
 export const pageEnter = {
-  initial: { opacity: 0, y: 10 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.28, ease: EASE },
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  transition: { duration: 0.22, ease: EASE },
 };
 
 export const fadeEnter = {

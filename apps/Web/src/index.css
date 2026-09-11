@@ -22,14 +22,15 @@ html, body {
   min-height: 100vh;
 }
 
-/* Prevent scrolling on login page */
+/* Prevent scrolling on login page without creating a fixed containing block
+   (position:fixed on html/body breaks overlay stacking for portaled modals). */
 body.no-scroll,
 html.no-scroll {
   overflow: hidden !important;
   height: 100% !important;
   max-height: 100vh !important;
-  position: fixed !important;
   width: 100% !important;
+  overscroll-behavior: none;
 }
 
 body.no-scroll #root {

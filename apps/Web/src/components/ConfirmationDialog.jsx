@@ -1,16 +1,9 @@
 import React from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { X, CircleAlert } from 'lucide-react';
 import { SmartSpinner } from './loading/SmartSpinner';
-import { overlayEnter, panelEnter } from './motion/tokens';
+import { Modal } from './Modal';
 
 export const ConfirmationDialog = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', cancelText = 'Cancel', type = 'warning', loading = false }) => {
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget && !loading) {
-      onClose();
-    }
-  };
-
   const iconColors = {
     warning: 'text-amber-600',
     danger: 'text-red-600',
@@ -26,14 +19,13 @@ export const ConfirmationDialog = ({ isOpen, onClose, onConfirm, title, message,
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-    <motion.div
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-      onClick={handleBackdropClick}
-      {...overlayEnter}
+    <Modal
+      isOpen={isOpen}
+      onClose={loading ? undefined : onClose}
+      zIndex={10000}
+      closeOnBackdrop={!loading}
+      panelClassName="w-full max-w-md rounded-xl border border-slate-200 bg-white"
     >
-      <motion.div className="w-full max-w-md rounded-xl border border-slate-200 bg-white" {...panelEnter}>
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center space-x-3">
@@ -78,10 +70,7 @@ export const ConfirmationDialog = ({ isOpen, onClose, onConfirm, title, message,
             </SmartSpinner>
           </button>
         </div>
-      </motion.div>
-    </motion.div>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 };
 

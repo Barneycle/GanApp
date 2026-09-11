@@ -1,6 +1,5 @@
-import { AnimatePresence, motion } from 'framer-motion';
 import { CircleAlert, CircleCheck, Info, AlertTriangle } from 'lucide-react';
-import { overlayEnter, panelEnter } from './motion/tokens';
+import { Modal } from './Modal';
 
 const ICONS = {
   success: CircleCheck,
@@ -31,22 +30,14 @@ export const StatusDialog = ({
   const confirm = onConfirm || onClose;
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) onClose();
-          }}
-          {...overlayEnter}
-        >
-          <motion.div
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="status-dialog-title"
-            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-8 text-center"
-            {...panelEnter}
-          >
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      zIndex={10000}
+      role="alertdialog"
+      labelledBy="status-dialog-title"
+      panelClassName="w-full max-w-md rounded-xl border border-slate-200 bg-white p-8 text-center"
+    >
             <div className={`mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full ${ICON_WRAP[type] || ICON_WRAP.success}`}>
               <Icon className="h-7 w-7" />
             </div>
@@ -75,9 +66,6 @@ export const StatusDialog = ({
                 {secondaryText}
               </button>
             ) : null}
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 };

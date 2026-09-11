@@ -18,21 +18,16 @@ export const Home = () => {
     if (user?.role === 'participant') navigate('/participants', { replace: true });
   }, [user, navigate]);
 
-  const loadEvents = useCallback(async () => {
+  const loadShowcase = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Loading timeout after 10 seconds')), 10000)
-      );
-      const result = await Promise.race([
-        EventService.getPublishedEvents({ from: 0, to: 5, upcomingOnly: true, sort: 'date-asc' }),
-        timeoutPromise,
-      ]);
+      const result = await EventService.getShowcaseEvents(6);
       if (result.error) {
         setError(result.error);
       } else {
         setEvents(result.events || []);
+        setFeaturedEvent(result.featured || null);
       }
     } catch {
       setError('Failed to load events from database');
@@ -41,20 +36,9 @@ export const Home = () => {
     }
   }, []);
 
-  const loadFeaturedEvent = useCallback(async () => {
-    try {
-      const result = await EventService.getFeaturedEvent();
-      if (result.event) setFeaturedEvent(result.event);
-      else setFeaturedEvent(null);
-    } catch {
-      // optional
-    }
-  }, []);
-
   useEffect(() => {
-    loadEvents();
-    loadFeaturedEvent();
-  }, [loadEvents, loadFeaturedEvent]);
+    loadShowcase();
+  }, [loadShowcase]);
 
   if (user?.role === 'admin' || user?.role === 'organizer' || user?.role === 'participant') {
     return null;
@@ -66,7 +50,7 @@ export const Home = () => {
       featuredEvent={featuredEvent}
       loading={loading}
       error={error}
-      onRetry={loadEvents}
+      onRetry={loadShowcase}
       upcomingLimit={3}
       seeAllLabel="See all events"
     />

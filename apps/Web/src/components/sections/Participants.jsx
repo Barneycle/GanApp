@@ -35,49 +35,28 @@ export const Participants = () => {
       navigate('/setup-profile');
       return;
     }
-    loadEvents();
-    loadFeaturedEvent();
-    loadAlbums();
+    loadShowcase();
   }, [user, isAuthenticated, authLoading, navigate]);
 
-  const loadEvents = async () => {
+  const loadShowcase = async () => {
     try {
       setLoading(true);
       setError(null);
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Loading timeout after 10 seconds')), 10000)
-      );
-      const result = await Promise.race([
-        EventService.getPublishedEvents({ from: 0, to: 5, upcomingOnly: true, sort: 'date-asc' }),
-        timeoutPromise,
+      const [showcase, albumResult] = await Promise.all([
+        EventService.getShowcaseEvents(6),
+        AlbumService.getAlbumHighlights(3),
       ]);
-      if (result.error) {
-        setError(result.error);
+      if (showcase.error) {
+        setError(showcase.error);
       } else {
-        setEvents(result.events || []);
+        setEvents(showcase.events || []);
+        setFeaturedEvent(showcase.featured || null);
       }
+      setAlbums(albumResult.events || []);
     } catch {
       setError('Failed to load events from database');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadFeaturedEvent = async () => {
-    try {
-      const result = await EventService.getFeaturedEvent();
-      setFeaturedEvent(result.event || null);
-    } catch {
-      // optional
-    }
-  };
-
-  const loadAlbums = async () => {
-    try {
-      const result = await AlbumService.getAlbumHighlights(3);
-      setAlbums(result.events || []);
-    } catch {
-      setAlbums([]);
     }
   };
 
@@ -91,7 +70,7 @@ export const Participants = () => {
       featuredEvent={featuredEvent}
       loading={authLoading || loading}
       error={error}
-      onRetry={loadEvents}
+      onRetry={loadShowcase}
       upcomingLimit={3}
       seeAllLabel="See all events"
       showAlbums

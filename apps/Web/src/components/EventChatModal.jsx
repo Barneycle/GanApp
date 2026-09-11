@@ -6,8 +6,7 @@ import { supabase } from '../lib/supabaseClient';
 import { Send, X, Trash2 } from 'lucide-react';
 import { PageSkeleton } from './loading/Skeleton';
 import { SmartSpinner } from './loading/SmartSpinner';
-import { AnimatePresence, motion } from 'framer-motion';
-import { overlayEnter, panelEnter } from './motion/tokens';
+import { Modal } from './Modal';
 
 export const EventChatModal = ({ isOpen, onClose, eventId, eventTitle }) => {
   const { user } = useAuth();
@@ -208,10 +207,11 @@ export const EventChatModal = ({ isOpen, onClose, eventId, eventTitle }) => {
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-    <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" {...overlayEnter}>
-      <motion.div className="flex h-[600px] w-full max-w-2xl flex-col rounded-xl border border-slate-200 bg-white" {...panelEnter}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      panelClassName="flex h-[600px] w-full max-w-2xl flex-col rounded-xl border border-slate-200 bg-white"
+    >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-200">
           <div className="flex-1">
@@ -333,9 +333,6 @@ export const EventChatModal = ({ isOpen, onClose, eventId, eventTitle }) => {
             </>
           )}
         </div>
-      </motion.div>
-    </motion.div>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 };

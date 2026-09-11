@@ -7,6 +7,7 @@ import { Search, Calendar, FileText, Edit, Lock, Unlock, Clock, ArrowRight } fro
 import { useToast } from '../Toast';
 import { PageSkeleton } from '../loading/Skeleton';
 import { ErrorState } from '../ErrorState';
+import { Modal } from '../Modal';
 
 export default function SurveyManagementPage() {
   const { user, isAuthenticated } = useAuth();
@@ -452,9 +453,9 @@ export default function SurveyManagementPage() {
         </div>
 
         {/* Management Modal */}
-        {showModal && selectedSurvey && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        {selectedSurvey && (
+        <Modal isOpen={showModal} onClose={() => setShowModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <div className="p-4 sm:p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xl font-semibold text-gray-900">
@@ -656,7 +657,7 @@ export default function SurveyManagementPage() {
                 )}
               </div>
             </div>
-          </div>
+        </Modal>
         )}
       </div>
     </section>

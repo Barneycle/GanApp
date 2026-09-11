@@ -15,6 +15,7 @@ import { runOptimistic } from '../../hooks/useOptimistic';
 import { SmartSpinner } from '../loading/SmartSpinner';
 import { cardEnter } from '../motion/tokens';
 import { ErrorBanner, ErrorState } from '../ErrorState';
+import { Modal } from '../Modal';
 
 // Sample events data for placeholders
 const sampleEvents = [
@@ -2361,9 +2362,9 @@ export const Events = () => {
         </div>
 
         {/* Registration Confirmation Modal */}
-        {showConfirmationModal && eventToRegister && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6">
+        {eventToRegister && (
+        <Modal isOpen={showConfirmationModal} onClose={() => { setShowConfirmationModal(false); setEventToRegister(null); }}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6">
               <div className="text-center">
                 <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
                   <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2416,13 +2417,13 @@ export const Events = () => {
                 </div>
               </div>
             </div>
-          </div>
+        </Modal>
         )}
 
         {/* Manage Event Modal */}
-        {showManageModal && selectedEvent && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
+        {selectedEvent && (
+        <Modal isOpen={showManageModal} onClose={() => { setShowManageModal(false); setSelectedEvent(null); }}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <div className="text-center mb-6">
                 <h3 className="text-2xl font-semibold text-slate-900 mb-2">
                   Manage Event
@@ -2542,13 +2543,13 @@ export const Events = () => {
                 </button>
               </div>
             </div>
-          </div>
+        </Modal>
         )}
 
         {/* View Registrations Modal */}
-        {showRegistrationsModal && selectedEvent && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
+        {selectedEvent && (
+        <Modal isOpen={showRegistrationsModal} onClose={() => { setShowRegistrationsModal(false); setRegistrations([]); }}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex-1">
                   <h3 className="text-2xl font-semibold text-slate-900 mb-2">
@@ -2724,13 +2725,13 @@ export const Events = () => {
                 </button>
               </div>
             </div>
-          </div>
+        </Modal>
         )}
 
         {/* View Check-Ins Modal */}
-        {showCheckInsModal && selectedEvent && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full p-6 max-h-[90vh] overflow-y-auto">
+        {selectedEvent && (
+        <Modal isOpen={showCheckInsModal} onClose={() => { setShowCheckInsModal(false); setCheckIns([]); setCheckInStats(null); setAutoRefreshCheckIns(false); }}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h3 className="text-2xl font-semibold text-slate-900 mb-2">
@@ -3040,13 +3041,13 @@ export const Events = () => {
                 </button>
               </div>
             </div>
-          </div>
+        </Modal>
         )}
 
         {/* Add Check-In Modal - Participant Selection */}
-        {showParticipantSelectModal && selectedEvent && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-4 sm:p-6 max-h-[80vh] overflow-y-auto">
+        {selectedEvent && (
+        <Modal isOpen={showParticipantSelectModal} onClose={() => { setShowParticipantSelectModal(false); setSelectedParticipantForCheckIn(null); }} zIndex={11000}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-4 sm:p-6 max-h-[80vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-2xl font-semibold text-slate-900">Select Participant</h3>
                 <button
@@ -3139,13 +3140,13 @@ export const Events = () => {
                 </button>
               </div>
             </div>
-          </div>
+        </Modal>
         )}
 
         {/* Add Check-In Confirmation Modal */}
-        {showAddCheckInModal && selectedParticipantForCheckIn && selectedEvent && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6">
+        {selectedParticipantForCheckIn && selectedEvent && (
+        <Modal isOpen={showAddCheckInModal} onClose={() => setShowAddCheckInModal(false)} zIndex={11000}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6">
               <h3 className="text-xl font-semibold text-slate-900 mb-4">Confirm Manual Check-In</h3>
               <div className="space-y-3 mb-6">
                 <div>
@@ -3187,7 +3188,7 @@ export const Events = () => {
                 </button>
               </div>
             </div>
-          </div>
+        </Modal>
         )}
 
         {/* Bulk QR Code Generator Modal */}
@@ -3228,9 +3229,9 @@ export const Events = () => {
         )}
 
         {/* Cancellation Request Modal */}
-        {showCancellationModal && eventToCancel && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6">
+        {eventToCancel && (
+        <Modal isOpen={showCancellationModal} onClose={() => { setShowCancellationModal(false); setEventToCancel(null); setCancellationReason(''); setCancellationDate(''); setCancellationNotes(''); setError(''); }}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6">
               <div className="mb-6">
                 <h3 className="text-xl font-semibold text-slate-900 mb-2">
                   Request Event Cancellation
@@ -3313,7 +3314,7 @@ export const Events = () => {
                 </button>
               </div>
             </div>
-          </div>
+        </Modal>
         )}
       </section>
     </>

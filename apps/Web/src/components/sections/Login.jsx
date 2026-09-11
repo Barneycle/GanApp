@@ -8,6 +8,7 @@ import { LOGIN_ERRORS, fieldForError, inlineError, isBlockingError, toErrorCopy 
 import { FIELD_LIMITS, isValidEmail } from '../../utils/formFields';
 import { CharCount, FieldError, FieldLabel, controlClass } from '../form/Field';
 import { useToast, statusError } from '../Toast';
+import { Modal } from '../Modal';
 
 export const Login = () => {
   const navigate = useNavigate();
@@ -126,7 +127,6 @@ export const Login = () => {
       document.body.style.setProperty('overflow', 'hidden', 'important');
       document.body.style.setProperty('height', '100%', 'important');
       document.body.style.setProperty('max-height', '100vh', 'important');
-      document.body.style.setProperty('position', 'fixed', 'important');
       document.body.style.setProperty('width', '100%', 'important');
       if (root) {
         root.style.setProperty('height', '100%', 'important');
@@ -151,7 +151,6 @@ export const Login = () => {
         document.body.style.removeProperty('overflow');
         document.body.style.removeProperty('height');
         document.body.style.removeProperty('max-height');
-        document.body.style.removeProperty('position');
         document.body.style.removeProperty('width');
         if (root) {
           root.style.removeProperty('height');
@@ -445,19 +444,8 @@ export const Login = () => {
   }
 
   return (
-    <section 
-      className="fixed inset-0 flex items-center justify-center overflow-hidden p-4" 
-      style={{ 
-        height: '100vh', 
-        width: '100vw', 
-        position: 'fixed', 
-        top: 0, 
-        left: 0, 
-        right: 0, 
-        bottom: 0,
-        overflow: 'hidden',
-        maxHeight: '100vh'
-      }}
+    <section
+      className="flex min-h-full w-full items-center justify-center overflow-hidden bg-white p-4"
       onWheel={(e) => e.preventDefault()}
       onTouchMove={(e) => e.preventDefault()}
       role="main"
@@ -661,14 +649,12 @@ export const Login = () => {
       </div>
 
       {/* Forgot Password Modal */}
-      {showForgotPassword && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="forgot-password-title"
-        >
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <Modal
+        isOpen={showForgotPassword}
+        onClose={() => setShowForgotPassword(false)}
+        labelledBy="forgot-password-title"
+        panelClassName="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-2xl"
+      >
             <div className="p-6">
               {/* Header */}
               <div className="mb-6">
@@ -805,9 +791,7 @@ export const Login = () => {
                 </>
               )}
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Terms Modal */}
       <TermsModal

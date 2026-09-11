@@ -41,55 +41,33 @@ export const Organizer = () => {
     }
     if (!hasLoadedRef.current && !loadingRef.current) {
       hasLoadedRef.current = true;
-      loadEvents();
-      loadFeaturedEvent();
-      loadAlbums();
+      loadShowcase();
     }
   }, [user, isAuthenticated, authLoading, navigate]);
 
-  const loadEvents = async () => {
+  const loadShowcase = async () => {
     if (!isVisible || loadingRef.current) return;
     try {
       loadingRef.current = true;
       setLoading(true);
       setError(null);
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Loading timeout after 10 seconds')), 10000)
-      );
-      const result = await Promise.race([
-        EventService.getPublishedEvents({ from: 0, to: 5, upcomingOnly: true, sort: 'date-asc' }),
-        timeoutPromise,
+      const [showcase, albumResult] = await Promise.all([
+        EventService.getShowcaseEvents(6),
+        AlbumService.getAlbumHighlights(3),
       ]);
       if (!isVisible) return;
-      if (result.error) {
-        setError(result.error);
+      if (showcase.error) {
+        setError(showcase.error);
       } else {
-        setEvents(result.events || []);
+        setEvents(showcase.events || []);
+        setFeaturedEvent(showcase.featured || null);
       }
+      setAlbums(albumResult.events || []);
     } catch {
       if (isVisible) setError('Failed to load events from database');
     } finally {
       loadingRef.current = false;
       if (isVisible) setLoading(false);
-    }
-  };
-
-  const loadFeaturedEvent = async () => {
-    if (!isVisible) return;
-    try {
-      const result = await EventService.getFeaturedEvent();
-      if (isVisible) setFeaturedEvent(result.event || null);
-    } catch {
-      // optional
-    }
-  };
-
-  const loadAlbums = async () => {
-    try {
-      const result = await AlbumService.getAlbumHighlights(3);
-      if (isVisible) setAlbums(result.events || []);
-    } catch {
-      if (isVisible) setAlbums([]);
     }
   };
 
@@ -103,7 +81,7 @@ export const Organizer = () => {
       featuredEvent={featuredEvent}
       loading={authLoading || loading}
       error={error}
-      onRetry={loadEvents}
+      onRetry={loadShowcase}
       emptyActionLabel="Create one"
       onEmptyAction={() => navigate('/create-event')}
       upcomingLimit={3}

@@ -82,30 +82,15 @@ export class EventService {
       try {
         const { data, error } = await supabase
           .from('events')
-          .select('*')
+          .select(EventService.EVENT_LIST_SELECT)
+          .eq('event_registrations.status', 'registered')
           .order('created_at', { ascending: false });
 
         if (error) {
           return { error: error.message };
         }
 
-        // Calculate current participants for each event
-        const eventsWithParticipants = await Promise.all(
-          data.map(async (event) => {
-            const { count } = await supabase
-              .from('event_registrations')
-              .select('*', { count: 'exact', head: true })
-              .eq('event_id', event.id)
-              .eq('status', 'registered'); // Only count 'registered' status
-
-            return {
-              ...event,
-              current_participants: count || 0
-            };
-          })
-        );
-
-        return { events: eventsWithParticipants };
+        return { events: (data || []).map((row) => EventService.withEmbeddedRegistrationCount(row)) };
       } catch (error) {
         return { error: 'An unexpected error occurred' };
       }
@@ -270,35 +255,23 @@ export class EventService {
     }
   }
 
+  private static readonly EVENT_LIST_SELECT = '*, event_registrations(count)';
+
   private static escapeIlike(value: string): string {
     return value.replace(/[%_,()]/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
-  private static async attachParticipantCounts(events: Event[]): Promise<Event[]> {
-    if (!events.length) return events;
-
-    const { data, error } = await supabase
-      .from('event_registrations')
-      .select('event_id')
-      .in('event_id', events.map((event) => event.id))
-      .eq('status', 'registered');
-
-    if (error) {
-      return events.map((event) => ({
-        ...event,
-        current_participants: event.current_participants || 0,
-      }));
-    }
-
-    const counts: Record<string, number> = {};
-    (data || []).forEach((row: { event_id: string }) => {
-      counts[row.event_id] = (counts[row.event_id] || 0) + 1;
-    });
-
-    return events.map((event) => ({
+  private static withEmbeddedRegistrationCount(row: Record<string, any>): Event {
+    const embeddedCount = Array.isArray(row?.event_registrations)
+      ? row.event_registrations[0]?.count
+      : undefined;
+    const { event_registrations: _ignored, ...event } = row || {};
+    return {
       ...event,
-      current_participants: counts[event.id] || 0,
-    }));
+      current_participants: typeof embeddedCount === 'number'
+        ? embeddedCount
+        : (event.current_participants || 0),
+    } as Event;
   }
 
   private static applyEventListOptions(query: any, options: EventListOptions) {
@@ -384,7 +357,10 @@ export class EventService {
         return { events: cached.events, count: cached.count };
       }
 
-      let query = supabase.from('events').select('*', { count: 'exact' });
+      let query = supabase
+        .from('events')
+        .select(EventService.EVENT_LIST_SELECT, { count: 'exact' })
+        .eq('event_registrations.status', 'registered');
       query = this.applyEventListOptions(query, options);
 
       const { data, error, count } = await query;
@@ -396,7 +372,7 @@ export class EventService {
         return { error: error.message };
       }
 
-      const eventsWithParticipants = await this.attachParticipantCounts(data || []);
+      const eventsWithParticipants = (data || []).map((row) => this.withEmbeddedRegistrationCount(row));
       await CacheService.set(
         cacheKey,
         { events: eventsWithParticipants, count: count ?? 0 },
@@ -455,6 +431,37 @@ export class EventService {
       ...options,
       status: options.category ? undefined : (options.status || 'published'),
     });
+  }
+
+  /**
+   * Home/showcase teaser: one lightweight query, no registration embed,
+   * no exact count, no cache lookup. Featured is the is_featured row
+   * among upcoming events, otherwise the soonest upcoming event.
+   */
+  static async getShowcaseEvents(
+    limit = 6
+  ): Promise<{ events?: Event[]; featured?: Event; error?: string }> {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('status', 'published')
+        .gte('end_date', today)
+        .order('is_featured', { ascending: false, nullsFirst: false })
+        .order('start_date', { ascending: true })
+        .limit(limit);
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      const events = (data || []) as Event[];
+      const featured = events.find((event) => event.is_featured) || events[0];
+      return { events, featured };
+    } catch (error) {
+      return { error: 'An unexpected error occurred' };
+    }
   }
 
   static async updateEventStatus(id: string, status: string): Promise<{ event?: Event; error?: string }> {

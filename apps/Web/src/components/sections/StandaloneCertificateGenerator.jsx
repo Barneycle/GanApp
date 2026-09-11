@@ -28,11 +28,12 @@ import {
   X,
 } from 'lucide-react';
 import { JobStatusViewer } from '../JobStatusViewer';
+import { Modal } from '../Modal';
 import { ErrorBanner } from '../ErrorState';
 import { FieldError, FieldLabel, controlClass } from '../form/Field';
 import { PageSkeleton } from '../loading/Skeleton';
 import { ProgressBar } from '../loading/ProgressBar';
-import { overlayEnter, pageEnter, panelEnter } from '../motion/tokens';
+import { pageEnter } from '../motion/tokens';
 
 const CARD = 'rounded-xl border border-slate-200 bg-white p-5 sm:p-6';
 const PRIMARY_BTN =
@@ -1531,20 +1532,11 @@ export const StandaloneCertificateGenerator = () => {
         </div>
       </div>
 
-      <AnimatePresence>
-        {showCustomizer && selectedEventId ? (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-            onClick={(event) => {
-              if (event.target === event.currentTarget) setShowCustomizer(false);
-            }}
-            {...overlayEnter}
-          >
-            <motion.div
-              className="flex h-full max-h-[98vh] w-full max-w-[98vw] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white"
-              onClick={(e) => e.stopPropagation()}
-              {...panelEnter}
-            >
+      <Modal
+        isOpen={showCustomizer && !!selectedEventId}
+        onClose={() => setShowCustomizer(false)}
+        panelClassName="flex h-full max-h-[98vh] w-full max-w-[98vw] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white"
+      >
               <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                 <div>
                   <h2 className="text-lg font-semibold tracking-tight text-slate-900">Certificate design</h2>
@@ -1569,25 +1561,13 @@ export const StandaloneCertificateGenerator = () => {
                   draftMode={false}
                 />
               </div>
-            </motion.div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+      </Modal>
 
-      <AnimatePresence>
-        {showJobStatus ? (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-            onClick={(event) => {
-              if (event.target === event.currentTarget) setShowJobStatus(false);
-            }}
-            {...overlayEnter}
-          >
-            <motion.div
-              className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white"
-              onClick={(e) => e.stopPropagation()}
-              {...panelEnter}
-            >
+      <Modal
+        isOpen={showJobStatus}
+        onClose={() => setShowJobStatus(false)}
+        panelClassName="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white"
+      >
               <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                 <h2 className="text-lg font-semibold tracking-tight text-slate-900">Generation status</h2>
                 <button
@@ -1606,10 +1586,7 @@ export const StandaloneCertificateGenerator = () => {
                   onJobComplete={() => {}}
                 />
               </div>
-            </motion.div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+      </Modal>
     </motion.section>
   );
 };

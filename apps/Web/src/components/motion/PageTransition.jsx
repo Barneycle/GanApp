@@ -4,6 +4,11 @@ import { fadeEnter, pageEnter } from './tokens';
 
 const AUTH = new Set(['/login', '/registration', '/reset-password']);
 
+const pageKey = (pathname) => {
+  if (pathname.startsWith('/albums/')) return '/albums';
+  return pathname;
+};
+
 export const PageTransition = ({ children }) => {
   const location = useLocation();
   const skip = location.pathname.startsWith('/admin');
@@ -12,7 +17,7 @@ export const PageTransition = ({ children }) => {
 
   return (
     <AnimatePresence mode="sync" initial={false}>
-      <motion.div key={location.pathname} {...motionProps}>
+      <motion.div key={pageKey(location.pathname)} {...motionProps}>
         {children}
       </motion.div>
     </AnimatePresence>
