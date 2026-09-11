@@ -248,12 +248,109 @@
   color: rgb(30, 41, 59);
 }
 
+.simple-rich-text-editor-wrapper.is-compact .ProseMirror {
+  min-height: 2.5rem;
+  padding: 10px 14px;
+}
+
 .simple-rich-text-editor-wrapper .ProseMirror p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder);
+  content: var(--editor-placeholder, '');
   float: left;
   color: rgb(148, 163, 184);
   pointer-events: none;
   height: 0;
+}
+
+.simple-rte-title,
+.simple-rte-description {
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+}
+
+.simple-rte-title .editor-toolbar,
+.simple-rte-description .editor-toolbar {
+  margin: 0;
+  padding: 2px;
+  gap: 2px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.simple-rte-title .toolbar-button,
+.simple-rte-description .toolbar-button {
+  height: 32px;
+  width: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgb(71, 85, 105);
+}
+
+.simple-rte-title .toolbar-button:hover,
+.simple-rte-description .toolbar-button:hover {
+  background: rgb(241, 245, 249);
+  border: none;
+}
+
+.simple-rte-title .toolbar-button.is-active,
+.simple-rte-description .toolbar-button.is-active {
+  background: rgb(219, 234, 254);
+  color: rgb(30, 58, 138);
+  border: none;
+}
+
+.simple-rte-toolbar {
+  display: none;
+  margin-bottom: 2px;
+}
+
+.simple-rte-toolbar.is-visible {
+  display: flex;
+}
+
+.toolbar-divider {
+  width: 1px;
+  margin: 6px 4px;
+  background: rgb(226, 232, 240);
+}
+
+.simple-rte-title .ProseMirror {
+  min-height: 0;
+  padding: 4px 0 10px;
+  font-size: 28px;
+  line-height: 1.25;
+  font-weight: 400;
+  color: rgb(15, 23, 42);
+  border-bottom: 1px solid rgb(226, 232, 240);
+}
+
+.simple-rte-title.is-focused .ProseMirror {
+  border-bottom-color: rgb(30, 58, 138);
+}
+
+.simple-rte-title .ProseMirror p.is-editor-empty:first-child::before {
+  color: rgb(148, 163, 184);
+  font-weight: 400;
+}
+
+.simple-rte-description .ProseMirror {
+  min-height: 0;
+  padding: 6px 0 8px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: rgb(71, 85, 105);
+  border-bottom: 1px solid rgb(226, 232, 240);
+}
+
+.simple-rte-description.is-focused .ProseMirror {
+  border-bottom-color: rgb(30, 58, 138);
+}
+
+.simple-rte-description .ProseMirror p.is-editor-empty:first-child::before {
+  color: rgb(163, 174, 191);
 }
 
 .simple-rich-text-editor-wrapper .ProseMirror p {

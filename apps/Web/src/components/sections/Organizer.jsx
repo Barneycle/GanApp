@@ -80,7 +80,7 @@ export const Organizer = () => {
     if (!isVisible) return;
     try {
       const result = await EventService.getFeaturedEvent();
-      if (isVisible && result.event) setFeaturedEvent(result.event);
+      if (isVisible) setFeaturedEvent(result.event || null);
     } catch {
       // optional
     }

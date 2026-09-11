@@ -101,9 +101,7 @@ export default function Index() {
   const loadFeaturedEvent = async () => {
     try {
       const result = await EventService.getFeaturedEvent();
-      if (result.event) {
-        setFeaturedEvent(result.event);
-      }
+      setFeaturedEvent(result.event || null);
     } catch (err) {
       // Silently fail - will fallback to first event
     }

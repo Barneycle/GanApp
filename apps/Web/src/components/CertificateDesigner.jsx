@@ -286,8 +286,12 @@ const CertificateDesigner = ({ eventId, onSave, draftMode = false, draftStorageK
           setConfig(mergedConfig);
 
         } else {
-          // Use default config if no draft exists
           setConfig(defaultConfig);
+          try {
+            sessionStorage.setItem(draftStorageKey, JSON.stringify(defaultConfig));
+          } catch {
+            // Ignore session write failures
+          }
         }
       } catch (err) {
         console.error('Failed to load draft config:', err);

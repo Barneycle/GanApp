@@ -2,72 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { SurveyService } from '../../services/surveyService';
 import { useAuth } from '../../contexts/AuthContext';
 import SimpleRichTextEditor from '../SimpleRichTextEditor';
 import { PageSkeleton } from '../loading/Skeleton';
 import { SmartSpinner } from '../loading/SmartSpinner';
-
 import { logActivity } from '../../utils/activityLogger';
-
-// Zod validation schema for survey questions
-const questionSchema = z.object({
-  questionText: z.string().refine((val) => {
-    if (!val) return false;
-    // Extract plain text from HTML for validation
-    if (typeof document !== 'undefined') {
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = val;
-      const plainText = tempDiv.textContent || tempDiv.innerText || '';
-      return plainText.trim().length > 0;
-    }
-    // Fallback for server-side validation
-    return val.trim().length > 0;
-  }, 'Question text is required'),
-  questionType: z.enum([
-    'short-answer', 'paragraph', 'multiple-choice', 'checkbox', 
-    'dropdown', 'linear-scale', 'star-rating', 'multiple-choice-grid', 
-    'checkbox-grid', 'date', 'time'
-  ]),
-  options: z.array(z.string()).optional(),
-  required: z.boolean().default(false),
-  scaleMin: z.number().min(1).max(10).optional(),
-  scaleMax: z.number().min(1).max(10).optional(),
-  lowestLabel: z.string().optional(),
-  highestLabel: z.string().optional(),
-  rows: z.array(z.string()).optional(),
-  columns: z.array(z.string()).optional(),
-});
-
-// Zod validation schema for survey sections
-const sectionSchema = z.object({
-  sectionTitle: z.string().optional().refine((val) => {
-    if (!val) return true; // Optional, so empty is valid
-    // Extract plain text from HTML for validation
-    if (typeof document !== 'undefined') {
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = val;
-      const plainText = tempDiv.textContent || tempDiv.innerText || '';
-      return plainText.trim().length > 0 || true; // Allow empty for optional field
-    }
-    // Fallback for server-side validation
-    return true;
-  }, 'Section title must have content if provided'),
-  sectionDescription: z.string().optional(),
-  questions: z.array(questionSchema).min(1, 'At least one question is required in each section'),
-});
-
-const editSurveySchema = z.object({
-  title: z.string().min(1, 'Survey title is required'),
-  description: z.string().optional(),
-  sections: z.array(sectionSchema).min(1, 'At least one section is required'),
-});
+import { useToast } from '../Toast';
+import { emptyQuestion, emptySection } from '../survey/surveyConstants';
+import { editSurveySchema } from '../survey/surveySchemas';
+import { duplicateQuestionInList, resetFieldsForQuestionType, transformApiQuestionsToSections, transformSectionsToApiQuestions } from '../survey/surveyTransforms';
 
 export const EditSurvey = () => {
   const navigate = useNavigate();
   const { surveyId } = useParams();
   const { user } = useAuth();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -81,26 +31,7 @@ export const EditSurvey = () => {
     defaultValues: {
       title: '',
       description: '',
-      sections: [
-        {
-          sectionTitle: '',
-          sectionDescription: '',
-          questions: [
-            {
-              questionText: '',
-              questionType: 'short-answer',
-              options: [''],
-              required: false,
-              scaleMin: 1,
-              scaleMax: 5,
-              lowestLabel: '',
-              highestLabel: '',
-              rows: [''],
-              columns: [''],
-            },
-          ],
-        },
-      ],
+      sections: [emptySection()],
     },
   });
 
@@ -141,101 +72,14 @@ export const EditSurvey = () => {
       const loadedSurvey = result.survey;
       setSurvey(loadedSurvey);
 
-      console.log('Loaded survey:', loadedSurvey);
-      console.log('Loaded survey questions:', loadedSurvey.questions);
+      const sections = transformApiQuestionsToSections(loadedSurvey.questions);
 
-      // Transform questions back into sections format
-      const sections = [];
-      let currentSection = null;
-      let currentSectionIndex = -1;
-
-      if (loadedSurvey.questions && Array.isArray(loadedSurvey.questions) && loadedSurvey.questions.length > 0) {
-        loadedSurvey.questions.forEach((question) => {
-          const sectionTitle = question.sectionTitle;
-          const sectionDescription = question.sectionDescription;
-          const sectionIndex = question.sectionIndex !== undefined ? question.sectionIndex : -1;
-
-          // Check if we need to create a new section
-          if (!currentSection || 
-              (sectionTitle && currentSection.sectionTitle !== sectionTitle) ||
-              (sectionIndex !== -1 && currentSectionIndex !== sectionIndex)) {
-            currentSection = {
-              sectionTitle: sectionTitle || '',
-              sectionDescription: sectionDescription || '',
-              questions: []
-            };
-            sections.push(currentSection);
-            currentSectionIndex = sectionIndex !== -1 ? sectionIndex : sections.length - 1;
-          }
-
-          // Add question to current section
-          const questionData = {
-            questionText: question.questionText || question.question || '',
-            questionType: question.questionType || question.type || 'short-answer',
-            options: Array.isArray(question.options) ? question.options : (question.options ? [question.options] : []),
-            required: question.required || false,
-            scaleMin: question.scaleMin || question.min_rating || 1,
-            scaleMax: question.scaleMax || question.max_rating || 5,
-            lowestLabel: question.lowestLabel || '',
-            highestLabel: question.highestLabel || '',
-            rows: Array.isArray(question.rows) ? question.rows : (question.rows ? [question.rows] : []),
-            columns: Array.isArray(question.columns) ? question.columns : (question.columns ? [question.columns] : []),
-          };
-          
-          console.log('Adding question to section:', questionData);
-          currentSection.questions.push(questionData);
-        });
-      }
-
-      // If no sections were created, create a default one
-      if (sections.length === 0) {
-        sections.push({
-          sectionTitle: '',
-          sectionDescription: '',
-          questions: [{
-            questionText: '',
-            questionType: 'short-answer',
-            options: [''],
-            required: false,
-            scaleMin: 1,
-            scaleMax: 5,
-            lowestLabel: '',
-            highestLabel: '',
-            rows: [''],
-            columns: [''],
-          }]
-        });
-      }
-
-      // Ensure all questions have required fields with defaults
-      sections.forEach(section => {
-        section.questions.forEach(question => {
-          if (!question.options) question.options = [];
-          if (!question.rows) question.rows = [];
-          if (!question.columns) question.columns = [];
-          if (question.options.length === 0 && (question.questionType === 'multiple-choice' || question.questionType === 'checkbox' || question.questionType === 'dropdown')) {
-            question.options = [''];
-          }
-          if (question.rows.length === 0 && (question.questionType === 'multiple-choice-grid' || question.questionType === 'checkbox-grid')) {
-            question.rows = [''];
-          }
-          if (question.columns.length === 0 && (question.questionType === 'multiple-choice-grid' || question.questionType === 'checkbox-grid')) {
-            question.columns = [''];
-          }
-        });
-      });
-
-      // Reset form with loaded data - this properly updates useFieldArray
       const formData = {
         title: loadedSurvey.title || '',
         description: loadedSurvey.description || '',
         sections: sections
       };
-      
-      console.log('Setting form data:', formData);
-      console.log('Sections count:', sections.length);
-      console.log('Total questions:', sections.reduce((sum, s) => sum + (s.questions?.length || 0), 0));
-      
+
       // Use reset to properly update the form and useFieldArray
       reset(formData);
       
@@ -253,24 +97,7 @@ export const EditSurvey = () => {
   };
 
   const addSection = () => {
-    appendSection({
-      sectionTitle: '',
-      sectionDescription: '',
-      questions: [
-        {
-          questionText: '',
-          questionType: 'short-answer',
-          options: [''],
-          required: false,
-          scaleMin: 1,
-          scaleMax: 5,
-          lowestLabel: '',
-          highestLabel: '',
-          rows: [''],
-          columns: [''],
-        },
-      ],
-    });
+    appendSection(emptySection());
   };
 
   const removeSection = (index) => {
@@ -284,18 +111,7 @@ export const EditSurvey = () => {
     const currentQuestions = watch(`sections.${sectionIndex}.questions`) || [];
     setValue(`sections.${sectionIndex}.questions`, [
       ...currentQuestions,
-      {
-        questionText: '',
-        questionType: 'short-answer',
-        options: [''],
-        required: false,
-        scaleMin: 1,
-        scaleMax: 5,
-        lowestLabel: '',
-        highestLabel: '',
-        rows: [''],
-        columns: [''],
-      },
+      emptyQuestion(),
     ]);
   };
 
@@ -308,20 +124,7 @@ export const EditSurvey = () => {
   };
 
   const changeQuestionType = (sectionIndex, questionIndex, newType) => {
-    setValue(`sections.${sectionIndex}.questions.${questionIndex}.questionType`, newType);
-    
-    // Reset type-specific fields when changing question type
-    if (newType === 'multiple-choice' || newType === 'checkbox' || newType === 'dropdown') {
-      setValue(`sections.${sectionIndex}.questions.${questionIndex}.options`, ['']);
-    } else if (newType === 'linear-scale' || newType === 'star-rating') {
-      setValue(`sections.${sectionIndex}.questions.${questionIndex}.scaleMin`, 1);
-      setValue(`sections.${sectionIndex}.questions.${questionIndex}.scaleMax`, 5);
-      setValue(`sections.${sectionIndex}.questions.${questionIndex}.lowestLabel`, '');
-      setValue(`sections.${sectionIndex}.questions.${questionIndex}.highestLabel`, '');
-    } else if (newType === 'multiple-choice-grid' || newType === 'checkbox-grid') {
-      setValue(`sections.${sectionIndex}.questions.${questionIndex}.rows`, ['']);
-      setValue(`sections.${sectionIndex}.questions.${questionIndex}.columns`, ['']);
-    }
+    resetFieldsForQuestionType(setValue, `sections.${sectionIndex}.questions.${questionIndex}`, newType);
   };
 
   const addOption = (sectionIndex, questionIndex) => {
@@ -368,22 +171,7 @@ export const EditSurvey = () => {
     const questionToDuplicate = currentQuestions[questionIndex];
     
     if (questionToDuplicate) {
-      const duplicatedQuestion = {
-        questionText: questionToDuplicate.questionText || '',
-        questionType: questionToDuplicate.questionType || 'short-answer',
-        options: questionToDuplicate.options ? [...questionToDuplicate.options] : [''],
-        required: questionToDuplicate.required || false,
-        scaleMin: questionToDuplicate.scaleMin || 1,
-        scaleMax: questionToDuplicate.scaleMax || 5,
-        lowestLabel: questionToDuplicate.lowestLabel || '',
-        highestLabel: questionToDuplicate.highestLabel || '',
-        rows: questionToDuplicate.rows ? [...questionToDuplicate.rows] : [''],
-        columns: questionToDuplicate.columns ? [...questionToDuplicate.columns] : [''],
-      };
-      
-      const newQuestions = [...currentQuestions];
-      newQuestions.splice(questionIndex + 1, 0, duplicatedQuestion);
-      setValue(`sections.${sectionIndex}.questions`, newQuestions);
+      setValue(`sections.${sectionIndex}.questions`, duplicateQuestionInList(currentQuestions, questionIndex));
     }
   };
 
@@ -397,61 +185,8 @@ export const EditSurvey = () => {
     setError(null);
 
     try {
-      // Transform sections and questions to match the Survey interface
-      let questionIndex = 1;
-      const transformedQuestions = [];
-      
-      if (!data.sections || !Array.isArray(data.sections)) {
-        throw new Error('Survey sections data is missing or invalid');
-      }
-      
-      data.sections.forEach((section, sectionIndex) => {
-        if (!section.questions || !Array.isArray(section.questions)) {
-          return;
-        }
-        
-        section.questions.forEach((q) => {
-          const transformedQuestion = {
-            id: `q_${questionIndex}`,
-            questionType: q.questionType,
-            type: q.questionType === 'multiple-choice' || q.questionType === 'checkbox' ? 'multiple_choice' : 
-                   q.questionType === 'linear-scale' || q.questionType === 'star-rating' ? 'rating' : 
-                   q.questionType === 'multiple-choice-grid' ? 'multiple_choice_grid' :
-                   q.questionType === 'checkbox-grid' ? 'checkbox_grid' :
-                   q.questionType === 'yes-no' ? 'yes_no' : 
-                   q.questionType === 'short-answer' ? 'text' :
-                   q.questionType === 'paragraph' ? 'text' :
-                   q.questionType === 'dropdown' ? 'dropdown' :
-                   q.questionType === 'date' ? 'date' :
-                   q.questionType === 'time' ? 'time' : 'text',
-            question: q.questionText,
-            questionText: q.questionText,
-            required: q.required || false,
-            options: (q.questionType === 'multiple-choice' || q.questionType === 'checkbox' || q.questionType === 'dropdown') && 
-                     q.options && q.options.length > 0 ? q.options.filter(opt => opt && opt.trim()) : undefined,
-            min_rating: q.scaleMin,
-            max_rating: q.scaleMax,
-            scaleMin: q.scaleMin,
-            scaleMax: q.scaleMax,
-            lowestLabel: q.lowestLabel || undefined,
-            highestLabel: q.highestLabel || undefined,
-            rows: (q.questionType === 'multiple-choice-grid' || q.questionType === 'checkbox-grid') && 
-                  q.rows && q.rows.length > 0 ? q.rows.filter(row => row && row.trim()) : undefined,
-            columns: (q.questionType === 'multiple-choice-grid' || q.questionType === 'checkbox-grid') && 
-                     q.columns && q.columns.length > 0 ? q.columns.filter(col => col && col.trim()) : undefined,
-            sectionTitle: section.sectionTitle || undefined,
-            sectionDescription: section.sectionDescription || undefined,
-            sectionIndex: sectionIndex
-          };
-          transformedQuestions.push(transformedQuestion);
-          questionIndex++;
-        });
-      });
-      
-      if (transformedQuestions.length === 0) {
-        throw new Error('At least one question is required in the survey');
-      }
-      
+      const transformedQuestions = transformSectionsToApiQuestions(data.sections);
+
       const updateData = {
         title: data.title,
         description: data.description,

@@ -50,6 +50,7 @@ export const Home = () => {
     try {
       const result = await EventService.getFeaturedEvent();
       if (result.event) setFeaturedEvent(result.event);
+      else setFeaturedEvent(null);
     } catch {
       // optional
     }

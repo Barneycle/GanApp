@@ -11,11 +11,12 @@ ganapp/
 ├── android/           # Native Android project for Expo
 ├── schemas/           # SQL reference, migrations, and patches
 ├── supabase/          # Edge functions and local Supabase config
+├── packages/shared/   # Small isomorphic helpers (SpeakerService factory)
 ├── docs/              # User manuals and setup notes
 └── scripts/           # Utility scripts
 ```
 
-There is no `packages/shared` workspace. Web and Mobile each have their own dependencies and services.
+Web and Mobile still have their own app dependencies. Event, user, and survey services stay platform-specific. Speaker CRUD is shared via `packages/shared`.
 
 ## Requirements
 

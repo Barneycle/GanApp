@@ -285,6 +285,11 @@ body.no-scroll #root {
   display: none;
 }
 
+@keyframes continue-bar {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(420%); }
+}
+
 .rich-text-content h1,
 .rich-text-content h2,
 .rich-text-content h3,

@@ -2,25 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { motion } from 'framer-motion';
 import {
-  Calendar,
-  Check,
   ChevronLeft,
-  Circle,
-  Clock,
-  Copy,
   Eye,
-  GripVertical,
   LayoutGrid,
-  List,
   LoaderCircle,
   Pencil,
   Plus,
-  Star,
   Trash2,
-  Type,
 } from 'lucide-react';
 import { EventService } from '../../services/eventService';
 import { SpeakerService } from '../../services/speakerService';
@@ -32,135 +21,13 @@ import SimpleRichTextEditor from '../SimpleRichTextEditor';
 import { useToast, statusDialog } from '../Toast';
 import { FieldError } from '../form/Field';
 import { isValidPhMobile, normalizePhMobile } from '../../utils/formFields';
-
-const QUESTION_TYPES = [
-  { value: 'short-answer', label: 'Short answer', icon: Type },
-  { value: 'paragraph', label: 'Paragraph', icon: Type },
-  { value: 'multiple-choice', label: 'Multiple choice', icon: Circle },
-  { value: 'checkbox', label: 'Checkboxes', icon: Check },
-  { value: 'dropdown', label: 'Dropdown', icon: List },
-  { value: 'linear-scale', label: 'Linear scale', icon: GripVertical },
-  { value: 'star-rating', label: 'Star rating', icon: Star },
-  { value: 'multiple-choice-grid', label: 'Multiple choice grid', icon: LayoutGrid },
-  { value: 'checkbox-grid', label: 'Checkbox grid', icon: LayoutGrid },
-  { value: 'date', label: 'Date', icon: Calendar },
-  { value: 'time', label: 'Time', icon: Clock },
-];
-
-const emptyQuestion = () => ({
-  questionText: '',
-  questionType: 'short-answer',
-  options: [''],
-  required: false,
-  scaleMin: 1,
-  scaleMax: 5,
-  lowestLabel: '',
-  highestLabel: '',
-  rows: [''],
-  columns: [''],
-});
-
-const emptySection = () => ({
-  sectionTitle: '',
-  sectionDescription: '',
-  questions: [emptyQuestion()],
-});
-
-function RailIconButton({ label, onClick, children }) {
-  const [showTip, setShowTip] = useState(false);
-  const timerRef = useRef(null);
-
-  const clearTipTimer = () => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  };
-
-  const handleEnter = () => {
-    clearTipTimer();
-    timerRef.current = setTimeout(() => setShowTip(true), 700);
-  };
-
-  const handleLeave = () => {
-    clearTipTimer();
-    setShowTip(false);
-  };
-
-  useEffect(() => () => clearTipTimer(), []);
-
-  return (
-    <div className="relative" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
-      <motion.button
-        type="button"
-        onClick={(event) => {
-          clearTipTimer();
-          setShowTip(false);
-          onClick?.(event);
-        }}
-        whileTap={{ scale: 0.82 }}
-        transition={{ type: 'spring', stiffness: 500, damping: 22 }}
-        className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-blue-900"
-        aria-label={label}
-      >
-        {children}
-      </motion.button>
-      {showTip && (
-        <span
-          role="tooltip"
-          className="pointer-events-none absolute left-full top-1/2 z-30 ml-2.5 -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2.5 py-1 text-xs font-medium text-white shadow-sm"
-        >
-          {label}
-        </span>
-      )}
-    </div>
-  );
-}
-
-// Zod validation schema for survey questions
-const questionSchema = z.object({
-  questionText: z.string().min(1, 'Question text is required'),
-  questionType: z.enum([
-    'short-answer', 'paragraph', 'multiple-choice', 'checkbox',
-    'dropdown', 'linear-scale', 'star-rating', 'multiple-choice-grid',
-    'checkbox-grid', 'date', 'time'
-  ]),
-  options: z.array(z.string()).optional(),
-  required: z.boolean().default(false),
-  scaleMin: z.number().min(1).max(10).optional(),
-  scaleMax: z.number().min(1).max(10).optional(),
-  lowestLabel: z.string().optional(),
-  highestLabel: z.string().optional(),
-  rows: z.array(z.string()).optional(),
-  columns: z.array(z.string()).optional(),
-});
-
-// Zod validation schema for survey sections
-const sectionSchema = z.object({
-  sectionTitle: z.string().refine((val) => {
-    if (!val) return false;
-    // Extract plain text from HTML for validation
-    if (typeof document !== 'undefined') {
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = val;
-      const plainText = tempDiv.textContent || tempDiv.innerText || '';
-      // Check if there's actual content (not just whitespace or empty tags)
-      const trimmed = plainText.trim();
-      // Also check if HTML contains actual content (not just <p></p> or <p><br></p>)
-      const hasContent = trimmed.length > 0 && !/^[\s\n\r]*$/.test(trimmed);
-      return hasContent;
-    }
-    // Fallback for server-side validation - strip HTML tags
-    const stripped = val.replace(/<[^>]*>/g, '').trim();
-    return stripped.length > 0;
-  }, 'Section title is required'),
-  sectionDescription: z.string().optional(),
-  questions: z.array(questionSchema).min(1, 'At least one question is required in each section'),
-});
-
-const createSurveySchema = z.object({
-  sections: z.array(sectionSchema).min(1, 'At least one section is required'),
-});
+import { emptyQuestion, emptySection, htmlHasText } from '../survey/surveyConstants';
+import { createSurveySchema } from '../survey/surveySchemas';
+import { duplicateQuestionInList, resetFieldsForQuestionType, transformSectionsToApiQuestions } from '../survey/surveyTransforms';
+import { RailIconButton } from '../survey/RailIconButton';
+import { QuestionPreview } from '../survey/QuestionPreview';
+import { SurveyQuestionCard } from '../survey/SurveyQuestionCard';
+import { EventPipelineTracker, isCertificateConfigured, isPipelineCertificateDone, markPipelineCertificateDone, readSessionCertificateConfig, clearPipelineCertificateFlags } from '../eventForm/EventPipelineTracker';
 
 export const CreateSurvey = () => {
   const navigate = useNavigate();
@@ -174,7 +41,7 @@ export const CreateSurvey = () => {
   const [_pendingEventFiles, setPendingEventFiles] = useState(null);
   const [pendingSpeakers, setPendingSpeakers] = useState([]);
   const [pendingSponsors, setPendingSponsors] = useState([]);
-  const [hasCertificateConfig, setHasCertificateConfig] = useState(false);
+  const [hasCertificateConfig, setHasCertificateConfig] = useState(() => isPipelineCertificateDone());
   // Get saved form data from session storage
   const getSavedFormData = () => {
     try {
@@ -234,14 +101,17 @@ export const CreateSurvey = () => {
 
   const watchedSections = watch("sections");
 
-  // Trigger validation when sections change (debounced to avoid excessive calls)
+  const didMountValidate = useRef(false);
   useEffect(() => {
-    if (watchedSections && watchedSections.length > 0) {
-      const timeoutId = setTimeout(() => {
-        trigger(); // Trigger validation for all fields
-      }, 300); // Debounce validation by 300ms
-      return () => clearTimeout(timeoutId);
+    if (!watchedSections || watchedSections.length === 0) return;
+    if (!didMountValidate.current) {
+      didMountValidate.current = true;
+      return;
     }
+    const timeoutId = setTimeout(() => {
+      trigger();
+    }, 300);
+    return () => clearTimeout(timeoutId);
   }, [watchedSections, trigger]);
 
 
@@ -277,53 +147,49 @@ export const CreateSurvey = () => {
       navigate('/create-event');
     }
 
-    // Check if certificate config exists
-    const certConfig = sessionStorage.getItem('pending-certificate-config');
-    if (certConfig) {
+    const applyCertificateState = (config) => {
+      if (!isCertificateConfigured(config)) return false;
+      setHasCertificateConfig(true);
+      markPipelineCertificateDone();
       try {
-        const parsed = JSON.parse(certConfig);
-        // Check if config has meaningful content (not just defaults)
-        if (parsed && (parsed.title_text || parsed.name_config || parsed.header_config)) {
-          setHasCertificateConfig(true);
+        if (!sessionStorage.getItem('pending-certificate-config')) {
+          sessionStorage.setItem('pending-certificate-config', JSON.stringify(config));
         }
-      } catch (e) {
-        // Invalid config, treat as not saved
-        setHasCertificateConfig(false);
+      } catch {
+        // Ignore session write failures
       }
+      return true;
+    };
+
+    if (isPipelineCertificateDone() || applyCertificateState(readSessionCertificateConfig())) {
+      setHasCertificateConfig(true);
+    }
+
+    const existingEventId = sessionStorage.getItem('pending-event-id');
+    if (existingEventId) {
+      CertificateService.getCertificateConfig(existingEventId).then(({ config }) => {
+        applyCertificateState(config);
+      });
     }
   }, [navigate]);
 
-  // Listen for certificate config changes (when user saves draft)
   useEffect(() => {
     const checkCertificateConfig = () => {
-      const certConfig = sessionStorage.getItem('pending-certificate-config');
-      if (certConfig) {
-        try {
-          const parsed = JSON.parse(certConfig);
-          if (parsed && (parsed.title_text || parsed.name_config || parsed.header_config)) {
-            setHasCertificateConfig(true);
-            return;
-          }
-        } catch (e) {
-          // Invalid config
-        }
+      if (isPipelineCertificateDone() || isCertificateConfigured(readSessionCertificateConfig())) {
+        setHasCertificateConfig(true);
+        markPipelineCertificateDone();
       }
-      setHasCertificateConfig(false);
     };
 
-    // Check immediately
     checkCertificateConfig();
 
-    // Listen for storage changes (when certificate is saved from another tab/window)
     const handleStorageChange = (e) => {
-      if (e.key === 'pending-certificate-config') {
+      if (e.key === 'pending-certificate-config' || e.key === 'pending-certificate-done') {
         checkCertificateConfig();
       }
     };
 
     window.addEventListener('storage', handleStorageChange);
-
-    // Also poll for changes (since storage event doesn't fire in same tab)
     const interval = setInterval(checkCertificateConfig, 1000);
 
     return () => {
@@ -400,20 +266,7 @@ export const CreateSurvey = () => {
   };
 
   const handleQuestionTypeChange = (sectionIndex, questionIndex, newType) => {
-    setValue(`sections.${sectionIndex}.questions.${questionIndex}.questionType`, newType);
-
-    // Reset type-specific fields when changing question type
-    if (newType === 'multiple-choice' || newType === 'checkbox' || newType === 'dropdown') {
-      setValue(`sections.${sectionIndex}.questions.${questionIndex}.options`, ['']);
-    } else if (newType === 'linear-scale' || newType === 'star-rating') {
-      setValue(`sections.${sectionIndex}.questions.${questionIndex}.scaleMin`, 1);
-      setValue(`sections.${sectionIndex}.questions.${questionIndex}.scaleMax`, 5);
-      setValue(`sections.${sectionIndex}.questions.${questionIndex}.lowestLabel`, '');
-      setValue(`sections.${sectionIndex}.questions.${questionIndex}.highestLabel`, '');
-    } else if (newType === 'multiple-choice-grid' || newType === 'checkbox-grid') {
-      setValue(`sections.${sectionIndex}.questions.${questionIndex}.rows`, ['']);
-      setValue(`sections.${sectionIndex}.questions.${questionIndex}.columns`, ['']);
-    }
+    resetFieldsForQuestionType(setValue, `sections.${sectionIndex}.questions.${questionIndex}`, newType);
   };
 
   const addOption = (sectionIndex, questionIndex) => {
@@ -483,169 +336,8 @@ export const CreateSurvey = () => {
     const questionToDuplicate = currentQuestions[questionIndex];
 
     if (questionToDuplicate) {
-      // Create a deep copy of the question
-      const duplicatedQuestion = {
-        questionText: questionToDuplicate.questionText || '',
-        questionType: questionToDuplicate.questionType || 'short-answer',
-        options: questionToDuplicate.options ? [...questionToDuplicate.options] : [''],
-        required: questionToDuplicate.required || false,
-        scaleMin: questionToDuplicate.scaleMin || 1,
-        scaleMax: questionToDuplicate.scaleMax || 5,
-        lowestLabel: questionToDuplicate.lowestLabel || '',
-        highestLabel: questionToDuplicate.highestLabel || '',
-        rows: questionToDuplicate.rows ? [...questionToDuplicate.rows] : [''],
-        columns: questionToDuplicate.columns ? [...questionToDuplicate.columns] : [''],
-      };
-
-      // Insert the duplicated question right after the current one
-      const newQuestions = [
-        ...currentQuestions.slice(0, questionIndex + 1),
-        duplicatedQuestion,
-        ...currentQuestions.slice(questionIndex + 1)
-      ];
-
-      setValue(`sections.${sectionIndex}.questions`, newQuestions);
+      setValue(`sections.${sectionIndex}.questions`, duplicateQuestionInList(currentQuestions, questionIndex));
       setSelectedCard({ type: 'question', section: sectionIndex, question: questionIndex + 1 });
-    }
-  };
-
-  const htmlHasText = (html) => {
-    if (!html) return false;
-    return String(html).replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().length > 0;
-  };
-
-  const renderQuestionPreview = (question, _qIndex) => {
-    const { questionType, options = [], scaleMin = 1, scaleMax = 5, lowestLabel, highestLabel, rows = [], columns = [] } = question;
-
-    switch (questionType) {
-      case 'short-answer':
-        return (
-          <p className="max-w-md border-b border-slate-300 py-2 text-sm text-slate-400">Short-answer text</p>
-        );
-
-      case 'paragraph':
-        return (
-          <p className="border-b border-slate-300 py-6 text-sm text-slate-400">Long-answer text</p>
-        );
-
-      case 'multiple-choice':
-        return (
-          <div className="space-y-3">
-            {options.map((option, index) => (
-              <div key={index} className="flex items-center gap-3">
-                <span className="h-4 w-4 shrink-0 rounded-full border border-slate-400" />
-                <span className="text-[15px] text-slate-700">{option || `Option ${index + 1}`}</span>
-              </div>
-            ))}
-            {options.length === 0 && (
-              <p className="text-sm text-slate-400">No options yet</p>
-            )}
-          </div>
-        );
-
-      case 'checkbox':
-        return (
-          <div className="space-y-3">
-            {options.map((option, index) => (
-              <div key={index} className="flex items-center gap-3">
-                <span className="h-4 w-4 shrink-0 rounded-sm border border-slate-400" />
-                <span className="text-[15px] text-slate-700">{option || `Option ${index + 1}`}</span>
-              </div>
-            ))}
-            {options.length === 0 && (
-              <p className="text-sm text-slate-400">No options yet</p>
-            )}
-          </div>
-        );
-
-      case 'dropdown':
-        return (
-          <select disabled className="h-10 w-full max-w-xs rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-500">
-            <option>Choose</option>
-            {options.map((option, index) => (
-              <option key={index}>{option || `Option ${index + 1}`}</option>
-            ))}
-          </select>
-        );
-
-      case 'linear-scale':
-        return (
-          <div className="overflow-x-auto pt-2">
-            <div className="flex items-end justify-between gap-2">
-              <span className="w-20 shrink-0 pb-6 text-xs text-slate-500">{lowestLabel || scaleMin}</span>
-              <div className="flex min-w-0 flex-1 items-end justify-between gap-1">
-                {Array.from({ length: Math.max(1, scaleMax - scaleMin + 1) }, (_, i) => scaleMin + i).map((value) => (
-                  <div key={value} className="flex flex-col items-center gap-2">
-                    <span className="text-xs text-slate-500">{value}</span>
-                    <span className="h-4 w-4 rounded-full border border-slate-400" />
-                  </div>
-                ))}
-              </div>
-              <span className="w-20 shrink-0 pb-6 text-right text-xs text-slate-500">{highestLabel || scaleMax}</span>
-            </div>
-          </div>
-        );
-
-      case 'star-rating':
-        return (
-          <div className="flex items-center gap-1 pt-1">
-            {Array.from({ length: scaleMax || 5 }, (_, i) => (
-              <Star key={i} className="h-7 w-7 text-slate-300" />
-            ))}
-          </div>
-        );
-
-      case 'multiple-choice-grid':
-      case 'checkbox-grid':
-        return rows.length > 0 && columns.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[28rem] border-collapse">
-              <thead>
-                <tr>
-                  <th className="p-2" />
-                  {columns.map((column, colIndex) => (
-                    <th key={colIndex} className="p-2 text-center text-xs font-medium text-slate-600">
-                      {column || `Column ${colIndex + 1}`}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, rowIndex) => (
-                  <tr key={rowIndex} className={rowIndex % 2 === 0 ? 'bg-slate-50' : ''}>
-                    <td className="p-2 text-sm text-slate-700">{row || `Row ${rowIndex + 1}`}</td>
-                    {columns.map((_, colIndex) => (
-                      <td key={colIndex} className="p-2 text-center">
-                        <span className={`inline-block h-4 w-4 border border-slate-400 ${questionType === 'checkbox-grid' ? 'rounded-sm' : 'rounded-full'}`} />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-sm text-slate-400">Add rows and columns to see the grid</p>
-        );
-
-      case 'date':
-        return (
-          <div className="inline-flex items-center gap-2 border-b border-slate-300 py-2 text-sm text-slate-400">
-            <Calendar className="h-4 w-4" />
-            Month, day, year
-          </div>
-        );
-
-      case 'time':
-        return (
-          <div className="inline-flex items-center gap-2 border-b border-slate-300 py-2 text-sm text-slate-400">
-            <Clock className="h-4 w-4" />
-            Time
-          </div>
-        );
-
-      default:
-        return <p className="text-sm text-slate-400">Select a question type</p>;
     }
   };
 
@@ -788,71 +480,7 @@ export const CreateSurvey = () => {
 
       // Step 2: Create the survey in the database
 
-      // Transform sections and questions to match the Survey interface
-      // Flatten sections into a single questions array, preserving section info
-      let questionIndex = 1;
-      const transformedQuestions = [];
-
-      // Check if data.sections exists, if not, handle gracefully
-      if (!data.sections || !Array.isArray(data.sections)) {
-        throw new Error('Survey sections data is missing or invalid');
-      }
-
-      data.sections.forEach((section, sectionIndex) => {
-        // Ensure section has questions array
-        if (!section.questions || !Array.isArray(section.questions)) {
-          return; // Skip sections without questions
-        }
-
-        // Add section header as a special question type (if needed) or just process questions
-        section.questions.forEach((q) => {
-          // Preserve the original questionType and ALL properties for proper rendering
-          const transformedQuestion = {
-            id: `q_${questionIndex}`,
-            questionType: q.questionType, // Preserve original questionType - this is the key field
-            // Also include type for backward compatibility
-            type: q.questionType === 'multiple-choice' || q.questionType === 'checkbox' ? 'multiple_choice' :
-              q.questionType === 'linear-scale' || q.questionType === 'star-rating' ? 'rating' :
-                q.questionType === 'multiple-choice-grid' ? 'multiple_choice_grid' :
-                  q.questionType === 'checkbox-grid' ? 'checkbox_grid' :
-                    q.questionType === 'yes-no' ? 'yes_no' :
-                      q.questionType === 'short-answer' ? 'text' :
-                        q.questionType === 'paragraph' ? 'text' :
-                          q.questionType === 'dropdown' ? 'dropdown' :
-                            q.questionType === 'date' ? 'date' :
-                              q.questionType === 'time' ? 'time' : 'text',
-            question: q.questionText,
-            questionText: q.questionText, // Also preserve questionText for compatibility
-            required: q.required || false,
-            // Options for multiple-choice, checkbox, dropdown
-            options: (q.questionType === 'multiple-choice' || q.questionType === 'checkbox' || q.questionType === 'dropdown') &&
-              q.options && q.options.length > 0 ? q.options.filter(opt => opt && opt.trim()) : undefined,
-            // Rating/Scale properties
-            min_rating: q.scaleMin,
-            max_rating: q.scaleMax,
-            scaleMin: q.scaleMin, // Preserve scaleMin
-            scaleMax: q.scaleMax, // Preserve scaleMax
-            lowestLabel: q.lowestLabel || undefined,
-            highestLabel: q.highestLabel || undefined,
-            // Grid question properties
-            rows: (q.questionType === 'multiple-choice-grid' || q.questionType === 'checkbox-grid') &&
-              q.rows && q.rows.length > 0 ? q.rows.filter(row => row && row.trim()) : undefined,
-            columns: (q.questionType === 'multiple-choice-grid' || q.questionType === 'checkbox-grid') &&
-              q.columns && q.columns.length > 0 ? q.columns.filter(col => col && col.trim()) : undefined,
-            // Section metadata
-            sectionTitle: section.sectionTitle || undefined,
-            sectionDescription: section.sectionDescription || undefined,
-            sectionIndex: sectionIndex
-          };
-          transformedQuestions.push(transformedQuestion);
-          questionIndex++;
-        });
-      });
-
-      // Validate that we have at least one question
-      if (transformedQuestions.length === 0) {
-        throw new Error('At least one question is required in the survey');
-      }
+      const transformedQuestions = transformSectionsToApiQuestions(data.sections);
 
       const surveyData = {
         event_id: eventId,
@@ -876,7 +504,7 @@ export const CreateSurvey = () => {
         throw new Error('Survey creation failed: No survey data returned');
       }
 
-      const surveyId = surveyResult.survey.id;
+      const _surveyId = surveyResult.survey.id;
 
       // Step 3: Save certificate configuration if it exists in draft AND user wants certificates
       // Only save if certificate config exists (meaning user opted in for certificates)
@@ -902,7 +530,8 @@ export const CreateSurvey = () => {
       sessionStorage.removeItem('pending-event-speakers');
       sessionStorage.removeItem('pending-event-sponsors');
       sessionStorage.removeItem('pending-certificate-config');
-      sessionStorage.removeItem('pending-event-id'); // Clear draft event ID
+      sessionStorage.removeItem('pending-event-id');
+      clearPipelineCertificateFlags();
 
       await statusDialog({
         title: 'Event created',
@@ -922,287 +551,14 @@ export const CreateSurvey = () => {
     if (hasCertificateConfig) {
       navigate('/design-certificate');
     } else {
-      navigate('/create-event');
+      const draftEventId = sessionStorage.getItem('pending-event-id');
+      navigate(draftEventId ? `/edit-event/${draftEventId}` : '/create-event');
     }
   };
 
   const addQuestionToSelected = () => {
     const idx = Math.min(Math.max(selectedCard.section ?? 0, 0), Math.max(sectionFields.length - 1, 0));
     addQuestion(idx);
-  };
-
-  const isChoiceType = (type) => type === 'multiple-choice' || type === 'checkbox' || type === 'dropdown';
-  const isScaleType = (type) => type === 'linear-scale' || type === 'star-rating';
-  const isGridType = (type) => type === 'multiple-choice-grid' || type === 'checkbox-grid';
-
-  const optionShape = (type) => (
-    type === 'checkbox'
-      ? 'h-4 w-4 shrink-0 rounded-sm border border-slate-400'
-      : 'h-4 w-4 shrink-0 rounded-full border border-slate-400'
-  );
-
-  const underlineField =
-    'w-full border-0 border-b border-transparent bg-transparent px-0 py-2 text-[15px] text-slate-800 placeholder:text-slate-400 focus:border-blue-900 focus:outline-none';
-
-  const renderQuestionCard = (sectionIndex, qIndex, question, sectionQuestionCount) => {
-    const questionType = question?.questionType || 'short-answer';
-    const options = question?.options || [''];
-    const rows = question?.rows || [''];
-    const columns = question?.columns || [''];
-    const selected =
-      selectedCard.type === 'question' &&
-      selectedCard.section === sectionIndex &&
-      selectedCard.question === qIndex;
-    const questionError = errors.sections?.[sectionIndex]?.questions?.[qIndex]?.questionText?.message;
-
-    return (
-      <div
-        key={`${sectionIndex}-${qIndex}`}
-        onClick={() => setSelectedCard({ type: 'question', section: sectionIndex, question: qIndex })}
-        className={`rounded-xl border bg-white ${
-          selected
-            ? 'border-slate-200 border-l-4 border-l-blue-900 shadow-md'
-            : 'border-slate-200 shadow-sm'
-        }`}
-      >
-        <div className="p-5 sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-            <div className="min-w-0 flex-1">
-              <input
-                type="text"
-                placeholder="Question"
-                {...register(`sections.${sectionIndex}.questions.${qIndex}.questionText`)}
-                className="w-full rounded-md border-0 border-b border-slate-200 bg-slate-50 px-3 py-3 text-base text-slate-800 placeholder:text-slate-400 focus:border-blue-900 focus:bg-white focus:outline-none"
-              />
-              <FieldError error={questionError} />
-            </div>
-            <Controller
-              name={`sections.${sectionIndex}.questions.${qIndex}.questionType`}
-              control={control}
-              render={({ field }) => (
-                <select
-                  value={field.value}
-                  onChange={(e) => handleQuestionTypeChange(sectionIndex, qIndex, e.target.value)}
-                  className="h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 sm:w-52"
-                  aria-label="Question type"
-                >
-                  {QUESTION_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                </select>
-              )}
-            />
-          </div>
-
-          <div className="mt-5">
-            {isChoiceType(questionType) && (
-              <div className="space-y-1">
-                {options.map((option, index) => (
-                  <div key={index} className="flex items-center gap-3">
-                    {questionType === 'dropdown' ? (
-                      <span className="w-4 shrink-0 text-sm text-slate-400">{index + 1}.</span>
-                    ) : (
-                      <span className={optionShape(questionType)} />
-                    )}
-                    <input
-                      type="text"
-                      value={option}
-                      onChange={(e) => {
-                        const next = [...options];
-                        next[index] = e.target.value;
-                        setValue(`sections.${sectionIndex}.questions.${qIndex}.options`, next);
-                      }}
-                      className={underlineField}
-                      placeholder={`Option ${index + 1}`}
-                    />
-                    {options.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeOption(sectionIndex, qIndex, index)}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                        aria-label="Remove option"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => addOption(sectionIndex, qIndex)}
-                  className="mt-1 flex items-center gap-3 text-sm text-slate-500 hover:text-blue-900"
-                >
-                  <span className={optionShape(questionType)} />
-                  <span className="border-b border-transparent hover:border-blue-900">Add option</span>
-                </button>
-              </div>
-            )}
-
-            {isScaleType(questionType) && (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
-                  <label className="flex items-center gap-2">
-                    {questionType === 'star-rating' ? 'Stars' : 'From'}
-                    <input
-                      type="number"
-                      min="1"
-                      max="10"
-                      {...register(`sections.${sectionIndex}.questions.${qIndex}.scaleMin`, { valueAsNumber: true })}
-                      className="h-9 w-16 rounded-md border border-slate-200 px-2 text-center"
-                    />
-                  </label>
-                  <span>to</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    {...register(`sections.${sectionIndex}.questions.${qIndex}.scaleMax`, { valueAsNumber: true })}
-                    className="h-9 w-16 rounded-md border border-slate-200 px-2 text-center"
-                  />
-                </div>
-                {questionType === 'linear-scale' && (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <input
-                      type="text"
-                      value={question.lowestLabel || ''}
-                      onChange={(e) => setValue(`sections.${sectionIndex}.questions.${qIndex}.lowestLabel`, e.target.value)}
-                      className={underlineField}
-                      placeholder="Label (optional)"
-                    />
-                    <input
-                      type="text"
-                      value={question.highestLabel || ''}
-                      onChange={(e) => setValue(`sections.${sectionIndex}.questions.${qIndex}.highestLabel`, e.target.value)}
-                      className={underlineField}
-                      placeholder="Label (optional)"
-                    />
-                  </div>
-                )}
-                {renderQuestionPreview(question, qIndex)}
-              </div>
-            )}
-
-            {isGridType(questionType) && (
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                <div>
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Rows</p>
-                  <div className="space-y-1">
-                    {rows.map((row, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={row}
-                          onChange={(e) => {
-                            const next = [...rows];
-                            next[index] = e.target.value;
-                            setValue(`sections.${sectionIndex}.questions.${qIndex}.rows`, next);
-                          }}
-                          className={underlineField}
-                          placeholder={`Row ${index + 1}`}
-                        />
-                        {rows.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeRow(sectionIndex, qIndex, index)}
-                            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                            aria-label="Remove row"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => addRow(sectionIndex, qIndex)}
-                      className="text-sm text-blue-900 hover:underline"
-                    >
-                      Add row
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Columns</p>
-                  <div className="space-y-1">
-                    {columns.map((column, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={column}
-                          onChange={(e) => {
-                            const next = [...columns];
-                            next[index] = e.target.value;
-                            setValue(`sections.${sectionIndex}.questions.${qIndex}.columns`, next);
-                          }}
-                          className={underlineField}
-                          placeholder={`Column ${index + 1}`}
-                        />
-                        {columns.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeColumn(sectionIndex, qIndex, index)}
-                            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                            aria-label="Remove column"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => addColumn(sectionIndex, qIndex)}
-                      className="text-sm text-blue-900 hover:underline"
-                    >
-                      Add column
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {(questionType === 'short-answer' || questionType === 'paragraph' || questionType === 'date' || questionType === 'time') && (
-              <div className="pt-1">{renderQuestionPreview(question, qIndex)}</div>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-1 border-t border-slate-100 px-4 py-2">
-          <button
-            type="button"
-            onClick={() => duplicateQuestion(sectionIndex, qIndex)}
-            className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-            aria-label="Duplicate question"
-            title="Duplicate"
-          >
-            <Copy className="h-4 w-4" />
-          </button>
-          {sectionQuestionCount > 1 && (
-            <button
-              type="button"
-              onClick={() => removeQuestion(sectionIndex, qIndex)}
-              className="rounded-md p-2 text-slate-500 hover:bg-red-50 hover:text-red-600"
-              aria-label="Delete question"
-              title="Delete"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          )}
-          <span className="mx-2 h-6 w-px bg-slate-200" />
-          <span className="text-sm text-slate-600">Required</span>
-          <label className="relative ml-2 inline-flex cursor-pointer items-center">
-            <input
-              type="checkbox"
-              {...register(`sections.${sectionIndex}.questions.${qIndex}.required`)}
-              className="sr-only"
-            />
-            <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${question?.required ? 'bg-blue-900' : 'bg-slate-300'}`}>
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${question?.required ? 'translate-x-6' : 'translate-x-1'}`} />
-            </span>
-          </label>
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -1224,20 +580,7 @@ export const CreateSurvey = () => {
             <p className="mt-1 text-[15px] text-slate-600">
               Build the survey respondents will fill out after the event.
             </p>
-            <div className="mt-6 flex items-center justify-center gap-2 text-sm">
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-900 text-xs font-semibold text-white">
-                <Check className="h-3.5 w-3.5" />
-              </span>
-              <span className="hidden font-medium text-slate-900 sm:inline">Event</span>
-              <span className="h-px w-8 bg-slate-200 sm:w-12" />
-              <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${hasCertificateConfig ? 'bg-blue-900 text-white' : 'bg-slate-200 text-slate-500'}`}>
-                {hasCertificateConfig ? <Check className="h-3.5 w-3.5" /> : '2'}
-              </span>
-              <span className={`hidden sm:inline ${hasCertificateConfig ? 'text-slate-900' : 'text-slate-500'}`}>Certificate</span>
-              <span className="h-px w-8 bg-slate-200 sm:w-12" />
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-900 text-xs font-semibold text-white">3</span>
-              <span className="font-medium text-slate-900">Evaluation</span>
-            </div>
+            <EventPipelineTracker current={3} certificateDone={hasCertificateConfig} />
             <div className="mt-5 flex flex-wrap items-center justify-center gap-4">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-slate-600">Auto-save</span>
@@ -1264,32 +607,32 @@ export const CreateSurvey = () => {
           </div>
         </div>
 
-        <div className="rounded-2xl bg-slate-100 px-3 py-4 sm:px-6 sm:py-6">
-        <div className="mb-6 flex justify-center border-b border-slate-200">
-          <button
-            type="button"
-            onClick={() => setShowPreview(false)}
-            className={`inline-flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium ${
-              !showPreview ? 'border-blue-900 text-blue-900' : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Pencil className="h-4 w-4" />
-            Questions
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowPreview(true)}
-            className={`inline-flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium ${
-              showPreview ? 'border-blue-900 text-blue-900' : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Eye className="h-4 w-4" />
-            Preview
-          </button>
-        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-100">
+          <div className="flex justify-center border-b border-slate-200 bg-white">
+            <button
+              type="button"
+              onClick={() => setShowPreview(false)}
+              className={`inline-flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium ${
+                !showPreview ? 'border-blue-900 text-blue-900' : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Pencil className="h-4 w-4" />
+              Questions
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPreview(true)}
+              className={`inline-flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium ${
+                showPreview ? 'border-blue-900 text-blue-900' : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Eye className="h-4 w-4" />
+              Preview
+            </button>
+          </div>
 
         {showPreview ? (
-          <div className="mx-auto max-w-3xl space-y-3 pb-16">
+          <div className="mx-auto max-w-3xl space-y-3 px-3 py-6 sm:px-6 pb-16">
             {(watchedSections || []).map((section, sectionIndex) => (
               <div key={sectionIndex} className="space-y-3">
                 <div className="overflow-hidden rounded-xl border border-slate-200 border-t-8 border-t-blue-900 bg-white shadow-sm">
@@ -1326,7 +669,7 @@ export const CreateSurvey = () => {
                       {question.questionText || 'Untitled question'}
                       {question.required && <span className="ml-1 text-red-500">*</span>}
                     </p>
-                    {renderQuestionPreview(question, qIndex)}
+                    <QuestionPreview question={question} />
                   </div>
                 ))}
               </div>
@@ -1342,8 +685,10 @@ export const CreateSurvey = () => {
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit(onSubmit)} className="relative mx-auto max-w-3xl pb-24">
-            <div className="space-y-3">
+          <form onSubmit={handleSubmit(onSubmit)} className="px-3 py-6 sm:px-6 pb-24">
+            <div className="mx-auto flex max-w-3xl items-start gap-3 lg:max-w-none lg:justify-center">
+              <div className="min-w-0 w-full max-w-3xl">
+                <div className="space-y-3">
               {sectionFields.map((sectionField, sectionIndex) => {
                 const sectionQuestions = watchedSections[sectionIndex]?.questions || [];
                 const sectionSelected =
@@ -1397,9 +742,8 @@ export const CreateSurvey = () => {
                                 field.onChange(html);
                                 setValue(`sections.${sectionIndex}.sectionTitle`, html, { shouldValidate: true });
                               }}
-                              placeholder={sectionIndex === 0 ? 'Form title' : 'Section title'}
-                              compact
-                              className="border-slate-200"
+                              placeholder={sectionIndex === 0 ? 'Untitled form' : 'Untitled section'}
+                              variant="title"
                             />
                           )}
                         />
@@ -1415,9 +759,8 @@ export const CreateSurvey = () => {
                                   field.onChange(html);
                                   setValue(`sections.${sectionIndex}.sectionDescription`, html);
                                 }}
-                                placeholder="Form description"
-                                compact
-                                className="border-slate-200"
+                                placeholder={sectionIndex === 0 ? 'Form description' : 'Section description'}
+                                variant="description"
                               />
                             )}
                           />
@@ -1425,9 +768,30 @@ export const CreateSurvey = () => {
                       </div>
                     </div>
 
-                    {sectionQuestions.map((question, qIndex) =>
-                      renderQuestionCard(sectionIndex, qIndex, question, sectionQuestions.length)
-                    )}
+                    {sectionQuestions.map((question, qIndex) => (
+                      <SurveyQuestionCard
+                        key={`${sectionIndex}-${qIndex}`}
+                        sectionIndex={sectionIndex}
+                        qIndex={qIndex}
+                        question={question}
+                        sectionQuestionCount={sectionQuestions.length}
+                        selected={selectedCard.type === 'question' && selectedCard.section === sectionIndex && selectedCard.question === qIndex}
+                        errors={errors}
+                        register={register}
+                        control={control}
+                        setValue={setValue}
+                        setSelectedCard={setSelectedCard}
+                        handleQuestionTypeChange={handleQuestionTypeChange}
+                        addOption={addOption}
+                        removeOption={removeOption}
+                        addRow={addRow}
+                        removeRow={removeRow}
+                        addColumn={addColumn}
+                        removeColumn={removeColumn}
+                        duplicateQuestion={duplicateQuestion}
+                        removeQuestion={removeQuestion}
+                      />
+                    ))}
 
                     <button
                       type="button"
@@ -1440,36 +804,38 @@ export const CreateSurvey = () => {
                   </div>
                 );
               })}
-            </div>
+                </div>
 
-            <div className="pointer-events-none absolute -right-16 top-8 hidden lg:block xl:-right-20">
-              <div className="pointer-events-auto sticky top-28 flex flex-col gap-1 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm">
-                <RailIconButton label="Add question" onClick={addQuestionToSelected}>
-                  <Plus className="h-5 w-5" />
-                </RailIconButton>
-                <RailIconButton label="Add section" onClick={addSection}>
-                  <LayoutGrid className="h-5 w-5" />
-                </RailIconButton>
+                <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <button
+                    type="button"
+                    onClick={addSection}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 lg:hidden"
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                    Add section
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-blue-900 px-6 text-sm font-medium text-white transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60 sm:ml-auto"
+                  >
+                    {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                    {loading ? 'Creating' : 'Create Event & Survey'}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <button
-                type="button"
-                onClick={addSection}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 lg:hidden"
-              >
-                <LayoutGrid className="h-4 w-4" />
-                Add section
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-blue-900 px-6 text-sm font-medium text-white transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60 sm:ml-auto"
-              >
-                {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                {loading ? 'Creating…' : 'Create Event & Survey'}
-              </button>
+              <aside className="sticky top-24 z-10 hidden shrink-0 self-start lg:block">
+                <div className="flex flex-col gap-1 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm">
+                  <RailIconButton label="Add question" onClick={addQuestionToSelected}>
+                    <Plus className="h-5 w-5" />
+                  </RailIconButton>
+                  <RailIconButton label="Add section" onClick={addSection}>
+                    <LayoutGrid className="h-5 w-5" />
+                  </RailIconButton>
+                </div>
+              </aside>
             </div>
           </form>
         )}

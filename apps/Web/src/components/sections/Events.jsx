@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { EventService } from '../../services/eventService';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePageVisibility } from '../../hooks/usePageVisibility';
-import { useToast, statusDialog, statusError } from '../Toast';
+import { useToast, statusDialog, statusError, confirmDialog } from '../Toast';
 import { exportToCSV, exportToExcel } from '../../utils/exportUtils';
 import { BulkQRCodeGenerator } from './BulkQRCodeGenerator';
 import { CertificateGenerationsView } from './CertificateGenerationsView';
@@ -577,6 +577,31 @@ export const Events = () => {
 
   const handleEditEvent = (eventId) => {
     navigate(`/edit-event/${eventId}`);
+  };
+
+  const handleContinueDraft = (eventId) => {
+    navigate(`/edit-event/${eventId}`);
+  };
+
+  const handleDeleteDraft = async (event) => {
+    const confirmed = await confirmDialog({
+      title: 'Delete this draft?',
+      message: `"${event.title || 'Untitled event'}" will be permanently deleted. This cannot be undone.`,
+      confirmText: 'Delete draft',
+      cancelText: 'Keep it',
+      type: 'danger',
+    });
+    if (!confirmed) return;
+
+    const result = await EventService.deleteEvent(event.id);
+    if (result.error) {
+      await statusError(result.error, 'generic', { confirmText: 'Try again' });
+      return;
+    }
+
+    loadingRef.current = false;
+    await loadEvents();
+    toast.success('Draft deleted');
   };
 
   const handleManageEvent = (eventId) => {
@@ -1786,10 +1811,14 @@ export const Events = () => {
                 <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <h3 className="text-xl font-semibold text-slate-800 mb-2">No Events Found</h3>
+                <h3 className="text-xl font-semibold text-slate-800 mb-2">
+                  {activeTab === 'draft' ? 'No drafts' : 'No Events Found'}
+                </h3>
                 <p className="text-slate-600 mb-4">
                   {user?.role === 'organizer' || user?.role === 'admin'
-                    ? 'You haven\'t created any events yet. Start by creating your first event!'
+                    ? (activeTab === 'draft'
+                      ? 'Saved drafts will show up here. You can resume or delete them anytime.'
+                      : 'You haven\'t created any events yet. Start by creating your first event!')
                     : 'There are no published events available at the moment.'
                   }
                 </p>
@@ -1935,14 +1964,6 @@ export const Events = () => {
                               </button>
                             )}
 
-                            {/* Debug: Always show feature button for testing */}
-                            <button
-                              onClick={() => toast.info('Feature button clicked! Event: ' + event.title)}
-                              className="w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-bold border-2 border-red-800"
-                            >
-                              🔥 TEST FEATURE BUTTON - CLICK ME!
-                            </button>
-
                             {/* Existing registration buttons */}
                             {!user ? (
                               <div className="w-full text-center">
@@ -2008,9 +2029,17 @@ export const Events = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 <h3 className="text-xl font-semibold text-slate-800 mb-2">
-                  {activeTab === 'archived' ? 'No Archived Events Match Your Filters' : 'No Events Match Your Filters'}
+                  {activeTab === 'archived'
+                    ? 'No Archived Events Match Your Filters'
+                    : activeTab === 'draft'
+                      ? 'No drafts'
+                      : 'No Events Match Your Filters'}
                 </h3>
-                <p className="text-slate-600 mb-4">Try adjusting your search or filters.</p>
+                <p className="text-slate-600 mb-4">
+                  {activeTab === 'draft'
+                    ? 'Saved drafts will show up here. You can resume or delete them anytime.'
+                    : 'Try adjusting your search or filters.'}
+                </p>
                 <button
                   onClick={() => {
                     setSearchQuery('');
@@ -2170,6 +2199,22 @@ export const Events = () => {
                                 </p>
                               )}
                             </div>
+                          ) : event.status === 'draft' && (user?.role === 'organizer' || user?.role === 'admin') ? (
+                            <>
+                              <button
+                                onClick={() => handleContinueDraft(event.id)}
+                                className="w-full px-4 py-3 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-medium"
+                              >
+                                Resume
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDraft(event)}
+                                disabled={loading}
+                                className="w-full px-4 py-3 border border-red-200 bg-white text-red-700 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Delete draft
+                              </button>
+                            </>
                           ) : (event.status === 'cancelled' || isEventPast(event)) ? (
                             <div className="w-full bg-slate-50 rounded-lg p-3 border border-slate-200 text-center">
                               <p className="text-sm text-slate-600">

@@ -4,10 +4,12 @@ import { useAuth } from '../../contexts/AuthContext';
 import CertificateDesigner from '../CertificateDesigner';
 import { useToast } from '../Toast';
 import { PageSkeleton } from '../loading/Skeleton';
+import { EventPipelineTracker, isCertificateConfigured, isPipelineCertificateDone, markPipelineCertificateDone, readSessionCertificateConfig } from '../eventForm/EventPipelineTracker';
+import { CertificateService } from '../../services/certificateService';
 
 export const DesignCertificate = () => {
   const navigate = useNavigate();
-  const { user: _user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const toast = useToast();
   const [pendingEventData, setPendingEventData] = useState(null);
   const [hasDraft, setHasDraft] = useState(false);
@@ -30,41 +32,57 @@ export const DesignCertificate = () => {
 
     setPendingEventData(JSON.parse(eventData));
 
-    // Check if there's a saved draft
-    const checkDraft = () => {
-      const draftConfig = sessionStorage.getItem('pending-certificate-config');
-      if (draftConfig) {
-        try {
-          const config = JSON.parse(draftConfig);
-          // Check if config has meaningful content
-          if (config && (config.title_text || config.name_config || config.header_config)) {
-            setHasDraft(true);
-            return;
+    const checkDraft = async () => {
+      const sessionConfig = readSessionCertificateConfig();
+      if (isCertificateConfigured(sessionConfig)) {
+        setHasDraft(true);
+        markPipelineCertificateDone();
+        return;
+      }
+
+      const draftEventId = sessionStorage.getItem('pending-event-id');
+      if (draftEventId) {
+        const { config } = await CertificateService.getCertificateConfig(draftEventId);
+        if (isCertificateConfigured(config)) {
+          setHasDraft(true);
+          markPipelineCertificateDone();
+          try {
+            sessionStorage.setItem('pending-certificate-config', JSON.stringify(config));
+          } catch {
+            // Ignore session write failures
           }
-        } catch (e) {
-          // Invalid draft, ignore
         }
       }
-      setHasDraft(false);
     };
 
-    // Check initially
     checkDraft();
 
-    // Set up interval to check for draft updates (for auto-save)
-    const interval = setInterval(checkDraft, 1000);
+    const interval = setInterval(() => {
+      if (isCertificateConfigured(readSessionCertificateConfig())) {
+        setHasDraft(true);
+      }
+    }, 1000);
 
     return () => clearInterval(interval);
   }, [isAuthenticated, navigate, toast]);
 
-  const handleContinue = () => {
-    // Navigate to evaluation form creation
+  const handleContinue = async () => {
+    markPipelineCertificateDone();
+    const draftEventId = sessionStorage.getItem('pending-event-id');
+    const config = readSessionCertificateConfig();
+    if (draftEventId && user?.id && config) {
+      try {
+        await CertificateService.saveCertificateConfig(draftEventId, config, user.id);
+      } catch (error) {
+        console.warn('Failed to persist certificate draft:', error);
+      }
+    }
     navigate('/create-survey');
   };
 
   const handleBack = () => {
-    // Go back to event creation
-    navigate('/create-event');
+    const draftEventId = sessionStorage.getItem('pending-event-id');
+    navigate(draftEventId ? `/edit-event/${draftEventId}` : '/create-event');
   };
 
   if (!pendingEventData) {
@@ -85,15 +103,7 @@ export const DesignCertificate = () => {
           </svg>
         </button>
         <h1 className="text-sm font-semibold text-slate-900">Design Certificate</h1>
-        <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-500">
-          <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-medium text-emerald-700">1 Event</span>
-          <span className="text-slate-300">/</span>
-          <span className={`rounded px-1.5 py-0.5 font-medium ${hasDraft ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-800'}`}>
-            2 Certificate
-          </span>
-          <span className="text-slate-300">/</span>
-          <span className="rounded bg-slate-100 px-1.5 py-0.5">3 Evaluation</span>
-        </div>
+        <EventPipelineTracker compact current={2} certificateDone={hasDraft} />
         <button
           type="button"
           onClick={handleContinue}
@@ -111,6 +121,7 @@ export const DesignCertificate = () => {
           draftStorageKey="pending-certificate-config"
           onSave={(_config) => {
             setHasDraft(true);
+            markPipelineCertificateDone();
             toast.success('Certificate configuration saved!');
           }}
         />

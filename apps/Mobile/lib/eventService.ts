@@ -355,7 +355,15 @@ export class EventService {
         return { error: error.message };
       }
 
-      return { event: data };
+      if (data?.end_date) {
+        const endDateTime = new Date(`${data.end_date}T${data.end_time || '23:59:59'}`);
+        if (!Number.isNaN(endDateTime.getTime()) && endDateTime < new Date()) {
+          await supabase.from('events').update({ is_featured: false }).eq('id', data.id);
+          return { event: undefined };
+        }
+      }
+
+      return { event: data || undefined };
     } catch (error) {
       return { error: 'An unexpected error occurred' };
     }

@@ -1,7 +1,9 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
+import Link from '@tiptap/extension-link';
+import { Bold, Italic, Underline as UnderlineIcon, Link2, List, ListOrdered } from 'lucide-react';
 import './richTextEditor.css';
 
 const isEmptyHtml = (html) => {
@@ -9,10 +11,35 @@ const isEmptyHtml = (html) => {
   return html.replace(/<p>(<br\s*\/?>)?<\/p>/gi, '').replace(/\s/g, '') === '';
 };
 
-const SimpleRichTextEditor = ({ value, onChange, placeholder = "Enter text...", className = "", compact = false }) => {
+function FormatButton({ active, label, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={onClick}
+      className={`toolbar-button ${active ? 'is-active' : ''}`}
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+    >
+      {children}
+    </button>
+  );
+}
+
+const SimpleRichTextEditor = ({
+  value,
+  onChange,
+  placeholder = 'Enter text...',
+  className = '',
+  compact = false,
+  variant = 'boxed',
+}) => {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const debounceRef = useRef(null);
+  const [focused, setFocused] = useState(false);
+  const unboxed = variant === 'title' || variant === 'description';
 
   const emitChange = useCallback((html, immediate = false) => {
     if (debounceRef.current) {
@@ -47,24 +74,34 @@ const SimpleRichTextEditor = ({ value, onChange, placeholder = "Enter text...", 
         codeBlock: false,
         horizontalRule: false,
         hardBreak: false,
-        // Disable link and underline from StarterKit since we're adding underline separately
         link: false,
         underline: false,
         strike: false,
       }),
       Underline,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        HTMLAttributes: {
+          rel: 'noopener noreferrer',
+          target: '_blank',
+        },
+      }),
     ],
     content: value || '',
     onUpdate: ({ editor: instance }) => {
       emitChange(instance.getHTML());
     },
+    onFocus: () => setFocused(true),
     onBlur: ({ editor: instance }) => {
       emitChange(instance.getHTML(), true);
+      window.setTimeout(() => {
+        if (!instance.isDestroyed && !instance.isFocused) setFocused(false);
+      }, 120);
     },
     editorProps: {
       attributes: {
-        class: `focus:outline-none px-4 py-3 ${compact ? 'min-h-[48px]' : 'min-h-[100px]'}`,
-        'data-placeholder': placeholder,
+        class: `focus:outline-none ${compact || unboxed ? 'min-h-[2.5rem]' : 'min-h-[100px]'}`,
       },
     },
     autofocus: false,
@@ -84,69 +121,98 @@ const SimpleRichTextEditor = ({ value, onChange, placeholder = "Enter text...", 
     }
   }, [value, editor]);
 
+  const wrapperClass = unboxed
+    ? `simple-rich-text-editor-wrapper simple-rte-${variant} ${focused ? 'is-focused' : ''} ${className}`
+    : `simple-rich-text-editor-wrapper border border-slate-200 rounded-xl overflow-hidden ${compact ? 'is-compact' : ''} ${className}`;
+
   if (!editor) {
     return (
-      <div className={`simple-rich-text-editor-wrapper border border-slate-300 rounded-xl overflow-hidden ${className}`}>
-        <div className="p-4 text-center text-slate-500">
-          Loading editor...
-        </div>
+      <div className={wrapperClass}>
+        <div className="p-4 text-center text-slate-500">Loading editor...</div>
       </div>
     );
   }
 
-  return (
-    <div className={`simple-rich-text-editor-wrapper border border-slate-200 rounded-xl overflow-hidden ${className}`}>
-      {/* Toolbar - Only Bold, Italic, Underline */}
-      <div className="editor-toolbar">
-        <button
-          type="button"
-          onClick={() => {
-            try {
-              editor.chain().focus().toggleBold().run();
-            } catch (err) {
-              console.error('Error toggling bold:', err);
-            }
-          }}
-          className={`toolbar-button ${editor.isActive('bold') ? 'is-active' : ''}`}
-          title="Bold"
-        >
-          <strong>B</strong>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            try {
-              editor.chain().focus().toggleItalic().run();
-            } catch (err) {
-              console.error('Error toggling italic:', err);
-            }
-          }}
-          className={`toolbar-button ${editor.isActive('italic') ? 'is-active' : ''}`}
-          title="Italic"
-        >
-          <em>I</em>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            try {
-              editor.chain().focus().toggleUnderline().run();
-            } catch (err) {
-              console.error('Error toggling underline:', err);
-            }
-          }}
-          className={`toolbar-button ${editor.isActive('underline') ? 'is-active' : ''}`}
-          title="Underline"
-        >
-          <u>U</u>
-        </button>
-      </div>
+  const run = (command) => {
+    try {
+      command();
+    } catch (err) {
+      console.error('Error running editor command:', err);
+    }
+  };
 
-      {/* Editor Content */}
-      <EditorContent editor={editor} data-placeholder={placeholder} />
+  const setLink = () => {
+    const previous = editor.getAttributes('link').href || '';
+    const url = window.prompt('Enter URL', previous);
+    if (url === null) return;
+    if (url.trim() === '') {
+      run(() => editor.chain().focus().unsetLink().run());
+      return;
+    }
+    run(() => editor.chain().focus().extendMarkRange('link').setLink({ href: url.trim() }).run());
+  };
+
+  const toolbar = (
+    <div className="editor-toolbar">
+      <FormatButton
+        label="Bold"
+        active={editor.isActive('bold')}
+        onClick={() => run(() => editor.chain().focus().toggleBold().run())}
+      >
+        {unboxed ? <Bold className="h-4 w-4" /> : <strong>B</strong>}
+      </FormatButton>
+      <FormatButton
+        label="Italic"
+        active={editor.isActive('italic')}
+        onClick={() => run(() => editor.chain().focus().toggleItalic().run())}
+      >
+        {unboxed ? <Italic className="h-4 w-4" /> : <em>I</em>}
+      </FormatButton>
+      <FormatButton
+        label="Underline"
+        active={editor.isActive('underline')}
+        onClick={() => run(() => editor.chain().focus().toggleUnderline().run())}
+      >
+        {unboxed ? <UnderlineIcon className="h-4 w-4" /> : <u>U</u>}
+      </FormatButton>
+      {unboxed ? (
+        <>
+          <span className="toolbar-divider" aria-hidden />
+          <FormatButton label="Insert link" active={editor.isActive('link')} onClick={setLink}>
+            <Link2 className="h-4 w-4" />
+          </FormatButton>
+          <FormatButton
+            label="Bulleted list"
+            active={editor.isActive('bulletList')}
+            onClick={() => run(() => editor.chain().focus().toggleBulletList().run())}
+          >
+            <List className="h-4 w-4" />
+          </FormatButton>
+          <FormatButton
+            label="Numbered list"
+            active={editor.isActive('orderedList')}
+            onClick={() => run(() => editor.chain().focus().toggleOrderedList().run())}
+          >
+            <ListOrdered className="h-4 w-4" />
+          </FormatButton>
+        </>
+      ) : null}
+    </div>
+  );
+
+  return (
+    <div
+      className={wrapperClass}
+      style={{ '--editor-placeholder': JSON.stringify(placeholder) }}
+    >
+      {unboxed ? (
+        <div className={`simple-rte-toolbar ${focused ? 'is-visible' : ''}`}>{toolbar}</div>
+      ) : (
+        toolbar
+      )}
+      <EditorContent editor={editor} />
     </div>
   );
 };
 
 export default SimpleRichTextEditor;
-

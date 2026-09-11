@@ -68,7 +68,7 @@ export const Participants = () => {
   const loadFeaturedEvent = async () => {
     try {
       const result = await EventService.getFeaturedEvent();
-      if (result.event) setFeaturedEvent(result.event);
+      setFeaturedEvent(result.event || null);
     } catch {
       // optional
     }

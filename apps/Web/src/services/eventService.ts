@@ -37,6 +37,13 @@ export interface EventWithDetails extends Event {
   };
 }
 
+export function eventHasEnded(event?: Pick<Event, 'end_date' | 'end_time'> | null): boolean {
+  if (!event?.end_date) return false;
+  const endDateTime = new Date(`${event.end_date}T${event.end_time || '23:59:59'}`);
+  if (Number.isNaN(endDateTime.getTime())) return false;
+  return endDateTime < new Date();
+}
+
 export interface EventRegistration {
   id: string;
   event_id: string;
@@ -426,6 +433,11 @@ export class EventService {
         return { error: error.message };
       }
 
+      if (data && eventHasEnded(data)) {
+        await this.unfeatureEvent(data.id);
+        return { event: undefined };
+      }
+
       return { event: data || undefined };
     } catch (error) {
       return { error: 'An unexpected error occurred' };
@@ -434,6 +446,25 @@ export class EventService {
 
   static async setFeaturedEvent(id: string): Promise<{ event?: Event; error?: string }> {
     try {
+      const { data: target, error: targetError } = await supabase
+        .from('events')
+        .select('id, status, end_date, end_time')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (targetError) {
+        return { error: targetError.message };
+      }
+      if (!target) {
+        return { error: 'Event not found' };
+      }
+      if (target.status !== 'published') {
+        return { error: 'Only published events can be featured' };
+      }
+      if (eventHasEnded(target)) {
+        return { error: 'Ended events cannot be featured' };
+      }
+
       // First, unfeature all other events
       const { error: unfeatureError } = await supabase
         .from('events')
