@@ -2493,10 +2493,11 @@ export const Events = () => {
                   <h4 className="font-semibold text-green-900 mb-2">Quick Actions</h4>
                   <div className="space-y-2">
                     <button
-                      onClick={() => navigate(`/events/${selectedEvent.id}/participants`)}
-                      className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors"
+                      onClick={() => handleViewRegistrations(selectedEvent.id)}
+                      disabled={loadingRegistrations}
+                      className="w-full px-3 py-2 bg-blue-900 text-white rounded text-sm hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      View Registrations
+                      {loadingRegistrations ? 'Loading...' : 'View Registrations'}
                     </button>
                     <button
                       onClick={() => handleViewCheckIns(selectedEvent.id)}

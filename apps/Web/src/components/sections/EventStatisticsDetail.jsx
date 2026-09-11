@@ -352,13 +352,6 @@ export const EventStatisticsDetail = () => {
               <div>
                 <p className="text-sm font-medium text-slate-600">Participants</p>
                 <p className="text-2xl font-bold text-slate-800">{stats.participantCount}</p>
-                <button
-                  type="button"
-                  onClick={() => navigate(`/events/${eventId}/participants`)}
-                  className="mt-1 text-sm font-medium text-blue-900 hover:underline"
-                >
-                  View roster
-                </button>
               </div>
             </div>
           </div>

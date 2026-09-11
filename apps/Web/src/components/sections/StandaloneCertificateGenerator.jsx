@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { EventService } from '../../services/eventService';
 import { CertificateService } from '../../services/certificateService';
@@ -58,7 +58,6 @@ function cellValueToString(value) {
 
 export const StandaloneCertificateGenerator = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { user, isAuthenticated } = useAuth();
   const toast = useToast();
   const fileInputRef = useRef(null);
@@ -192,12 +191,6 @@ export const StandaloneCertificateGenerator = () => {
       }
     }
 
-    const queryEventId = searchParams.get('eventId');
-    if (queryEventId) {
-      setSelectedEventId(queryEventId);
-      setInputMode('event');
-    }
-
     loadEvents();
     loadCompletedCertificates();
 
@@ -211,7 +204,7 @@ export const StandaloneCertificateGenerator = () => {
         console.error('Failed to load dismissed certificates:', err);
       }
     }
-  }, [user, isAuthenticated, navigate, searchParams]);
+  }, [user, isAuthenticated, navigate]);
 
   // Auto-refresh completed certificates every 5 seconds
   useEffect(() => {

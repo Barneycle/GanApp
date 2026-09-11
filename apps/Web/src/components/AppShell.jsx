@@ -44,7 +44,6 @@ const NAV = {
   organizer: {
     primary: [
       { to: '/organizer', label: 'Home', end: true },
-      { to: '/manage-events', label: 'My events' },
       { to: '/events', label: 'Events' },
     ],
     more: [
