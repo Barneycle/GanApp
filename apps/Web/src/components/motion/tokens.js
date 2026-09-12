@@ -38,3 +38,10 @@ export const cardEnter = (index = 0) => ({
   animate: { opacity: 1, y: 0 },
   transition: { duration: 0.35, ease: EASE, delay: Math.min(index, 8) * 0.04 },
 });
+
+export const reveal = (index = 0) => ({
+  initial: { opacity: 0, y: 28 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, amount: 0.35, margin: '0px 0px -12% 0px' },
+  transition: { duration: 0.55, ease: EASE, delay: Math.min(index, 5) * 0.08 },
+});

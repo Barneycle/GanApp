@@ -5,12 +5,14 @@ export const Skeleton = ({ className = '' }) => (
 export const PageSkeleton = ({ variant = 'list' }) => {
   if (variant === 'showcase') {
     return (
-      <div className="mx-auto max-w-[1400px] px-5 py-8 lg:px-8">
-        <Skeleton className="h-[56vh] max-h-[560px] rounded-3xl" />
-        <div className="mt-10 flex gap-4 overflow-hidden">
-          <Skeleton className="h-80 w-72 shrink-0 rounded-2xl" />
-          <Skeleton className="h-80 w-72 shrink-0 rounded-2xl" />
-          <Skeleton className="h-80 w-72 shrink-0 rounded-2xl" />
+      <div className="mx-auto max-w-[1100px] px-5 py-10 lg:px-8">
+        <Skeleton className="mb-8 h-8 w-48" />
+        <Skeleton className="aspect-[16/9] max-h-[420px] w-full rounded-2xl" />
+        <Skeleton className="mt-4 h-24 w-full rounded-2xl" />
+        <div className="mt-12 flex gap-4 overflow-hidden">
+          <Skeleton className="h-72 w-[280px] shrink-0 rounded-2xl" />
+          <Skeleton className="h-72 w-[280px] shrink-0 rounded-2xl" />
+          <Skeleton className="h-72 w-[280px] shrink-0 rounded-2xl" />
         </div>
       </div>
     );
